@@ -1,0 +1,26 @@
+{
+  "name": "@ogun/etl",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "etl:bls": "tsx src/importers/bls.ts",
+    "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ogun/db": "workspace:*",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "drizzle-orm": "^0.38.3",
+    "papaparse": "^5.4.1",
+    "postgres": "^3.4.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@ogun/tsconfig": "workspace:*",
+    "@types/node": "^20",
+    "@types/papaparse": "^5.3.14",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

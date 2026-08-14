@@ -1,0 +1,1 @@
+ALTER TABLE "foods" ADD COLUMN "needs_translation" boolean DEFAULT false NOT NULL;

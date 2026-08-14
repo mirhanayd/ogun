@@ -84,6 +84,9 @@ export const foods = pgTable(
     groupNameTr: text('group_name_tr'),
     preparation: foodPreparationEnum('preparation'),
     isVerified: boolean('is_verified').notNull().default(false),
+    // BLS gibi kaynaklarda nameTr geçici olarak nameEn ile dolduruluyor;
+    // bu bayrak gerçek bir çeviri yapılana kadar true kalır.
+    needsTranslation: boolean('needs_translation').notNull().default(false),
     // Kullanıcı tanımlı besinler için clinicId. tenancy şeması kurulana kadar (Prompt 3.1)
     // FK eklenmiyor, sadece serbest metin id.
     createdBy: text('created_by'),
