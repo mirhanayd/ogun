@@ -4,22 +4,20 @@ import path from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import type * as XLSXType from 'xlsx'
 import { dataSources, foodNutrients, foods, nutrients } from '@ogun/db/schema'
+import { normalizeSearchText } from '../lib/normalize'
+import { upsertFoodNutrients, type FoodNutrientUpsertInput } from '../lib/upsert'
+import { blsNutrientMap } from './bls-nutrient-map'
 
 // xlsx'in ESM derlemesi (xlsx.mjs) Node fs'e bağlı readFile/writeFile'ı içermez
 // (tarayıcı uyumlu olsun diye çıkarılmış). CJS derlemeyi doğrudan require ile alıyoruz.
 const require = createRequire(import.meta.url)
 const XLSX = require('xlsx') as typeof XLSXType
-import { normalizeSearchText } from '../lib/normalize'
-import { upsertFoodNutrient } from '../lib/upsert'
-import { blsNutrientMap } from './bls-nutrient-map'
 
-// BLS Excel'indeki iki "meta" sütunun TAM başlığı. Gerçek dosyayı
-// `pnpm etl:bls:headers` ile inceleyip doğruysa bu satırı sil, yanlışsa düzelt.
-// Bilerek fuzzy/candidate eşleme YAPMIYORUZ — yanlış sütunu sessizce seçmek,
-// besin öğesi eşlemesinden bile daha tehlikeli olur (her besinin adı bozulur).
+// BLS Excel'indeki üç "meta" sütunun TAM başlığı (packages/etl/data/bls/bls-4.0.xlsx
+// üzerinde `pnpm etl:bls:headers` ile doğrulandı).
 const BLS_COLUMNS = {
-  sourceCode: 'SBLS', // TODO: gerçek başlığı doğrula
-  nameEn: 'Name (English)', // TODO: gerçek başlığı doğrula
+  sourceCode: 'BLS Code',
+  nameEn: 'Food name',
 }
 
 const BLS_CITATION =
@@ -27,7 +25,13 @@ const BLS_CITATION =
   'Version 4.0 – Deutsche Nährstoffdatenbank. Karlsruhe. ' +
   'DOI: 10.25826/Data20251217-134202-0'
 
-const ORIGIN_LAB_KEYWORDS = ['analysiert', 'analytic', 'gemessen', 'measured', 'labor', 'laboratory']
+// BLS'teki "Datenherkunft" sütununun kapalı kelime dağarcığı (dosyadan örneklenerek
+// doğrulandı). Sadece 'Analyse' (doğrudan laboratuvar analizi) ve 'Logische Null'
+// (tanım gereği kesin sıfır, ör. çiğ yulafta alkol) tahmini SAYILMIYOR — geri kalan
+// tüm kategoriler (literatür, formülle hesaplama, başka veri tabanından alınma,
+// etiket beyanı, yeniden ölçekleme, tarif hesabı, iz miktar, mantıksal varsayım,
+// örnek hesaplama) tahmini kabul ediliyor.
+const DIRECT_ORIGIN_VALUES = new Set(['Analyse', 'Logische Null'])
 
 function resolveDefaultFilePath() {
   return path.resolve(process.cwd(), 'data/bls/bls-4.0.xlsx')
@@ -54,13 +58,11 @@ function readSheetRows(filePath: string): Record<string, unknown>[] {
 }
 
 function classifyIsImputed(originValue: unknown): boolean {
-  if (typeof originValue !== 'string' || originValue.trim() === '') {
+  if (typeof originValue !== 'string' || originValue.trim() === '' || originValue === '-') {
     // Kaynak bilgisi yoksa güvenli tarafta kal: tahmini say.
     return true
   }
-  const normalized = originValue.toLowerCase()
-  const isLabAnalysis = ORIGIN_LAB_KEYWORDS.some((keyword) => normalized.includes(keyword))
-  return !isLabAnalysis
+  return !DIRECT_ORIGIN_VALUES.has(originValue.trim())
 }
 
 // Basit Atwater enerji hesabı — tam sürümü packages/nutrition-core'da (Hafta 2,
@@ -188,6 +190,10 @@ async function main() {
       foodCount += 1
       importedFoodIds.push(food.id)
 
+      // Bu besinin tüm besin öğesi değerlerini biriktirip TEK seferde yazıyoruz
+      // (satır başına 56 ayrı round-trip yerine 1 — büyük içe aktarmalarda
+      // (7.000+ besin) bu fark dakikalar ile saatler arasında).
+      const nutrientBatch: FoodNutrientUpsertInput[] = []
       for (const mapping of blsNutrientMap) {
         const rawValue = row[mapping.valueColumn]
         if (rawValue === null || rawValue === undefined || rawValue === '') continue
@@ -206,14 +212,20 @@ async function main() {
         )
         if (isImputed) imputedCount += 1
 
-        await upsertFoodNutrient(db, {
+        nutrientBatch.push({
           foodId: food.id,
           nutrientId,
           valuePer100g: numericValue.toString(),
           sourceId: blsSource.id,
           isImputed,
         })
-        nutrientValueCount += 1
+      }
+
+      await upsertFoodNutrients(db, nutrientBatch)
+      nutrientValueCount += nutrientBatch.length
+
+      if (foodCount % 500 === 0) {
+        console.log(`... ${foodCount}/${rows.length} besin işlendi`)
       }
     }
 

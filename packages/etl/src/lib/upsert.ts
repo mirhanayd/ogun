@@ -16,9 +16,18 @@ export interface FoodNutrientUpsertInput {
 // Böylece düşük öncelikli bir kaynak, daha güvenilir bir kaynaktan gelen değeri
 // yanlışlıkla ezemez.
 export async function upsertFoodNutrient(db: Database, input: FoodNutrientUpsertInput) {
+  await upsertFoodNutrients(db, [input])
+}
+
+// Aynı SQL ifadesiyle birden fazla satırı tek round-trip'te yazar. Büyük
+// içe aktarmalarda (BLS: ~7.000 besin × ~56 besin öğesi) satır başına ayrı
+// bir sorgu atmak yavaş olur; bir besinin tüm besin öğesi değerlerini tek
+// seferde göndermek performansı büyük ölçüde artırır.
+export async function upsertFoodNutrients(db: Database, inputs: FoodNutrientUpsertInput[]) {
+  if (inputs.length === 0) return
   await db
     .insert(foodNutrients)
-    .values(input)
+    .values(inputs)
     .onConflictDoUpdate({
       target: [foodNutrients.foodId, foodNutrients.nutrientId],
       set: {
