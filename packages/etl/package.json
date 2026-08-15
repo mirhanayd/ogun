@@ -6,6 +6,8 @@
   "scripts": {
     "etl:bls": "tsx src/importers/bls.ts",
     "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
+    "etl:usda": "tsx src/importers/usda.ts",
+    "etl:usda:nutrients": "tsx src/importers/usda.ts --list-nutrients",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import type * as XLSXType from 'xlsx'
 import { dataSources, foodNutrients, foods, nutrients } from '@ogun/db/schema'
+import { resolvePreferredSources } from '../lib/merge'
 import { normalizeSearchText } from '../lib/normalize'
 import { upsertFoodNutrients, type FoodNutrientUpsertInput } from '../lib/upsert'
 import { blsNutrientMap } from './bls-nutrient-map'
@@ -229,6 +230,10 @@ async function main() {
       }
     }
 
+    // Bu içe aktarmadan sonra hangi kaynağın (foodId, nutrientId) başına aktif
+    // sayılacağını yeniden hesapla (bkz. src/lib/merge.ts).
+    await resolvePreferredSources(db)
+
     console.log('\n--- BLS 4.0 İçe Aktarma Özeti ---')
     console.log(`Besin: ${foodCount}`)
     console.log(`Besin öğesi değeri: ${nutrientValueCount}`)
@@ -262,7 +267,13 @@ async function main() {
         const values = await db
           .select()
           .from(foodNutrients)
-          .where(and(eq(foodNutrients.foodId, foodId), inArray(foodNutrients.nutrientId, macroNutrientIds)))
+          .where(
+            and(
+              eq(foodNutrients.foodId, foodId),
+              inArray(foodNutrients.nutrientId, macroNutrientIds),
+              eq(foodNutrients.isPreferred, true),
+            ),
+          )
 
         const byNutrientId = new Map(values.map((value) => [value.nutrientId, Number(value.valuePer100g)]))
         const protein = byNutrientId.get(proteinId)

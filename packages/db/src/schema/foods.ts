@@ -98,6 +98,9 @@ export const foods = pgTable(
   ],
 )
 
+// Aynı (foodId, nutrientId) çifti için BİRDEN FAZLA kaynaktan değer bulunabilir —
+// kaybeden kaynak SİLİNMEZ, sadece isPreferred=false kalır. Hangi satırın aktif
+// olduğuna packages/etl/src/lib/merge.ts (data_sources.priority'ye göre) karar verir.
 export const foodNutrients = pgTable(
   'food_nutrients',
   {
@@ -107,17 +110,38 @@ export const foodNutrients = pgTable(
     nutrientId: text('nutrient_id')
       .notNull()
       .references(() => nutrients.id),
-    valuePer100g: numeric('value_per_100g', { precision: 12, scale: 4 }).notNull(),
     sourceId: text('source_id')
       .notNull()
       .references(() => dataSources.id),
+    valuePer100g: numeric('value_per_100g', { precision: 12, scale: 4 }).notNull(),
     isImputed: boolean('is_imputed').notNull().default(false),
+    isPreferred: boolean('is_preferred').notNull().default(false),
     note: text('note'),
   },
   (table) => [
-    primaryKey({ columns: [table.foodId, table.nutrientId] }),
+    primaryKey({ columns: [table.foodId, table.nutrientId, table.sourceId] }),
     index('food_nutrients_nutrient_id_value_idx').on(table.nutrientId, table.valuePer100g),
   ],
+)
+
+// BLS ve USDA gibi farklı kaynaklardaki AYNI besini birbirine bağlamak için.
+// Otomatik eşleştirme YAPMIYORUZ (kalitesiz eşleşme veriyi bozar) — sadece
+// tabloyu ve manuel eşleme fonksiyonlarını hazırlıyoruz (bkz. packages/db/src/queries/food-links.ts).
+export const foodLinks = pgTable(
+  'food_links',
+  {
+    id: id(),
+    foodIdA: text('food_id_a')
+      .notNull()
+      .references(() => foods.id),
+    foodIdB: text('food_id_b')
+      .notNull()
+      .references(() => foods.id),
+    confidence: numeric('confidence', { precision: 4, scale: 3 }),
+    method: text('method').notNull(),
+    ...timestamps(),
+  },
+  (table) => [uniqueIndex('food_links_pair_idx').on(table.foodIdA, table.foodIdB)],
 )
 
 export const foodPortions = pgTable('food_portions', {

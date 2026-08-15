@@ -11,14 +11,17 @@ export interface FoodNutrientUpsertInput {
   note?: string | null
 }
 
-// (foodId, nutrientId) çifti için zaten bir değer varsa, yalnızca yeni değerin
-// kaynağı eşit veya daha yüksek öncelikliyse üzerine yazar (data_sources.priority).
-// Böylece düşük öncelikli bir kaynak, daha güvenilir bir kaynaktan gelen değeri
-// yanlışlıkla ezemez.
 export async function upsertFoodNutrient(db: Database, input: FoodNutrientUpsertInput) {
   await upsertFoodNutrients(db, [input])
 }
 
+// food_nutrients artık (foodId, nutrientId, sourceId) bileşik anahtarına sahip —
+// aynı besin öğesi için birden fazla kaynağın değeri YAN YANA durur, kaybeden
+// SİLİNMEZ. Burada sadece "bu kaynak, bu besin+besin öğesi için değerini
+// yazıyor/güncelliyor" işlemi yapılır (ör. bir içe aktarmanın tekrar çalıştırılması).
+// Hangi kaynağın öncelikli (isPreferred) sayılacağına src/lib/merge.ts karar verir —
+// bu fonksiyon isPreferred'a dokunmaz.
+//
 // Aynı SQL ifadesiyle birden fazla satırı tek round-trip'te yazar. Büyük
 // içe aktarmalarda (BLS: ~7.000 besin × ~56 besin öğesi) satır başına ayrı
 // bir sorgu atmak yavaş olur; bir besinin tüm besin öğesi değerlerini tek
@@ -29,17 +32,11 @@ export async function upsertFoodNutrients(db: Database, inputs: FoodNutrientUpse
     .insert(foodNutrients)
     .values(inputs)
     .onConflictDoUpdate({
-      target: [foodNutrients.foodId, foodNutrients.nutrientId],
+      target: [foodNutrients.foodId, foodNutrients.nutrientId, foodNutrients.sourceId],
       set: {
         valuePer100g: sql`excluded.value_per_100g`,
-        sourceId: sql`excluded.source_id`,
         isImputed: sql`excluded.is_imputed`,
         note: sql`excluded.note`,
       },
-      where: sql`
-        (select priority from data_sources where id = excluded.source_id)
-        >=
-        (select priority from data_sources where id = food_nutrients.source_id)
-      `,
     })
 }
