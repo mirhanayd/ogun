@@ -29,6 +29,13 @@
       "when": 1786748105797,
       "tag": "0003_lively_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786801555766,
+      "tag": "0004_chunky_victor_mancha",
+      "breakpoints": true
     }
   ]
 }
