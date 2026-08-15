@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ogun/db": "workspace:*",
+    "@ogun/nutrition-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
     "drizzle-orm": "^0.38.3",
     "papaparse": "^5.4.1",

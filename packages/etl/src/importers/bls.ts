@@ -4,6 +4,7 @@ import path from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import type * as XLSXType from 'xlsx'
 import { dataSources, foodNutrients, foods, nutrients } from '@ogun/db/schema'
+import { calculateAtwaterEnergyKcal } from '@ogun/nutrition-core'
 import { resolvePreferredSources } from '../lib/merge'
 import { normalizeSearchText } from '../lib/normalize'
 import { upsertFoodNutrients, type FoodNutrientUpsertInput } from '../lib/upsert'
@@ -64,13 +65,6 @@ function classifyIsImputed(originValue: unknown): boolean {
     return true
   }
   return !DIRECT_ORIGIN_VALUES.has(originValue.trim())
-}
-
-// Basit Atwater enerji hesabı — tam sürümü packages/nutrition-core'da (Hafta 2,
-// Prompt 2.1) kurulacak. Burada sadece içe aktarılan verinin makul olduğunu
-// hızlıca doğrulamak için kullanılıyor.
-function calculateAtwaterEnergyKcal(protein: number, carb: number, fat: number): number {
-  return protein * 4 + carb * 4 + fat * 9
 }
 
 async function main() {
@@ -286,7 +280,7 @@ async function main() {
           continue
         }
 
-        const calculatedKcal = calculateAtwaterEnergyKcal(protein, carb, fat)
+        const calculatedKcal = calculateAtwaterEnergyKcal({ PROCNT: protein, CHOCDF: carb, FAT: fat })
         const deviation = statedKcal === 0 ? 0 : Math.abs(calculatedKcal - statedKcal) / statedKcal
         const flag = deviation > 0.1 ? '⚠ SAPMA >%10' : 'OK'
         console.log(

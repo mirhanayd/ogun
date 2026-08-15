@@ -1,0 +1,40 @@
+// Sık kullanılan besin öğesi kodları (bkz. packages/db/src/seed/nutrients.ts).
+// NutrientCode kasıtlı olarak açık (string) bırakıldı: bu paket DB şemasına
+// bağımlı değil, kod listesi zamanla genişleyebilir.
+export const NUTRIENT = {
+  ENERGY_KCAL: 'ENERC_KCAL',
+  PROTEIN: 'PROCNT',
+  CARB: 'CHOCDF',
+  FAT: 'FAT',
+  FIBER: 'FIBTG',
+  ALCOHOL: 'ALC',
+} as const
+
+export type NutrientCode = string
+
+export type NutrientValuesPer100g = Record<NutrientCode, number>
+
+export interface Portion {
+  label: string
+  grams: number
+}
+
+export interface FoodReference {
+  id: string
+  nameTr: string
+  nutrientsPer100g: NutrientValuesPer100g
+}
+
+export interface MealItem {
+  food: FoodReference
+  grams: number
+}
+
+export interface Meal {
+  name: string
+  items: MealItem[]
+}
+
+export interface DailyPlan {
+  meals: Meal[]
+}

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import Papa from 'papaparse'
 import { dataSources, foodNutrients, foodPortions, foods, nutrients } from '@ogun/db/schema'
+import { calculateAtwaterEnergyKcal } from '@ogun/nutrition-core'
 import { resolvePreferredSources } from '../lib/merge'
 import { normalizeSearchText } from '../lib/normalize'
 import { upsertFoodNutrients, type FoodNutrientUpsertInput } from '../lib/upsert'
@@ -118,11 +119,6 @@ function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const num = typeof value === 'number' ? value : Number.parseFloat(String(value))
   return Number.isNaN(num) ? null : num
-}
-
-// Basit Atwater enerji hesabı — tam sürümü packages/nutrition-core'da kurulacak.
-function calculateAtwaterEnergyKcal(protein: number, carb: number, fat: number): number {
-  return protein * 4 + carb * 4 + fat * 9
 }
 
 async function main() {
@@ -409,7 +405,7 @@ async function main() {
           continue
         }
 
-        const calculatedKcal = calculateAtwaterEnergyKcal(protein, carb, fat)
+        const calculatedKcal = calculateAtwaterEnergyKcal({ PROCNT: protein, CHOCDF: carb, FAT: fat })
         const deviation = statedKcal === 0 ? 0 : Math.abs(calculatedKcal - statedKcal) / statedKcal
         const flag = deviation > 0.1 ? '⚠ SAPMA >%10' : 'OK'
         console.log(
