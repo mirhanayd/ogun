@@ -23,6 +23,9 @@ export interface FoodReference {
   id: string
   nameTr: string
   nutrientsPer100g: NutrientValuesPer100g
+  // Bu besinin en az bir besin öğesi değeri tahmini (isImputed) mi — DB'deki
+  // food_nutrients.isImputed'ın plana taşınmış özeti. Uyarı kanalı bunu kullanır.
+  hasImputedValues?: boolean
 }
 
 export interface MealItem {

@@ -8,6 +8,7 @@
     "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
     "etl:usda": "tsx src/importers/usda.ts",
     "etl:usda:nutrients": "tsx src/importers/usda.ts --list-nutrients",
+    "etl:e2e": "tsx src/e2e-plan-validation.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

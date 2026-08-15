@@ -200,6 +200,9 @@ importers:
       '@ogun/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.12
       typescript:
         specifier: ^5
         version: 5.9.3

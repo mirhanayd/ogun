@@ -10,10 +10,12 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "benchmark": "tsx src/benchmark.ts"
   },
   "devDependencies": {
     "@ogun/tsconfig": "workspace:*",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "vitest": "^3.0.4"
   }
