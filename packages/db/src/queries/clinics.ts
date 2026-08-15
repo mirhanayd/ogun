@@ -153,6 +153,20 @@ export async function listClinicMembershipsForUser(db: Database, userId: string)
     .orderBy(clinics.name)
 }
 
+// Veri saklama süresi ayarı — /ayarlar/veri-guvenligi sayfası (bkz. GitHub
+// issue #12 / Prompt 3.3). clinics.dataRetentionDays üzerinde basit bir alan
+// güncellemesi; ayrı bir "settings" tablosu açmaya şimdilik gerek görülmedi
+// (tek bir sayısal ayar için orantısız olurdu — bkz. schema/tenancy.ts notu).
+export async function updateClinicDataRetention(db: Database, clinicId: string, dataRetentionDays: number) {
+  const [clinic] = await db
+    .update(clinics)
+    .set({ dataRetentionDays })
+    .where(eq(clinics.id, clinicId))
+    .returning()
+  if (!clinic) throw new Error('Klinik bulunamadı.')
+  return clinic
+}
+
 // Klinik değiştirme (setActiveClinic) öncesi, kullanıcının hedef klinikte
 // gerçekten üye olduğunu doğrulamak için.
 export async function getClinicMembership(db: Database, clinicId: string, userId: string) {
