@@ -8,3 +8,4 @@ dist
 *.local
 coverage
 *.tsbuildinfo
+ogun-roadmap.md
