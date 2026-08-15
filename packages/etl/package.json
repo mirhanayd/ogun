@@ -15,7 +15,7 @@
     "@ogun/db": "workspace:*",
     "@ogun/nutrition-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
-    "drizzle-orm": "^0.38.3",
+    "drizzle-orm": "^0.45.2",
     "papaparse": "^5.4.1",
     "postgres": "^3.4.5",
     "xlsx": "^0.18.5"

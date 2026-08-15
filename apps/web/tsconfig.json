@@ -3,6 +3,12 @@
   "compilerOptions": {
     "allowJs": true,
     "incremental": true,
+    // Next.js uygulaması typings yayınlamaz; declaration:true (base.json) apps/web'de
+    // gereksiz ve better-auth gibi paketlerin iç (zod v4) tiplerini "portable olmayan
+    // tip" (TS2742) hatasına düşürüyor çünkü tsc, noEmit olsa bile .d.ts çıktısı
+    // üretilseydi ne olacağını doğrulamaya çalışıyor.
+    "declaration": false,
+    "declarationMap": false,
     "paths": {
       "@/*": ["./src/*"]
     }
