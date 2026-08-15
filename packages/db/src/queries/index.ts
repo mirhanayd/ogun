@@ -1,2 +1,5 @@
 export * from './food-search'
 export * from './food-links'
+export * from './clinics'
+export * from './working-hours'
+export * from './sessions'

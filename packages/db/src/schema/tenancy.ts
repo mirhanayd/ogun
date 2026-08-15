@@ -1,5 +1,5 @@
 // Kimlik ve çok kiracılı yapı — users, clinics, clinic_members, Better Auth tabloları.
-import { boolean, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, integer, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { id, timestamps } from './_helpers'
 
 export const clinicMemberRoleEnum = pgEnum('clinic_member_role', ['owner', 'dietitian', 'assistant'])
@@ -26,6 +26,23 @@ export const users = pgTable('users', {
 
 // Bir diyetisyenlik kliniği — çok kiracılı yapının kök varlığı. Danışan (client)
 // verisine dokunan HER tablo clinicId taşımalı (bkz. src/lib/authz.ts, apps/web).
+//
+// Onboarding ilerlemesinin kaydı (bkz. Prompt 3.2 — /kurulum, GitHub issue #11):
+// ayrı bir "wizard state" tablosu AÇMIYORUZ. Bunun yerine klinik satırının
+// kendisi taslak (draft) olarak kullanılıyor:
+//   - Adım 1'de (klinik adı/telefon/adres) satır createdBy=kullanıcı ile
+//     oluşturuluyor, onboardingCompletedAt henüz NULL kalıyor.
+//   - Sonraki adımlar aynı satırı günceller, onboardingStep ilerletilir.
+//   - Son adımda (çalışma saatleri) onboardingCompletedAt set edilir VE
+//     clinic_members satırı (role='owner') o zaman oluşturulur — yani bir
+//     kullanıcı, onboarding'i bitirmeden o kliniğe "üye" sayılmaz, dolayısıyla
+//     requireClinic() (session.activeClinicId üzerinden) o ana kadar başarısız
+//     olmaya devam eder ve uygulama kabuğuna giremez.
+// Taslağı bulmak için: clinics WHERE createdBy = userId AND
+// onboardingCompletedAt IS NULL (bkz. packages/db/src/queries/clinics.ts
+// getDraftClinicForUser). Bu, kullanıcı sekmeyi kapatıp başka bir cihazdan
+// geri dönse bile (çerez/localStorage'a değil, doğrudan kullanıcı kimliğine
+// bağlı olduğu için) kaldığı yerden devam edebilmesini sağlar.
 export const clinics = pgTable('clinics', {
   id: id(),
   name: text('name').notNull(),
@@ -37,6 +54,10 @@ export const clinics = pgTable('clinics', {
   taxId: text('tax_id'),
   subscriptionStatus: subscriptionStatusEnum('subscription_status').notNull().default('trialing'),
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  // Onboarding sihirbazını başlatan kullanıcı — taslağı yeniden bulmak için.
+  createdBy: text('created_by').references(() => users.id),
+  onboardingStep: integer('onboarding_step').notNull().default(1),
+  onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
   ...timestamps(),
 })
 
