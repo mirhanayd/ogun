@@ -1,0 +1,162 @@
+import Dexie, { type EntityTable } from 'dexie'
+import { create, insertMultiple, search } from '@orama/orama'
+import { normalizeSearchText } from './normalize'
+
+interface FoodIndexRow {
+  id: string
+  nameTr: string
+  searchText: string
+  kcalPer100g: number | null
+  defaultPortionLabel: string | null
+  defaultPortionGrams: number | null
+}
+
+interface MetaRow {
+  key: string
+  value: string
+}
+
+class FoodIndexDb extends Dexie {
+  foods!: EntityTable<FoodIndexRow, 'id'>
+  meta!: EntityTable<MetaRow, 'key'>
+
+  constructor() {
+    super('ogun-food-index')
+    this.version(1).stores({
+      foods: 'id, searchText',
+      meta: 'key',
+    })
+  }
+}
+
+const dexieDb = new FoodIndexDb()
+
+const oramaSchema = {
+  id: 'string',
+  nameTr: 'string',
+  searchText: 'string',
+} as const
+
+type OramaDb = Awaited<ReturnType<typeof create<typeof oramaSchema>>>
+
+let oramaIndexPromise: Promise<OramaDb> | null = null
+
+async function getStoredVersion(): Promise<string | null> {
+  const row = await dexieDb.meta.get('version')
+  return row?.value ?? null
+}
+
+async function setStoredVersion(version: string) {
+  await dexieDb.meta.put({ key: 'version', value: version })
+}
+
+// İlk açılışta (veya sunucudaki katalog değiştiğinde) tüm indeksi indirip
+// Dexie'ye yazar. Sürüm değişmediyse ağa hiç çıkmaz — sunucu 304 döner.
+async function ensureIndexLoaded(): Promise<void> {
+  const storedVersion = await getStoredVersion()
+  const url = storedVersion
+    ? `/api/foods/index?v=${encodeURIComponent(storedVersion)}`
+    : '/api/foods/index'
+
+  const response = await fetch(url)
+
+  if (response.status === 304) {
+    return
+  }
+  if (!response.ok) {
+    throw new Error(`Besin indeksi indirilemedi: ${response.status}`)
+  }
+
+  const { version, entries } = (await response.json()) as {
+    version: string
+    entries: Array<{
+      id: string
+      nameTr: string
+      searchText: string
+      kcalPer100g: number | null
+      defaultPortion: { label: string; grams: number } | null
+    }>
+  }
+
+  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, async () => {
+    await dexieDb.foods.clear()
+    await dexieDb.foods.bulkPut(
+      entries.map((entry) => ({
+        id: entry.id,
+        nameTr: entry.nameTr,
+        searchText: entry.searchText,
+        kcalPer100g: entry.kcalPer100g,
+        defaultPortionLabel: entry.defaultPortion?.label ?? null,
+        defaultPortionGrams: entry.defaultPortion?.grams ?? null,
+      })),
+    )
+    await setStoredVersion(version)
+  })
+
+  // Yeni veri geldiğinde bellekteki Orama indeksi bayatlar, yeniden kurulacak.
+  oramaIndexPromise = null
+}
+
+async function buildOramaIndex(): Promise<OramaDb> {
+  const oramaDb = await create({ schema: oramaSchema })
+  const rows = await dexieDb.foods.toArray()
+  if (rows.length > 0) {
+    await insertMultiple(
+      oramaDb,
+      rows.map((row) => ({ id: row.id, nameTr: row.nameTr, searchText: row.searchText })),
+    )
+  }
+  return oramaDb
+}
+
+async function getOramaIndex(): Promise<OramaDb> {
+  if (!oramaIndexPromise) {
+    oramaIndexPromise = buildOramaIndex()
+  }
+  return oramaIndexPromise
+}
+
+export async function initFoodIndex(): Promise<void> {
+  await ensureIndexLoaded()
+  await getOramaIndex()
+}
+
+export interface FoodSearchHit {
+  id: string
+  nameTr: string
+  kcalPer100g: number | null
+  defaultPortion: { label: string; grams: number } | null
+}
+
+const P95_WARN_THRESHOLD_MS = 20
+
+export async function searchFoodsOffline(
+  query: string,
+  limit = 20,
+): Promise<{ hits: FoodSearchHit[]; elapsedMs: number }> {
+  const start = performance.now()
+
+  const oramaDb = await getOramaIndex()
+  const normalizedQuery = normalizeSearchText(query)
+  const result = await search(oramaDb, { term: normalizedQuery, limit })
+
+  const rows = await dexieDb.foods.bulkGet(result.hits.map((hit) => hit.document.id as string))
+  const hits: FoodSearchHit[] = rows
+    .filter((row): row is FoodIndexRow => row !== undefined)
+    .map((row) => ({
+      id: row.id,
+      nameTr: row.nameTr,
+      kcalPer100g: row.kcalPer100g,
+      defaultPortion:
+        row.defaultPortionLabel && row.defaultPortionGrams !== null
+          ? { label: row.defaultPortionLabel, grams: row.defaultPortionGrams }
+          : null,
+    }))
+
+  const elapsedMs = performance.now() - start
+  if (elapsedMs > P95_WARN_THRESHOLD_MS) {
+    console.warn(`searchFoodsOffline yavaş: ${elapsedMs.toFixed(1)}ms (hedef < ${P95_WARN_THRESHOLD_MS}ms)`)
+  }
+
+  return { hits, elapsedMs }
+}
