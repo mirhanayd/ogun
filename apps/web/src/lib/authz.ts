@@ -1,5 +1,7 @@
 import 'server-only'
 import { headers } from 'next/headers'
+import { db } from '@ogun/db'
+import { updateSessionActiveClinic } from '@ogun/db/queries'
 import { auth } from './auth'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 
@@ -117,6 +119,28 @@ export async function requireRole(...allowedRoles: ClinicMemberRole[]): Promise<
     throw new InsufficientRoleError()
   }
   return ctx
+}
+
+// Aktif oturuma bir klinik + rol bağlar. İki yerden çağrılır:
+//  1. Onboarding'in son adımı (bkz. app/kurulum/actions.ts) — kullanıcı ilk
+//     kliniğini kurduğunda.
+//  2. Üst bar klinik seçici (bkz. app/(app)/actions.ts switchClinicAction) —
+//     birden fazla klinikte üye olan kullanıcı aktif kliniği değiştirdiğinde.
+//
+// ÖNEMLİ: çağıran taraf, clinicId'nin kullanıcının GERÇEKTEN üyesi olduğu bir
+// klinik olduğunu (clinic_members'tan) doğrulamış olmalı — bu fonksiyon sadece
+// session satırını günceller, yetki kontrolü yapmaz.
+//
+// lib/auth.ts'te cookie cache AÇIK DEĞİL — yani her getSession() çağrısı
+// veritabanına gidiyor. Bu yüzden sessions satırını doğrudan güncellemek
+// yeterli; ayrı bir "session refresh" API'sine ihtiyaç yok, bir sonraki
+// getSession() zaten güncel activeClinicId/role'ü görecek.
+export async function setActiveClinic(clinicId: string, role: ClinicMemberRole): Promise<void> {
+  const session = await getSession()
+  if (!session) {
+    throw new UnauthenticatedError()
+  }
+  await updateSessionActiveClinic(db, session.session.id, clinicId, role)
 }
 
 // ---------------------------------------------------------------------------
