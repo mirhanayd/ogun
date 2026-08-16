@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {
   }
 
   const entries = await getAllFoodIndexEntries(db)
+  // NOT: entries şekli GitHub issue #24 / Prompt 5.2 kapsamında groupNameTr
+  // aldı (bkz. getAllFoodIndexEntries) — istemci (food-index.ts) bunu
+  // gzip'lenmiş gövdeden aynen taşıyor, burada ayrıca dönüştürme YOK.
   const body = gzipSync(Buffer.from(JSON.stringify({ version, entries })))
 
   return new NextResponse(body, {
