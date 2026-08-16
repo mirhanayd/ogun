@@ -12,12 +12,16 @@ import {
   deletePlan,
   duplicatePlan,
   getPlanTree,
+  listPlans,
+  moveItem,
   removeAlternative,
   removeItem,
   reorderItems,
   saveAsTemplate,
   updateItem,
+  updateMeal,
   updatePlan,
+  type ListPlansInput,
 } from '@ogun/db/queries'
 import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
@@ -25,6 +29,8 @@ import {
   dayInputSchema,
   firstZodMessage,
   mealInputSchema,
+  mealUpdateSchema,
+  moveItemSchema,
   planAlternativeInputSchema,
   planInputSchema,
   planItemInputSchema,
@@ -33,6 +39,8 @@ import {
   reorderItemsSchema,
   type DayInputValues,
   type MealInputValues,
+  type MealUpdateValues,
+  type MoveItemValues,
   type PlanAlternativeInputValues,
   type PlanInputValues,
   type PlanItemInputValues,
@@ -89,7 +97,8 @@ const createPlanForClinic = withAuth(
     {
       action: 'create',
       entityType: 'diet_plan',
-      entityId: (_args: [PlanInputValues], result: { id: string } | undefined) => result?.id ?? null,
+      entityId: (_args: [PlanInputValues], result: { id: string } | undefined) =>
+        result?.id ?? null,
     },
     async (ctx, input: PlanInputValues) =>
       createPlan(db, ctx.scope.clinicId, ctx.user.id, {
@@ -109,7 +118,9 @@ const createPlanForClinic = withAuth(
   ),
 )
 
-export async function createPlanAction(input: PlanInputValues): Promise<PlanActionResult<{ id: string }>> {
+export async function createPlanAction(
+  input: PlanInputValues,
+): Promise<PlanActionResult<{ id: string }>> {
   const parsed = planInputSchema.safeParse(input)
   if (!parsed.success) return fail(firstZodMessage(parsed.error))
 
@@ -120,7 +131,11 @@ export async function createPlanAction(input: PlanInputValues): Promise<PlanActi
 
 const updatePlanForClinic = withAuth(
   withAudit(
-    { action: 'update', entityType: 'diet_plan', entityId: ([planId]: [string, PlanUpdateValues]) => planId },
+    {
+      action: 'update',
+      entityType: 'diet_plan',
+      entityId: ([planId]: [string, PlanUpdateValues]) => planId,
+    },
     async (ctx, planId: string, input: PlanUpdateValues) =>
       updatePlan(db, ctx.scope.clinicId, planId, {
         ...(input.clientId !== undefined && { clientId: input.clientId }),
@@ -134,7 +149,9 @@ const updatePlanForClinic = withAuth(
         ...(input.isTemplate !== undefined && { isTemplate: input.isTemplate }),
         ...(input.templateCategory !== undefined && { templateCategory: input.templateCategory }),
         ...(input.notes !== undefined && { notes: input.notes }),
-        ...(input.generalInstructions !== undefined && { generalInstructions: input.generalInstructions }),
+        ...(input.generalInstructions !== undefined && {
+          generalInstructions: input.generalInstructions,
+        }),
       }),
   ),
 )
@@ -183,11 +200,14 @@ const duplicatePlanForClinic = withAuth(
       entityId: (_args: [string], result: { id: string } | undefined) => result?.id ?? null,
       metadata: ([sourcePlanId]: [string]) => ({ operation: 'duplicate', sourcePlanId }),
     },
-    async (ctx, sourcePlanId: string) => duplicatePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId),
+    async (ctx, sourcePlanId: string) =>
+      duplicatePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId),
   ),
 )
 
-export async function duplicatePlanAction(sourcePlanId: string): Promise<PlanActionResult<{ id: string }>> {
+export async function duplicatePlanAction(
+  sourcePlanId: string,
+): Promise<PlanActionResult<{ id: string }>> {
   const result = await runAction(() => duplicatePlanForClinic(sourcePlanId))
   if (result.success) revalidatePlans()
   return result
@@ -198,16 +218,26 @@ const saveAsTemplateForClinic = withAuth(
     {
       action: 'create',
       entityType: 'diet_plan',
-      entityId: (_args: [string, PlanTemplateCategory, string | undefined], result: { id: string } | undefined) =>
-        result?.id ?? null,
-      metadata: ([sourcePlanId, templateCategory]: [string, PlanTemplateCategory, string | undefined]) => ({
+      entityId: (
+        _args: [string, PlanTemplateCategory, string | undefined],
+        result: { id: string } | undefined,
+      ) => result?.id ?? null,
+      metadata: ([sourcePlanId, templateCategory]: [
+        string,
+        PlanTemplateCategory,
+        string | undefined,
+      ]) => ({
         operation: 'save-as-template',
         sourcePlanId,
         templateCategory,
       }),
     },
-    async (ctx, sourcePlanId: string, templateCategory: PlanTemplateCategory, name: string | undefined) =>
-      saveAsTemplate(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId, templateCategory, name),
+    async (
+      ctx,
+      sourcePlanId: string,
+      templateCategory: PlanTemplateCategory,
+      name: string | undefined,
+    ) => saveAsTemplate(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId, templateCategory, name),
   ),
 )
 
@@ -216,7 +246,9 @@ export async function saveAsTemplateAction(
   templateCategory: PlanTemplateCategory,
   name?: string,
 ): Promise<PlanActionResult<{ id: string }>> {
-  const result = await runAction(() => saveAsTemplateForClinic(sourcePlanId, templateCategory, name))
+  const result = await runAction(() =>
+    saveAsTemplateForClinic(sourcePlanId, templateCategory, name),
+  )
   if (result.success) revalidatePlans()
   return result
 }
@@ -232,7 +264,8 @@ const addDayForClinic = withAuth(
     {
       action: 'create',
       entityType: 'plan_day',
-      entityId: (_args: [string, DayInputValues], result: { id: string } | undefined) => result?.id ?? null,
+      entityId: (_args: [string, DayInputValues], result: { id: string } | undefined) =>
+        result?.id ?? null,
     },
     async (ctx, planId: string, input: DayInputValues) =>
       addDay(db, ctx.scope.clinicId, planId, {
@@ -243,7 +276,10 @@ const addDayForClinic = withAuth(
   ),
 )
 
-export async function addDayAction(planId: string, input: DayInputValues): Promise<PlanActionResult<{ id: string }>> {
+export async function addDayAction(
+  planId: string,
+  input: DayInputValues,
+): Promise<PlanActionResult<{ id: string }>> {
   const parsed = dayInputSchema.safeParse(input)
   if (!parsed.success) return fail(firstZodMessage(parsed.error))
   const result = await runAction(() => addDayForClinic(planId, parsed.data))
@@ -256,7 +292,8 @@ const addMealForClinic = withAuth(
     {
       action: 'create',
       entityType: 'plan_meal',
-      entityId: (_args: [string, MealInputValues], result: { id: string } | undefined) => result?.id ?? null,
+      entityId: (_args: [string, MealInputValues], result: { id: string } | undefined) =>
+        result?.id ?? null,
     },
     async (ctx, dayId: string, input: MealInputValues) =>
       addMeal(db, ctx.scope.clinicId, dayId, {
@@ -269,11 +306,45 @@ const addMealForClinic = withAuth(
   ),
 )
 
-export async function addMealAction(dayId: string, input: MealInputValues): Promise<PlanActionResult<{ id: string }>> {
+export async function addMealAction(
+  dayId: string,
+  input: MealInputValues,
+): Promise<PlanActionResult<{ id: string }>> {
   const parsed = mealInputSchema.safeParse(input)
   if (!parsed.success) return fail(firstZodMessage(parsed.error))
   const result = await runAction(() => addMealForClinic(dayId, parsed.data))
   return result
+}
+
+const updateMealForClinic = withAuth(
+  withAudit(
+    {
+      action: 'update',
+      entityType: 'plan_meal',
+      entityId: ([mealId]: [string, MealUpdateValues]) => mealId,
+    },
+    async (ctx, mealId: string, input: MealUpdateValues) =>
+      updateMeal(db, ctx.scope.clinicId, mealId, {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.time !== undefined && { time: input.time || null }),
+        ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
+        ...(input.notes !== undefined && { notes: input.notes }),
+      }),
+  ),
+)
+
+export async function updateMealAction(
+  mealId: string,
+  input: MealUpdateValues,
+): Promise<PlanActionResult<{ id: string }>> {
+  const parsed = mealUpdateSchema.safeParse(input)
+  if (!parsed.success) return fail(firstZodMessage(parsed.error))
+
+  return runAction(async () => {
+    const meal = await updateMealForClinic(mealId, parsed.data)
+    if (!meal) throw new Error('Öğün bulunamadı.')
+    return { id: meal.id }
+  })
 }
 
 // --- plan_items --------------------------------------------------------------
@@ -283,7 +354,8 @@ const addItemForClinic = withAuth(
     {
       action: 'create',
       entityType: 'plan_item',
-      entityId: (_args: [string, PlanItemInputValues], result: { id: string } | undefined) => result?.id ?? null,
+      entityId: (_args: [string, PlanItemInputValues], result: { id: string } | undefined) =>
+        result?.id ?? null,
     },
     async (ctx, mealId: string, input: PlanItemInputValues) =>
       addItem(db, ctx.scope.clinicId, mealId, {
@@ -311,7 +383,11 @@ export async function addItemAction(
 
 const updateItemForClinic = withAuth(
   withAudit(
-    { action: 'update', entityType: 'plan_item', entityId: ([itemId]: [string, PlanItemUpdateValues]) => itemId },
+    {
+      action: 'update',
+      entityType: 'plan_item',
+      entityId: ([itemId]: [string, PlanItemUpdateValues]) => itemId,
+    },
     async (ctx, itemId: string, input: PlanItemUpdateValues) =>
       updateItem(db, ctx.scope.clinicId, itemId, {
         ...(input.foodId !== undefined && { foodId: input.foodId }),
@@ -383,6 +459,39 @@ export async function reorderItemsAction(
   })
 }
 
+// GitHub issue #25 — bkz. queries/plans.ts moveItem üstündeki not. dnd-kit
+// bir kalemi başka bir öğün bloğuna bıraktığında editör önce bunu, sonra
+// (sortOrder'ı normalize etmek için) her iki öğün için reorderItemsAction'ı
+// çağırır — bkz. plan-editor-store.ts moveItemBetweenMeals.
+const moveItemForClinic = withAuth(
+  withAudit(
+    {
+      action: 'update',
+      entityType: 'plan_item',
+      metadata: ([input]: [MoveItemValues]) => ({
+        operation: 'move',
+        itemId: input.itemId,
+        targetMealId: input.targetMealId,
+      }),
+    },
+    async (ctx, input: MoveItemValues) =>
+      moveItem(db, ctx.scope.clinicId, input.itemId, input.targetMealId, input.sortOrder),
+  ),
+)
+
+export async function moveItemAction(
+  input: MoveItemValues,
+): Promise<PlanActionResult<{ id: string }>> {
+  const parsed = moveItemSchema.safeParse(input)
+  if (!parsed.success) return fail(firstZodMessage(parsed.error))
+
+  return runAction(async () => {
+    const item = await moveItemForClinic(parsed.data)
+    if (!item) throw new Error('Plan kalemi taşınamadı.')
+    return { id: item.id }
+  })
+}
+
 // --- plan_item_alternatives ---------------------------------------------------
 
 const addAlternativeForClinic = withAuth(
@@ -416,12 +525,18 @@ export async function addAlternativeAction(
 
 const removeAlternativeForClinic = withAuth(
   withAudit(
-    { action: 'delete', entityType: 'plan_item_alternative', entityId: ([alternativeId]: [string]) => alternativeId },
+    {
+      action: 'delete',
+      entityType: 'plan_item_alternative',
+      entityId: ([alternativeId]: [string]) => alternativeId,
+    },
     async (ctx, alternativeId: string) => removeAlternative(db, ctx.scope.clinicId, alternativeId),
   ),
 )
 
-export async function removeAlternativeAction(alternativeId: string): Promise<PlanActionResult<undefined>> {
+export async function removeAlternativeAction(
+  alternativeId: string,
+): Promise<PlanActionResult<undefined>> {
   return runAction<undefined>(async () => {
     const removed = await removeAlternativeForClinic(alternativeId)
     if (!removed) throw new Error('Alternatif bulunamadı.')
@@ -430,6 +545,21 @@ export async function removeAlternativeAction(alternativeId: string): Promise<Pl
 }
 
 // --- okuma ---------------------------------------------------------------
+
+// Danışan detay sayfasının "Planlar" sekmesi (#25) için — bir danışanın
+// (veya şablonların) plan listesini döner. computedTotals'ı YENİDEN
+// HESAPLAMADAN doğrudan okur (bkz. queries/plans.ts listPlans üstündeki not).
+const listPlansForClinic = withAuth(
+  withAudit({ action: 'read', entityType: 'diet_plan' }, async (ctx, filter: ListPlansInput) =>
+    listPlans(db, ctx.scope.clinicId, filter),
+  ),
+)
+
+export async function listPlansAction(
+  filter: ListPlansInput = {},
+): Promise<PlanActionResult<Awaited<ReturnType<typeof listPlans>>>> {
+  return runAction(() => listPlansForClinic(filter))
+}
 
 // Editör UI'ının (#25) ilk yüklemesi için — read işlemi de withAudit'ten
 // geçer (bkz. audit.ts dosya başı notu: "okuma senaryosunda da AYNI wrapper
@@ -441,7 +571,9 @@ const getPlanTreeForClinic = withAuth(
   ),
 )
 
-export async function getPlanTreeAction(planId: string): Promise<PlanActionResult<Awaited<ReturnType<typeof getPlanTree>>>> {
+export async function getPlanTreeAction(
+  planId: string,
+): Promise<PlanActionResult<Awaited<ReturnType<typeof getPlanTree>>>> {
   return runAction(() => getPlanTreeForClinic(planId))
 }
 
@@ -454,7 +586,8 @@ const clonePlanForClinic = withAuth(
     {
       action: 'create',
       entityType: 'diet_plan',
-      entityId: (_args: [string, string | null], result: { id: string } | undefined) => result?.id ?? null,
+      entityId: (_args: [string, string | null], result: { id: string } | undefined) =>
+        result?.id ?? null,
       metadata: ([sourcePlanId, targetClientId]: [string, string | null]) => ({
         operation: 'clone',
         sourcePlanId,

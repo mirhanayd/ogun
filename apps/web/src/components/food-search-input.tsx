@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react'
 import { Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -14,20 +22,29 @@ import type { FoodUsageDto } from '@/app/api/foods/usage/route'
 // kullanarak ağa çıkmadan anlık sonuç veren, doğal dil miktar ayrıştırmalı
 // (bkz. lib/parse-food-input.ts) besin arama girişi.
 //
-// STANDALONE BİLEŞEN NOTU (#25 için): plan editörü UI'ı (GitHub issue #25)
-// HENÜZ yok — bu yüzden bu bileşen "aktif öğüne ekleme" akışına DOĞRUDAN
-// bağlı değil, sadece bir `onSelect(selection)` callback'i sunuyor. #25
-// editörü yazıldığında yapması gereken TEK şey: kendi "aktif öğün" state'ini
-// tutup onSelect içinde apps/web/src/app/(app)/planlar/actions.ts'teki
-// addItemAction'ı çağırmak (bkz. FoodSearchSelection alanları — addItem'ın
-// beklediği foodId/amount/portionId şekliyle uyumlu olacak şekilde
-// tasarlandı; portionId eşleşmesi #25'in kendi porsiyon-seçme mantığına
-// bırakıldı, burada sadece serbest metin `portion` etiketi geçiyor).
+// STANDALONE BİLEŞEN NOTU: GitHub issue #25 bu bileşeni AYNEN burada
+// tarif edildiği gibi kullandı — kendi state'ini/bağlamını (aktif öğün,
+// bkz. lib/stores/active-meal-store.ts) tutmuyor, sadece bir
+// `onSelect(selection)` callback'i sunuyor. Editör tarafı (bkz.
+// danisanlar/[id]/planlar/[planId]/meal-block.tsx ve plan-item-row.tsx)
+// onSelect içinde plan-editor-store.ts'in addItemFromSelection/
+// addAlternativeFromSelection eylemlerini çağırıyor (bunlar da
+// apps/web/src/app/(app)/planlar/actions.ts'teki addItemAction/
+// addAlternativeAction'a gidiyor). portionId eşlemesi hâlâ YOK — gerçek
+// food_portions.id bağlantısı #26/ayrı bir issue'nun kapsamı, bu yüzden
+// amount HER ZAMAN grama çevrilip portionId=null yazılıyor (bkz.
+// lib/plan-nutrients.ts resolveGramsFromSelection).
 export interface FoodSearchSelection {
   foodId: string
   nameTr: string
   groupNameTr: string | null
   kcalPer100g: number | null
+  // GitHub issue #25 — plan editörünün öğün toplamı rozetleri (kcal + makro)
+  // nutrition-core'un calculateMealNutrients'ını çağırabilsin diye eklendi;
+  // #24'ün tasarladığı DTO'nun (bkz. yukarıdaki not) doğal bir genişlemesi.
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
   amount: number
   unit?: ParsedFoodInput['unit']
@@ -52,6 +69,9 @@ interface ResultRow {
   nameTr: string
   groupNameTr: string | null
   kcalPer100g: number | null
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
   pinned?: 'recent' | 'frequent'
 }
@@ -62,6 +82,9 @@ function toResultRow(hit: FoodSearchHit): ResultRow {
     nameTr: hit.nameTr,
     groupNameTr: hit.groupNameTr,
     kcalPer100g: hit.kcalPer100g,
+    proteinPer100g: hit.proteinPer100g,
+    carbPer100g: hit.carbPer100g,
+    fatPer100g: hit.fatPer100g,
     defaultPortion: hit.defaultPortion,
   }
 }
@@ -72,6 +95,9 @@ function toPinnedRow(dto: FoodUsageDto): ResultRow {
     nameTr: dto.nameTr,
     groupNameTr: dto.groupNameTr,
     kcalPer100g: dto.kcalPer100g,
+    proteinPer100g: dto.proteinPer100g,
+    carbPer100g: dto.carbPer100g,
+    fatPer100g: dto.fatPer100g,
     defaultPortion: dto.defaultPortion,
     pinned: 'recent',
   }
@@ -174,6 +200,9 @@ export function FoodSearchInput({
         nameTr: row.nameTr,
         groupNameTr: row.groupNameTr,
         kcalPer100g: row.kcalPer100g,
+        proteinPer100g: row.proteinPer100g,
+        carbPer100g: row.carbPer100g,
+        fatPer100g: row.fatPer100g,
         defaultPortion: row.defaultPortion,
         amount: parsed.amount,
         unit: parsed.unit,
@@ -253,13 +282,17 @@ export function FoodSearchInput({
       </div>
 
       {indexStatus === 'error' && (
-        <p className="mt-1 text-sm text-destructive">Besin indeksi yüklenemedi, sayfayı yenileyin.</p>
+        <p className="mt-1 text-sm text-destructive">
+          Besin indeksi yüklenemedi, sayfayı yenileyin.
+        </p>
       )}
 
       {open && indexStatus === 'ready' && visibleRows.length > 0 && (
         <ul className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-lg border border-border bg-popover p-1 shadow-md">
           {parsed.query.trim() === '' && (
-            <li className="px-2 py-1 text-xs font-medium text-muted-foreground">Son / sık kullanılanlar</li>
+            <li className="px-2 py-1 text-xs font-medium text-muted-foreground">
+              Son / sık kullanılanlar
+            </li>
           )}
           {visibleRows.map((row, index) => (
             <li key={row.id}>
@@ -267,7 +300,9 @@ export function FoodSearchInput({
                 type="button"
                 className={cn(
                   'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm',
-                  index === highlightedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
+                  index === highlightedIndex
+                    ? 'bg-accent text-accent-foreground'
+                    : 'hover:bg-muted',
                 )}
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => commitSelection(row)}

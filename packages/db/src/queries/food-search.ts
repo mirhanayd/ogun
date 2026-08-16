@@ -23,7 +23,10 @@ export interface SearchFoodsResult {
 // trigram benzerliği; eşitlikte doğrulanmış besinler ve öncelikli kaynak önde.
 // foods.searchText üzerindeki GIN (gin_trgm_ops) indeksi (bkz.
 // packages/db/src/schema/foods.ts) bu sorguyu hızlandırır.
-export async function searchFoods(db: Database, input: SearchFoodsInput): Promise<SearchFoodsResult[]> {
+export async function searchFoods(
+  db: Database,
+  input: SearchFoodsInput,
+): Promise<SearchFoodsResult[]> {
   const normalizedQuery = normalizeSearchText(input.query)
   if (normalizedQuery === '') return []
 
@@ -74,31 +77,58 @@ export interface FoodPortionSummary {
 
 export interface FoodSummary {
   kcalPer100g: number | null
+  // GitHub issue #25 / Prompt 5.3 — plan editörünün öğün toplamı rozetleri
+  // (kcal + makro) nutrition-core'un calculateMealNutrients'ını ÇAĞIRMAK
+  // için besinin 100g başına protein/karbonhidrat/yağ değerine ihtiyaç
+  // duyuyor. #24'ün bıraktığı kcal-only DTO'nun DOĞAL bir genişlemesi —
+  // ayrı bir hesap yolu DEĞİL, aynı LATERAL/JOIN deseni üç nutrient
+  // koduna daha uygulanıyor (bkz. aşağıdaki sorgu).
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   defaultPortion: FoodPortionSummary | null
 }
 
 // Arama sonuçlarını hafif DTO'ya çevirmek için: her besinin (varsa) öncelikli
-// kaynaktan gelen enerji değeri ve varsayılan porsiyonu. Küçük foodIds
-// listeleri için (arama sonuçları) tasarlandı — tüm katalog için
-// getAllFoodSummaries kullanılır (bkz. apps/web'in index route'u).
-export async function getFoodSummaries(db: Database, foodIds: string[]): Promise<Map<string, FoodSummary>> {
+// kaynaktan gelen enerji/makro değerleri ve varsayılan porsiyonu. Küçük
+// foodIds listeleri için (arama sonuçları) tasarlandı — tüm katalog için
+// getAllFoodIndexEntries kullanılır (bkz. apps/web'in index route'u).
+export async function getFoodSummaries(
+  db: Database,
+  foodIds: string[],
+): Promise<Map<string, FoodSummary>> {
   if (foodIds.length === 0) return new Map()
 
   const rows = await db.execute<{
     food_id: string
     kcal_per_100g: string | null
+    protein_per_100g: string | null
+    carb_per_100g: string | null
+    fat_per_100g: string | null
     portion_label: string | null
     portion_grams: string | null
   }>(sql`
     SELECT
       f.id AS food_id,
-      fn.value_per_100g AS kcal_per_100g,
+      fn_kcal.value_per_100g AS kcal_per_100g,
+      fn_protein.value_per_100g AS protein_per_100g,
+      fn_carb.value_per_100g AS carb_per_100g,
+      fn_fat.value_per_100g AS fat_per_100g,
       fp.label AS portion_label,
       fp.grams AS portion_grams
     FROM foods f
-    LEFT JOIN food_nutrients fn ON fn.food_id = f.id
-      AND fn.is_preferred = true
-      AND fn.nutrient_id = (SELECT id FROM nutrients WHERE code = 'ENERC_KCAL')
+    LEFT JOIN food_nutrients fn_kcal ON fn_kcal.food_id = f.id
+      AND fn_kcal.is_preferred = true
+      AND fn_kcal.nutrient_id = (SELECT id FROM nutrients WHERE code = 'ENERC_KCAL')
+    LEFT JOIN food_nutrients fn_protein ON fn_protein.food_id = f.id
+      AND fn_protein.is_preferred = true
+      AND fn_protein.nutrient_id = (SELECT id FROM nutrients WHERE code = 'PROCNT')
+    LEFT JOIN food_nutrients fn_carb ON fn_carb.food_id = f.id
+      AND fn_carb.is_preferred = true
+      AND fn_carb.nutrient_id = (SELECT id FROM nutrients WHERE code = 'CHOCDF')
+    LEFT JOIN food_nutrients fn_fat ON fn_fat.food_id = f.id
+      AND fn_fat.is_preferred = true
+      AND fn_fat.nutrient_id = (SELECT id FROM nutrients WHERE code = 'FAT')
     LEFT JOIN LATERAL (
       SELECT label, grams FROM food_portions
       WHERE food_id = f.id
@@ -115,6 +145,9 @@ export async function getFoodSummaries(db: Database, foodIds: string[]): Promise
   for (const row of rows) {
     result.set(row.food_id, {
       kcalPer100g: row.kcal_per_100g === null ? null : Number(row.kcal_per_100g),
+      proteinPer100g: row.protein_per_100g === null ? null : Number(row.protein_per_100g),
+      carbPer100g: row.carb_per_100g === null ? null : Number(row.carb_per_100g),
+      fatPer100g: row.fat_per_100g === null ? null : Number(row.fat_per_100g),
       defaultPortion:
         row.portion_label && row.portion_grams
           ? { label: row.portion_label, grams: Number(row.portion_grams) }
@@ -133,6 +166,13 @@ export interface FoodIndexEntry {
   // adı offline indekste hiç yoktu, bu issue'da eklendi (bkz. food-index.ts).
   groupNameTr: string | null
   kcalPer100g: number | null
+  // GitHub issue #25 — bkz. FoodSummary üstündeki not: öğün toplamı
+  // rozetleri (kcal + makro) nutrition-core'un calculateMealNutrients'ını
+  // ÇAĞIRABİLMEK için istemci tarafı indekste de protein/karbonhidrat/yağ
+  // gerekiyor (offline hesap, ağ gecikmesi olmadan).
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   defaultPortion: FoodPortionSummary | null
 }
 
@@ -146,18 +186,33 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     search_text: string
     group_name_tr: string | null
     kcal_per_100g: string | null
+    protein_per_100g: string | null
+    carb_per_100g: string | null
+    fat_per_100g: string | null
     portion_label: string | null
     portion_grams: string | null
   }>(sql`
     SELECT
       f.id, f.name_tr, f.search_text, f.group_name_tr,
-      fn.value_per_100g AS kcal_per_100g,
+      fn_kcal.value_per_100g AS kcal_per_100g,
+      fn_protein.value_per_100g AS protein_per_100g,
+      fn_carb.value_per_100g AS carb_per_100g,
+      fn_fat.value_per_100g AS fat_per_100g,
       fp.label AS portion_label,
       fp.grams AS portion_grams
     FROM foods f
-    LEFT JOIN food_nutrients fn ON fn.food_id = f.id
-      AND fn.is_preferred = true
-      AND fn.nutrient_id = (SELECT id FROM nutrients WHERE code = 'ENERC_KCAL')
+    LEFT JOIN food_nutrients fn_kcal ON fn_kcal.food_id = f.id
+      AND fn_kcal.is_preferred = true
+      AND fn_kcal.nutrient_id = (SELECT id FROM nutrients WHERE code = 'ENERC_KCAL')
+    LEFT JOIN food_nutrients fn_protein ON fn_protein.food_id = f.id
+      AND fn_protein.is_preferred = true
+      AND fn_protein.nutrient_id = (SELECT id FROM nutrients WHERE code = 'PROCNT')
+    LEFT JOIN food_nutrients fn_carb ON fn_carb.food_id = f.id
+      AND fn_carb.is_preferred = true
+      AND fn_carb.nutrient_id = (SELECT id FROM nutrients WHERE code = 'CHOCDF')
+    LEFT JOIN food_nutrients fn_fat ON fn_fat.food_id = f.id
+      AND fn_fat.is_preferred = true
+      AND fn_fat.nutrient_id = (SELECT id FROM nutrients WHERE code = 'FAT')
     LEFT JOIN LATERAL (
       SELECT label, grams FROM food_portions
       WHERE food_id = f.id
@@ -172,6 +227,9 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     searchText: row.search_text,
     groupNameTr: row.group_name_tr,
     kcalPer100g: row.kcal_per_100g === null ? null : Number(row.kcal_per_100g),
+    proteinPer100g: row.protein_per_100g === null ? null : Number(row.protein_per_100g),
+    carbPer100g: row.carb_per_100g === null ? null : Number(row.carb_per_100g),
+    fatPer100g: row.fat_per_100g === null ? null : Number(row.fat_per_100g),
     defaultPortion:
       row.portion_label && row.portion_grams
         ? { label: row.portion_label, grams: Number(row.portion_grams) }

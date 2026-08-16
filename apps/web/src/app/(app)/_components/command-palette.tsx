@@ -16,6 +16,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { initFoodIndex, searchFoodsOffline, type FoodSearchHit } from '@/lib/food-index'
+import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import { visibleNavItems } from './nav-items'
 
 export interface CommandPaletteItem {
@@ -36,7 +37,10 @@ export interface CommandPaletteGroup {
 // "Sayfaya git" — gerçek, çalışan navigasyon. Rol filtrelemesi sidebar/bottom
 // nav ile aynı visibleNavItems() fonksiyonunu kullanır, iki yerde ayrı ayrı
 // tanımlanmaz.
-function buildNavigationGroup(role: ClinicMemberRole, navigate: (href: string) => void): CommandPaletteGroup {
+function buildNavigationGroup(
+  role: ClinicMemberRole,
+  navigate: (href: string) => void,
+): CommandPaletteGroup {
   return {
     heading: 'Sayfaya git',
     items: visibleNavItems(role).map((item) => ({
@@ -73,16 +77,16 @@ function buildClientCommandGroup(navigate: (href: string) => void): CommandPalet
 // GitHub issue #24 / Prompt 5.2 GÖREV 3 — issue #11'in bıraktığı genişletme
 // notu tam olarak burada gerçekleşiyor.
 //
-// BAĞLAM/SINIRLAMA: roadmap'in istediği "plan editöründeyken ⌘K → besin arama
-// moduna girsin, seçilince aktif öğüne eklensin" davranışı henüz KURULAMAZ —
-// "aktif öğün" kavramı plan editörü UI'ının (#25) kendisiyle birlikte
-// gelecek, o UI şu an YOK (bkz. app/(app)/planlar/page.tsx yer tutucusu).
-// Bu yüzden bu grup BİLEREK bağlamsız (her sayfada aynı şekilde) çalışıyor:
-// yazılan sorgu != '' olduğunda lib/food-index.ts'teki offline indeksten
-// (Hafta 1) anlık sonuç gösterir, seçim yapıldığında GERÇEK bir "öğüne
-// ekleme" yerine bir toast + console.log yer tutucusu çalışır. #25 bu
-// bileşeni (veya doğrudan components/food-search-input.tsx'i, bkz. o
-// dosyanın başındaki not) gerçek addItemAction çağrısına bağlayacak.
+// GitHub issue #25 GÜNCELLEMESİ: "plan editöründeyken ⌘K → besin arama
+// moduna girsin, seçilince aktif öğüne eklensin" davranışı artık ÇALIŞIYOR
+// — bkz. lib/stores/active-meal-store.ts. Bu grup HÂLÂ bağlamsız (her
+// sayfada aynı şekilde) çalışır: yazılan sorgu != '' olduğunda
+// lib/food-index.ts'teki offline indeksten (Hafta 1) anlık sonuç gösterir.
+// Seçim yapıldığında (bkz. CommandPalette bileşenindeki onSelectFood):
+//   - plan editöründe bir öğün odaktaysa (useActiveMealStore.activeMealId)
+//     → GERÇEK addItemAction çağrısı (handler üzerinden) çalışır,
+//   - aktif öğün yoksa (kullanıcı başka bir sayfadaysa) → eski toast
+//     yer tutucusuna düşülür (aşağıdaki fallback).
 //
 // DİĞER build*Group()'lardan FARKI: onlar `role`/`navigate` gibi durağan
 // girdilerle SABİT bir liste üretir (cmdk kendi iç fuzzy filtresiyle
@@ -90,7 +94,10 @@ function buildClientCommandGroup(navigate: (href: string) => void): CommandPalet
 // listesini `hits` parametresiyle alır, çünkü 10.000+ besini tek seferde
 // CommandItem olarak render etmek (cmdk'nın kendi filtresine güvenmek)
 // hem performans hem doğruluk açısından yanlış olurdu.
-function buildFoodSearchGroup(hits: FoodSearchHit[], onSelectFood: (hit: FoodSearchHit) => void): CommandPaletteGroup {
+function buildFoodSearchGroup(
+  hits: FoodSearchHit[],
+  onSelectFood: (hit: FoodSearchHit) => void,
+): CommandPaletteGroup {
   return {
     heading: 'Besin ara',
     items: hits.map((hit) => ({
@@ -151,7 +158,9 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
     if (!open || foodIndexReady) return
     initFoodIndex()
       .then(() => setFoodIndexReady(true))
-      .catch((error: unknown) => console.error('[CommandPalette] besin indeksi yüklenemedi:', error))
+      .catch((error: unknown) =>
+        console.error('[CommandPalette] besin indeksi yüklenemedi:', error),
+      )
   }, [open, foodIndexReady])
 
   useEffect(() => {
@@ -182,16 +191,29 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
     [router],
   )
 
-  // YER TUTUCU (bkz. buildFoodSearchGroup üstündeki not): #25 gerçek plan
-  // editörü UI'ı gelince buradaki toast+console.log, o UI'ın "aktif öğüne
-  // ekle" mantığıyla değiştirilecek.
-  const onSelectFood = useCallback((hit: FoodSearchHit) => {
-    setOpen(false)
-    toast.info(`${hit.nameTr} seçildi`, {
-      description: 'Aktif öğüne ekleme, plan editörü (#25) kurulduğunda buraya bağlanacak.',
-    })
-    console.log('[CommandPalette] besin seçildi (yer tutucu):', hit)
-  }, [])
+  const addFoodToActiveMeal = useActiveMealStore((state) => state.addFoodToActiveMeal)
+  const activeMealLabel = useActiveMealStore((state) => state.activeMealLabel)
+
+  // bkz. dosya başı notu: plan editöründe bir öğün aktifse GERÇEK ekleme,
+  // değilse eski toast yer tutucusu (ör. danışan listesindeyken ⌘K ile
+  // besin aratmak hâlâ mümkün olsun, ama hiçbir yere "eklenmiş" gibi
+  // yanıltmasın).
+  const onSelectFood = useCallback(
+    (hit: FoodSearchHit) => {
+      setOpen(false)
+      const added = addFoodToActiveMeal(hit)
+      if (added) {
+        toast.success(`${hit.nameTr} eklendi`, {
+          description: activeMealLabel ? `${activeMealLabel} öğününe eklendi.` : undefined,
+        })
+        return
+      }
+      toast.info(`${hit.nameTr} seçildi`, {
+        description: 'Bir öğüne eklemek için plan editöründeyken arayın.',
+      })
+    },
+    [addFoodToActiveMeal, activeMealLabel],
+  )
 
   const groups = useCommandPaletteGroups(role, navigate, foodHits, foodQuery, onSelectFood)
 
@@ -228,7 +250,11 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
               {index > 0 && <CommandSeparator />}
               <CommandGroup heading={group.heading}>
                 {group.items.map((item) => (
-                  <CommandItem key={item.id} disabled={item.disabled} onSelect={() => item.onSelect?.()}>
+                  <CommandItem
+                    key={item.id}
+                    disabled={item.disabled}
+                    onSelect={() => item.onSelect?.()}
+                  >
                     <item.icon className="size-4" />
                     {item.label}
                     {item.disabled && <Badge variant="secondary">Yakında</Badge>}
