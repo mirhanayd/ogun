@@ -7,6 +7,20 @@ export interface MacroDistribution {
   carbPercent: number
 }
 
+// GitHub issue #26 / Prompt 5.4, GÖREV 1 — "hedef aralığı gölgeli
+// gösterilsin" isteyen makro dağılım çubuğu için genel kabul görmüş kabul
+// edilebilir makro besin öğesi dağılımı (AMDR) aralıkları. TÜBER'e özel
+// DEĞİL (tuber-2022.ts'teki yaş grubu referanslarının aksine) — literatürde
+// yaygın kullanılan genel yetişkin aralığı, danışana özel değildir.
+export const MACRO_DISTRIBUTION_TARGET_RANGES: Record<
+  'protein' | 'carb' | 'fat',
+  { min: number; max: number }
+> = {
+  protein: { min: 10, max: 20 },
+  carb: { min: 45, max: 65 },
+  fat: { min: 20, max: 35 },
+}
+
 // Enerjinin protein/yağ/karbonhidrattan gelen yüzdesel dağılımı (4-4-9 Atwater).
 export function calculateMacroDistribution(nutrients: NutrientValuesPer100g): MacroDistribution {
   const proteinKcal = (nutrients[NUTRIENT.PROTEIN] ?? 0) * 4

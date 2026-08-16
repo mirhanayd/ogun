@@ -22,6 +22,15 @@ export interface FoodIndexRow {
   fatPer100g: number | null
   defaultPortionLabel: string | null
   defaultPortionGrams: number | null
+  // GitHub issue #26 / Prompt 5.4, GÖREV 4 — canlı besin öğesi panelinin
+  // "Hesap İSTEMCİDE yapılsın... Besin verisi Dexie'den okunsun" kuralı: ~60
+  // besin öğesinin TAMAMI (sadece kcal/protein/karb/yağ değil) burada,
+  // ağ gecikmesi olmadan okunabilsin diye satırda taşınıyor. Değeri olmayan
+  // kodlar haritada hiç YOK (bkz. FoodIndexEntry üstündeki not — "eksik"
+  // ile "sıfır" ayrımı nutrition-core'un MISSING_NUTRIENT_DATA uyarısının
+  // temeli).
+  nutrientsPer100g: Record<string, number>
+  hasImputedValues: boolean
 }
 
 interface MetaRow {
@@ -29,15 +38,39 @@ interface MetaRow {
   value: string
 }
 
+// GitHub issue #26 / Prompt 5.4 — mikro besin öğesi listesinin ad/birim/
+// isCore metadata'sı, /api/foods/index cevabıyla AYNI versiyonlu önbellekte
+// (bkz. ensureIndexLoaded) gelir, ayrı bir Dexie tablosunda saklanır.
+export interface NutrientDefRow {
+  code: string
+  nameTr: string
+  unit: string
+  category: string
+  isCore: boolean
+  displayOrder: number
+}
+
 class FoodIndexDb extends Dexie {
   foods!: EntityTable<FoodIndexRow, 'id'>
   meta!: EntityTable<MetaRow, 'key'>
+  nutrientDefs!: EntityTable<NutrientDefRow, 'code'>
 
   constructor() {
     super('ogun-food-index')
     this.version(1).stores({
       foods: 'id, searchText',
       meta: 'key',
+    })
+    // GitHub issue #26 — yeni bir tablo (nutrientDefs) eklendiği için Dexie
+    // sürüm ATLAMASI gerekiyor (yeni store'lar sadece version() ile açılır).
+    // foods/meta şemaları DEĞİŞMEDİ (nutrientsPer100g/hasImputedValues
+    // indekslenmeyen düz alanlar — kcalPer100g/proteinPer100g'nin AYNI
+    // deseni, bkz. FoodIndexRow üstündeki notlar), o yüzden onlar için ayrıca
+    // bir migrasyon adımı gerekmiyor.
+    this.version(2).stores({
+      foods: 'id, searchText',
+      meta: 'key',
+      nutrientDefs: 'code',
     })
   }
 }
@@ -80,7 +113,7 @@ async function ensureIndexLoaded(): Promise<void> {
     throw new Error(`Besin indeksi indirilemedi: ${response.status}`)
   }
 
-  const { version, entries } = (await response.json()) as {
+  const { version, entries, nutrientDefs } = (await response.json()) as {
     version: string
     entries: Array<{
       id: string
@@ -92,10 +125,13 @@ async function ensureIndexLoaded(): Promise<void> {
       carbPer100g: number | null
       fatPer100g: number | null
       defaultPortion: { label: string; grams: number } | null
+      nutrientsPer100g: Record<string, number>
+      hasImputedValues: boolean
     }>
+    nutrientDefs: NutrientDefRow[]
   }
 
-  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, async () => {
+  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, dexieDb.nutrientDefs, async () => {
     await dexieDb.foods.clear()
     await dexieDb.foods.bulkPut(
       entries.map((entry) => ({
@@ -109,13 +145,26 @@ async function ensureIndexLoaded(): Promise<void> {
         fatPer100g: entry.fatPer100g,
         defaultPortionLabel: entry.defaultPortion?.label ?? null,
         defaultPortionGrams: entry.defaultPortion?.grams ?? null,
+        nutrientsPer100g: entry.nutrientsPer100g,
+        hasImputedValues: entry.hasImputedValues,
       })),
     )
+    await dexieDb.nutrientDefs.clear()
+    await dexieDb.nutrientDefs.bulkPut(nutrientDefs)
     await setStoredVersion(version)
   })
 
   // Yeni veri geldiğinde bellekteki Orama indeksi bayatlar, yeniden kurulacak.
   oramaIndexPromise = null
+}
+
+// GitHub issue #26 / Prompt 5.4 — mikro besin öğesi listesinin metadata'sı
+// (ad/birim/isCore), önbellekten (initFoodIndex çağrılmış olmalı).
+export async function getNutrientDefinitions(): Promise<NutrientDefRow[]> {
+  // NOT: orderBy() Dexie'de INDEKSLİ bir alan gerektirir (sadece 'code'
+  // indeksli, bkz. FoodIndexDb.version(2)) — sortBy() indeks gerektirmez,
+  // JS tarafında sıralar. ~60 satırlık küçük bir tablo için maliyeti önemsiz.
+  return dexieDb.nutrientDefs.toCollection().sortBy('displayOrder')
 }
 
 async function buildOramaIndex(): Promise<OramaDb> {
