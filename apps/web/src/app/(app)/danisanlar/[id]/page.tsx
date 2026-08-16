@@ -1,11 +1,10 @@
 import { notFound } from 'next/navigation'
-import { CalendarDays, Wallet, type LucideIcon } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import { calculateBmi } from '@ogun/nutrition-core'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EmptyState } from '@/components/empty-state'
@@ -23,6 +22,9 @@ import { LabResultsTab } from './laboratuvar/lab-results-tab'
 import { DocumentsTab } from './dosyalar/documents-tab'
 import { NewPlanButton } from './planlar/new-plan-button'
 import { PlanlarTab } from './planlar/planlar-tab'
+import { AppointmentsTab } from './randevular/appointments-tab'
+import { NewAppointmentButton } from './randevular/new-appointment-button'
+import { getClientNextAppointment } from '../../randevular/queries'
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
@@ -36,7 +38,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { scope } = await requireClinic()
 
-  const [client, dietitians, latestMeasurement, weightGoal, healthRecord, abnormalLabResults] =
+  const [client, dietitians, latestMeasurement, weightGoal, healthRecord, abnormalLabResults, nextAppointment] =
     await Promise.all([
       viewClientRecord(id),
       listClinicDietitians(db, scope.clinicId),
@@ -44,6 +46,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       getClientActiveGoal(id, 'kilo'),
       getClientHealthRecord(id),
       listClientAbnormalLabResults(id),
+      getClientNextAppointment(id),
     ])
 
   // Soft-delete edilmiş (bkz. schema/clients.ts deletedAt) bir kayıt normal
@@ -94,7 +97,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               {client.phone || 'Telefon —'} {client.email ? `· ${client.email}` : ''}
             </p>
           </div>
-          {/* Son görüşme hâlâ "—": randevu modülü henüz açılmamış bir issue. */}
+          {/* Son görüşme artık GERÇEK veri — GitHub issue #39 / Prompt 7.1
+              randevu modülünün getClientNextAppointment sorgusundan. */}
           <div className="ml-auto grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
             <SummaryStat
               label="Güncel kilo"
@@ -105,7 +109,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               label="Hedef"
               value={weightGoal ? `${Number(weightGoal.targetValue)} kg` : '—'}
             />
-            <SummaryStat label="Son görüşme" value="—" />
+            <SummaryStat
+              label="Sonraki randevu"
+              value={
+                nextAppointment
+                  ? nextAppointment.startsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+                  : '—'
+              }
+            />
           </div>
         </CardContent>
       </Card>
@@ -148,11 +159,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </TabsContent>
 
           <TabsContent value="randevular" className="mt-4">
-            <EmptyState
-              icon={CalendarDays}
-              title="Randevular bu bölüm henüz hazır değil"
-              description="Randevu takvimi, roadmap'in Hafta 7 (Prompt 7.1 — Randevu takvimi) kapsamındaki ayrı bir modülde eklenecek."
-            />
+            <AppointmentsTab clientId={client.id} />
           </TabsContent>
 
           <TabsContent value="odemeler" className="mt-4">
@@ -170,12 +177,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             {/* "Yeni ölçüm" KALDIRILDI — GitHub issue #18 ile artık gerçek bir
                 giriş noktası VAR (Ölçümler sekmesindeki form), bu yüzden
                 "Yakında" rozetli devre dışı bir düğme burada YANLIŞ olurdu.
-                GitHub issue #25 ile "Yeni plan" da AYNI şekilde gerçek bir
-                giriş noktasına kavuştu (bkz. planlar/new-plan-button.tsx) —
-                randevu modülü hâlâ kurulmamış, o yüzden "Yakında" rozetiyle
-                devre dışı kalmaya devam ediyor. */}
+                GitHub issue #25 ile "Yeni plan" AYNI şekilde gerçek bir giriş
+                noktasına kavuştu (bkz. planlar/new-plan-button.tsx). GitHub
+                issue #39 ile "Randevu ver" de ARTIK gerçek — randevu
+                modülünün AppointmentDialog'unu açar (bkz.
+                randevular/new-appointment-button.tsx). */}
             <NewPlanButton clientId={client.id} className="w-full justify-start gap-1.5" />
-            <QuickAction icon={CalendarDays} label="Randevu ver" />
+            <NewAppointmentButton
+              clientId={client.id}
+              clientName={`${client.firstName} ${client.lastName}`}
+              dietitians={dietitians}
+              className="w-full justify-start gap-1.5"
+            />
           </CardContent>
         </Card>
       </div>
@@ -192,14 +205,3 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function QuickAction({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
-  return (
-    <Button variant="outline" size="sm" disabled className="justify-start gap-1.5">
-      <Icon />
-      {label}
-      <Badge variant="secondary" className="pointer-events-none ml-auto">
-        Yakında
-      </Badge>
-    </Button>
-  )
-}
