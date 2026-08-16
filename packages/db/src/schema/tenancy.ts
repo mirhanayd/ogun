@@ -58,6 +58,13 @@ export const clinics = pgTable('clinics', {
   createdBy: text('created_by').references(() => users.id),
   onboardingStep: integer('onboarding_step').notNull().default(1),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
+  // Veri saklama süresi ayarı (gün) — KVKK ve denetim kaydı (GitHub issue
+  // #12 / Prompt 3.3), bkz. /ayarlar/veri-guvenligi sayfası. Klinik bazında
+  // değiştirilebilir bir SAYIdır, hukuki bir metin/karar DEĞİLDİR — kesin
+  // saklama süresi ürün sahibi/hukuk ekibi tarafından ayrıca belirlenecek.
+  // 3650 (10 yıl) sadece güvenli bir başlangıç varsayılanı, bir yasal tavsiye
+  // değil.
+  dataRetentionDays: integer('data_retention_days').notNull().default(3650),
   ...timestamps(),
 })
 
