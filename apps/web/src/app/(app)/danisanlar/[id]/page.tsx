@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
+import { calculateBmi } from '@ogun/nutrition-core'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,8 @@ import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
 import { SEX_LABELS_TR } from '@/lib/validation/client-schemas'
 import { GeneralTabForm } from './general-tab-form'
+import { getClientActiveGoal, getClientLatestMeasurement } from './measurements/queries'
+import { MeasurementsTab } from './measurements/measurements-tab'
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
@@ -35,7 +38,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { scope } = await requireClinic()
 
-  const [client, dietitians] = await Promise.all([viewClientRecord(id), listClinicDietitians(db, scope.clinicId)])
+  const [client, dietitians, latestMeasurement, weightGoal] = await Promise.all([
+    viewClientRecord(id),
+    listClinicDietitians(db, scope.clinicId),
+    getClientLatestMeasurement(id),
+    getClientActiveGoal(id, 'kilo'),
+  ])
 
   // Soft-delete edilmiş (bkz. schema/clients.ts deletedAt) bir kayıt normal
   // uygulama akışında GÖRÜNTÜLENMEZ — veri sahibi hakları akışı (dışa
@@ -45,6 +53,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   }
 
   const age = calculateAge(client.birthDate)
+
+  // Güncel kilo / BKİ / hedef (GitHub issue #18 / Prompt 4.2 tabloları artık
+  // var) — "Son görüşme" hâlâ "—": randevu modülü henüz açılmamış bir issue.
+  const currentWeightKg =
+    latestMeasurement?.weightKg !== null && latestMeasurement?.weightKg !== undefined
+      ? Number(latestMeasurement.weightKg)
+      : null
+  const currentHeightCm =
+    latestMeasurement?.heightCm !== null && latestMeasurement?.heightCm !== undefined
+      ? Number(latestMeasurement.heightCm)
+      : null
+  const currentBmi =
+    currentWeightKg !== null && currentHeightCm !== null
+      ? calculateBmi(currentWeightKg, currentHeightCm)
+      : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,14 +88,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               {client.phone || 'Telefon —'} {client.email ? `· ${client.email}` : ''}
             </p>
           </div>
-          {/* Güncel kilo / BKİ / hedef / son görüşme — measurements (GitHub
-              issue #18 / Prompt 4.2), client_goals (aynı issue) ve randevu
-              modülü (henüz açılmamış) tabloları bu repoda henüz YOK. Bu dört
-              alan o tablolar gelince buraya birer sorguyla bağlanacak. */}
+          {/* Son görüşme hâlâ "—": randevu modülü henüz açılmamış bir issue. */}
           <div className="ml-auto grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-            <SummaryStat label="Güncel kilo" value="—" />
-            <SummaryStat label="BKİ" value="—" />
-            <SummaryStat label="Hedef" value="—" />
+            <SummaryStat
+              label="Güncel kilo"
+              value={currentWeightKg !== null ? `${currentWeightKg} kg` : '—'}
+            />
+            <SummaryStat label="BKİ" value={currentBmi !== null ? currentBmi.toFixed(1) : '—'} />
+            <SummaryStat
+              label="Hedef"
+              value={weightGoal ? `${Number(weightGoal.targetValue)} kg` : '—'}
+            />
             <SummaryStat label="Son görüşme" value="—" />
           </div>
         </CardContent>
@@ -96,11 +122,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </TabsContent>
 
           <TabsContent value="olcumler" className="mt-4">
-            <EmptyState
-              icon={Ruler}
-              title="Ölçümler bu bölüm henüz hazır değil"
-              description="Kilo, çevre ölçümleri ve vücut kompozisyonu takibi GitHub issue #18 (Prompt 4.2 — Ölçüm ve ilerleme) kapsamında eklenecek."
-            />
+            <MeasurementsTab clientId={client.id} />
           </TabsContent>
 
           <TabsContent value="planlar" className="mt-4">
@@ -155,12 +177,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <Card>
           <CardContent className="flex flex-col gap-2">
             <p className="text-sm font-medium">Hızlı eylemler</p>
-            {/* Bu üç eylem henüz kurulmamış modüllere (#18, plan editörü,
-                randevu modülü) gider — command-palette.tsx'in "Danışan ara"
-                girdisinde (GitHub issue #11 / Prompt 3.2) kurulan "modül
-                yoksa devre dışı + Yakında rozeti" desenini burada da
-                uyguluyoruz; ölü bir link yerine dürüst bir "yakında" göstergesi. */}
-            <QuickAction icon={Ruler} label="Yeni ölçüm" />
+            {/* "Yeni ölçüm" KALDIRILDI — GitHub issue #18 ile artık gerçek bir
+                giriş noktası VAR (Ölçümler sekmesindeki form), bu yüzden
+                "Yakında" rozetli devre dışı bir düğme burada YANLIŞ olurdu.
+                Kalan iki eylem hâlâ kurulmamış modüllere (plan editörü,
+                randevu modülü) gider — command-palette.tsx'teki AYNI "modül
+                yoksa devre dışı + Yakında rozeti" deseni. */}
             <QuickAction icon={ClipboardPlus} label="Yeni plan" />
             <QuickAction icon={CalendarDays} label="Randevu ver" />
           </CardContent>
