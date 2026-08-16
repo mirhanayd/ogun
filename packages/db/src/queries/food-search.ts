@@ -128,6 +128,10 @@ export interface FoodIndexEntry {
   id: string
   nameTr: string
   searchText: string
+  // GitHub issue #24 / Prompt 5.2 GÖREV 1 — FoodSearchInput sonuç satırında
+  // "ad, grup, varsayılan porsiyon, 100g kcal" gösterilmesi istendi; grup
+  // adı offline indekste hiç yoktu, bu issue'da eklendi (bkz. food-index.ts).
+  groupNameTr: string | null
   kcalPer100g: number | null
   defaultPortion: FoodPortionSummary | null
 }
@@ -140,12 +144,13 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     id: string
     name_tr: string
     search_text: string
+    group_name_tr: string | null
     kcal_per_100g: string | null
     portion_label: string | null
     portion_grams: string | null
   }>(sql`
     SELECT
-      f.id, f.name_tr, f.search_text,
+      f.id, f.name_tr, f.search_text, f.group_name_tr,
       fn.value_per_100g AS kcal_per_100g,
       fp.label AS portion_label,
       fp.grams AS portion_grams
@@ -165,6 +170,7 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     id: row.id,
     nameTr: row.name_tr,
     searchText: row.search_text,
+    groupNameTr: row.group_name_tr,
     kcalPer100g: row.kcal_per_100g === null ? null : Number(row.kcal_per_100g),
     defaultPortion:
       row.portion_label && row.portion_grams

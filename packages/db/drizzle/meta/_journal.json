@@ -78,6 +78,13 @@
       "when": 1786879985119,
       "tag": "0010_tough_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786881067457,
+      "tag": "0011_add_food_usage_table",
+      "breakpoints": true
     }
   ]
 }

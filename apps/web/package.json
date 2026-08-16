@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "benchmark": "tsx src/lib/food-search-benchmark.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",
@@ -51,6 +52,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.23",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "vitest": "^3.0.4"
   }

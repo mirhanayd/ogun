@@ -6,6 +6,13 @@ interface FoodIndexRow {
   id: string
   nameTr: string
   searchText: string
+  // GitHub issue #24 / Prompt 5.2 GÖREV 1 — FoodSearchInput sonuç satırında
+  // grup adı gösterilmesi gerekti (bkz. queries/food-search.ts FoodIndexEntry).
+  // Dexie versiyonu ARTIRILMADI: bu alan indekslenmiyor (stores: 'id, searchText'
+  // aynı kalıyor), sadece satıra ek bir düz alan olarak ekleniyor — Dexie
+  // şemada listelenmeyen alanları da satırda saklamaya zaten izin veriyor
+  // (kcalPer100g/defaultPortionLabel de aynı şekilde indekssiz).
+  groupNameTr: string | null
   kcalPer100g: number | null
   defaultPortionLabel: string | null
   defaultPortionGrams: number | null
@@ -73,6 +80,7 @@ async function ensureIndexLoaded(): Promise<void> {
       id: string
       nameTr: string
       searchText: string
+      groupNameTr: string | null
       kcalPer100g: number | null
       defaultPortion: { label: string; grams: number } | null
     }>
@@ -85,6 +93,7 @@ async function ensureIndexLoaded(): Promise<void> {
         id: entry.id,
         nameTr: entry.nameTr,
         searchText: entry.searchText,
+        groupNameTr: entry.groupNameTr,
         kcalPer100g: entry.kcalPer100g,
         defaultPortionLabel: entry.defaultPortion?.label ?? null,
         defaultPortionGrams: entry.defaultPortion?.grams ?? null,
@@ -124,6 +133,7 @@ export async function initFoodIndex(): Promise<void> {
 export interface FoodSearchHit {
   id: string
   nameTr: string
+  groupNameTr: string | null
   kcalPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
 }
@@ -146,6 +156,7 @@ export async function searchFoodsOffline(
     .map((row) => ({
       id: row.id,
       nameTr: row.nameTr,
+      groupNameTr: row.groupNameTr,
       kcalPer100g: row.kcalPer100g,
       defaultPortion:
         row.defaultPortionLabel && row.defaultPortionGrams !== null

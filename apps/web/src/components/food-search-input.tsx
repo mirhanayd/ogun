@@ -1,0 +1,288 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { Loader2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { initFoodIndex, searchFoodsOffline, type FoodSearchHit } from '@/lib/food-index'
+import { parseFoodInput, type ParsedFoodInput } from '@/lib/parse-food-input'
+import type { FoodUsageDto } from '@/app/api/foods/usage/route'
+
+// GitHub issue #24 / Prompt 5.2 — "90 saniyede liste" iddiasının teknik
+// karşılığı: Dexie+Orama istemci indeksini (bkz. lib/food-index.ts, Hafta 1)
+// kullanarak ağa çıkmadan anlık sonuç veren, doğal dil miktar ayrıştırmalı
+// (bkz. lib/parse-food-input.ts) besin arama girişi.
+//
+// STANDALONE BİLEŞEN NOTU (#25 için): plan editörü UI'ı (GitHub issue #25)
+// HENÜZ yok — bu yüzden bu bileşen "aktif öğüne ekleme" akışına DOĞRUDAN
+// bağlı değil, sadece bir `onSelect(selection)` callback'i sunuyor. #25
+// editörü yazıldığında yapması gereken TEK şey: kendi "aktif öğün" state'ini
+// tutup onSelect içinde apps/web/src/app/(app)/planlar/actions.ts'teki
+// addItemAction'ı çağırmak (bkz. FoodSearchSelection alanları — addItem'ın
+// beklediği foodId/amount/portionId şekliyle uyumlu olacak şekilde
+// tasarlandı; portionId eşleşmesi #25'in kendi porsiyon-seçme mantığına
+// bırakıldı, burada sadece serbest metin `portion` etiketi geçiyor).
+export interface FoodSearchSelection {
+  foodId: string
+  nameTr: string
+  groupNameTr: string | null
+  kcalPer100g: number | null
+  defaultPortion: { label: string; grams: number } | null
+  amount: number
+  unit?: ParsedFoodInput['unit']
+  portion?: string
+}
+
+export interface FoodSearchInputProps {
+  onSelect: (selection: FoodSearchSelection) => void
+  // Tab tuşunda odağın taşınacağı miktar alanı (bkz. roadmap GÖREV 1: "Tab
+  // ile miktara geç"). Verilmezse Tab varsayılan tarayıcı davranışını izler.
+  quantityInputRef?: RefObject<HTMLInputElement | null>
+  placeholder?: string
+  autoFocus?: boolean
+  className?: string
+  // Geliştirme modunda arama gecikmesi rozetini göster (GÖREV 4). Varsayılan
+  // NODE_ENV'e göre belirlenir, testte zorlamak için override edilebilir.
+  showLatencyBadge?: boolean
+}
+
+interface ResultRow {
+  id: string
+  nameTr: string
+  groupNameTr: string | null
+  kcalPer100g: number | null
+  defaultPortion: { label: string; grams: number } | null
+  pinned?: 'recent' | 'frequent'
+}
+
+function toResultRow(hit: FoodSearchHit): ResultRow {
+  return {
+    id: hit.id,
+    nameTr: hit.nameTr,
+    groupNameTr: hit.groupNameTr,
+    kcalPer100g: hit.kcalPer100g,
+    defaultPortion: hit.defaultPortion,
+  }
+}
+
+function toPinnedRow(dto: FoodUsageDto): ResultRow {
+  return {
+    id: dto.id,
+    nameTr: dto.nameTr,
+    groupNameTr: dto.groupNameTr,
+    kcalPer100g: dto.kcalPer100g,
+    defaultPortion: dto.defaultPortion,
+    pinned: 'recent',
+  }
+}
+
+// Seçilen besinin kullanım sayacını sunucuda artırır (bkz.
+// api/foods/usage POST) — "sık/son kullanılanlar" cihazlar arası kalıcı
+// olsun diye localStorage DEĞİL, clinic bazlı sunucu tarafı sayaç kullanılır.
+// Fire-and-forget: bu isteğin gecikmesi/başarısızlığı seçim akışını
+// ENGELLEMEMELİ (arama hızı iddiasıyla çelişir).
+function fireRecordUsage(foodId: string) {
+  fetch('/api/foods/usage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ foodId }),
+  }).catch(() => {
+    // Sessizce yut — kullanım sayacı best-effort bir özellik, aramayı
+    // engellememeli. Kalıcı hata izleme ayrı bir gözlemlenebilirlik
+    // konusunun kapsamında (bkz. audit.ts'teki benzer gerekçe).
+  })
+}
+
+export function FoodSearchInput({
+  onSelect,
+  quantityInputRef,
+  placeholder = 'Besin ara… (ör. "1 kase mercimek çorbası")',
+  autoFocus,
+  className,
+  showLatencyBadge = process.env.NODE_ENV !== 'production',
+}: FoodSearchInputProps) {
+  const [indexStatus, setIndexStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [rawValue, setRawValue] = useState('')
+  const [rows, setRows] = useState<ResultRow[]>([])
+  const [pinnedRows, setPinnedRows] = useState<ResultRow[]>([])
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null)
+
+  const inputRef = useRef<HTMLInputElement>(null)
+  const requestIdRef = useRef(0)
+
+  useEffect(() => {
+    initFoodIndex()
+      .then(() => setIndexStatus('ready'))
+      .catch((error: unknown) => {
+        console.error('[FoodSearchInput] indeks yüklenemedi:', error)
+        setIndexStatus('error')
+      })
+  }, [])
+
+  // Pinlenmiş liste bir kez, bileşen hazır olduğunda çekilir — arama her
+  // tuş vuruşunda tekrar istemesin diye (zaten ağa hiç çıkmamak asıl amaç).
+  useEffect(() => {
+    if (indexStatus !== 'ready') return
+    let cancelled = false
+    fetch('/api/foods/usage')
+      .then((res) => (res.ok ? (res.json() as Promise<FoodUsageDto[]>) : []))
+      .then((dtos) => {
+        if (!cancelled) setPinnedRows(dtos.map(toPinnedRow))
+      })
+      .catch(() => {
+        // Pinleme "olursa iyi olur" bir özellik — başarısız olursa arama
+        // yine de tam işlevsel kalmalı, bu yüzden sessiz düşer.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [indexStatus])
+
+  const parsed = useMemo(() => parseFoodInput(rawValue), [rawValue])
+
+  useEffect(() => {
+    if (indexStatus !== 'ready') return
+
+    if (parsed.query.trim() === '') {
+      setRows([])
+      setElapsedMs(null)
+      setHighlightedIndex(0)
+      return
+    }
+
+    const requestId = ++requestIdRef.current
+    searchFoodsOffline(parsed.query).then((result) => {
+      // Yarış durumu koruması: kullanıcı hızlı yazarken önceki (artık bayat)
+      // sorgunun sonucu sonradan dönerse ekrana YAZILMAZ.
+      if (requestIdRef.current !== requestId) return
+      setRows(result.hits.map(toResultRow))
+      setElapsedMs(result.elapsedMs)
+      setHighlightedIndex(0)
+    })
+  }, [parsed.query, indexStatus])
+
+  const visibleRows = parsed.query.trim() === '' ? pinnedRows : rows
+
+  const commitSelection = useCallback(
+    (row: ResultRow) => {
+      fireRecordUsage(row.id)
+      onSelect({
+        foodId: row.id,
+        nameTr: row.nameTr,
+        groupNameTr: row.groupNameTr,
+        kcalPer100g: row.kcalPer100g,
+        defaultPortion: row.defaultPortion,
+        amount: parsed.amount,
+        unit: parsed.unit,
+        portion: parsed.portion,
+      })
+      setRawValue('')
+      setRows([])
+      setOpen(false)
+    },
+    [onSelect, parsed.amount, parsed.portion, parsed.unit],
+  )
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (visibleRows.length === 0) return
+      setOpen(true)
+      setHighlightedIndex((prev) => (prev + 1) % visibleRows.length)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (visibleRows.length === 0) return
+      setOpen(true)
+      setHighlightedIndex((prev) => (prev - 1 + visibleRows.length) % visibleRows.length)
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const row = visibleRows[highlightedIndex]
+      if (row) commitSelection(row)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      return
+    }
+    if (event.key === 'Tab' && quantityInputRef?.current) {
+      event.preventDefault()
+      setOpen(false)
+      quantityInputRef.current.focus()
+    }
+  }
+
+  const latencyBadge =
+    showLatencyBadge && elapsedMs !== null ? (
+      <Badge
+        variant={elapsedMs > 20 ? 'destructive' : 'secondary'}
+        className="absolute top-1/2 right-2 -translate-y-1/2 font-mono"
+      >
+        {elapsedMs.toFixed(1)} ms
+      </Badge>
+    ) : null
+
+  return (
+    <div className={cn('relative w-full', className)}>
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          value={rawValue}
+          placeholder={indexStatus === 'loading' ? 'Besin indeksi yükleniyor…' : placeholder}
+          disabled={indexStatus === 'loading' || indexStatus === 'error'}
+          autoFocus={autoFocus}
+          onChange={(event) => {
+            setRawValue(event.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          className={cn(latencyBadge ? 'pr-16' : undefined)}
+        />
+        {indexStatus === 'loading' && (
+          <Loader2 className="absolute top-1/2 right-2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        )}
+        {latencyBadge}
+      </div>
+
+      {indexStatus === 'error' && (
+        <p className="mt-1 text-sm text-destructive">Besin indeksi yüklenemedi, sayfayı yenileyin.</p>
+      )}
+
+      {open && indexStatus === 'ready' && visibleRows.length > 0 && (
+        <ul className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-lg border border-border bg-popover p-1 shadow-md">
+          {parsed.query.trim() === '' && (
+            <li className="px-2 py-1 text-xs font-medium text-muted-foreground">Son / sık kullanılanlar</li>
+          )}
+          {visibleRows.map((row, index) => (
+            <li key={row.id}>
+              <button
+                type="button"
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                  index === highlightedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
+                )}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => commitSelection(row)}
+              >
+                <span className="truncate">{row.nameTr}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {row.groupNameTr ?? '—'}
+                  {row.defaultPortion ? ` · ${row.defaultPortion.label}` : ''}
+                  {row.kcalPer100g !== null ? ` · ${row.kcalPer100g.toFixed(0)} kcal/100g` : ''}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

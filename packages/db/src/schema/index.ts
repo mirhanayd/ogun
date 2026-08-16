@@ -1,4 +1,5 @@
 export * from './foods'
+export * from './food-usage'
 export * from './exchanges'
 export * from './recipes'
 export * from './tenancy'
