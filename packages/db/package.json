@@ -16,9 +16,11 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/seed/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@ogun/nutrition-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
@@ -28,6 +30,7 @@
     "@types/node": "^20",
     "drizzle-kit": "^0.30.1",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.0.4"
   }
 }

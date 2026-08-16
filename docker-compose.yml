@@ -12,5 +12,37 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d
 
+  # GitHub issue #19 / Prompt 4.3, GÖREV 3 — dosya yükleme (S3 uyumlu
+  # depolama, yerel: MinIO). apps/web/src/lib/storage.ts, MinIO'nun S3
+  # API'siyle @aws-sdk/client-s3 üzerinden konuşur — üretimde SADECE
+  # S3_ENDPOINT/S3_FORCE_PATH_STYLE env değişkenleri değişir (Cloudflare R2
+  # veya gerçek S3), kod değişmez.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web konsolu (http://localhost:9001)
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  # MinIO ilk açılışta boş — "ogun-documents" bucket'ını otomatik oluşturan
+  # tek seferlik bir init container. mc (MinIO Client) image'ı minio servisi
+  # hazır olana kadar bekler, bucket'ı oluşturur ve çıkar.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb --ignore-existing local/ogun-documents;
+      "
+
 volumes:
   postgres_data:
+  minio_data:

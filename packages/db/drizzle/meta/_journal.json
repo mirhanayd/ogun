@@ -64,6 +64,13 @@
       "when": 1786876499538,
       "tag": "0008_sweet_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786878051552,
+      "tag": "0009_calm_katie_power",
+      "breakpoints": true
     }
   ]
 }
