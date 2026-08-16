@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { Bookmark } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FoodSearchInput } from '@/components/food-search-input'
 import { PLAN_MEAL_TYPE_OPTIONS } from '@/lib/validation/plan-schemas'
@@ -13,15 +16,24 @@ import { mealContainerId } from '@/lib/dnd-reorder'
 import type { DraftMeal } from './plan-editor-store'
 import { usePlanEditorStore } from './plan-editor-store'
 import { PlanItemRow } from './plan-item-row'
+import { SaveMealDialog } from './save-meal-dialog'
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 2: öğün bloğu bileşeni.
 export function MealBlock({ meal }: { meal: DraftMeal }) {
   const setMealMeta = usePlanEditorStore((s) => s.setMealMeta)
   const addItemFromSelection = usePlanEditorStore((s) => s.addItemFromSelection)
+  const insertSavedMeal = usePlanEditorStore((s) => s.insertSavedMeal)
   const foodMacros = usePlanEditorStore((s) => s.foodMacros)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
 
   const { setNodeRef: setDroppableRef } = useDroppable({ id: mealContainerId(meal.id) })
   const setActiveMeal = useActiveMealStore((s) => s.setActiveMeal)
+
+  function handleInsertSavedMeal(savedMealId: string) {
+    insertSavedMeal(meal.id, savedMealId).catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Kayıtlı öğün eklenemedi.')
+    })
+  }
 
   const mealTypeLabel =
     PLAN_MEAL_TYPE_OPTIONS.find((o) => o.value === meal.mealType)?.label ?? meal.mealType
@@ -67,6 +79,16 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
         mealTypeLabel={mealTypeLabel}
         totals={totals}
         onSave={(patch) => setMealMeta(meal.id, patch)}
+        onSaveAsMealLibraryEntry={() => setSaveDialogOpen(true)}
+      />
+
+      {/* GitHub issue #27 / Prompt 5.5, GÖREV 3 — "öğün bloğunda 'kaydet'
+          ikonu". */}
+      <SaveMealDialog
+        mealId={meal.id}
+        defaultName={`${meal.name} (kayıtlı öğün)`}
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
       />
 
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
@@ -86,8 +108,9 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
           gizli/kapalı bir "ekle" butonu YOK. */}
       <div className="mt-2">
         <FoodSearchInput
-          placeholder={`${mealTypeLabel} için besin ara… (ör. "150 gr tavuk göğsü")`}
+          placeholder={`${mealTypeLabel} için besin ara… (ör. "150 gr tavuk göğsü", "@" ile kayıtlı öğün)`}
           onSelect={(selection) => addItemFromSelection(meal.id, selection)}
+          onInsertSavedMeal={handleInsertSavedMeal}
         />
       </div>
     </div>
@@ -99,11 +122,13 @@ function MealHeader({
   mealTypeLabel,
   totals,
   onSave,
+  onSaveAsMealLibraryEntry,
 }: {
   meal: DraftMeal
   mealTypeLabel: string
   totals: MealTotals
   onSave: (patch: { name?: string; time?: string | null }) => void
+  onSaveAsMealLibraryEntry: () => void
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -116,6 +141,20 @@ function MealHeader({
         className="min-w-24 flex-1 font-medium"
       />
       <InlineTime value={meal.time} onCommit={(time) => onSave({ time })} />
+      {/* GÖREV 3 — bu öğünü "öğün blokları kütüphanesi"ne kaydet. Boş bir
+          öğün kaydedilemez (bkz. queries/saved-meals.ts createSavedMealFromMeal),
+          bu yüzden hiç kalem yoksa buton devre dışı bırakılır. */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 shrink-0"
+        title="Öğün blokları kütüphanesine kaydet"
+        disabled={meal.items.length === 0}
+        onClick={onSaveAsMealLibraryEntry}
+      >
+        <Bookmark className="size-3.5" />
+      </Button>
       <div className="ml-auto flex items-center gap-1.5 text-xs">
         <Badge variant="outline">{totals.kcalTotal.toFixed(0)} kcal</Badge>
         <Badge variant="outline">P {totals.proteinGrams.toFixed(0)}g</Badge>

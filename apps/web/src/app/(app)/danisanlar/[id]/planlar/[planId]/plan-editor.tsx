@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { CloudOff, FileDown, Loader2, RefreshCw } from 'lucide-react'
+import { CloudOff, FileDown, Layers, Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,7 @@ import type { ClientAllergenEntry, ClientSex } from '@ogun/db/schema'
 import { usePlanEditorStore, type DraftDay } from './plan-editor-store'
 import { MealBlock } from './meal-block'
 import { NutrientPanel } from './nutrient-panel'
+import { SaveAsTemplateDialog } from './save-as-template-dialog'
 
 export interface PlanEditorProps {
   planId: string
@@ -146,6 +147,7 @@ export function PlanEditor({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex flex-col gap-3 pb-24 lg:pb-0">
         <EditorTopBar
+          planId={planId}
           clientId={clientId}
           planName={currentPlanName}
           startDate={currentStartDate}
@@ -208,6 +210,7 @@ function DaySection({ day, showHeading }: { day: DraftDay; showHeading: boolean 
 }
 
 function EditorTopBar({
+  planId,
   clientId,
   planName,
   startDate,
@@ -217,6 +220,7 @@ function EditorTopBar({
   pendingCount,
   onCommit,
 }: {
+  planId: string
   clientId: string
   planName: string
   startDate: Date | null
@@ -232,6 +236,7 @@ function EditorTopBar({
   }) => void
 }) {
   const router = useRouter()
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
@@ -250,6 +255,23 @@ function EditorTopBar({
           aria-label="Plan adı"
         />
         <SaveStatusIndicator status={saveStatus} pendingCount={pendingCount} />
+        {/* GitHub issue #27 / Prompt 5.5, GÖREV 1 — "Mevcut planı şablona
+            dönüştür". */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setTemplateDialogOpen(true)}
+        >
+          <Layers className="size-3.5" />
+          Şablona dönüştür
+        </Button>
+        <SaveAsTemplateDialog
+          planId={planId}
+          currentPlanName={planName}
+          open={templateDialogOpen}
+          onOpenChange={setTemplateDialogOpen}
+        />
         <Button variant="outline" size="sm" disabled className="gap-1.5">
           <FileDown className="size-3.5" />
           PDF önizleme

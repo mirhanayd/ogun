@@ -9,13 +9,14 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Bookmark, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { initFoodIndex, searchFoodsOffline, type FoodSearchHit } from '@/lib/food-index'
 import { parseFoodInput, type ParsedFoodInput } from '@/lib/parse-food-input'
 import type { FoodUsageDto } from '@/app/api/foods/usage/route'
+import type { SavedMealDto } from '@/app/api/saved-meals/route'
 
 // GitHub issue #24 / Prompt 5.2 — "90 saniyede liste" iddiasının teknik
 // karşılığı: Dexie+Orama istemci indeksini (bkz. lib/food-index.ts, Hafta 1)
@@ -62,6 +63,11 @@ export interface FoodSearchInputProps {
   // Geliştirme modunda arama gecikmesi rozetini göster (GÖREV 4). Varsayılan
   // NODE_ENV'e göre belirlenir, testte zorlamak için override edilebilir.
   showLatencyBadge?: boolean
+  // GitHub issue #27 / Prompt 5.5, GÖREV 3 — "arama kutusunda '@' ile çağır".
+  // Verilmezse '@' normal bir arama karakteri gibi davranır (STANDALONE
+  // BİLEŞEN NOTU'na uygun — meal-block.tsx dışındaki çağıranlar bu prop'u
+  // hiç geçmeyebilir, davranış geriye dönük uyumlu kalır).
+  onInsertSavedMeal?: (savedMealId: string) => void
 }
 
 interface ResultRow {
@@ -123,15 +129,17 @@ function fireRecordUsage(foodId: string) {
 export function FoodSearchInput({
   onSelect,
   quantityInputRef,
-  placeholder = 'Besin ara… (ör. "1 kase mercimek çorbası")',
+  placeholder = 'Besin ara… (ör. "1 kase mercimek çorbası", "@" ile kayıtlı öğün)',
   autoFocus,
   className,
   showLatencyBadge = process.env.NODE_ENV !== 'production',
+  onInsertSavedMeal,
 }: FoodSearchInputProps) {
   const [indexStatus, setIndexStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [rawValue, setRawValue] = useState('')
   const [rows, setRows] = useState<ResultRow[]>([])
   const [pinnedRows, setPinnedRows] = useState<ResultRow[]>([])
+  const [savedMeals, setSavedMeals] = useState<SavedMealDto[]>([])
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [open, setOpen] = useState(false)
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
@@ -169,8 +177,45 @@ export function FoodSearchInput({
 
   const parsed = useMemo(() => parseFoodInput(rawValue), [rawValue])
 
+  // GitHub issue #27 / Prompt 5.5, GÖREV 3 — "@" tetikleyicisi. rawValue
+  // (parsed.query DEĞİL — doğal dil ayrıştırıcı '@' işaretini bir miktar/
+  // porsiyon kelimesi sanıp bozabilir) '@' ile başlıyorsa bileşen besin
+  // arama modundan ÇIKIP kayıtlı öğün arama moduna geçer.
+  const isSavedMealMode = rawValue.startsWith('@')
+  const savedMealQuery = isSavedMealMode ? rawValue.slice(1).trim().toLocaleLowerCase('tr-TR') : ''
+  const visibleSavedMeals = useMemo(() => {
+    if (!isSavedMealMode) return []
+    if (savedMealQuery === '') return savedMeals
+    return savedMeals.filter((meal) =>
+      meal.name.toLocaleLowerCase('tr-TR').includes(savedMealQuery),
+    )
+  }, [isSavedMealMode, savedMealQuery, savedMeals])
+
   useEffect(() => {
-    if (indexStatus !== 'ready') return
+    if (isSavedMealMode) setHighlightedIndex(0)
+  }, [isSavedMealMode, savedMealQuery])
+
+  // Kayıtlı öğün listesi de (pinnedRows gibi) TEK seferlik çekilir — her
+  // '@' vuruşunda ağa çıkmaz, istemci tarafında filtrelenir (bkz. yukarısı).
+  useEffect(() => {
+    if (!onInsertSavedMeal || indexStatus !== 'ready') return
+    let cancelled = false
+    fetch('/api/saved-meals')
+      .then((res) => (res.ok ? (res.json() as Promise<SavedMealDto[]>) : []))
+      .then((dtos) => {
+        if (!cancelled) setSavedMeals(dtos)
+      })
+      .catch(() => {
+        // "@" özelliği olursa iyi olur — başarısız olursa normal besin
+        // araması yine de tam işlevsel kalır.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [indexStatus, onInsertSavedMeal])
+
+  useEffect(() => {
+    if (indexStatus !== 'ready' || isSavedMealMode) return
 
     if (parsed.query.trim() === '') {
       setRows([])
@@ -188,9 +233,18 @@ export function FoodSearchInput({
       setElapsedMs(result.elapsedMs)
       setHighlightedIndex(0)
     })
-  }, [parsed.query, indexStatus])
+  }, [parsed.query, indexStatus, isSavedMealMode])
 
   const visibleRows = parsed.query.trim() === '' ? pinnedRows : rows
+
+  const commitSavedMeal = useCallback(
+    (savedMealId: string) => {
+      onInsertSavedMeal?.(savedMealId)
+      setRawValue('')
+      setOpen(false)
+    },
+    [onInsertSavedMeal],
+  )
 
   const commitSelection = useCallback(
     (row: ResultRow) => {
@@ -216,22 +270,31 @@ export function FoodSearchInput({
   )
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // GÖREV 3 — "@" modundayken ok tuşları/Enter kayıtlı öğün listesinde
+    // gezinir, besin arama satırlarını ETKİLEMEZ.
+    const activeRows = isSavedMealMode ? visibleSavedMeals : visibleRows
+
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      if (visibleRows.length === 0) return
+      if (activeRows.length === 0) return
       setOpen(true)
-      setHighlightedIndex((prev) => (prev + 1) % visibleRows.length)
+      setHighlightedIndex((prev) => (prev + 1) % activeRows.length)
       return
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      if (visibleRows.length === 0) return
+      if (activeRows.length === 0) return
       setOpen(true)
-      setHighlightedIndex((prev) => (prev - 1 + visibleRows.length) % visibleRows.length)
+      setHighlightedIndex((prev) => (prev - 1 + activeRows.length) % activeRows.length)
       return
     }
     if (event.key === 'Enter') {
       event.preventDefault()
+      if (isSavedMealMode) {
+        const meal = visibleSavedMeals[highlightedIndex]
+        if (meal) commitSavedMeal(meal.id)
+        return
+      }
       const row = visibleRows[highlightedIndex]
       if (row) commitSelection(row)
       return
@@ -241,7 +304,7 @@ export function FoodSearchInput({
       setOpen(false)
       return
     }
-    if (event.key === 'Tab' && quantityInputRef?.current) {
+    if (event.key === 'Tab' && quantityInputRef?.current && !isSavedMealMode) {
       event.preventDefault()
       setOpen(false)
       quantityInputRef.current.focus()
@@ -287,7 +350,43 @@ export function FoodSearchInput({
         </p>
       )}
 
-      {open && indexStatus === 'ready' && visibleRows.length > 0 && (
+      {/* GÖREV 3 — "@" modu: besin arama listesinin YERİNE, kayıtlı öğün
+          listesi gösterilir (aynı anda ikisi de AÇIK OLMAZ). */}
+      {open && isSavedMealMode && onInsertSavedMeal && (
+        <ul className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-lg border border-border bg-popover p-1 shadow-md">
+          <li className="px-2 py-1 text-xs font-medium text-muted-foreground">Kayıtlı öğünler</li>
+          {visibleSavedMeals.length === 0 && (
+            <li className="px-2 py-1.5 text-sm text-muted-foreground">
+              {savedMeals.length === 0 ? 'Henüz kayıtlı öğün yok.' : 'Eşleşen kayıtlı öğün yok.'}
+            </li>
+          )}
+          {visibleSavedMeals.map((meal, index) => (
+            <li key={meal.id}>
+              <button
+                type="button"
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                  index === highlightedIndex
+                    ? 'bg-accent text-accent-foreground'
+                    : 'hover:bg-muted',
+                )}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => commitSavedMeal(meal.id)}
+              >
+                <span className="flex items-center gap-1.5 truncate">
+                  <Bookmark className="size-3.5 shrink-0 text-muted-foreground" />
+                  {meal.name}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {meal.itemCount} kalem
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {open && !isSavedMealMode && indexStatus === 'ready' && visibleRows.length > 0 && (
         <ul className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-lg border border-border bg-popover p-1 shadow-md">
           {parsed.query.trim() === '' && (
             <li className="px-2 py-1 text-xs font-medium text-muted-foreground">

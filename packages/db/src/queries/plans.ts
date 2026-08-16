@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import {
   dietPlans,
   planDays,
@@ -762,6 +762,18 @@ async function clonePlanInternal(
       }
     }
 
+    // GitHub issue #27 / Prompt 5.5 — bkz. schema/plans.ts templateUsageCount
+    // üstündeki not: bir ŞABLONdan gerçek (isTemplate=false) bir kopya
+        // üretildiğinde ("bu şablondan plan oluştur" akışı) kaynağın sayacı
+    // artar. saveAsTemplate (isTemplate=true override) ve düz duplicatePlan
+    // (kaynak zaten şablon DEĞİL) bu koşulu tetiklemez.
+    if (source.plan.isTemplate && overrides.isTemplate !== true) {
+      await tx
+        .update(dietPlans)
+        .set({ templateUsageCount: sql`${dietPlans.templateUsageCount} + 1` })
+        .where(eq(dietPlans.id, source.plan.id))
+    }
+
     return clonedPlan
   })
 }
@@ -782,5 +794,77 @@ export async function duplicatePlan(
   return clonePlanInternal(db, clinicId, createdBy, sourcePlanId, {
     clientId: source.clientId,
     name: `${source.name} (kopya)`,
+  })
+}
+
+// --- GÖREV 4: hedeften plan iskeleti --------------------------------------
+//
+// GitHub issue #27 / Prompt 5.5, GÖREV 4 — "TEE hesapla → hedef kalori öner
+// → makro dağılımı seç → öğün sayısı seç → öğünlere kalori dağıt → boş
+// iskelet oluştur". TEE hesabı ve kalori dağıtımı packages/nutrition-core/
+// src/plan-skeleton.ts'te SAF fonksiyonlar olarak yaşıyor (bkz. o dosyanın
+// başı) — burası SADECE sonucu kalıcı hale getiriyor: bir plan + tek bir gün
+// + verilen öğün listesi, HİÇBİR plan_items YOK ("Otomatik besin ÖNERME"
+// kuralı, bkz. roadmap GÖREV 4 son satırı). ensurePlanBootstrapped
+// (apps/web/.../[planId]/page.tsx) ile AYNI şekli üretir, ama TEK bir
+// transaction'da (o fonksiyon sıralı action çağrılarıyla yapıyordu, çünkü o
+// an elinde zaten bir boş plan vardı; burada plan da AYNI anda kuruluyor).
+export interface PlanSkeletonMealInput {
+  mealType: PlanMealType
+  name: string
+  sortOrder: number
+}
+
+export interface PlanSkeletonInput {
+  clientId: string
+  name: string
+  targetKcal: number
+  targetMacros: Record<string, number>
+  planType?: PlanType
+  meals: PlanSkeletonMealInput[]
+}
+
+export async function createPlanSkeleton(
+  db: Database,
+  clinicId: string,
+  createdBy: string,
+  input: PlanSkeletonInput,
+) {
+  return db.transaction(async (tx) => {
+    const [plan] = await tx
+      .insert(dietPlans)
+      .values({
+        clinicId,
+        clientId: input.clientId,
+        name: input.name,
+        targetKcal: input.targetKcal,
+        targetMacros: input.targetMacros,
+        planType: input.planType ?? 'günlük',
+        status: 'taslak',
+        isTemplate: false,
+        createdBy,
+      })
+      .returning()
+    if (!plan) throw new Error('Plan oluşturulamadı.')
+
+    const [day] = await tx
+      .insert(planDays)
+      .values({ planId: plan.id, dayNumber: 1 })
+      .returning()
+    if (!day) throw new Error('Gün oluşturulamadı.')
+
+    if (input.meals.length > 0) {
+      await tx.insert(planMeals).values(
+        input.meals.map((meal) => ({
+          dayId: day.id,
+          mealType: meal.mealType,
+          name: meal.name,
+          sortOrder: meal.sortOrder,
+          time: null,
+        })),
+      )
+    }
+
+    return plan
   })
 }

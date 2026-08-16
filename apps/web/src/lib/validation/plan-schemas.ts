@@ -227,3 +227,64 @@ export type MoveItemValues = z.infer<typeof moveItemSchema>
 export function firstZodMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? 'Geçersiz veri gönderildi.'
 }
+
+// ---------------------------------------------------------------------------
+// GitHub issue #27 / Prompt 5.5 — şablon ve hızlandırıcılar
+// ---------------------------------------------------------------------------
+
+// GÖREV 3 — öğün bloğunu kaydetme formu (meal-block.tsx'teki "kaydet"
+// ikonunun açtığı diyalog).
+export const createSavedMealSchema = z.object({
+  mealId: z.string().min(1),
+  name: z.string().trim().min(1, 'Ad zorunludur.').max(120, 'Ad çok uzun.'),
+  notes: z.string().trim().max(1000, 'Notlar çok uzun.').nullable().optional(),
+})
+export type CreateSavedMealValues = z.infer<typeof createSavedMealSchema>
+
+export const insertSavedMealSchema = z.object({
+  targetMealId: z.string().min(1),
+  savedMealId: z.string().min(1),
+})
+export type InsertSavedMealValues = z.infer<typeof insertSavedMealSchema>
+
+// GÖREV 4 — "hedeften plan iskeleti" sihirbazı. targetMacros'un 'custom'
+// dağılımda dolu olması, diğer preset'lerde BOŞ kalması gerekir (yüzdeler
+// nutrition-core/src/plan-skeleton.ts MACRO_DISTRIBUTION_PRESETS'ten
+// okunur) — bu yüzden .refine ile şartlı zorunluluk kuruluyor.
+export const MACRO_DISTRIBUTION_OPTIONS: { value: MacroDistributionPresetValue; label: string }[] =
+  [
+    { value: 'balanced', label: 'Dengeli' },
+    { value: 'low_carb', label: 'Düşük karbonhidrat' },
+    { value: 'high_protein', label: 'Yüksek protein' },
+    { value: 'custom', label: 'Özel' },
+  ]
+
+// TİP-ONLY — nutrition-core'daki MacroDistributionPreset ile AYNI değer
+// kümesi, ama bu paket nutrition-core'a runtime bağımlı olmasın diye burada
+// (diğer *-schemas.ts dosyalarındaki desenle AYNI gerekçeyle) tekrar
+// tanımlanıyor.
+export type MacroDistributionPresetValue = 'balanced' | 'low_carb' | 'high_protein' | 'custom'
+
+const macroPercentagesSchema = z.object({
+  proteinPct: z.number().min(0).max(100),
+  carbPct: z.number().min(0).max(100),
+  fatPct: z.number().min(0).max(100),
+})
+
+export const goalSkeletonSchema = z
+  .object({
+    clientId: z.string().min(1),
+    name: z.string().trim().min(1, 'Plan adı zorunludur.').max(200),
+    targetKcal: z.number().int().positive().max(10000),
+    macroDistribution: z.enum(['balanced', 'low_carb', 'high_protein', 'custom']),
+    customMacros: macroPercentagesSchema.nullable().optional(),
+    mealTypes: z
+      .array(z.enum(['kahvaltı', 'ara1', 'öğle', 'ara2', 'akşam', 'gece']))
+      .min(1, 'En az bir öğün seçilmelidir.')
+      .max(6),
+  })
+  .refine((data) => data.macroDistribution !== 'custom' || data.customMacros !== undefined, {
+    message: 'Özel dağılım için makro yüzdeleri gereklidir.',
+    path: ['customMacros'],
+  })
+export type GoalSkeletonValues = z.infer<typeof goalSkeletonSchema>
