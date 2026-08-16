@@ -1,6 +1,6 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { clinicMembers, clinics, type ClinicMemberRole } from '../schema'
+import { clinicMembers, clinics, users, type ClinicMemberRole } from '../schema'
 import type { Database } from '../client'
 import { normalizeSearchText } from '../lib/normalize'
 
@@ -176,4 +176,27 @@ export async function getClinicMembership(db: Database, clinicId: string, userId
     .where(and(eq(clinicMembers.clinicId, clinicId), eq(clinicMembers.userId, userId)))
     .limit(1)
   return row ?? null
+}
+
+export interface ClinicDietitianOption {
+  id: string
+  name: string
+}
+
+// Danışan atama ("atanan diyetisyen") filtresi/formu için (GitHub issue #17
+// / Prompt 4.1, GÖREV 2 + GÖREV 4): bu kliniğe kayıtlı, danışan atanabilecek
+// üyeler. 'assistant' rolü BİLEREK listeye dahil değil — asistanlar günlük
+// işleri (randevu, kayıt) yürütür ama bir danışanın "atanan diyetisyeni"
+// olamaz; 'owner' dahil çünkü küçük kliniklerde klinik sahibi genelde aynı
+// zamanda pratisyen diyetisyendir. Bu, packages/db/src/queries/clients.ts
+// assignDietitianToClients'ın DOĞRUDAN doğrulamadığı dietitianId'nin geçerli
+// bir seçenek olduğunu, çağıran server action'ın (apps/web/src/app/(app)/
+// danisanlar/actions.ts) karşılaştırdığı liste.
+export async function listClinicDietitians(db: Database, clinicId: string): Promise<ClinicDietitianOption[]> {
+  return db
+    .select({ id: users.id, name: users.name })
+    .from(clinicMembers)
+    .innerJoin(users, eq(users.id, clinicMembers.userId))
+    .where(and(eq(clinicMembers.clinicId, clinicId), inArray(clinicMembers.role, ['owner', 'dietitian'])))
+    .orderBy(users.name)
 }

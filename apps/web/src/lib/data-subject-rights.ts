@@ -6,11 +6,14 @@ import { withAudit } from './audit'
 
 // Veri sahibi hakları altyapısı (GitHub issue #12 / Prompt 3.3 — GÖREV 4):
 // taşınabilirlik hakkı (dışa aktarma) + silme hakkı (soft delete + 30 günlük
-// kalıcı silme kuyruğu). clients tablosu şu an sadece bir iskelet (Prompt
-// 4.1'e kadar) olduğu için bu fonksiyonlar bugün gerçek bir üretim çağrı
-// noktasına (henüz var olmayan bir danışan detay sayfasına) bağlı DEĞİL —
-// ama withAuth()+withAudit() kompozisyonunun GERÇEK, çalışan örnekleridir.
-// Prompt 4.1 danışan detay sayfası kurulduğunda bu üçü doğrudan kullanılabilir.
+// kalıcı silme kuyruğu). clients tablosu artık gerçek bir üretim çağrı
+// noktasına sahip: viewClientRecord, GitHub issue #17 / Prompt 4.1'in
+// danışan detay sayfası (app/(app)/danisanlar/[id]/page.tsx) tarafından
+// DOĞRUDAN kullanılıyor. exportClientData/deleteClient ise hâlâ bir UI'a
+// bağlı DEĞİL (dışa aktarma/silme talebi ekranı bu issue'nun kapsamında
+// yok) — withAuth()+withAudit() kompozisyonunun çalışan örnekleri olarak
+// kalmaya devam ediyorlar, ileride bir "veri sahibi hakları" ayarlar
+// sayfasına bağlanabilirler.
 
 // --- Okuma (READ) örneği ----------------------------------------------------
 // Sağlık verisine erişim logu tutmak KVKK açısından önemli — bu yüzden salt
