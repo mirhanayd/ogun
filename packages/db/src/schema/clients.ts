@@ -27,6 +27,22 @@ export type ClientSex = (typeof clientSexEnum.enumValues)[number]
 export const clientStatusEnum = pgEnum('client_status', ['aktif', 'pasif', 'arşiv'])
 export type ClientStatus = (typeof clientStatusEnum.enumValues)[number]
 
+// Fiziksel aktivite düzeyi — energy-requirement.ts'teki ActivityLevel
+// tipiyle (PAL çarpanı hesabı) BİRE BİR aynı sözlük, clientSexEnum'daki AYNI
+// gerekçeyle: bu alan ileride doğrudan TEE hesabına (nutrition-core) girdi
+// olarak aktarılacağı için burada da İngilizce tutuluyor, her çağrı
+// noktasında ayrı bir çeviri katmanına gerek kalmasın diye. UI Türkçe
+// etiketlerle gösterir (bkz. apps/web/src/lib/validation/anamnesis-schemas.ts
+// ACTIVITY_LEVEL_LABELS_TR).
+export const activityLevelEnum = pgEnum('client_activity_level', [
+  'sedentary',
+  'light',
+  'moderate',
+  'active',
+  'very_active',
+])
+export type ActivityLevelValue = (typeof activityLevelEnum.enumValues)[number]
+
 export const clients = pgTable(
   'clients',
   {
@@ -107,13 +123,42 @@ export const clients = pgTable(
   ],
 )
 
-// Danışan sağlık geçmişi — anamnezin İLK/temel katmanı. GÖREV 4'te "Genel"
-// sekmesine küçük bir özet olarak gömülmesi düşünüldü ama BİLEREK
-// yapılmadı: tam anamnez formu (semptom sorgulama, beslenme öyküsü vb.)
-// GitHub issue #19 / Prompt 4.3'ün kapsamı. Bu tablo o forma erken
-// başlangıç sağlamak için şimdiden açılıyor (roadmap GÖREV 1'in istediği
-// gibi) ama bu issue'da ona bağlı bir UI YOK — #19 gelince "Anamnez"
-// sekmesi bu tabloyu okuyup/yazacak.
+// Besin alerjisi/intoleransı — GitHub issue #19 / Prompt 4.3, GÖREV 1'in
+// açıkça istediği bağlantı: "Besin alerjisi/intoleransı girildiğinde plan
+// editöründe o besinler kırmızı işaretlenecek — bu bağlantıyı ŞİMDİ kur."
+// Plan editörünün kendisi (roadmap Hafta 5-6, çok daha sonraki bir issue)
+// burada YAZILMIYOR — sadece o özelliğin ihtiyaç duyacağı veri şekli.
+//
+// BİLEREK serbest metinden (string[]) normalize edilmiş bir yapıya
+// yükseltiliyor: normalized alanı, packages/db/src/lib/normalize.ts
+// normalizeSearchText ile ÜRETİLİR (bkz. queries/client-health.ts) — bu,
+// foods.searchText'in AYNI normalizasyonundan geçtiği için, plan editörü
+// ileride "bu kalemin besin adı, danışanın alerjen listesindeki normalized
+// değerlerden biriyle örtüşüyor mu" diye basit bir string eşleşmesiyle
+// (foods.searchText İÇİNDE arama) kırmızı işaretleyebilecek — ayrı bir
+// foodId eşleştirmesi/ICD kodlaması bu issue'nun kapsamı DIŞINDA
+// (diyetisyen "fıstık" yazdığında bunu foods tablosundaki hangi kayıtların
+// karşıladığını BİLEREK biz karar vermiyoruz, o plan editörünün kendi
+// eşleştirme mantığı olacak).
+export interface ClientAllergenEntry {
+  // İstemci tarafında üretilen kararlı id (crypto.randomUUID) — düzenlenebilir
+  // liste UI'ında (satır sil/güncelle) React key + hedef seçimi için.
+  id: string
+  // Diyetisyenin yazdığı ham metin (ör. "yer fıstığı", "laktoz").
+  label: string
+  // normalizeSearchText(label) — plan editörünün ileride foods.searchText'e
+  // karşı basit içerme kontrolü yapabilmesi için önceden hesaplanmış hali.
+  normalized: string
+  severity: 'hafif' | 'orta' | 'şiddetli' | null
+  note: string | null
+}
+
+// Danışan sağlık geçmişi / tam anamnez profili. GitHub issue #17 / Prompt
+// 4.1'de (GÖREV 1) minimum bir iskelet olarak açıldı — GitHub issue #19 /
+// Prompt 4.3 (GÖREV 1) bu tabloyu "Anamnez" sekmesinin gerçek formuna
+// bağlıyor VE roadmap'in "beslenme alışkanlıkları (öğün sayısı, dışarıda
+// yeme sıklığı, su tüketimi), fiziksel aktivite" alanlarını ekliyor
+// (waterIntakeMl zaten #17'den vardı, kalan üçü burada yeni).
 export const clientHealth = pgTable(
   'client_health',
   {
@@ -123,19 +168,32 @@ export const clientHealth = pgTable(
       .notNull()
       .references(() => clients.id),
     // Serbest metin liste alanları — sabit bir ICD-10 vb. kodlama şeması bu
-    // issue kapsamında YOK, o #19'un (laboratuvar/anamnez) kapsamında
-    // değerlendirilebilir. Şimdilik diyetisyenin kendi yazdığı kısa etiketler.
+    // issue kapsamında YOK. Diyetisyenin kendi yazdığı kısa etiketler.
     conditions: jsonb('conditions').$type<string[]>(),
     medications: jsonb('medications').$type<string[]>(),
-    allergies: jsonb('allergies').$type<string[]>(),
-    intolerances: jsonb('intolerances').$type<string[]>(),
+    // #17'de düz string[] idi — #19 (GÖREV 1) yukarıdaki
+    // ClientAllergenEntry[] şekline YÜKSELTİLDİ (bkz. tip üstündeki not).
+    allergies: jsonb('allergies').$type<ClientAllergenEntry[]>(),
+    intolerances: jsonb('intolerances').$type<ClientAllergenEntry[]>(),
     surgeries: text('surgeries'),
     familyHistory: text('family_history'),
     smokingStatus: text('smoking_status'),
     alcoholUse: text('alcohol_use'),
-    sleepHours: integer('sleep_hours'),
-    bowelHabits: text('bowel_habits'),
+    // --- Beslenme alışkanlıkları (GitHub #19, GÖREV 1) ----------------------
+    mealsPerDay: integer('meals_per_day'),
+    // Sabit bir enum BİLEREK seçilmedi — smokingStatus/alcoholUse ile AYNI
+    // desen (serbest metin, ör. "haftada 2-3 kez"), diyetisyenin kendi
+        // ifadesiyle not düşmesi yeterli, kapalı bir sözlük bu issue kapsamında
+    // istenmedi.
+    eatingOutFrequency: text('eating_out_frequency'),
     waterIntakeMl: integer('water_intake_ml'),
+    // --- Fiziksel aktivite (GitHub #19, GÖREV 1) -----------------------------
+    activityLevel: activityLevelEnum('activity_level'),
+    activityNotes: text('activity_notes'),
+    // --- Uyku / sindirim (GitHub #19, GÖREV 1) -------------------------------
+    sleepHours: integer('sleep_hours'),
+    sleepQuality: text('sleep_quality'),
+    bowelHabits: text('bowel_habits'),
     ...timestamps(),
   },
   (table) => [uniqueIndex('client_health_client_id_idx').on(table.clientId)],

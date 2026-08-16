@@ -3,10 +3,6 @@ import {
   CalendarDays,
   ClipboardList,
   ClipboardPlus,
-  FlaskConical,
-  FolderOpen,
-  Ruler,
-  Stethoscope,
   Wallet,
 } from 'lucide-react'
 import { db } from '@ogun/db'
@@ -25,6 +21,11 @@ import { SEX_LABELS_TR } from '@/lib/validation/client-schemas'
 import { GeneralTabForm } from './general-tab-form'
 import { getClientActiveGoal, getClientLatestMeasurement } from './measurements/queries'
 import { MeasurementsTab } from './measurements/measurements-tab'
+import { getClientHealthRecord } from './anamnez/queries'
+import { AnamnesisForm } from './anamnez/anamnesis-form'
+import { listClientAbnormalLabResults } from './laboratuvar/queries'
+import { LabResultsTab } from './laboratuvar/lab-results-tab'
+import { DocumentsTab } from './dosyalar/documents-tab'
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
@@ -38,11 +39,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { scope } = await requireClinic()
 
-  const [client, dietitians, latestMeasurement, weightGoal] = await Promise.all([
+  const [client, dietitians, latestMeasurement, weightGoal, healthRecord, abnormalLabResults] = await Promise.all([
     viewClientRecord(id),
     listClinicDietitians(db, scope.clinicId),
     getClientLatestMeasurement(id),
     getClientActiveGoal(id, 'kilo'),
+    getClientHealthRecord(id),
+    listClientAbnormalLabResults(id),
   ])
 
   // Soft-delete edilmiş (bkz. schema/clients.ts deletedAt) bir kayıt normal
@@ -83,6 +86,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               </h1>
               <Badge variant="secondary">{age !== null ? `${age} yaş` : 'Yaş —'}</Badge>
               {client.sex && <Badge variant="outline">{SEX_LABELS_TR[client.sex]}</Badge>}
+              {abnormalLabResults.length > 0 && (
+                <Badge variant="destructive">{abnormalLabResults.length} anormal tahlil değeri</Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
               {client.phone || 'Telefon —'} {client.email ? `· ${client.email}` : ''}
@@ -134,27 +140,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </TabsContent>
 
           <TabsContent value="anamnez" className="mt-4">
-            <EmptyState
-              icon={Stethoscope}
-              title="Anamnez bu bölüm henüz hazır değil"
-              description="Tam anamnez formu (client_health tablosu bu issue'da açıldı, forma bağlanması) GitHub issue #19 (Prompt 4.3) kapsamında eklenecek."
-            />
+            <AnamnesisForm clientId={client.id} healthRecord={healthRecord} />
           </TabsContent>
 
           <TabsContent value="laboratuvar" className="mt-4">
-            <EmptyState
-              icon={FlaskConical}
-              title="Laboratuvar bu bölüm henüz hazır değil"
-              description="Laboratuvar sonuçları takibi GitHub issue #19 (Prompt 4.3) kapsamında eklenecek."
-            />
+            <LabResultsTab clientId={client.id} />
           </TabsContent>
 
           <TabsContent value="dosyalar" className="mt-4">
-            <EmptyState
-              icon={FolderOpen}
-              title="Dosyalar bu bölüm henüz hazır değil"
-              description="Belge/dosya yükleme GitHub issue #19 (Prompt 4.3) kapsamında eklenecek."
-            />
+            <DocumentsTab clientId={client.id} />
           </TabsContent>
 
           <TabsContent value="randevular" className="mt-4">
@@ -201,7 +195,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function QuickAction({ icon: Icon, label }: { icon: typeof Ruler; label: string }) {
+function QuickAction({ icon: Icon, label }: { icon: typeof ClipboardPlus; label: string }) {
   return (
     <Button variant="outline" size="sm" disabled className="justify-start gap-1.5">
       <Icon />
