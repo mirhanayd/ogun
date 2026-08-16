@@ -9,10 +9,15 @@ import {
   addMeal,
   clonePlan,
   createPlan,
+  createPlanSkeleton,
+  createSavedMealFromMeal,
   deletePlan,
+  deleteSavedMeal,
   duplicatePlan,
   getPlanTree,
+  insertSavedMealIntoMeal,
   listPlans,
+  listSavedMeals,
   moveItem,
   removeAlternative,
   removeItem,
@@ -22,12 +27,22 @@ import {
   updateMeal,
   updatePlan,
   type ListPlansInput,
+  type PlanSkeletonMealInput,
 } from '@ogun/db/queries'
+import {
+  MACRO_DISTRIBUTION_PRESETS,
+  calculateMacroTargets,
+  type MacroPercentages,
+} from '@ogun/nutrition-core'
 import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import {
+  PLAN_MEAL_TYPE_OPTIONS,
+  createSavedMealSchema,
   dayInputSchema,
   firstZodMessage,
+  goalSkeletonSchema,
+  insertSavedMealSchema,
   mealInputSchema,
   mealUpdateSchema,
   moveItemSchema,
@@ -37,7 +52,10 @@ import {
   planItemUpdateSchema,
   planUpdateSchema,
   reorderItemsSchema,
+  type CreateSavedMealValues,
   type DayInputValues,
+  type GoalSkeletonValues,
+  type InsertSavedMealValues,
   type MealInputValues,
   type MealUpdateValues,
   type MoveItemValues,
@@ -48,7 +66,7 @@ import {
   type PlanUpdateValues,
   type ReorderItemsValues,
 } from '@/lib/validation/plan-schemas'
-import type { PlanTemplateCategory } from '@ogun/db/schema'
+import type { PlanMealType, PlanTemplateCategory } from '@ogun/db/schema'
 
 // GitHub issue #23 / Prompt 5.1 — plan şeması server action'ları.
 //
@@ -604,6 +622,178 @@ export async function clonePlanAction(
   targetClientId: string | null,
 ): Promise<PlanActionResult<{ id: string }>> {
   const result = await runAction(() => clonePlanForClinic(sourcePlanId, targetClientId))
+  if (result.success) revalidatePlans()
+  return result
+}
+
+// --- GitHub issue #27 / Prompt 5.5 — öğün blokları kütüphanesi -------------
+
+const createSavedMealForClinic = withAuth(
+  withAudit(
+    {
+      action: 'create',
+      entityType: 'saved_meal',
+      entityId: (_args: [CreateSavedMealValues], result: { id: string } | undefined) =>
+        result?.id ?? null,
+    },
+    async (ctx, input: CreateSavedMealValues) =>
+      createSavedMealFromMeal(db, ctx.scope.clinicId, ctx.user.id, {
+        mealId: input.mealId,
+        name: input.name,
+        notes: input.notes ?? null,
+      }),
+  ),
+)
+
+export async function createSavedMealAction(
+  input: CreateSavedMealValues,
+): Promise<PlanActionResult<{ id: string }>> {
+  const parsed = createSavedMealSchema.safeParse(input)
+  if (!parsed.success) return fail(firstZodMessage(parsed.error))
+  return runAction(() => createSavedMealForClinic(parsed.data))
+}
+
+const listSavedMealsForClinic = withAuth(
+  withAudit({ action: 'read', entityType: 'saved_meal' }, async (ctx, mealType?: PlanMealType) =>
+    listSavedMeals(db, ctx.scope.clinicId, mealType),
+  ),
+)
+
+export async function listSavedMealsAction(
+  mealType?: PlanMealType,
+): Promise<PlanActionResult<Awaited<ReturnType<typeof listSavedMeals>>>> {
+  return runAction(() => listSavedMealsForClinic(mealType))
+}
+
+const deleteSavedMealForClinic = withAuth(
+  withAudit(
+    { action: 'delete', entityType: 'saved_meal', entityId: ([savedMealId]: [string]) => savedMealId },
+    async (ctx, savedMealId: string) => deleteSavedMeal(db, ctx.scope.clinicId, savedMealId),
+  ),
+)
+
+export async function deleteSavedMealAction(
+  savedMealId: string,
+): Promise<PlanActionResult<undefined>> {
+  return runAction<undefined>(async () => {
+    const removed = await deleteSavedMealForClinic(savedMealId)
+    if (!removed) throw new Error('Kayıtlı öğün bulunamadı.')
+    return undefined
+  })
+}
+
+// GÖREV 3 — "@" tetikleyicisi (bkz. food-search-input.tsx). Dönen kalemler
+// plan-editor-store.ts'in insertSavedMeal eyleminin DraftItem'lara birebir
+// eşleyebileceği şekilde ({id, foodId, amount, ...}) DTO'lanıyor.
+const insertSavedMealForClinic = withAuth(
+  withAudit(
+    {
+      action: 'create',
+      entityType: 'plan_item',
+      metadata: ([input]: [InsertSavedMealValues]) => ({
+        operation: 'insert-saved-meal',
+        targetMealId: input.targetMealId,
+        savedMealId: input.savedMealId,
+      }),
+    },
+    async (ctx, input: InsertSavedMealValues) =>
+      insertSavedMealIntoMeal(db, ctx.scope.clinicId, input.targetMealId, input.savedMealId),
+  ),
+)
+
+export interface InsertedSavedMealItem {
+  id: string
+  foodId: string | null
+  recipeId: string | null
+  freeText: string | null
+  amount: number
+  note: string | null
+  sortOrder: number
+  isOptional: boolean
+}
+
+export async function insertSavedMealAction(
+  input: InsertSavedMealValues,
+): Promise<PlanActionResult<InsertedSavedMealItem[]>> {
+  const parsed = insertSavedMealSchema.safeParse(input)
+  if (!parsed.success) return fail(firstZodMessage(parsed.error))
+  return runAction(async () => {
+    const items = await insertSavedMealForClinic(parsed.data)
+    return items.map((item) => ({
+      id: item.id,
+      foodId: item.foodId,
+      recipeId: item.recipeId,
+      freeText: item.freeText,
+      amount: Number(item.amount),
+      note: item.note,
+      sortOrder: item.sortOrder,
+      isOptional: item.isOptional,
+    }))
+  })
+}
+
+// --- GitHub issue #27 / Prompt 5.5, GÖREV 4 — hedeften plan iskeleti -------
+
+// nutrition-core'un SAF distributeCalories/calculateMacroTargets'ının
+// AKSİNE, bu fonksiyon DB'ye yazar — bu yüzden apps/web katmanında,
+// packages/db/src/queries/plans.ts'in createPlanSkeleton'ı SAF hesaplamayla
+// birleştiren orkestrasyon noktası. "Otomatik besin ÖNERME" kuralı burada da
+// geçerli: sadece plan + gün + öğün kabukları oluşturulur, plan_items HİÇ
+// yazılmaz.
+const createPlanSkeletonForClinic = withAuth(
+  withAudit(
+    {
+      action: 'create',
+      entityType: 'diet_plan',
+      entityId: (_args: [GoalSkeletonValues], result: { id: string } | undefined) =>
+        result?.id ?? null,
+      metadata: ([input]: [GoalSkeletonValues]) => ({
+        operation: 'goal-skeleton',
+        macroDistribution: input.macroDistribution,
+        mealCount: input.mealTypes.length,
+      }),
+    },
+    async (ctx, input: GoalSkeletonValues) => {
+      const percentages: MacroPercentages =
+        input.macroDistribution === 'custom'
+          ? (input.customMacros ?? MACRO_DISTRIBUTION_PRESETS.balanced)
+          : MACRO_DISTRIBUTION_PRESETS[input.macroDistribution]
+      // Yüzdelerin geçerliliğini (toplam %100, negatif değer yok) burada da
+      // doğrula — Zod şeması sadece 0-100 aralığını ve 'custom' iken
+      // customMacros'un var olduğunu zorluyor, TOPLAMIN %100 olduğunu
+      // DEĞİL. calculateMacroTargets kendi içinde bu kontrolü yapar ve
+      // uymazsa hata fırlatır (runAction bunu PlanActionResult.error'a
+      // çevirir).
+      calculateMacroTargets(input.targetKcal, percentages)
+
+      const meals: PlanSkeletonMealInput[] = input.mealTypes.map((mealType, index) => ({
+        mealType,
+        name: PLAN_MEAL_TYPE_OPTIONS.find((o) => o.value === mealType)?.label ?? mealType,
+        sortOrder: index,
+      }))
+
+      return createPlanSkeleton(db, ctx.scope.clinicId, ctx.user.id, {
+        clientId: input.clientId,
+        name: input.name,
+        targetKcal: input.targetKcal,
+        targetMacros: {
+          proteinPct: percentages.proteinPct,
+          carbPct: percentages.carbPct,
+          fatPct: percentages.fatPct,
+        },
+        planType: 'günlük',
+        meals,
+      })
+    },
+  ),
+)
+
+export async function generatePlanSkeletonAction(
+  input: GoalSkeletonValues,
+): Promise<PlanActionResult<{ id: string }>> {
+  const parsed = goalSkeletonSchema.safeParse(input)
+  if (!parsed.success) return fail(firstZodMessage(parsed.error))
+  const result = await runAction(() => createPlanSkeletonForClinic(parsed.data))
   if (result.success) revalidatePlans()
   return result
 }

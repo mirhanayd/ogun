@@ -8,6 +8,7 @@ import { buildAllergenConflictMap, type AllergenConflict } from '@/lib/allergen-
 import {
   addAlternativeAction,
   addItemAction,
+  insertSavedMealAction,
   moveItemAction,
   removeAlternativeAction,
   removeItemAction,
@@ -166,6 +167,8 @@ interface PlanEditorState {
 
   addAlternativeFromSelection: (itemId: string, selection: FoodSearchSelection) => void
   removeAlternativeById: (alternativeId: string) => void
+
+  insertSavedMeal: (mealId: string, savedMealId: string) => Promise<void>
 
   notifyOnline: () => Promise<void>
   setOffline: () => void
@@ -660,6 +663,50 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       },
       { immediate: true },
     )
+  },
+
+  // GitHub issue #27 / Prompt 5.5, GÖREV 3 — "@" tetikleyicisiyle bir kayıtlı
+  // öğünü aktif öğüne geri ekler. addItemFromSelection'ın AKSİNE, kalemler
+  // sunucuda ZATEN gerçek id'leriyle oluşturulmuş olarak döner (bkz.
+  // insertSavedMealAction) — bu yüzden burada bir temp-id/OfflineQueue akışı
+  // YOK, sadece dönen kalemler taslağa EKLENİYOR ve eksik besin makroları
+  // (resolveFoodMacros ile AYNI yöntemle) tamamlanıyor.
+  insertSavedMeal: async (mealId, savedMealId) => {
+    const result = await insertSavedMealAction({ targetMealId: mealId, savedMealId })
+    if (!result.success || !result.data) {
+      throw new Error(result.error ?? 'Kayıtlı öğün eklenemedi.')
+    }
+    const insertedItems = result.data
+
+    set((state) => ({
+      days: state.days.map((day) => ({
+        ...day,
+        meals: day.meals.map((meal) =>
+          meal.id === mealId
+            ? {
+                ...meal,
+                items: [
+                  ...meal.items,
+                  ...insertedItems.map((item) => ({
+                    id: item.id,
+                    mealId,
+                    foodId: item.foodId,
+                    recipeId: item.recipeId,
+                    freeText: item.freeText,
+                    amountGrams: item.amount,
+                    note: item.note,
+                    sortOrder: item.sortOrder,
+                    isOptional: item.isOptional,
+                    alternatives: [],
+                  })),
+                ],
+              }
+            : meal,
+        ),
+      })),
+    }))
+
+    await get().resolveFoodMacros()
   },
 
   notifyOnline: async () => {

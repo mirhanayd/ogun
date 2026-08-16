@@ -236,4 +236,79 @@ describeWithDb('plans query layer (round-trip, gerçek DB)', () => {
     await deletePlan(db, clinicId, source.id)
     await deletePlan(db, clinicId, template.id)
   })
+
+  // GitHub issue #27 / Prompt 5.5 — bkz. schema/plans.ts templateUsageCount
+  // üstündeki not: "bu şablondan plan oluştur" akışının klonlama davranışı.
+  it('clonePlan bir ŞABLONdan gerçek bir kopya üretince templateUsageCount artar', async () => {
+    const { createPlan, saveAsTemplate, clonePlan, duplicatePlan, getPlanById, deletePlan } =
+      await import('./plans')
+
+    const source = await createPlan(db, clinicId, userId, { name: 'Şablon kaynağı' })
+    const template = await saveAsTemplate(db, clinicId, userId, source.id, 'genel')
+    expect(template.templateUsageCount).toBe(0)
+
+    // isTemplate=false hedefe klonlama -> "kullanım" sayılır.
+    const firstUse = await clonePlan(db, clinicId, userId, template.id, clientId)
+    const afterFirstUse = await getPlanById(db, clinicId, template.id)
+    expect(afterFirstUse?.templateUsageCount).toBe(1)
+
+    const secondUse = await clonePlan(db, clinicId, userId, template.id, null)
+    const afterSecondUse = await getPlanById(db, clinicId, template.id)
+    expect(afterSecondUse?.templateUsageCount).toBe(2)
+
+    // saveAsTemplate (isTemplate=true hedefe klonlama) sayaç ARTIRMAZ —
+    // "kullanım" değil, yeni bir şablon üretimi.
+    const anotherTemplate = await saveAsTemplate(db, clinicId, userId, source.id, 'genel')
+    const afterAnotherTemplate = await getPlanById(db, clinicId, template.id)
+    expect(afterAnotherTemplate?.templateUsageCount).toBe(2)
+
+    // Normal (şablon OLMAYAN) bir planın duplicatePlan'ı da sayaç ARTIRMAZ —
+    // kaynak zaten şablon değil.
+    const normalDuplicate = await duplicatePlan(db, clinicId, userId, source.id)
+    const sourceAfter = await getPlanById(db, clinicId, source.id)
+    expect(sourceAfter?.templateUsageCount).toBe(0)
+
+    await deletePlan(db, clinicId, source.id)
+    await deletePlan(db, clinicId, template.id)
+    await deletePlan(db, clinicId, firstUse.id)
+    await deletePlan(db, clinicId, secondUse.id)
+    await deletePlan(db, clinicId, anotherTemplate.id)
+    await deletePlan(db, clinicId, normalDuplicate.id)
+  })
+
+  // GitHub issue #27 / Prompt 5.5, GÖREV 4 — "hedeften plan iskeleti":
+  // plan + tek bir gün + verilen öğün kabukları oluşur, HİÇBİR plan_items
+  // yazılmaz ("Otomatik besin ÖNERME" kuralı).
+  it('createPlanSkeleton plan + gün + öğün kabuklarını oluşturur, HİÇ kalem eklemez', async () => {
+    const { createPlanSkeleton, getPlanTree, deletePlan } = await import('./plans')
+
+    const skeleton = await createPlanSkeleton(db, clinicId, userId, {
+      clientId,
+      name: 'Hedeften iskelet',
+      targetKcal: 2000,
+      targetMacros: { proteinPct: 20, carbPct: 50, fatPct: 30 },
+      meals: [
+        { mealType: 'kahvaltı', name: 'Kahvaltı', sortOrder: 0 },
+        { mealType: 'öğle', name: 'Öğle', sortOrder: 1 },
+        { mealType: 'akşam', name: 'Akşam', sortOrder: 2 },
+      ],
+    })
+
+    expect(skeleton.targetKcal).toBe(2000)
+    expect(skeleton.status).toBe('taslak')
+
+    const tree = await getPlanTree(db, clinicId, skeleton.id)
+    expect(tree?.days).toHaveLength(1)
+    expect(tree?.days[0]?.meals).toHaveLength(3)
+    expect(tree?.days[0]?.meals.map((m) => m.meal.mealType)).toEqual([
+      'kahvaltı',
+      'öğle',
+      'akşam',
+    ])
+    for (const meal of tree?.days[0]?.meals ?? []) {
+      expect(meal.items).toHaveLength(0)
+    }
+
+    await deletePlan(db, clinicId, skeleton.id)
+  })
 })

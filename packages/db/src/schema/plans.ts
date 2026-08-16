@@ -127,6 +127,18 @@ export const dietPlans = pgTable(
     computedTotals: jsonb('computed_totals').$type<ComputedPlanTotals>(),
     computedAt: timestamp('computed_at', { withTimezone: true }),
 
+    // GitHub issue #27 / Prompt 5.5 — "kaç kez kullanıldı" sayacı (şablon
+    // kütüphanesi kartlarında gösterilecek). Bir DERİVE edilmiş sorgu
+    // (ör. "bu id'yi sourcePlanId olarak referans alan kaç kopya var")
+    // yerine BİLEREK bir sayaç sütunu seçildi — çünkü clonePlanInternal
+    // (bkz. queries/plans.ts) kopyanın kaynağını KALICI OLARAK saklamıyor
+    // (targetClientId override'ı sadece o an geçiliyor, tabloda bir
+    // sourcePlanId sütunu yok), bu yüzden "kaç kopya" sorusu geriye dönük
+    // sorgulanamaz olurdu. Sayaç yalnızca "bu ŞABLONdan gerçek bir danışan
+    // planı üretildiğinde" (isTemplate=true kaynaktan isTemplate=false hedefe
+    // klonlanınca) artar — bkz. clonePlanInternal içindeki artış noktası.
+    templateUsageCount: integer('template_usage_count').notNull().default(0),
+
     ...timestamps(),
   },
   (table) => [

@@ -85,6 +85,13 @@
       "when": 1786881067457,
       "tag": "0011_add_food_usage_table",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786896405860,
+      "tag": "0012_talented_santa_claus",
+      "breakpoints": true
     }
   ]
 }
