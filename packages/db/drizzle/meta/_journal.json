@@ -71,6 +71,13 @@
       "when": 1786878051552,
       "tag": "0009_calm_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786879985119,
+      "tag": "0010_tough_zaladane",
+      "breakpoints": true
     }
   ]
 }
