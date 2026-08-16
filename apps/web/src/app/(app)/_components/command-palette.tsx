@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/command'
 import { initFoodIndex, searchFoodsOffline, type FoodSearchHit } from '@/lib/food-index'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
+import { searchClientsAction, type ClientPickerOption } from '@/app/(app)/randevular/actions'
 import { visibleNavItems } from './nav-items'
 
 export interface CommandPaletteItem {
@@ -52,18 +53,31 @@ function buildNavigationGroup(
   }
 }
 
-// GitHub issue #17 / Prompt 4.1 danışan modülünü kurdu — bu yüzden "Yeni
-// danışan" artık gerçek bir navigasyon (/danisanlar/yeni). "Danışan ara"
-// BİLEREK hâlâ devre dışı: bu, komut paletinin İÇİNDE bir fuzzy arama
-// (ör. Orama tabanlı, bkz. lib/food-index.ts'teki besin arama deseni) ayrı
-// bir iş — /danisanlar sayfasının kendi arama kutusu (bkz. clients-table.tsx)
-// bunun yerine geçmiyor, komut paletine entegre bir "ara ve seç" akışı
-// henüz kurulmadı.
+// GitHub issue #39 / Prompt 7.1 GÜNCELLEMESİ: "Danışan ara" artık GERÇEK bir
+// arama — GitHub issue #25'in bıraktığı "yakında" stub'ı burada kapanıyor.
+// buildFoodSearchGroup'taki AYNI desen (ZATEN filtrelenmiş bir `hits`
+// listesini gösteren bir grup): arama mantığı burada TEKRARLANMIYOR,
+// randevu modülünün searchClientsAction'ı (app/(app)/randevular/actions.ts)
+// AYNEN çağrılıyor — o da clients.ts'teki listClients arama filtresini sarar.
+function buildClientSearchGroup(
+  hits: ClientPickerOption[],
+  onSelectClient: (client: ClientPickerOption) => void,
+): CommandPaletteGroup {
+  return {
+    heading: 'Danışanlar',
+    items: hits.map((client) => ({
+      id: `client-${client.id}`,
+      label: `${client.firstName} ${client.lastName}`,
+      icon: Search,
+      onSelect: () => onSelectClient(client),
+    })),
+  }
+}
+
 function buildClientCommandGroup(navigate: (href: string) => void): CommandPaletteGroup {
   return {
     heading: 'Danışanlar',
     items: [
-      { id: 'client-search', label: 'Danışan ara', icon: Search, disabled: true },
       {
         id: 'client-create',
         label: 'Yeni danışan',
@@ -121,17 +135,22 @@ function useCommandPaletteGroups(
   foodHits: FoodSearchHit[],
   foodQuery: string,
   onSelectFood: (hit: FoodSearchHit) => void,
+  clientHits: ClientPickerOption[],
+  onSelectClient: (client: ClientPickerOption) => void,
 ): CommandPaletteGroup[] {
   return useMemo(() => {
-    const groups = [buildNavigationGroup(role, navigate), buildClientCommandGroup(navigate)]
-    // Besin sonucu yokken boş bir "Besin ara" başlığı göstermek kafa
-    // karıştırır — sorgu boşken (henüz bir şey yazılmadıysa) grup hiç
-    // eklenmez, CommandEmpty diğer gruplar için normal çalışmaya devam eder.
+    const groups = [buildNavigationGroup(role, navigate)]
+    // Sorgu boşken (henüz bir şey yazılmadıysa) arama sonucu grupları hiç
+    // eklenmez — boş bir "Danışanlar"/"Besin ara" başlığı göstermek kafa
+    // karıştırır, CommandEmpty diğer gruplar için normal çalışmaya devam eder.
     if (foodQuery.trim() !== '') {
+      groups.push(buildClientSearchGroup(clientHits, onSelectClient))
       groups.push(buildFoodSearchGroup(foodHits, onSelectFood))
+    } else {
+      groups.push(buildClientCommandGroup(navigate))
     }
     return groups
-  }, [role, navigate, foodHits, foodQuery, onSelectFood])
+  }, [role, navigate, foodHits, foodQuery, onSelectFood, clientHits, onSelectClient])
 }
 
 export function CommandPalette({ role }: { role: ClinicMemberRole }) {
@@ -140,6 +159,7 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
   const [foodIndexReady, setFoodIndexReady] = useState(false)
   const [foodQuery, setFoodQuery] = useState('')
   const [foodHits, setFoodHits] = useState<FoodSearchHit[]>([])
+  const [clientHits, setClientHits] = useState<ClientPickerOption[]>([])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -176,6 +196,28 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
       cancelled = true
     }
   }, [foodQuery, foodIndexReady])
+
+  // Danışan araması — food-index'ten FARKLI olarak sunucuya gidiyor (offline
+  // indeks yok, klinik başına yüz/bin mertebesindeki danışan verisi zaten
+  // basit bir ILIKE'a yetiyor, bkz. listClients üstündeki not). foodQuery
+  // AYNI giriş kutusunu besliyor — tek bir arama kutusu hem besin hem danışan
+  // aramasını (bağlama göre farklı gruplar altında) sonuçlandırır.
+  useEffect(() => {
+    if (foodQuery.trim() === '') {
+      setClientHits([])
+      return
+    }
+    let cancelled = false
+    const timeout = setTimeout(() => {
+      searchClientsAction(foodQuery).then((hits) => {
+        if (!cancelled) setClientHits(hits)
+      })
+    }, 200)
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [foodQuery])
 
   // Palet kapanınca sorgu sıfırlanır — bir sonraki açılışta önceki besin
   // aramasının kalıntısı görünmesin diye.
@@ -215,7 +257,23 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
     [addFoodToActiveMeal, activeMealLabel],
   )
 
-  const groups = useCommandPaletteGroups(role, navigate, foodHits, foodQuery, onSelectFood)
+  const onSelectClient = useCallback(
+    (client: ClientPickerOption) => {
+      setOpen(false)
+      router.push(`/danisanlar/${client.id}`)
+    },
+    [router],
+  )
+
+  const groups = useCommandPaletteGroups(
+    role,
+    navigate,
+    foodHits,
+    foodQuery,
+    onSelectFood,
+    clientHits,
+    onSelectClient,
+  )
 
   return (
     <>
