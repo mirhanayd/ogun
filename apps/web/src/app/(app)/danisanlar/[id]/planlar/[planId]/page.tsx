@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation'
+import { db } from '@ogun/db'
+import { getClinicById } from '@ogun/db/queries'
 import { addDayAction, addMealAction, getPlanTreeAction } from '@/app/(app)/planlar/actions'
 import { getClientHealthRecord } from '@/app/(app)/danisanlar/[id]/anamnez/queries'
 import { PLAN_MEAL_TYPE_OPTIONS } from '@/lib/validation/plan-schemas'
 import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
+import { requireClinic } from '@/lib/authz'
 import { PlanEditor } from './plan-editor'
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör rotası
@@ -41,7 +44,15 @@ export default async function PlanEditorPage({
 }) {
   const { id, planId } = await params
 
-  const [client, tree, health] = await Promise.all([
+  // GitHub issue #35 / Prompt 6.1 — PDF üretim diyaloğunun başlangıç
+  // değerleri klinik-varsayılanından (clinics.pdfDefaultDensity/
+  // pdfDefaultShowCalories, bkz. schema/tenancy.ts) gelir — diyetisyen
+  // diyalogda İSTEDİĞİ an override edebilir ama açılış hâli klinik
+  // tercihini yansıtır (bkz. GÖREV: "klinik seviyesinde bir varsayılanı
+  // OLMALI").
+  const { scope } = await requireClinic()
+
+  const [client, tree, health, clinic] = await Promise.all([
     viewClientRecord(id),
     ensurePlanBootstrapped(planId),
     // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi panelinin hem
@@ -50,6 +61,7 @@ export default async function PlanEditorPage({
     // Kayıt yoksa (anamnez formu hiç doldurulmamışsa) getClientHealthRecord
     // undefined döner — panel bunu "referans yok" olarak ele alır.
     getClientHealthRecord(id),
+    getClinicById(db, scope.clinicId),
   ])
 
   if (!client || client.deletedAt || !tree) {
@@ -76,6 +88,8 @@ export default async function PlanEditorPage({
       clientAge={calculateAge(client.birthDate)}
       allergies={health?.allergies ?? null}
       intolerances={health?.intolerances ?? null}
+      pdfDefaultDensity={clinic?.pdfDefaultDensity ?? 'spacious'}
+      pdfDefaultShowCalories={clinic?.pdfDefaultShowCalories ?? true}
     />
   )
 }

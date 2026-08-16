@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import { initFoodIndex } from '@/lib/food-index'
 import type { PlanTree } from '@ogun/db/queries'
-import type { ClientAllergenEntry, ClientSex, PlanOutputFormat } from '@ogun/db/schema'
+import type { ClientAllergenEntry, ClientSex, PdfDensity, PlanOutputFormat } from '@ogun/db/schema'
 import { PLAN_OUTPUT_FORMAT_OPTIONS } from '@/lib/validation/plan-schemas'
 import { usePlanEditorStore, type DraftDay, type PlanViewMode } from './plan-editor-store'
 import { MealBlock } from './meal-block'
@@ -27,6 +27,7 @@ import { NutrientPanel } from './nutrient-panel'
 import { ExchangePanel } from './exchange-panel'
 import { SaveAsTemplateDialog } from './save-as-template-dialog'
 import { OutputFormatPreviewDialog } from './output-format-preview-dialog'
+import { PlanPdfDialog } from './plan-pdf-dialog'
 
 export interface PlanEditorProps {
   planId: string
@@ -46,6 +47,10 @@ export interface PlanEditorProps {
   clientAge: number | null
   allergies: ClientAllergenEntry[] | null
   intolerances: ClientAllergenEntry[] | null
+  // GitHub issue #35 / Prompt 6.1 — PDF diyaloğunun açılış değerleri
+  // (klinik-varsayılanı, bkz. page.tsx notu).
+  pdfDefaultDensity: PdfDensity
+  pdfDefaultShowCalories: boolean
 }
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör düzeni.
@@ -67,6 +72,8 @@ export function PlanEditor({
   clientAge,
   allergies,
   intolerances,
+  pdfDefaultDensity,
+  pdfDefaultShowCalories,
 }: PlanEditorProps) {
   const initialize = usePlanEditorStore((s) => s.initialize)
   const days = usePlanEditorStore((s) => s.days)
@@ -88,6 +95,7 @@ export function PlanEditor({
 
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
 
   useEffect(() => {
     initialize({
@@ -177,6 +185,7 @@ export function PlanEditor({
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           onOpenPreview={() => setPreviewDialogOpen(true)}
+          onOpenPdfDialog={() => setPdfDialogOpen(true)}
           saveStatus={saveStatus}
           pendingCount={pendingCount}
           onCommit={setPlanMeta}
@@ -227,6 +236,14 @@ export function PlanEditor({
       </div>
 
       <OutputFormatPreviewDialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen} />
+      <PlanPdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        planId={planId}
+        clientId={clientId}
+        defaultDensity={pdfDefaultDensity}
+        defaultShowCalories={pdfDefaultShowCalories}
+      />
     </DndContext>
   )
 }
@@ -257,6 +274,7 @@ function EditorTopBar({
   viewMode,
   onViewModeChange,
   onOpenPreview,
+  onOpenPdfDialog,
   saveStatus,
   pendingCount,
   onCommit,
@@ -271,6 +289,7 @@ function EditorTopBar({
   viewMode: PlanViewMode
   onViewModeChange: (mode: PlanViewMode) => void
   onOpenPreview: () => void
+  onOpenPdfDialog: () => void
   saveStatus: string
   pendingCount: number
   onCommit: (patch: {
@@ -318,12 +337,11 @@ function EditorTopBar({
           open={templateDialogOpen}
           onOpenChange={setTemplateDialogOpen}
         />
-        <Button variant="outline" size="sm" disabled className="gap-1.5">
+        {/* GitHub issue #35 / Prompt 6.1 — #25'in "yakında" bıraktığı stub
+            burada GERÇEK bir diyaloğa bağlandı (bkz. plan-pdf-dialog.tsx). */}
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenPdfDialog}>
           <FileDown className="size-3.5" />
-          PDF önizleme
-          <Badge variant="secondary" className="pointer-events-none">
-            Yakında
-          </Badge>
+          PDF önizleme / indir
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-sm">

@@ -67,11 +67,22 @@ export const labResults = pgTable(
 // Roadmap GÖREV 3'te bire bir bu şekilde (Türkçe) verildi — clients.ts
 // clientStatusEnum üstündeki notla AYNI gerekçe: ürünün kendi domain
 // terimleri, diyetisyenin göreceği kategori etiketiyle DB değeri aynı.
+// GitHub issue #35 / Prompt 6.1 — 'diyet_listesi' burada EKLENDİ.
+// GEREKÇE (neden 'diğer' YENİDEN KULLANILMADI): dosyalar sekmesindeki
+// kategori filtresi (bkz. bu tablo altındaki documents_client_id_category_idx
+// ve GÖREV 4'ün "kategori filtresi" notu) diyetisyenin "sadece bu danışana
+// gönderdiğim PDF'leri gör" diye ayrı bir sekme/filtre açabilmesini
+// gerektiriyor — 'diğer'e gömülürse tahlil/reçete taraması gibi diğer
+// serbest-kategori belgelerle (elle yüklenen PDF'ler dahil) karışırdı.
+// Üretilen PDF'ler sistem tarafından otomatik üretiliyor olması da
+// (uploadedBy zaten var olan bir kullanıcı olsa da) onları elle yüklenen
+// belgelerden anlamlı şekilde ayırır.
 export const documentCategoryEnum = pgEnum('document_category', [
   'tahlil',
   'reçete',
   'bia_çıktısı',
   'fotoğraf',
+  'diyet_listesi',
   'diğer',
 ])
 export type DocumentCategory = (typeof documentCategoryEnum.enumValues)[number]
