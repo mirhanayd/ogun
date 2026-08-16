@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { CloudOff, Eye, FileDown, Layers, Loader2, RefreshCw } from 'lucide-react'
+import { CloudOff, Eye, FileDown, Layers, Loader2, RefreshCw, Share2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,7 @@ import { ExchangePanel } from './exchange-panel'
 import { SaveAsTemplateDialog } from './save-as-template-dialog'
 import { OutputFormatPreviewDialog } from './output-format-preview-dialog'
 import { PlanPdfDialog } from './plan-pdf-dialog'
+import { ShareDialog } from './share-dialog'
 
 export interface PlanEditorProps {
   planId: string
@@ -51,6 +52,13 @@ export interface PlanEditorProps {
   // (klinik-varsayılanı, bkz. page.tsx notu).
   pdfDefaultDensity: PdfDensity
   pdfDefaultShowCalories: boolean
+  // GitHub issue #36 / Prompt 6.2 — paylaşım diyaloğunun ihtiyaç duyduğu
+  // danışan iletişim bilgileri (WhatsApp numarası/e-posta önerisi) + klinik
+  // mesaj şablonu (bkz. /ayarlar/paylasim).
+  clientName: string
+  clientPhone: string | null
+  clientEmail: string | null
+  whatsappTemplate: string | null
 }
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör düzeni.
@@ -74,6 +82,10 @@ export function PlanEditor({
   intolerances,
   pdfDefaultDensity,
   pdfDefaultShowCalories,
+  clientName,
+  clientPhone,
+  clientEmail,
+  whatsappTemplate,
 }: PlanEditorProps) {
   const initialize = usePlanEditorStore((s) => s.initialize)
   const days = usePlanEditorStore((s) => s.days)
@@ -96,6 +108,7 @@ export function PlanEditor({
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
 
   useEffect(() => {
     initialize({
@@ -186,6 +199,7 @@ export function PlanEditor({
           onViewModeChange={setViewMode}
           onOpenPreview={() => setPreviewDialogOpen(true)}
           onOpenPdfDialog={() => setPdfDialogOpen(true)}
+          onOpenShareDialog={() => setShareDialogOpen(true)}
           saveStatus={saveStatus}
           pendingCount={pendingCount}
           onCommit={setPlanMeta}
@@ -244,6 +258,17 @@ export function PlanEditor({
         defaultDensity={pdfDefaultDensity}
         defaultShowCalories={pdfDefaultShowCalories}
       />
+      <ShareDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        planId={planId}
+        clientId={clientId}
+        planName={currentPlanName}
+        clientName={clientName}
+        clientPhone={clientPhone}
+        clientEmail={clientEmail}
+        whatsappTemplate={whatsappTemplate}
+      />
     </DndContext>
   )
 }
@@ -275,6 +300,7 @@ function EditorTopBar({
   onViewModeChange,
   onOpenPreview,
   onOpenPdfDialog,
+  onOpenShareDialog,
   saveStatus,
   pendingCount,
   onCommit,
@@ -290,6 +316,7 @@ function EditorTopBar({
   onViewModeChange: (mode: PlanViewMode) => void
   onOpenPreview: () => void
   onOpenPdfDialog: () => void
+  onOpenShareDialog: () => void
   saveStatus: string
   pendingCount: number
   onCommit: (patch: {
@@ -342,6 +369,12 @@ function EditorTopBar({
         <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenPdfDialog}>
           <FileDown className="size-3.5" />
           PDF önizleme / indir
+        </Button>
+        {/* GitHub issue #36 / Prompt 6.2 — "Danışana ulaştırma": paylaşım
+            linki + WhatsApp/e-posta gönderimi (bkz. share-dialog.tsx). */}
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenShareDialog}>
+          <Share2 className="size-3.5" />
+          Danışana ulaştır
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-sm">

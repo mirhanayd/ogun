@@ -93,6 +93,16 @@ export const clinics = pgTable('clinics', {
   pdfDefaultDensity: pdfDensityEnum('pdf_default_density').notNull().default('spacious'),
   pdfDefaultShowCalories: boolean('pdf_default_show_calories').notNull().default(true),
 
+  // --- Paylaşım mesaj şablonu (GitHub issue #36 / Prompt 6.2, GÖREV 2) ---
+  // "Klinik ayarlarında mesaj şablonu özelleştirilebilsin" — pdfDefault*
+  // ile AYNI desen (mevcut clinics satırına minimal bir sütun, ayrı bir
+  // "klinik ayarları" tablosu YOK). NULL = varsayılan şablon kullanılır
+  // (bkz. apps/web/src/lib/share/message-template.ts DEFAULT_WHATSAPP_TEMPLATE)
+  // — mevcut kliniklerin (bu sütun eklenmeden önce oluşturulanlar dahil)
+  // davranışı DEĞİŞMEZ. Yer tutucular ({danisanAdi}, {planAdi}, {link}) düz
+  // metin İÇİNDE serbestçe kullanılabilir, bkz. o dosyadaki render fonksiyonu.
+  whatsappMessageTemplate: text('whatsapp_message_template'),
+
   ...timestamps(),
 })
 
