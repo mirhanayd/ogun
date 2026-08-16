@@ -8,7 +8,7 @@ export interface EmptyStateAction {
   label: string
   href?: string
   onClick?: () => void
-  // Modül henüz yoksa (ör. danışan kaydı — Prompt 4.1) eylem burada
+  // Modül henüz yoksa (ör. randevu takvimi — henüz açılmamış bir issue) eylem burada
   // görünür ama tıklanamaz durumda kalır, "Yakında" rozeti ile.
   disabled?: boolean
   hint?: string

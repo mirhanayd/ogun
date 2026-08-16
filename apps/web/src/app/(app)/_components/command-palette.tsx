@@ -46,17 +46,24 @@ function buildNavigationGroup(role: ClinicMemberRole, navigate: (href: string) =
   }
 }
 
-// Danışan modülü henüz yok — packages/db/src/schema/clients.ts hâlâ yer
-// tutucu (bkz. Prompt 4.1 / GitHub issue #12). Gerçek aramaya/oluşturmaya
-// bağlamak yerine "yakında" rozetiyle devre dışı bırakılmış birer giriş
-// olarak duruyorlar; clients şeması gelince bu fonksiyon güncellenip gerçek
-// bir action'a (ör. bir arama sorgusuna veya modal'a) bağlanacak.
-function buildClientStubGroup(): CommandPaletteGroup {
+// GitHub issue #17 / Prompt 4.1 danışan modülünü kurdu — bu yüzden "Yeni
+// danışan" artık gerçek bir navigasyon (/danisanlar/yeni). "Danışan ara"
+// BİLEREK hâlâ devre dışı: bu, komut paletinin İÇİNDE bir fuzzy arama
+// (ör. Orama tabanlı, bkz. lib/food-index.ts'teki besin arama deseni) ayrı
+// bir iş — /danisanlar sayfasının kendi arama kutusu (bkz. clients-table.tsx)
+// bunun yerine geçmiyor, komut paletine entegre bir "ara ve seç" akışı
+// henüz kurulmadı.
+function buildClientCommandGroup(navigate: (href: string) => void): CommandPaletteGroup {
   return {
     heading: 'Danışanlar',
     items: [
       { id: 'client-search', label: 'Danışan ara', icon: Search, disabled: true },
-      { id: 'client-create', label: 'Yeni danışan', icon: UserPlus, disabled: true },
+      {
+        id: 'client-create',
+        label: 'Yeni danışan',
+        icon: UserPlus,
+        onSelect: () => navigate('/danisanlar/yeni'),
+      },
     ],
   }
 }
@@ -67,7 +74,7 @@ function buildClientStubGroup(): CommandPaletteGroup {
 // `buildFoodSearchGroup()` olarak eklenecek (bkz. GitHub issue #11 gövdesi,
 // "mimariyi genişletilebilir kur" notu).
 function useCommandPaletteGroups(role: ClinicMemberRole, navigate: (href: string) => void): CommandPaletteGroup[] {
-  return useMemo(() => [buildNavigationGroup(role, navigate), buildClientStubGroup()], [role, navigate])
+  return useMemo(() => [buildNavigationGroup(role, navigate), buildClientCommandGroup(navigate)], [role, navigate])
 }
 
 export function CommandPalette({ role }: { role: ClinicMemberRole }) {

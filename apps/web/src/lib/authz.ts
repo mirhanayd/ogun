@@ -44,7 +44,7 @@ export class InsufficientRoleError extends Error {
 //
 // Sonuç: danışan (client) verisine dokunan sorgu fonksiyonları imzalarını
 // `(db: Database, scope: ClinicScope, ...) => ...` şeklinde yazmalıdır
-// (bkz. packages/db/src/queries — clients.ts eklendiğinde, Prompt 4.1).
+// (bkz. packages/db/src/queries/clients.ts — GitHub issue #17 / Prompt 4.1).
 // Böyle bir fonksiyonu, requireClinic()'ten geçmeden, sadece elindeki bir
 // clinicId string'iyle çağırmaya çalışan kod DERLENMEZ — çünkü `string`,
 // `ClinicScope`'a atanamaz. Bu, "clinicId almayan bir client sorgusu
