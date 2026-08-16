@@ -194,6 +194,103 @@ export interface FoodIndexEntry {
   exchange: { groupCode: string; groupNameTr: string; gramsPerExchange: number } | null
 }
 
+// GitHub issue #35 / Prompt 6.1 — PDF üretiminin sunucu tarafı ad/besin
+// öğesi/değişim grubu çözümlemesi (bkz. apps/web/src/lib/pdf/
+// resolve-plan-pdf-data.ts). getAllFoodIndexEntries ile AYNI LATERAL join
+// deseni ama TÜM kataloğu DEĞİL, sadece verilen foodIds'i döner — bir planın
+// (tipik olarak birkaç düzine kalem) ihtiyaç duyduğu besin sayısı için
+// 15.000+ satırlık offline indeks sorgusunu çalıştırmak gereksiz olurdu.
+export async function getFoodDetailsByIds(
+  db: Database,
+  foodIds: string[],
+): Promise<Map<string, FoodIndexEntry>> {
+  if (foodIds.length === 0) return new Map()
+
+  const rows = await db.execute<{
+    id: string
+    name_tr: string
+    search_text: string
+    group_name_tr: string | null
+    portion_label: string | null
+    portion_grams: string | null
+    nutrients_json: Record<string, number | string> | null
+    has_imputed: boolean | null
+    exchange_group_code: string | null
+    exchange_group_name_tr: string | null
+    exchange_grams_per_exchange: string | null
+  }>(sql`
+    SELECT
+      f.id, f.name_tr, f.search_text, f.group_name_tr,
+      fp.label AS portion_label,
+      fp.grams AS portion_grams,
+      na.nutrients_json,
+      na.has_imputed,
+      fx.group_code AS exchange_group_code,
+      fx.group_name_tr AS exchange_group_name_tr,
+      fx.grams_per_exchange AS exchange_grams_per_exchange
+    FROM foods f
+    LEFT JOIN LATERAL (
+      SELECT label, grams FROM food_portions
+      WHERE food_id = f.id
+      ORDER BY is_default DESC, sort_order ASC
+      LIMIT 1
+    ) fp ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        jsonb_object_agg(n.code, fn.value_per_100g) AS nutrients_json,
+        bool_or(fn.is_imputed) AS has_imputed
+      FROM food_nutrients fn
+      JOIN nutrients n ON n.id = fn.nutrient_id
+      WHERE fn.food_id = f.id AND fn.is_preferred = true
+    ) na ON true
+    LEFT JOIN LATERAL (
+      SELECT eg.code AS group_code, eg.name_tr AS group_name_tr, fe.grams_per_exchange
+      FROM food_exchanges fe
+      JOIN exchange_groups eg ON eg.id = fe.group_id
+      WHERE fe.food_id = f.id
+      ORDER BY fe.is_primary DESC
+      LIMIT 1
+    ) fx ON true
+    WHERE f.id IN (${sql.join(
+      foodIds.map((id) => sql`${id}`),
+      sql`, `,
+    )})
+  `)
+
+  const result = new Map<string, FoodIndexEntry>()
+  for (const row of rows) {
+    const nutrientsPer100g: Record<string, number> = {}
+    for (const [code, value] of Object.entries(row.nutrients_json ?? {})) {
+      nutrientsPer100g[code] = Number(value)
+    }
+    result.set(row.id, {
+      id: row.id,
+      nameTr: row.name_tr,
+      searchText: row.search_text,
+      groupNameTr: row.group_name_tr,
+      kcalPer100g: nutrientsPer100g.ENERC_KCAL ?? null,
+      proteinPer100g: nutrientsPer100g.PROCNT ?? null,
+      carbPer100g: nutrientsPer100g.CHOCDF ?? null,
+      fatPer100g: nutrientsPer100g.FAT ?? null,
+      defaultPortion:
+        row.portion_label && row.portion_grams
+          ? { label: row.portion_label, grams: Number(row.portion_grams) }
+          : null,
+      nutrientsPer100g,
+      hasImputedValues: row.has_imputed ?? false,
+      exchange:
+        row.exchange_group_code && row.exchange_group_name_tr && row.exchange_grams_per_exchange
+          ? {
+              groupCode: row.exchange_group_code,
+              groupNameTr: row.exchange_group_name_tr,
+              gramsPerExchange: Number(row.exchange_grams_per_exchange),
+            }
+          : null,
+    })
+  }
+  return result
+}
+
 // İstemcinin (Dexie + Orama) offline arama indeksini kurmak için tüm katalogu
 // TEK sorguda döner. Arama sayfası dışında bir yerde kullanılmamalı — 15.000+
 // satır döndürür.

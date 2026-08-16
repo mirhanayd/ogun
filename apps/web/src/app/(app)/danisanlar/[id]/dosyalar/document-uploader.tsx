@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { DocumentCategory } from '@ogun/db/schema'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,6 +9,7 @@ import {
   ACCEPTED_DOCUMENT_MIME_TYPES,
   DOCUMENT_CATEGORY_OPTIONS,
   MAX_DOCUMENT_SIZE_BYTES,
+  type UploadableDocumentCategory,
 } from '@/lib/validation/document-schemas'
 import { confirmDocumentUploadAction, presignDocumentUploadAction } from './actions'
 
@@ -26,12 +26,12 @@ export function DocumentUploader({
   // BİA içe aktarma paneli (GÖREV 4) kategori seçimini gizleyip her zaman
   // 'bia_çıktısı' gönderir — diyetisyenin doğru kategoriyi seçmeyi
   // UNUTMASI riskini ortadan kaldırır.
-  fixedCategory?: DocumentCategory
+  fixedCategory?: UploadableDocumentCategory
   onUploaded?: () => void
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [category, setCategory] = useState<DocumentCategory>(fixedCategory ?? 'diğer')
+  const [category, setCategory] = useState<UploadableDocumentCategory>(fixedCategory ?? 'diğer')
   const [status, setStatus] = useState<'idle' | 'uploading'>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -92,7 +92,7 @@ export function DocumentUploader({
       {!fixedCategory && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="documentCategory">Kategori</Label>
-          <Select value={category} onValueChange={(value) => setCategory(value as DocumentCategory)}>
+          <Select value={category} onValueChange={(value) => setCategory(value as UploadableDocumentCategory)}>
             <SelectTrigger id="documentCategory" className="w-40">
               <SelectValue />
             </SelectTrigger>

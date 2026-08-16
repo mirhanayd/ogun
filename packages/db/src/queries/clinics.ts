@@ -200,3 +200,15 @@ export async function listClinicDietitians(db: Database, clinicId: string): Prom
     .where(and(eq(clinicMembers.clinicId, clinicId), inArray(clinicMembers.role, ['owner', 'dietitian'])))
     .orderBy(users.name)
 }
+
+// GitHub issue #35 / Prompt 6.1 — PDF başlığındaki "diyetisyen adı" için.
+// diet_plans.createdBy'nin (planı OLUŞTURAN kullanıcı — mutlaka bir
+// dietitian rolünde olması ŞART DEĞİL, ör. bir 'assistant' da plan girebilir,
+// bkz. schema/plans.ts) adını çözer. clinicId'ye göre SCOPE EDİLMEZ — users
+// tablosu klinik bağımsız (bkz. clinic_members ayrı tablo); çağıran taraf
+// zaten clinicId ile filtrelenmiş bir diet_plans satırından gelen createdBy
+// id'sini veriyor, bu yüzden ekstra bir klinik-üyeliği kontrolüne gerek yok.
+export async function getUserNameById(db: Database, userId: string): Promise<string | null> {
+  const [row] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1)
+  return row?.name ?? null
+}

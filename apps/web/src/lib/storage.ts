@@ -77,6 +77,27 @@ export async function createPresignedDownloadUrl(storageKey: string): Promise<st
   return getSignedUrl(getS3Client(), command, { expiresIn: PRESIGNED_URL_TTL_SECONDS })
 }
 
+// GitHub issue #35 / Prompt 6.1 — sunucu tarafı üretilen PDF'ler (bkz.
+// apps/web/src/lib/pdf/generate-and-save-plan-pdf.ts) documents.ts'teki
+// GÖREV 3 akışının (presign -> istemci yükler -> confirm) AKSİNE bir
+// desen izler: dosyanın bayt'ları zaten SUNUCUDA, bir Buffer olarak
+// hazır (renderPlanPdfBuffer, bkz. packages/pdf/src/render.tsx) —
+// istemciyi bir presigned URL'e yönlendirmenin (ekstra bir round-trip)
+// hiçbir faydası yok. Bu yüzden burada AYRI, doğrudan bir PutObjectCommand
+// fonksiyonu var — "dosyalar asla public olmasın" kuralı burada da
+// GEÇERLİ: obje yine private bucket'a yazılır, görüntüleme yine
+// createPresignedDownloadUrl üzerinden olur (bkz. documents.ts
+// getDocumentDownloadUrlAction, PDF için de AYNI akış kullanılıyor).
+export async function uploadStorageObject(
+  storageKey: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  await getS3Client().send(
+    new PutObjectCommand({ Bucket: getBucket(), Key: storageKey, Body: body, ContentType: contentType }),
+  )
+}
+
 export async function deleteStorageObject(storageKey: string): Promise<void> {
   await getS3Client().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: storageKey }))
 }
@@ -90,4 +111,15 @@ export function buildDocumentStorageKey(clientId: string, fileName: string): str
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
   const unique = crypto.randomUUID()
   return `clients/${clientId}/documents/${unique}-${safeName}`
+}
+
+// GitHub issue #35 / Prompt 6.1 — üretilen PDF'ler documents.storageKey'i
+// (unique index, bkz. schema/health-records.ts) buildDocumentStorageKey ile
+// AYNI "clients/{clientId}/documents/..." önekini paylaşır — KVKK veri
+// sahibi hakları akışının (bkz. buildDocumentStorageKey notu, prefix
+// listeleme ile "bu danışanın TÜM dosyalarını sil") PDF'leri de kapsaması
+// için BİLEREK aynı prefix altında, ayrı bir "pdfs/" kökü AÇILMADI.
+export function buildPlanPdfStorageKey(clientId: string, planId: string): string {
+  const unique = crypto.randomUUID()
+  return `clients/${clientId}/documents/${unique}-plan-${planId}.pdf`
 }

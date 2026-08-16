@@ -12,6 +12,14 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'canceled',
 ])
 
+// GitHub issue #35 / Prompt 6.1 — PDF şablonu yoğunluk seçeneği (bkz.
+// clinics.pdfDefaultDensity üstündeki not). Diğer enum'lardan (planStatusEnum
+// vb.) FARKLI olarak BİLEREK İngilizce — bu bir domain terimi/kullanıcı
+// etiketi değil, packages/pdf'in PdfLayoutOptions.density Zod enum'uyla
+// (bkz. packages/pdf/src/types.ts) BİREBİR aynı iki teknik değer.
+export const pdfDensityEnum = pgEnum('pdf_density', ['compact', 'spacious'])
+export type PdfDensity = (typeof pdfDensityEnum.enumValues)[number]
+
 // Better Auth'un beklediği alan adlarıyla (email, name, image, emailVerified, ...)
 // birebir uyumlu olacak şekilde tanımlanır — betterAuth() config'inde
 // drizzleAdapter'a bu tablo doğrudan verilir, alan eşlemesi otomatik çalışır.
@@ -65,6 +73,26 @@ export const clinics = pgTable('clinics', {
   // 3650 (10 yıl) sadece güvenli bir başlangıç varsayılanı, bir yasal tavsiye
   // değil.
   dataRetentionDays: integer('data_retention_days').notNull().default(3650),
+
+  // --- PDF çıktısı klinik-varsayılanları (GitHub issue #35 / Prompt 6.1) ---
+  // schema/plans.ts planOutputFormatEnum üstündeki nottaki AÇIK KAPI
+  // burada kapatılıyor: "klinik-varsayılanı ihtiyacı, o ayarlar modülü
+  // kurulduğunda ayrı bir issue'nun kapsamı" deniyordu — ayrı bir "klinik
+  // ayarları" modülü hâlâ YOK, ama roadmap Prompt 6.1'in kendisi net biçimde
+  // "klinik-seviyeli varsayılan" istiyor (bkz. GÖREV: "Template seçenekleri
+  // [...] plan başına ayarlanabilir OLMALI VE klinik seviyesinde bir
+  // varsayılanı OLMALI"). Bu yüzden BURADA, mevcut clinics tablosuna, minimal
+  // iki sütun eklendi (yeni bir "klinik ayarları" tablosu AÇILMADI — tek
+  // satırlık, düşük kardinaliteli iki tercih için ayrı bir tablo gereksiz
+  // normalizasyon olurdu, tıpkı dataRetentionDays'in de burada durması gibi).
+  // Plan başına tercih zaten var (dietPlans.outputFormat, #28) — kalori
+  // göster/gizle VE kompakt/geniş için PLAN seviyesinde bir sütun YOK (bu
+  // issue kapsamında eklenmedi, PDF oluşturma diyalогunda seçilip klinik
+  // varsayılanını override eder ama KALICI olarak plana kaydedilmez) —
+  // bkz. apps/web/src/lib/validation/pdf-schemas.ts.
+  pdfDefaultDensity: pdfDensityEnum('pdf_default_density').notNull().default('spacious'),
+  pdfDefaultShowCalories: boolean('pdf_default_show_calories').notNull().default(true),
+
   ...timestamps(),
 })
 
