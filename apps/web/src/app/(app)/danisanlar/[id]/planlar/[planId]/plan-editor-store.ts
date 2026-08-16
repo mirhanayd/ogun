@@ -1,8 +1,10 @@
 'use client'
 
+import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { PlanMealType } from '@ogun/db/schema'
+import type { ClientAllergenEntry, ClientSex, PlanMealType } from '@ogun/db/schema'
 import type { PlanTree } from '@ogun/db/queries'
+import { buildAllergenConflictMap, type AllergenConflict } from '@/lib/allergen-conflict'
 import {
   addAlternativeAction,
   addItemAction,
@@ -124,6 +126,14 @@ interface PlanEditorState {
   foodMacros: Record<string, FoodMacroLookup>
   saveStatus: QueueStatus
   pendingCount: number
+  // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi paneli için danışan
+  // profili. clientId/planId'nin AKSİNE bunlar salt okunur (initialize
+  // sonrası hiçbir action bunları değiştirmez — danışan bilgisi bu ekranda
+  // düzenlenmiyor, anamnez/danışan formu ayrı bir sayfa).
+  clientSex: ClientSex | null
+  clientAge: number | null
+  allergies: ClientAllergenEntry[] | null
+  intolerances: ClientAllergenEntry[] | null
 
   initialize: (input: {
     planId: string
@@ -132,6 +142,10 @@ interface PlanEditorState {
     endDate: Date | null
     targetKcal: number | null
     tree: PlanTree
+    clientSex: ClientSex | null
+    clientAge: number | null
+    allergies: ClientAllergenEntry[] | null
+    intolerances: ClientAllergenEntry[] | null
   }) => void
   resolveFoodMacros: () => Promise<void>
 
@@ -195,9 +209,35 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
   foodMacros: {},
   saveStatus: 'idle',
   pendingCount: 0,
+  clientSex: null,
+  clientAge: null,
+  allergies: null,
+  intolerances: null,
 
-  initialize: ({ planId, planName, startDate, endDate, targetKcal, tree }) => {
-    set({ planId, planName, startDate, endDate, targetKcal, days: toDraftTree(tree) })
+  initialize: ({
+    planId,
+    planName,
+    startDate,
+    endDate,
+    targetKcal,
+    tree,
+    clientSex,
+    clientAge,
+    allergies,
+    intolerances,
+  }) => {
+    set({
+      planId,
+      planName,
+      startDate,
+      endDate,
+      targetKcal,
+      days: toDraftTree(tree),
+      clientSex,
+      clientAge,
+      allergies,
+      intolerances,
+    })
     void get().resolveFoodMacros()
   },
 
@@ -634,3 +674,19 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
 // testleri bunu DEĞİL, sınıfı doğrudan test ediyor — bu export sadece
 // plan-editor.tsx'in window 'online'/'offline' event'lerini bağlaması için).
 export const planEditorOfflineQueue = offlineQueue
+
+// GitHub issue #26 / Prompt 5.4, GÖREV 3 — "Alerji/intolerans çakışması →
+// kalem satırında kırmızı ikon + panelde uyarı". foodMacros/allergies zaten
+// store'da olduğu için bu HİÇBİR prop drilling GEREKTİRMEDEN doğrudan
+// plan-item-row.tsx ve nutrient-panel.tsx'ten çağrılabilir (tıpkı diğer
+// usePlanEditorStore selector'ları gibi).
+export function useAllergenConflictMap(): Map<string, AllergenConflict[]> {
+  const foodMacros = usePlanEditorStore((s) => s.foodMacros)
+  const allergies = usePlanEditorStore((s) => s.allergies)
+  const intolerances = usePlanEditorStore((s) => s.intolerances)
+
+  return useMemo(() => {
+    const foodNamesById = new Map(Object.entries(foodMacros).map(([id, m]) => [id, m.nameTr]))
+    return buildAllergenConflictMap(foodNamesById, allergies, intolerances)
+  }, [foodMacros, allergies, intolerances])
+}

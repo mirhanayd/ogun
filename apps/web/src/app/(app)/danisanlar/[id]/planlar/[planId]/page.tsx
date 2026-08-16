@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation'
 import { addDayAction, addMealAction, getPlanTreeAction } from '@/app/(app)/planlar/actions'
+import { getClientHealthRecord } from '@/app/(app)/danisanlar/[id]/anamnez/queries'
 import { PLAN_MEAL_TYPE_OPTIONS } from '@/lib/validation/plan-schemas'
 import { viewClientRecord } from '@/lib/data-subject-rights'
+import { calculateAge } from '@/lib/client-age'
 import { PlanEditor } from './plan-editor'
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör rotası
@@ -39,7 +41,16 @@ export default async function PlanEditorPage({
 }) {
   const { id, planId } = await params
 
-  const [client, tree] = await Promise.all([viewClientRecord(id), ensurePlanBootstrapped(planId)])
+  const [client, tree, health] = await Promise.all([
+    viewClientRecord(id),
+    ensurePlanBootstrapped(planId),
+    // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi panelinin hem
+    // referans karşılaştırması (yaş/cinsiyet) hem alerji/intolerans
+    // çakışması (GÖREV 3) için danışanın sağlık profiline ihtiyacı var.
+    // Kayıt yoksa (anamnez formu hiç doldurulmamışsa) getClientHealthRecord
+    // undefined döner — panel bunu "referans yok" olarak ele alır.
+    getClientHealthRecord(id),
+  ])
 
   if (!client || client.deletedAt || !tree) {
     notFound()
@@ -60,6 +71,10 @@ export default async function PlanEditorPage({
       endDate={tree.plan.endDate}
       targetKcal={tree.plan.targetKcal}
       tree={tree}
+      clientSex={client.sex}
+      clientAge={calculateAge(client.birthDate)}
+      allergies={health?.allergies ?? null}
+      intolerances={health?.intolerances ?? null}
     />
   )
 }

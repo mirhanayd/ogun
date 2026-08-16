@@ -21,12 +21,12 @@ Workspace içinde: `"@ogun/nutrition-core": "workspace:*"`
 | `energy.ts` | Atwater enerji hesabı (4-4-9) ve beyan edilen enerjiyle karşılaştırma (`calculateAtwaterEnergyKcal`, `compareEnergyToAtwater`). ETL'nin BLS/USDA doğrulamasıyla aynı fonksiyon — `packages/etl` buradan import eder, kopyası yok. |
 | `plan.ts` | Öğün ve günlük plan toplamları (`calculateMealNutrients`, `calculatePlan`). |
 | `cooking.ts` | Çiğ↔pişmiş gram dönüşümü ve pişirme kaybı (`rawGramsToCookedGrams`, `convertRawToCookedPer100g`). Yoğunlaşma etkisini hesaba katar — bkz. aşağıda. |
-| `distribution.ts` | Enerjinin makro besin öğelerine (`calculateMacroDistribution`) ve öğünlere (`calculateMealEnergyDistribution`) yüzdesel dağılımı. |
+| `distribution.ts` | Enerjinin makro besin öğelerine (`calculateMacroDistribution`) ve öğünlere (`calculateMealEnergyDistribution`) yüzdesel dağılımı. `MACRO_DISTRIBUTION_TARGET_RANGES` genel AMDR aralıkları (plan editörünün makro çubuğundaki gölgeli hedef aralık). |
 | `energy-requirement.ts` | Mifflin-St Jeor formülüyle BMR ve aktivite faktörlü günlük enerji ihtiyacı (`calculateBmr`, `calculateDailyEnergyRequirement`). |
 | `exchange.ts` | Değişim listesi (exchange list) gram ↔ değişim adedi dönüşümü. Grup tanımları (kaç gram = 1 değişim) çağıran koddan verilir, burada sabit veri yok. |
-| `reference-comparison.ts` | Hesaplanan değerleri bir referans aralığıyla (TÜBER gibi) karşılaştırma (`compareToReference`). |
-| `data/tuber-2022.ts` | ⚠ **Yer tutucu veri.** Gerçek TÜBER 2022 değerleri değil — yapıyı test etmek için 3 örnek yaş grubuyla dolduruldu. Gerçek veri seti geldiğinde değiştirilecek. |
-| `warnings.ts` | Güvenlik/veri kalitesi uyarı kanalı (`generatePlanWarnings`): minimum kalori sınırı, haftada 1 kg'dan hızlı kayıp, tahmini (`isImputed`) veri bilgilendirmesi. |
+| `reference-comparison.ts` | Hesaplanan değerleri bir referans aralığıyla (TÜBER gibi) karşılaştırma (`compareToReference`), danışanın yaş/cinsiyetine en uygun yaş grubunu seçme (`selectAgeGroupReference`), ve plan editörünün canlı panelindeki 4 renkli bantlama — kırmızı/sarı/yeşil/turuncu (`classifyNutrientLevel`). |
+| `data/tuber-2022.ts` | ⚠ **Yer tutucu veri.** Gerçek TÜBER 2022 değerleri değil — yapıyı test etmek için birkaç örnek yaş grubu, GitHub issue #26 kapsamında isCore ~15 besin öğesinin TAMAMINI kapsayacak şekilde genişletildi. Gerçek veri seti geldiğinde değiştirilecek. |
+| `warnings.ts` | Güvenlik/veri kalitesi uyarı kanalı. `generatePlanWarnings`: minimum kalori sınırı, haftada 1 kg'dan hızlı kayıp, tahmini (`isImputed`) veri bilgilendirmesi. `generateLiveNutrientWarnings` (GitHub issue #26): eksik besin öğesi verisi (`MISSING_NUTRIENT_DATA`), ağır tahmini veri oranı (`IMPUTED_VALUE_HEAVY`), danışana özel referansa göre güvenli olmayan enerji hedefi (`UNSAFE_ENERGY_TARGET`). |
 
 ## Pişirme dönüşümünde yoğunlaşma etkisi
 

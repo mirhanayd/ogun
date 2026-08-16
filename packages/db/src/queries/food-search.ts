@@ -174,6 +174,18 @@ export interface FoodIndexEntry {
   carbPer100g: number | null
   fatPer100g: number | null
   defaultPortion: FoodPortionSummary | null
+  // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi panelinin ~60 besin
+  // öğesi (isCore dahil tümü) üzerinden hesap yapabilmesi için TAM besin
+  // öğesi haritası (nutrition-core'un NutrientValuesPer100g'ıyla BİREBİR
+  // uyumlu şekil: kod -> 100g başına değer, DEĞERİ OLMAYAN kodlar haritada
+  // hiç YOK — bkz. nutrition-core/src/warnings.ts checkMissingNutrientData,
+  // "eksik" ile "sıfır" burada kasıtlı olarak ayrılıyor). kcalPer100g/
+  // proteinPer100g/carbPer100g/fatPer100g alanları GERİYE DÖNÜK UYUMLULUK
+  // için ayrıca duruyor (bu haritadan türetilir, ayrı bir sorgu YOK).
+  nutrientsPer100g: Record<string, number>
+  // food_nutrients.isImputed'ın (herhangi bir besin öğesi için) özeti —
+  // plan.ts FoodReference.hasImputedValues ile AYNI anlam.
+  hasImputedValues: boolean
 }
 
 // İstemcinin (Dexie + Orama) offline arama indeksini kurmak için tüm katalogu
@@ -185,55 +197,98 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     name_tr: string
     search_text: string
     group_name_tr: string | null
-    kcal_per_100g: string | null
-    protein_per_100g: string | null
-    carb_per_100g: string | null
-    fat_per_100g: string | null
     portion_label: string | null
     portion_grams: string | null
+    // postgres-js jsonb sütunlarını otomatik JS nesnesine çevirir — değerler
+    // numeric olduğu için ya number ya da (sürücüye göre) string gelebilir,
+    // bu yüzden aşağıdaki map adımında her ikisi de Number() ile güvenceye
+    // alınıyor.
+    nutrients_json: Record<string, number | string> | null
+    has_imputed: boolean | null
   }>(sql`
     SELECT
       f.id, f.name_tr, f.search_text, f.group_name_tr,
-      fn_kcal.value_per_100g AS kcal_per_100g,
-      fn_protein.value_per_100g AS protein_per_100g,
-      fn_carb.value_per_100g AS carb_per_100g,
-      fn_fat.value_per_100g AS fat_per_100g,
       fp.label AS portion_label,
-      fp.grams AS portion_grams
+      fp.grams AS portion_grams,
+      na.nutrients_json,
+      na.has_imputed
     FROM foods f
-    LEFT JOIN food_nutrients fn_kcal ON fn_kcal.food_id = f.id
-      AND fn_kcal.is_preferred = true
-      AND fn_kcal.nutrient_id = (SELECT id FROM nutrients WHERE code = 'ENERC_KCAL')
-    LEFT JOIN food_nutrients fn_protein ON fn_protein.food_id = f.id
-      AND fn_protein.is_preferred = true
-      AND fn_protein.nutrient_id = (SELECT id FROM nutrients WHERE code = 'PROCNT')
-    LEFT JOIN food_nutrients fn_carb ON fn_carb.food_id = f.id
-      AND fn_carb.is_preferred = true
-      AND fn_carb.nutrient_id = (SELECT id FROM nutrients WHERE code = 'CHOCDF')
-    LEFT JOIN food_nutrients fn_fat ON fn_fat.food_id = f.id
-      AND fn_fat.is_preferred = true
-      AND fn_fat.nutrient_id = (SELECT id FROM nutrients WHERE code = 'FAT')
     LEFT JOIN LATERAL (
       SELECT label, grams FROM food_portions
       WHERE food_id = f.id
       ORDER BY is_default DESC, sort_order ASC
       LIMIT 1
     ) fp ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        jsonb_object_agg(n.code, fn.value_per_100g) AS nutrients_json,
+        bool_or(fn.is_imputed) AS has_imputed
+      FROM food_nutrients fn
+      JOIN nutrients n ON n.id = fn.nutrient_id
+      WHERE fn.food_id = f.id AND fn.is_preferred = true
+    ) na ON true
+  `)
+
+  return rows.map((row) => {
+    const nutrientsPer100g: Record<string, number> = {}
+    for (const [code, value] of Object.entries(row.nutrients_json ?? {})) {
+      nutrientsPer100g[code] = Number(value)
+    }
+
+    return {
+      id: row.id,
+      nameTr: row.name_tr,
+      searchText: row.search_text,
+      groupNameTr: row.group_name_tr,
+      kcalPer100g: nutrientsPer100g.ENERC_KCAL ?? null,
+      proteinPer100g: nutrientsPer100g.PROCNT ?? null,
+      carbPer100g: nutrientsPer100g.CHOCDF ?? null,
+      fatPer100g: nutrientsPer100g.FAT ?? null,
+      defaultPortion:
+        row.portion_label && row.portion_grams
+          ? { label: row.portion_label, grams: Number(row.portion_grams) }
+          : null,
+      nutrientsPer100g,
+      hasImputedValues: row.has_imputed ?? false,
+    }
+  })
+}
+
+export interface NutrientDefinition {
+  code: string
+  nameTr: string
+  unit: string
+  category: string
+  isCore: boolean
+  displayOrder: number
+}
+
+// GitHub issue #26 / Prompt 5.4, GÖREV 2 — mikro besin öğesi listesinin
+// (isCore=true olan ~15 + "Tümünü göster" ile ~60) ad/birim/kategori
+// metadata'sı. Katalog küçük (~60 satır) olduğu için ayrı bir uç NOKTA
+// açmıyoruz — /api/foods/index cevabına EKLENİYOR (bkz. route.ts), istemci
+// aynı versiyonlu indeks yenilemesiyle bunu da alır.
+export async function getNutrientDefinitions(db: Database): Promise<NutrientDefinition[]> {
+  const rows = await db.execute<{
+    code: string
+    name_tr: string
+    unit: string
+    category: string
+    is_core: boolean
+    display_order: number
+  }>(sql`
+    SELECT code, name_tr, unit, category, is_core, display_order
+    FROM nutrients
+    ORDER BY display_order ASC
   `)
 
   return rows.map((row) => ({
-    id: row.id,
+    code: row.code,
     nameTr: row.name_tr,
-    searchText: row.search_text,
-    groupNameTr: row.group_name_tr,
-    kcalPer100g: row.kcal_per_100g === null ? null : Number(row.kcal_per_100g),
-    proteinPer100g: row.protein_per_100g === null ? null : Number(row.protein_per_100g),
-    carbPer100g: row.carb_per_100g === null ? null : Number(row.carb_per_100g),
-    fatPer100g: row.fat_per_100g === null ? null : Number(row.fat_per_100g),
-    defaultPortion:
-      row.portion_label && row.portion_grams
-        ? { label: row.portion_label, grams: Number(row.portion_grams) }
-        : null,
+    unit: row.unit,
+    category: row.category,
+    isCore: row.is_core,
+    displayOrder: row.display_order,
   }))
 }
 

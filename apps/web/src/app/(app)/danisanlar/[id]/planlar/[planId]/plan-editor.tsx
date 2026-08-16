@@ -11,6 +11,7 @@ import { computeDragEndPlan } from '@/lib/dnd-reorder'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import { initFoodIndex } from '@/lib/food-index'
 import type { PlanTree } from '@ogun/db/queries'
+import type { ClientAllergenEntry, ClientSex } from '@ogun/db/schema'
 import { usePlanEditorStore, type DraftDay } from './plan-editor-store'
 import { MealBlock } from './meal-block'
 import { NutrientPanel } from './nutrient-panel'
@@ -23,6 +24,13 @@ export interface PlanEditorProps {
   endDate: Date | null
   targetKcal: number | null
   tree: PlanTree
+  // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi paneli için danışan
+  // profili (yaş/cinsiyet referans karşılaştırması + alerji/intolerans
+  // çakışması, bkz. plan-editor-store.ts useAllergenConflictMap).
+  clientSex: ClientSex | null
+  clientAge: number | null
+  allergies: ClientAllergenEntry[] | null
+  intolerances: ClientAllergenEntry[] | null
 }
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör düzeni.
@@ -39,6 +47,10 @@ export function PlanEditor({
   endDate,
   targetKcal,
   tree,
+  clientSex,
+  clientAge,
+  allergies,
+  intolerances,
 }: PlanEditorProps) {
   const initialize = usePlanEditorStore((s) => s.initialize)
   const days = usePlanEditorStore((s) => s.days)
@@ -58,7 +70,18 @@ export function PlanEditor({
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
   useEffect(() => {
-    initialize({ planId, planName, startDate, endDate, targetKcal, tree })
+    initialize({
+      planId,
+      planName,
+      startDate,
+      endDate,
+      targetKcal,
+      tree,
+      clientSex,
+      clientAge,
+      allergies,
+      intolerances,
+    })
     // Besin arama/miktar hesabı için offline indeksin (Dexie+Orama, #24)
     // hazır olduğundan emin ol — plan editörüne DOĞRUDAN bir link'ten (ör.
     // yer imi) gelindiyse komut paleti/FoodSearchInput henüz tetiklenmemiş

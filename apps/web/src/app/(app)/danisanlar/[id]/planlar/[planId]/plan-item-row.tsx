@@ -3,14 +3,14 @@
 import { useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, X } from 'lucide-react'
+import { GripVertical, Plus, ShieldAlert, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FoodSearchInput } from '@/components/food-search-input'
 import { cn } from '@/lib/utils'
 import type { DraftAlternative, DraftItem } from './plan-editor-store'
-import { usePlanEditorStore } from './plan-editor-store'
+import { useAllergenConflictMap, usePlanEditorStore } from './plan-editor-store'
 import type { FoodMacroLookup } from '@/lib/plan-nutrients'
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 2 + GÖREV 3:
@@ -31,6 +31,7 @@ export function PlanItemRow({
   const updateItemAmount = usePlanEditorStore((s) => s.updateItemAmount)
   const removeItemById = usePlanEditorStore((s) => s.removeItemById)
   const addAlternativeFromSelection = usePlanEditorStore((s) => s.addAlternativeFromSelection)
+  const allergenConflicts = useAllergenConflictMap()
 
   const [showAltSearch, setShowAltSearch] = useState(false)
   const isPending = item.id.startsWith('temp-')
@@ -42,6 +43,9 @@ export function PlanItemRow({
     macro?.kcalPer100g !== undefined && macro?.kcalPer100g !== null
       ? (macro.kcalPer100g * item.amountGrams) / 100
       : null
+  // GitHub issue #26 / Prompt 5.4, GÖREV 3 — "Alerji/intolerans çakışması →
+  // kalem satırında kırmızı ikon".
+  const conflicts = item.foodId ? allergenConflicts.get(item.foodId) : undefined
 
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -74,6 +78,15 @@ export function PlanItemRow({
           {displayName}
           {isPending && ' (kaydediliyor…)'}
         </span>
+
+        {conflicts && conflicts.length > 0 && (
+          <ShieldAlert
+            className="size-3.5 shrink-0 text-destructive"
+            aria-label={`Alerji/intolerans çakışması: ${conflicts.map((c) => c.entry.label).join(', ')}`}
+          >
+            <title>{`Alerji/intolerans çakışması: ${conflicts.map((c) => c.entry.label).join(', ')}`}</title>
+          </ShieldAlert>
+        )}
 
         <AmountEditor
           amountGrams={item.amountGrams}
