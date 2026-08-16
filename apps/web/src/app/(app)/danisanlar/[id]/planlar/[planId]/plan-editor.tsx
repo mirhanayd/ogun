@@ -1,0 +1,316 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { CloudOff, FileDown, Loader2, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { computeDragEndPlan } from '@/lib/dnd-reorder'
+import { useActiveMealStore } from '@/lib/stores/active-meal-store'
+import { initFoodIndex } from '@/lib/food-index'
+import type { PlanTree } from '@ogun/db/queries'
+import { usePlanEditorStore, type DraftDay } from './plan-editor-store'
+import { MealBlock } from './meal-block'
+import { NutrientPanel } from './nutrient-panel'
+
+export interface PlanEditorProps {
+  planId: string
+  clientId: string
+  planName: string
+  startDate: Date | null
+  endDate: Date | null
+  targetKcal: number | null
+  tree: PlanTree
+}
+
+// GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör düzeni.
+// - Üst: plan adı, tarih, hedef kalori, kaydet durumu, önizleme/PDF butonu.
+// - Sol: öğün blokları listesi (dikey akış).
+// - Sağ: sabit besin öğesi paneli (Prompt 5.4'te dolduracağız, şimdilik yer
+//   tutucu — bkz. nutrient-panel.tsx).
+// - Mobilde panel alta katlanır sekme olsun.
+export function PlanEditor({
+  planId,
+  clientId,
+  planName,
+  startDate,
+  endDate,
+  targetKcal,
+  tree,
+}: PlanEditorProps) {
+  const initialize = usePlanEditorStore((s) => s.initialize)
+  const days = usePlanEditorStore((s) => s.days)
+  const currentPlanName = usePlanEditorStore((s) => s.planName)
+  const currentTargetKcal = usePlanEditorStore((s) => s.targetKcal)
+  const currentStartDate = usePlanEditorStore((s) => s.startDate)
+  const currentEndDate = usePlanEditorStore((s) => s.endDate)
+  const saveStatus = usePlanEditorStore((s) => s.saveStatus)
+  const pendingCount = usePlanEditorStore((s) => s.pendingCount)
+  const setPlanMeta = usePlanEditorStore((s) => s.setPlanMeta)
+  const reorderMealItems = usePlanEditorStore((s) => s.reorderMealItems)
+  const moveItemToMeal = usePlanEditorStore((s) => s.moveItemToMeal)
+  const notifyOnline = usePlanEditorStore((s) => s.notifyOnline)
+  const setOffline = usePlanEditorStore((s) => s.setOffline)
+  const clearActiveMeal = useActiveMealStore((s) => s.clearActiveMeal)
+
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+
+  useEffect(() => {
+    initialize({ planId, planName, startDate, endDate, targetKcal, tree })
+    // Besin arama/miktar hesabı için offline indeksin (Dexie+Orama, #24)
+    // hazır olduğundan emin ol — plan editörüne DOĞRUDAN bir link'ten (ör.
+    // yer imi) gelindiyse komut paleti/FoodSearchInput henüz tetiklenmemiş
+    // olabilir.
+    initFoodIndex().catch((error: unknown) =>
+      console.error('[PlanEditor] besin indeksi yüklenemedi:', error),
+    )
+    // GÖREV 4: "Çevrimdışıyken düzenlemeye izin ver, bağlantı gelince
+    // senkronize et" — bkz. lib/offline-queue.ts notifyOnline.
+    function handleOnline() {
+      void notifyOnline()
+    }
+    function handleOffline() {
+      setOffline()
+    }
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    if (!navigator.onLine) setOffline()
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      clearActiveMeal()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId])
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  const { itemsByMeal, itemMealOf } = useMemo(() => {
+    const byMeal = new Map<string, string[]>()
+    const mealOf = new Map<string, string>()
+    for (const day of days) {
+      for (const meal of day.meals) {
+        byMeal.set(
+          meal.id,
+          meal.items.map((i) => i.id),
+        )
+        for (const item of meal.items) mealOf.set(item.id, meal.id)
+      }
+    }
+    return { itemsByMeal: byMeal, itemMealOf: mealOf }
+  }, [days])
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over) return
+    const plan = computeDragEndPlan(
+      { activeId: String(active.id), overId: String(over.id) },
+      itemsByMeal,
+      itemMealOf,
+    )
+    if (!plan) return
+    if (!plan.sourceMealId) {
+      reorderMealItems(plan.targetMealId, plan.targetOrderedIds)
+      return
+    }
+    const toIndex = plan.targetOrderedIds.indexOf(String(active.id))
+    moveItemToMeal(String(active.id), plan.sourceMealId, plan.targetMealId, toIndex)
+  }
+
+  return (
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="flex flex-col gap-3 pb-24 lg:pb-0">
+        <EditorTopBar
+          clientId={clientId}
+          planName={currentPlanName}
+          startDate={currentStartDate}
+          endDate={currentEndDate}
+          targetKcal={currentTargetKcal}
+          saveStatus={saveStatus}
+          pendingCount={pendingCount}
+          onCommit={setPlanMeta}
+        />
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+          <div className="flex flex-col gap-3">
+            {days.map((day) => (
+              <DaySection key={day.id} day={day} showHeading={days.length > 1} />
+            ))}
+          </div>
+
+          {/* Masaüstünde sabit sağ panel */}
+          <div className="hidden lg:block">
+            <div className="sticky top-4">
+              <NutrientPanel targetKcal={currentTargetKcal} days={days} />
+            </div>
+          </div>
+        </div>
+
+        {/* GÖREV 1: "Mobilde panel alta katlanır sekme olsun" */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background lg:hidden">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium"
+            onClick={() => setMobilePanelOpen((v) => !v)}
+          >
+            Besin öğesi paneli
+            <Badge variant="secondary">{mobilePanelOpen ? 'Kapat' : 'Aç'}</Badge>
+          </button>
+          {mobilePanelOpen && (
+            <div className="max-h-[60vh] overflow-y-auto border-t border-border p-3">
+              <NutrientPanel targetKcal={currentTargetKcal} days={days} />
+            </div>
+          )}
+        </div>
+      </div>
+    </DndContext>
+  )
+}
+
+function DaySection({ day, showHeading }: { day: DraftDay; showHeading: boolean }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {showHeading && (
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {day.dayLabel ?? `Gün ${day.dayNumber}`}
+        </h2>
+      )}
+      {day.meals.map((meal) => (
+        <MealBlock key={meal.id} meal={meal} />
+      ))}
+    </div>
+  )
+}
+
+function EditorTopBar({
+  clientId,
+  planName,
+  startDate,
+  endDate,
+  targetKcal,
+  saveStatus,
+  pendingCount,
+  onCommit,
+}: {
+  clientId: string
+  planName: string
+  startDate: Date | null
+  endDate: Date | null
+  targetKcal: number | null
+  saveStatus: string
+  pendingCount: number
+  onCommit: (patch: {
+    name?: string
+    targetKcal?: number | null
+    startDate?: Date | null
+    endDate?: Date | null
+  }) => void
+}) {
+  const router = useRouter()
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/danisanlar/${clientId}?tab=planlar`)}
+        >
+          ← Danışana dön
+        </Button>
+        <Input
+          value={planName}
+          onChange={(e) => onCommit({ name: e.target.value })}
+          className="h-8 max-w-72 min-w-32 flex-1 font-medium"
+          aria-label="Plan adı"
+        />
+        <SaveStatusIndicator status={saveStatus} pendingCount={pendingCount} />
+        <Button variant="outline" size="sm" disabled className="gap-1.5">
+          <FileDown className="size-3.5" />
+          PDF önizleme
+          <Badge variant="secondary" className="pointer-events-none">
+            Yakında
+          </Badge>
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <DateField
+          label="Başlangıç"
+          value={startDate}
+          onChange={(d) => onCommit({ startDate: d })}
+        />
+        <DateField label="Bitiş" value={endDate} onChange={(d) => onCommit({ endDate: d })} />
+        <label className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Hedef kalori</span>
+          <Input
+            type="number"
+            min={0}
+            value={targetKcal ?? ''}
+            onChange={(e) =>
+              onCommit({ targetKcal: e.target.value === '' ? null : Number(e.target.value) })
+            }
+            className="h-7 w-24"
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: Date | null
+  onChange: (d: Date | null) => void
+}) {
+  const isoValue = value ? value.toISOString().slice(0, 10) : ''
+  return (
+    <label className="flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <Input
+        type="date"
+        value={isoValue}
+        onChange={(e) => onChange(e.target.value ? new Date(e.target.value) : null)}
+        className="h-7 w-36"
+      />
+    </label>
+  )
+}
+
+// GÖREV 4: "'Kaydediliyor...' / 'Kaydedildi' / 'Bağlantı yok, yerel kayıt'
+// göstergesi." — KAYDET BUTONU YOK, sadece durum.
+function SaveStatusIndicator({ status, pendingCount }: { status: string; pendingCount: number }) {
+  if (status === 'offline') {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <CloudOff className="size-3" />
+        Bağlantı yok, yerel kayıt{pendingCount > 0 ? ` (${pendingCount} bekliyor)` : ''}
+      </Badge>
+    )
+  }
+  if (status === 'saving') {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <Loader2 className="size-3 animate-spin" />
+        Kaydediliyor…
+      </Badge>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <RefreshCw className="size-3" />
+        Kaydedilemedi, tekrar denenecek
+      </Badge>
+    )
+  }
+  if (status === 'saved') {
+    return <Badge variant="outline">Kaydedildi</Badge>
+  }
+  return null
+}

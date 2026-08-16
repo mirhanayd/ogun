@@ -141,11 +141,16 @@ export interface ListPlansInput {
 export async function listPlans(db: Database, clinicId: string, filter: ListPlansInput = {}) {
   const conditions = [eq(dietPlans.clinicId, clinicId)]
   if (filter.clientId !== undefined) {
-    conditions.push(filter.clientId === null ? isNull(dietPlans.clientId) : eq(dietPlans.clientId, filter.clientId))
+    conditions.push(
+      filter.clientId === null
+        ? isNull(dietPlans.clientId)
+        : eq(dietPlans.clientId, filter.clientId),
+    )
   }
   if (filter.status) conditions.push(eq(dietPlans.status, filter.status))
   if (filter.isTemplate !== undefined) conditions.push(eq(dietPlans.isTemplate, filter.isTemplate))
-  if (filter.templateCategory) conditions.push(eq(dietPlans.templateCategory, filter.templateCategory))
+  if (filter.templateCategory)
+    conditions.push(eq(dietPlans.templateCategory, filter.templateCategory))
 
   return db
     .select()
@@ -174,7 +179,9 @@ export async function updatePlan(
       ...(input.isTemplate !== undefined && { isTemplate: input.isTemplate }),
       ...(input.templateCategory !== undefined && { templateCategory: input.templateCategory }),
       ...(input.notes !== undefined && { notes: input.notes }),
-      ...(input.generalInstructions !== undefined && { generalInstructions: input.generalInstructions }),
+      ...(input.generalInstructions !== undefined && {
+        generalInstructions: input.generalInstructions,
+      }),
     })
     .where(and(eq(dietPlans.id, planId), eq(dietPlans.clinicId, clinicId)))
     .returning()
@@ -205,15 +212,24 @@ export async function deletePlan(db: Database, clinicId: string, planId: string)
   await assertPlanInClinic(db, clinicId, planId)
 
   return db.transaction(async (tx) => {
-    const days = await tx.select({ id: planDays.id }).from(planDays).where(eq(planDays.planId, planId))
+    const days = await tx
+      .select({ id: planDays.id })
+      .from(planDays)
+      .where(eq(planDays.planId, planId))
     const dayIds = days.map((d) => d.id)
 
     if (dayIds.length > 0) {
-      const meals = await tx.select({ id: planMeals.id }).from(planMeals).where(inArray(planMeals.dayId, dayIds))
+      const meals = await tx
+        .select({ id: planMeals.id })
+        .from(planMeals)
+        .where(inArray(planMeals.dayId, dayIds))
       const mealIds = meals.map((m) => m.id)
 
       if (mealIds.length > 0) {
-        const items = await tx.select({ id: planItems.id }).from(planItems).where(inArray(planItems.mealId, mealIds))
+        const items = await tx
+          .select({ id: planItems.id })
+          .from(planItems)
+          .where(inArray(planItems.mealId, mealIds))
         const itemIds = items.map((i) => i.id)
 
         if (itemIds.length > 0) {
@@ -279,6 +295,43 @@ export async function addMeal(db: Database, clinicId: string, dayId: string, inp
   return meal
 }
 
+// GitHub issue #25 / Prompt 5.3 — GÖREV 2: "Başlık (düzenlenebilir) + saat".
+// #23'ün action listesi (createPlan/updatePlan/deletePlan/duplicatePlan/
+// saveAsTemplate/addItem/updateItem/removeItem/reorderItems/addAlternative)
+// bir updateMeal BIRAKMAMIŞTI — addMeal vardı ama düzenleme yoktu. Bu, #25'in
+// açıkça istediği "öğün başlığı satır içi düzenlenebilir" gereksinimi için
+// eksik bir parça; addDay/addMeal/addItem/updateItem'la AYNI "önce clinic
+// doğrula, sonra yaz" deseniyle burada TAMAMLANIYOR (raw sorguyla bypass
+// DEĞİL, #23'ün kendi deseninin doğal bir devamı).
+export interface MealUpdateInput {
+  name?: string
+  time?: string | null
+  sortOrder?: number
+  notes?: string | null
+}
+
+export async function updateMeal(
+  db: Database,
+  clinicId: string,
+  mealId: string,
+  input: MealUpdateInput,
+) {
+  const found = await getMealWithClinicCheck(db, clinicId, mealId)
+  if (!found) throw new Error('Öğün bulunamadı.')
+
+  const [meal] = await db
+    .update(planMeals)
+    .set({
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.time !== undefined && { time: input.time }),
+      ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
+      ...(input.notes !== undefined && { notes: input.notes }),
+    })
+    .where(eq(planMeals.id, mealId))
+    .returning()
+  return meal ?? null
+}
+
 // plan_items VE plan_item_alternatives için ortak girdi şekli — şema
 // dosyasındaki "aynı alan şekli" notuyla birebir aynı, bkz. schema/plans.ts.
 export interface PlanItemSourceInput {
@@ -298,7 +351,9 @@ export interface PlanItemSourceInput {
 // girişinde uygular — üç katman (Zod, burası, DB CHECK) kasıtlı olarak
 // TEKRAR EDİYOR, çünkü her biri farklı bir bypass yolunu (form atlatma,
 // doğrudan fonksiyon çağrısı, elle SQL) kapatıyor.
-function assertExactlyOneSource(input: Pick<PlanItemSourceInput, 'foodId' | 'recipeId' | 'freeText'>): void {
+function assertExactlyOneSource(
+  input: Pick<PlanItemSourceInput, 'foodId' | 'recipeId' | 'freeText'>,
+): void {
   const filled = [input.foodId, input.recipeId, input.freeText].filter(
     (value) => value !== null && value !== undefined && value !== '',
   )
@@ -307,7 +362,12 @@ function assertExactlyOneSource(input: Pick<PlanItemSourceInput, 'foodId' | 'rec
   }
 }
 
-export async function addItem(db: Database, clinicId: string, mealId: string, input: PlanItemSourceInput) {
+export async function addItem(
+  db: Database,
+  clinicId: string,
+  mealId: string,
+  input: PlanItemSourceInput,
+) {
   assertExactlyOneSource(input)
   const found = await getMealWithClinicCheck(db, clinicId, mealId)
   if (!found) throw new Error('Öğün bulunamadı.')
@@ -377,7 +437,12 @@ export async function removeItem(db: Database, clinicId: string, itemId: string)
 // Optimistic UI'nin (bkz. issue #25) sürükle-bırakla yeniden sıraladığı
 // kalemleri TEK bir çağrıda kalıcı hale getirir. items sırayla sortOrder
 // 0..n-1 alır.
-export async function reorderItems(db: Database, clinicId: string, mealId: string, orderedItemIds: string[]) {
+export async function reorderItems(
+  db: Database,
+  clinicId: string,
+  mealId: string,
+  orderedItemIds: string[],
+) {
   const found = await getMealWithClinicCheck(db, clinicId, mealId)
   if (!found) throw new Error('Öğün bulunamadı.')
 
@@ -395,7 +460,40 @@ export async function reorderItems(db: Database, clinicId: string, mealId: strin
   })
 }
 
-export async function addAlternative(db: Database, clinicId: string, itemId: string, input: PlanItemSourceInput) {
+// GitHub issue #25 / Prompt 5.3 — reorderItems (bkz. yukarısı) SADECE aynı
+// öğün içindeki kalemlerin sortOrder'ını değiştirir (WHERE mealId = mealId
+// koşuluyla), bu yüzden sürükle-bırakla bir kalemi BAŞKA bir öğüne taşımak
+// için ayrı, dar kapsamlı bir fonksiyon gerekiyor. Öğün editörünün ("#23
+// action'larını atlamadan genişlet" kuralı) doğal bir uzantısı: itemId'nin
+// clinicId'ye ait olduğu ZATEN doğrulanır (getItemWithClinicCheck), hedef
+// öğünün de AYNI klinikte olduğu ayrıca doğrulanır (getMealWithClinicCheck)
+// — böylece bir kalem başka bir kliniğin öğününe "kaçırılamaz".
+export async function moveItem(
+  db: Database,
+  clinicId: string,
+  itemId: string,
+  targetMealId: string,
+  sortOrder: number,
+) {
+  const foundItem = await getItemWithClinicCheck(db, clinicId, itemId)
+  if (!foundItem) throw new Error('Plan kalemi bulunamadı.')
+  const foundMeal = await getMealWithClinicCheck(db, clinicId, targetMealId)
+  if (!foundMeal) throw new Error('Hedef öğün bulunamadı.')
+
+  const [item] = await db
+    .update(planItems)
+    .set({ mealId: targetMealId, sortOrder })
+    .where(eq(planItems.id, itemId))
+    .returning()
+  return item ?? null
+}
+
+export async function addAlternative(
+  db: Database,
+  clinicId: string,
+  itemId: string,
+  input: PlanItemSourceInput,
+) {
   assertExactlyOneSource(input)
   const found = await getItemWithClinicCheck(db, clinicId, itemId)
   if (!found) throw new Error('Plan kalemi bulunamadı.')
@@ -418,7 +516,13 @@ export async function addAlternative(db: Database, clinicId: string, itemId: str
 
 export async function removeAlternative(db: Database, clinicId: string, alternativeId: string) {
   const [row] = await db
-    .select({ alt: planItemAlternatives, item: planItems, meal: planMeals, day: planDays, plan: dietPlans })
+    .select({
+      alt: planItemAlternatives,
+      item: planItems,
+      meal: planMeals,
+      day: planDays,
+      plan: dietPlans,
+    })
     .from(planItemAlternatives)
     .innerJoin(planItems, eq(planItems.id, planItemAlternatives.itemId))
     .innerJoin(planMeals, eq(planMeals.id, planItems.mealId))
@@ -453,20 +557,36 @@ export interface PlanTree {
 // Bir planın TÜM ağacını (gün -> öğün -> kalem -> alternatif) tek bir
 // nesnede döner — hem gelecekteki editör UI'ının (#25) ilk yüklemesi hem de
 // clonePlan'ın kaynak veri okuması bunu kullanabilir.
-export async function getPlanTree(db: Database, clinicId: string, planId: string): Promise<PlanTree | null> {
+export async function getPlanTree(
+  db: Database,
+  clinicId: string,
+  planId: string,
+): Promise<PlanTree | null> {
   const plan = await getPlanById(db, clinicId, planId)
   if (!plan) return null
 
-  const days = await db.select().from(planDays).where(eq(planDays.planId, planId)).orderBy(asc(planDays.dayNumber))
+  const days = await db
+    .select()
+    .from(planDays)
+    .where(eq(planDays.planId, planId))
+    .orderBy(asc(planDays.dayNumber))
   const dayIds = days.map((d) => d.id)
 
   const meals = dayIds.length
-    ? await db.select().from(planMeals).where(inArray(planMeals.dayId, dayIds)).orderBy(asc(planMeals.sortOrder))
+    ? await db
+        .select()
+        .from(planMeals)
+        .where(inArray(planMeals.dayId, dayIds))
+        .orderBy(asc(planMeals.sortOrder))
     : []
   const mealIds = meals.map((m) => m.id)
 
   const items = mealIds.length
-    ? await db.select().from(planItems).where(inArray(planItems.mealId, mealIds)).orderBy(asc(planItems.sortOrder))
+    ? await db
+        .select()
+        .from(planItems)
+        .where(inArray(planItems.mealId, mealIds))
+        .orderBy(asc(planItems.sortOrder))
     : []
   const itemIds = items.map((i) => i.id)
 
@@ -569,7 +689,9 @@ async function clonePlanInternal(
         status: overrides.status ?? 'taslak',
         isTemplate: overrides.isTemplate ?? false,
         templateCategory:
-          overrides.templateCategory !== undefined ? overrides.templateCategory : source.plan.templateCategory,
+          overrides.templateCategory !== undefined
+            ? overrides.templateCategory
+            : source.plan.templateCategory,
         createdBy,
         notes: source.plan.notes,
         generalInstructions: source.plan.generalInstructions,
@@ -649,7 +771,12 @@ async function clonePlanInternal(
 // aynı — aynı danışan için bir kopya üretmek. apps/web katmanı bu ayrımı
 // (isimlendirme + audit log entityType) korumak için ayrı bir server action
 // export eder, ama ikisi de burayı çağırır.
-export async function duplicatePlan(db: Database, clinicId: string, createdBy: string, sourcePlanId: string) {
+export async function duplicatePlan(
+  db: Database,
+  clinicId: string,
+  createdBy: string,
+  sourcePlanId: string,
+) {
   const source = await getPlanById(db, clinicId, sourcePlanId)
   if (!source) throw new Error('Kaynak plan bulunamadı.')
   return clonePlanInternal(db, clinicId, createdBy, sourcePlanId, {

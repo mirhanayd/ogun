@@ -2,7 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import { create, insertMultiple, search } from '@orama/orama'
 import { normalizeSearchText } from './normalize'
 
-interface FoodIndexRow {
+export interface FoodIndexRow {
   id: string
   nameTr: string
   searchText: string
@@ -14,6 +14,12 @@ interface FoodIndexRow {
   // (kcalPer100g/defaultPortionLabel de aynı şekilde indekssiz).
   groupNameTr: string | null
   kcalPer100g: number | null
+  // GitHub issue #25 — plan editörünün öğün toplamı rozetleri (kcal + makro)
+  // nutrition-core'un calculateMealNutrients'ını çağırabilsin diye; #24'ün
+  // kcal-only alanlarıyla AYNI desende, indekslenmeyen düz alanlar.
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   defaultPortionLabel: string | null
   defaultPortionGrams: number | null
 }
@@ -82,6 +88,9 @@ async function ensureIndexLoaded(): Promise<void> {
       searchText: string
       groupNameTr: string | null
       kcalPer100g: number | null
+      proteinPer100g: number | null
+      carbPer100g: number | null
+      fatPer100g: number | null
       defaultPortion: { label: string; grams: number } | null
     }>
   }
@@ -95,6 +104,9 @@ async function ensureIndexLoaded(): Promise<void> {
         searchText: entry.searchText,
         groupNameTr: entry.groupNameTr,
         kcalPer100g: entry.kcalPer100g,
+        proteinPer100g: entry.proteinPer100g,
+        carbPer100g: entry.carbPer100g,
+        fatPer100g: entry.fatPer100g,
         defaultPortionLabel: entry.defaultPortion?.label ?? null,
         defaultPortionGrams: entry.defaultPortion?.grams ?? null,
       })),
@@ -130,11 +142,30 @@ export async function initFoodIndex(): Promise<void> {
   await getOramaIndex()
 }
 
+// GitHub issue #25 — plan editörünün öğün toplamı hesabı (bkz.
+// lib/plan-nutrients.ts) plan_items.foodId'lere karşılık gelen besin
+// öğesi değerlerini AĞA ÇIKMADAN okumak için bu fonksiyonu kullanır.
+// searchFoodsOffline'ın AKSİNE bir arama sorgusu YOK, sadece bilinen
+// id'lerin doğrudan Dexie'den toplu okunması (initFoodIndex çağrılmış
+// olmalı — bkz. çağıranlar).
+export async function getFoodIndexEntriesByIds(ids: string[]): Promise<Map<string, FoodIndexRow>> {
+  if (ids.length === 0) return new Map()
+  const rows = await dexieDb.foods.bulkGet(ids)
+  const result = new Map<string, FoodIndexRow>()
+  for (const row of rows) {
+    if (row) result.set(row.id, row)
+  }
+  return result
+}
+
 export interface FoodSearchHit {
   id: string
   nameTr: string
   groupNameTr: string | null
   kcalPer100g: number | null
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
 }
 
@@ -158,6 +189,9 @@ export async function searchFoodsOffline(
       nameTr: row.nameTr,
       groupNameTr: row.groupNameTr,
       kcalPer100g: row.kcalPer100g,
+      proteinPer100g: row.proteinPer100g,
+      carbPer100g: row.carbPer100g,
+      fatPer100g: row.fatPer100g,
       defaultPortion:
         row.defaultPortionLabel && row.defaultPortionGrams !== null
           ? { label: row.defaultPortionLabel, grams: row.defaultPortionGrams }
@@ -166,7 +200,9 @@ export async function searchFoodsOffline(
 
   const elapsedMs = performance.now() - start
   if (elapsedMs > P95_WARN_THRESHOLD_MS) {
-    console.warn(`searchFoodsOffline yavaş: ${elapsedMs.toFixed(1)}ms (hedef < ${P95_WARN_THRESHOLD_MS}ms)`)
+    console.warn(
+      `searchFoodsOffline yavaş: ${elapsedMs.toFixed(1)}ms (hedef < ${P95_WARN_THRESHOLD_MS}ms)`,
+    )
   }
 
   return { hits, elapsedMs }

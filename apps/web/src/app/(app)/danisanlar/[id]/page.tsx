@@ -1,10 +1,5 @@
 import { notFound } from 'next/navigation'
-import {
-  CalendarDays,
-  ClipboardList,
-  ClipboardPlus,
-  Wallet,
-} from 'lucide-react'
+import { CalendarDays, Wallet, type LucideIcon } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import { calculateBmi } from '@ogun/nutrition-core'
@@ -26,6 +21,8 @@ import { AnamnesisForm } from './anamnez/anamnesis-form'
 import { listClientAbnormalLabResults } from './laboratuvar/queries'
 import { LabResultsTab } from './laboratuvar/lab-results-tab'
 import { DocumentsTab } from './dosyalar/documents-tab'
+import { NewPlanButton } from './planlar/new-plan-button'
+import { PlanlarTab } from './planlar/planlar-tab'
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
@@ -39,14 +36,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { scope } = await requireClinic()
 
-  const [client, dietitians, latestMeasurement, weightGoal, healthRecord, abnormalLabResults] = await Promise.all([
-    viewClientRecord(id),
-    listClinicDietitians(db, scope.clinicId),
-    getClientLatestMeasurement(id),
-    getClientActiveGoal(id, 'kilo'),
-    getClientHealthRecord(id),
-    listClientAbnormalLabResults(id),
-  ])
+  const [client, dietitians, latestMeasurement, weightGoal, healthRecord, abnormalLabResults] =
+    await Promise.all([
+      viewClientRecord(id),
+      listClinicDietitians(db, scope.clinicId),
+      getClientLatestMeasurement(id),
+      getClientActiveGoal(id, 'kilo'),
+      getClientHealthRecord(id),
+      listClientAbnormalLabResults(id),
+    ])
 
   // Soft-delete edilmiş (bkz. schema/clients.ts deletedAt) bir kayıt normal
   // uygulama akışında GÖRÜNTÜLENMEZ — veri sahibi hakları akışı (dışa
@@ -87,7 +85,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <Badge variant="secondary">{age !== null ? `${age} yaş` : 'Yaş —'}</Badge>
               {client.sex && <Badge variant="outline">{SEX_LABELS_TR[client.sex]}</Badge>}
               {abnormalLabResults.length > 0 && (
-                <Badge variant="destructive">{abnormalLabResults.length} anormal tahlil değeri</Badge>
+                <Badge variant="destructive">
+                  {abnormalLabResults.length} anormal tahlil değeri
+                </Badge>
               )}
             </div>
             <p className="text-sm text-muted-foreground">
@@ -132,11 +132,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </TabsContent>
 
           <TabsContent value="planlar" className="mt-4">
-            <EmptyState
-              icon={ClipboardList}
-              title="Planlar bu bölüm henüz hazır değil"
-              description="Diyet planı editörü, roadmap'in Hafta 5 (Prompt 5.x — Plan şeması ve editörü) kapsamındaki ayrı bir modülde eklenecek."
-            />
+            <PlanlarTab clientId={client.id} />
           </TabsContent>
 
           <TabsContent value="anamnez" className="mt-4">
@@ -174,10 +170,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             {/* "Yeni ölçüm" KALDIRILDI — GitHub issue #18 ile artık gerçek bir
                 giriş noktası VAR (Ölçümler sekmesindeki form), bu yüzden
                 "Yakında" rozetli devre dışı bir düğme burada YANLIŞ olurdu.
-                Kalan iki eylem hâlâ kurulmamış modüllere (plan editörü,
-                randevu modülü) gider — command-palette.tsx'teki AYNI "modül
-                yoksa devre dışı + Yakında rozeti" deseni. */}
-            <QuickAction icon={ClipboardPlus} label="Yeni plan" />
+                GitHub issue #25 ile "Yeni plan" da AYNI şekilde gerçek bir
+                giriş noktasına kavuştu (bkz. planlar/new-plan-button.tsx) —
+                randevu modülü hâlâ kurulmamış, o yüzden "Yakında" rozetiyle
+                devre dışı kalmaya devam ediyor. */}
+            <NewPlanButton clientId={client.id} className="w-full justify-start gap-1.5" />
             <QuickAction icon={CalendarDays} label="Randevu ver" />
           </CardContent>
         </Card>
@@ -195,7 +192,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function QuickAction({ icon: Icon, label }: { icon: typeof ClipboardPlus; label: string }) {
+function QuickAction({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <Button variant="outline" size="sm" disabled className="justify-start gap-1.5">
       <Icon />

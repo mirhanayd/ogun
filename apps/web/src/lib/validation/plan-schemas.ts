@@ -71,11 +71,26 @@ export const planInputSchema = z.object({
   status: z.enum(['taslak', 'aktif', 'arşiv']).optional(),
   isTemplate: z.boolean().optional(),
   templateCategory: z
-    .enum(['diyabet', 'kilo_verme', 'kilo_alma', 'gebelik', 'sporcu', 'çölyak', 'böbrek', 'karaciğer', 'genel'])
+    .enum([
+      'diyabet',
+      'kilo_verme',
+      'kilo_alma',
+      'gebelik',
+      'sporcu',
+      'çölyak',
+      'böbrek',
+      'karaciğer',
+      'genel',
+    ])
     .nullable()
     .optional(),
   notes: z.string().trim().max(4000, 'Notlar çok uzun.').nullable().optional(),
-  generalInstructions: z.string().trim().max(4000, 'Genel talimatlar çok uzun.').nullable().optional(),
+  generalInstructions: z
+    .string()
+    .trim()
+    .max(4000, 'Genel talimatlar çok uzun.')
+    .nullable()
+    .optional(),
 })
 export type PlanInputValues = z.infer<typeof planInputSchema>
 
@@ -98,7 +113,10 @@ export const mealInputSchema = z.object({
   time: z
     .string()
     .trim()
-    .refine((value) => value === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(value), 'Saat biçimi geçersiz (SS:DD).')
+    .refine(
+      (value) => value === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(value),
+      'Saat biçimi geçersiz (SS:DD).',
+    )
     .nullable()
     .optional(),
   name: z.string().trim().min(1, 'Öğün adı zorunludur.').max(100),
@@ -106,6 +124,24 @@ export const mealInputSchema = z.object({
   notes: z.string().trim().max(2000).nullable().optional(),
 })
 export type MealInputValues = z.infer<typeof mealInputSchema>
+
+// GitHub issue #25 — bkz. packages/db/src/queries/plans.ts updateMeal
+// üstündeki not: #23'te unutulan öğün düzenleme şeması.
+export const mealUpdateSchema = z.object({
+  name: z.string().trim().min(1, 'Öğün adı zorunludur.').max(100).optional(),
+  time: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(value),
+      'Saat biçimi geçersiz (SS:DD).',
+    )
+    .nullable()
+    .optional(),
+  sortOrder: z.number().int().min(0).optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+})
+export type MealUpdateValues = z.infer<typeof mealUpdateSchema>
 
 // ---------------------------------------------------------------------------
 // plan_items / plan_item_alternatives — GÖREV 1 CHECK kısıtının Zod
@@ -116,7 +152,8 @@ export type MealInputValues = z.infer<typeof mealInputSchema>
 // ---------------------------------------------------------------------------
 
 function countFilled(values: (string | null | undefined)[]): number {
-  return values.filter((value) => value !== null && value !== undefined && value.trim() !== '').length
+  return values.filter((value) => value !== null && value !== undefined && value.trim() !== '')
+    .length
 }
 
 const planItemSourceSchema = z
@@ -161,7 +198,10 @@ export const planItemUpdateSchema = z
       const anyTouched = touched.some((value) => value !== undefined)
       return !anyTouched || countFilled(touched) === 1
     },
-    { message: 'Bir kalem tam olarak bir besin, tarif veya serbest metin içermelidir.', path: ['foodId'] },
+    {
+      message: 'Bir kalem tam olarak bir besin, tarif veya serbest metin içermelidir.',
+      path: ['foodId'],
+    },
   )
 export type PlanItemUpdateValues = z.infer<typeof planItemUpdateSchema>
 
@@ -173,6 +213,16 @@ export const reorderItemsSchema = z.object({
   orderedItemIds: z.array(z.string().min(1)).min(1, 'Sıralanacak en az bir kalem olmalıdır.'),
 })
 export type ReorderItemsValues = z.infer<typeof reorderItemsSchema>
+
+// GitHub issue #25 / Prompt 5.3 — bkz. packages/db/src/queries/plans.ts
+// moveItem üstündeki not: reorderItems'ın kapsamadığı "öğünler arası
+// sürükle-bırak" için dar kapsamlı bir ek şema.
+export const moveItemSchema = z.object({
+  itemId: z.string().min(1),
+  targetMealId: z.string().min(1),
+  sortOrder: z.number().int().min(0),
+})
+export type MoveItemValues = z.infer<typeof moveItemSchema>
 
 export function firstZodMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? 'Geçersiz veri gönderildi.'

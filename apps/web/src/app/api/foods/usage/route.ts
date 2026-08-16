@@ -29,6 +29,12 @@ export interface FoodUsageDto {
   groupNameTr: string | null
   defaultPortion: { label: string; grams: number } | null
   kcalPer100g: number | null
+  // GitHub issue #25 — bkz. getFoodSummaries üstündeki not (food-search.ts):
+  // plan editörünün öğün toplamı rozetleri için pinlenmiş listede de makro
+  // değerleri gerekiyor.
+  proteinPer100g: number | null
+  carbPer100g: number | null
+  fatPer100g: number | null
   useCount: number
   lastUsedAt: string
 }
@@ -53,6 +59,9 @@ export async function GET() {
     groupNameTr: row.groupNameTr,
     defaultPortion: summaries.get(row.foodId)?.defaultPortion ?? null,
     kcalPer100g: summaries.get(row.foodId)?.kcalPer100g ?? null,
+    proteinPer100g: summaries.get(row.foodId)?.proteinPer100g ?? null,
+    carbPer100g: summaries.get(row.foodId)?.carbPer100g ?? null,
+    fatPer100g: summaries.get(row.foodId)?.fatPer100g ?? null,
     useCount: row.useCount,
     lastUsedAt: row.lastUsedAt.toISOString(),
   }))
