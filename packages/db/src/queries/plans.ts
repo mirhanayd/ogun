@@ -12,6 +12,7 @@ import {
   type PlanTemplateCategory,
   type PlanType,
 } from '../schema/plans'
+import { planShares, planShareSends } from '../schema/plan-shares'
 import type { Database } from '../client'
 
 // GitHub issue #23 / Prompt 5.1 — plan şeması sorgu katmanı. Bu dosya
@@ -217,6 +218,18 @@ export async function deletePlan(db: Database, clinicId: string, planId: string)
   await assertPlanInClinic(db, clinicId, planId)
 
   return db.transaction(async (tx) => {
+    // GitHub issue #36 / Prompt 6.2 — plan_shares.planId -> dietPlans.id FK'sı
+    // CASCADE DEĞİL (şemadaki genel "cascade yok, elle sil" kuralı burada da
+    // geçerli, bkz. üstteki not) — bir plan silinmeden ÖNCE paylaşım
+    // linkleri/gönderim kayıtları da temizlenmeli, aksi halde FK kısıtı
+    // silmeyi reddeder.
+    const shares = await tx.select({ id: planShares.id }).from(planShares).where(eq(planShares.planId, planId))
+    const shareIds = shares.map((s) => s.id)
+    if (shareIds.length > 0) {
+      await tx.delete(planShareSends).where(inArray(planShareSends.shareId, shareIds))
+      await tx.delete(planShares).where(eq(planShares.planId, planId))
+    }
+
     const days = await tx
       .select({ id: planDays.id })
       .from(planDays)

@@ -167,6 +167,25 @@ export async function updateClinicDataRetention(db: Database, clinicId: string, 
   return clinic
 }
 
+// GitHub issue #36 / Prompt 6.2, GÖREV 2 — "Klinik ayarlarında mesaj şablonu
+// özelleştirilebilsin". updateClinicDataRetention ile AYNI desen — tek alanlı
+// güncelleme, ayrı bir "klinik ayarları" tablosu yok (bkz. schema/tenancy.ts
+// whatsappMessageTemplate üstündeki not). null geçilerek varsayılana
+// (DEFAULT_WHATSAPP_TEMPLATE) dönülebilir.
+export async function updateClinicWhatsappTemplate(
+  db: Database,
+  clinicId: string,
+  whatsappMessageTemplate: string | null,
+) {
+  const [clinic] = await db
+    .update(clinics)
+    .set({ whatsappMessageTemplate })
+    .where(eq(clinics.id, clinicId))
+    .returning()
+  if (!clinic) throw new Error('Klinik bulunamadı.')
+  return clinic
+}
+
 // Klinik değiştirme (setActiveClinic) öncesi, kullanıcının hedef klinikte
 // gerçekten üye olduğunu doğrulamak için.
 export async function getClinicMembership(db: Database, clinicId: string, userId: string) {

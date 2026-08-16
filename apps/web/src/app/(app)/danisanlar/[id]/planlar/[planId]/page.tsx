@@ -90,6 +90,10 @@ export default async function PlanEditorPage({
       intolerances={health?.intolerances ?? null}
       pdfDefaultDensity={clinic?.pdfDefaultDensity ?? 'spacious'}
       pdfDefaultShowCalories={clinic?.pdfDefaultShowCalories ?? true}
+      clientName={`${client.firstName} ${client.lastName}`}
+      clientPhone={client.phone}
+      clientEmail={client.email}
+      whatsappTemplate={clinic?.whatsappMessageTemplate ?? null}
     />
   )
 }

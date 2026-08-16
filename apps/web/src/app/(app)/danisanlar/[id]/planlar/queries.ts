@@ -1,5 +1,5 @@
 import { db } from '@ogun/db'
-import { listPlans } from '@ogun/db/queries'
+import { getShareStatusesForPlans, listPlans } from '@ogun/db/queries'
 import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 
@@ -10,5 +10,16 @@ import { withAudit } from '@/lib/audit'
 export const listClientPlans = withAuth(
   withAudit({ action: 'read', entityType: 'diet_plan' }, async (ctx, clientId: string) =>
     listPlans(db, ctx.scope.clinicId, { clientId }),
+  ),
+)
+
+// GitHub issue #36 / Prompt 6.2, GÖREV 4 — planlar-tab.tsx'in "gönderildi/
+// görüntülendi" göstergesi için, listClientPlans ile AYNI withAuth+withAudit
+// deseni (audit action 'read' — plan_share erişim durumu da danışan verisiyle
+// ilişkili bir okuma, bkz. audit.ts dosya başı notu "read de burada bir iz
+// bırakmalı").
+export const getClientPlanShareStatuses = withAuth(
+  withAudit({ action: 'read', entityType: 'plan_share' }, async (ctx, planIds: string[]) =>
+    getShareStatusesForPlans(db, ctx.scope.clinicId, planIds),
   ),
 )

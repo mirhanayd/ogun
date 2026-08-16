@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { ClipboardList } from 'lucide-react'
+import { CheckCircle2, ClipboardList, Eye, Send } from 'lucide-react'
 import { calculateDailyEnergyRequirement, type ActivityLevel } from '@ogun/nutrition-core'
+import type { PlanShareStatus } from '@ogun/db/queries'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/empty-state'
@@ -9,10 +10,37 @@ import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
 import { getClientHealthRecord } from '../anamnez/queries'
 import { getClientLatestMeasurement } from '../measurements/queries'
-import { listClientPlans } from './queries'
+import { listClientPlans, getClientPlanShareStatuses } from './queries'
 import { NewPlanButton } from './new-plan-button'
 import { GoalSkeletonButton } from './goal-skeleton-button'
 import { CopyPlanButton } from './copy-plan-button'
+
+// GitHub issue #36 / Prompt 6.2, GÖREV 4 — "Plan listesinde küçük gösterge:
+// gönderildi / görüntülendi / görüntülenmedi". derivePlanShareStatus'ün
+// (queries/plan-shares.ts) 'not_shared' durumu burada HİÇ rozet
+// GÖSTERMEMEYİ karşılıyor — bir plan hiç paylaşılmadıysa listede gereksiz
+// bir "gönderilmedi" gürültüsü yaratmak yerine sessiz kalması tercih edildi
+// (roadmap'in üç durumlu göstergesi "sent/viewed/not-viewed" — 'not_shared'
+// bu üçlünün DIŞINDA bir dördüncü, daha sessiz durum).
+const SHARE_STATUS_BADGE: Record<Exclude<PlanShareStatus, 'not_shared'>, { label: string; icon: typeof Send }> = {
+  // "gönderildi" + "görüntülenmedi" AYNI durumun iki yüzü (roadmap metninin
+  // üç sözcüğü — gönderildi/görüntülendi/görüntülenmedi — pratikte İKİ
+  // durum ifade ediyor: "gönderildi ama henüz görüntülenmedi" ve
+  // "görüntülendi", bkz. derivePlanShareStatus notu).
+  sent: { label: 'Gönderildi, görüntülenmedi', icon: Eye },
+  viewed: { label: 'Görüntülendi', icon: CheckCircle2 },
+}
+
+function ShareStatusBadge({ status }: { status: PlanShareStatus }) {
+  if (status === 'not_shared') return null
+  const { label, icon: Icon } = SHARE_STATUS_BADGE[status]
+  return (
+    <Badge variant={status === 'viewed' ? 'default' : 'secondary'} className="gap-1 text-[0.65rem]">
+      <Icon className="size-3" />
+      {label}
+    </Badge>
+  )
+}
 
 // GÖREV 4 — "hedeften plan iskeleti" sihirbazının varsayılan hedef kalori
 // önerisini hesaplar. TEE, danışanın YAŞ/CİNSİYET/KİLO/BOY/AKTİVİTE
@@ -62,6 +90,10 @@ export async function PlanlarTab({ clientId }: { clientId: string }) {
     listClientPlans(clientId),
     calculateDefaultTargetKcal(clientId),
   ])
+  // GitHub issue #36 / Prompt 6.2, GÖREV 4 — plan listesi zaten çekildikten
+  // SONRA, sadece o planların id'leriyle toplu bir durum sorgusu (N+1
+  // ÖNLEMEK için, bkz. getShareStatusesForPlans dosya başı notu).
+  const shareStatuses = await getClientPlanShareStatuses(plans.map((p) => p.id))
 
   return (
     <div className="flex flex-col gap-3">
@@ -98,6 +130,7 @@ export async function PlanlarTab({ clientId }: { clientId: string }) {
                   <Badge variant={plan.status === 'aktif' ? 'default' : 'secondary'}>
                     {PLAN_STATUS_LABELS_TR[plan.status]}
                   </Badge>
+                  <ShareStatusBadge status={shareStatuses.get(plan.id) ?? 'not_shared'} />
                 </Link>
                 <CopyPlanButton clientId={clientId} planId={plan.id} />
               </CardContent>
