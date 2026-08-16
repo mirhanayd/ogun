@@ -10,8 +10,9 @@ import { Input } from '@/components/ui/input'
 import { FoodSearchInput } from '@/components/food-search-input'
 import { cn } from '@/lib/utils'
 import type { DraftAlternative, DraftItem } from './plan-editor-store'
-import { useAllergenConflictMap, usePlanEditorStore } from './plan-editor-store'
+import { useAllergenConflictMap, useFoodExchangeMap, usePlanEditorStore } from './plan-editor-store'
 import type { FoodMacroLookup } from '@/lib/plan-nutrients'
+import { convertExchangeCountToGrams, convertItemToExchange } from '@/lib/plan-exchanges'
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 2 + GÖREV 3:
 // - "Satır içi düzenleme — modal AÇMA. Tıkla, düzenle, Tab ile geç."
@@ -32,6 +33,13 @@ export function PlanItemRow({
   const removeItemById = usePlanEditorStore((s) => s.removeItemById)
   const addAlternativeFromSelection = usePlanEditorStore((s) => s.addAlternativeFromSelection)
   const allergenConflicts = useAllergenConflictMap()
+  // GitHub issue #28 / Prompt 5.6, GÖREV 1 — "Değişim modunda kalemler gram
+  // yerine değişim cinsinden girilir/gösterilir. Aynı plan verisi, farklı
+  // görünüm — şemada ayrı kayıt tutma." updateItemAmount (yukarısı) BURADA
+  // DEĞİŞMEDİ — hâlâ HER ZAMAN gram alır/yazar; değişim modunda sadece
+  // GİRİŞ/ÇIKIŞ dönüşümü (bkz. ExchangeAmountEditor) araya giriyor.
+  const viewMode = usePlanEditorStore((s) => s.viewMode)
+  const foodExchangeMap = useFoodExchangeMap()
 
   const [showAltSearch, setShowAltSearch] = useState(false)
   const isPending = item.id.startsWith('temp-')
@@ -88,11 +96,20 @@ export function PlanItemRow({
           </ShieldAlert>
         )}
 
-        <AmountEditor
-          amountGrams={item.amountGrams}
-          disabled={isPending}
-          onCommit={(grams) => updateItemAmount(item.id, grams)}
-        />
+        {viewMode === 'değişim' ? (
+          <ExchangeAmountEditor
+            item={item}
+            foodExchangeMap={foodExchangeMap}
+            disabled={isPending}
+            onCommit={(grams) => updateItemAmount(item.id, grams)}
+          />
+        ) : (
+          <AmountEditor
+            amountGrams={item.amountGrams}
+            disabled={isPending}
+            onCommit={(grams) => updateItemAmount(item.id, grams)}
+          />
+        )}
 
         <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
           {kcal !== null ? `${kcal.toFixed(0)} kcal` : '—'}
@@ -228,6 +245,103 @@ function AmountEditor({
       step="0.1"
       value={value}
       className="h-7 w-16 px-1 text-right text-sm"
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          commit()
+        }
+        if (event.key === 'Escape') setEditing(false)
+      }}
+    />
+  )
+}
+
+// GitHub issue #28 / Prompt 5.6, GÖREV 1 — AmountEditor'ün AYNI "tıkla,
+// düzenle" deseni, DEĞERİ gram yerine değişim adedi olarak gösterip alan.
+// Besinin bir değişim grubu eşleşmesi YOKSA (foodExchangeMap'te null/eksik)
+// dönüşüm YAPILAMAZ — bu durumda AmountEditor'e (gram) DÜŞER, kullanıcı
+// değişim modundayken bile bu kalemi gram olarak görür/düzenler (sessizce
+// yanlış bir "0 değişim" göstermek yerine — sınıfsal olarak "veri eksik" ile
+// "değer sıfır" AYNI karışıklığı, bkz. nutrition-core warnings.ts).
+function ExchangeAmountEditor({
+  item,
+  foodExchangeMap,
+  disabled,
+  onCommit,
+}: {
+  item: DraftItem
+  foodExchangeMap: ReturnType<typeof useFoodExchangeMap>
+  disabled?: boolean
+  onCommit: (grams: number) => void
+}) {
+  const converted = convertItemToExchange(
+    { foodId: item.foodId, amountGrams: item.amountGrams },
+    foodExchangeMap,
+  )
+
+  if (!converted) {
+    return <AmountEditor amountGrams={item.amountGrams} disabled={disabled} onCommit={onCommit} />
+  }
+
+  const info = foodExchangeMap.get(item.foodId ?? '')
+  if (!info) {
+    return <AmountEditor amountGrams={item.amountGrams} disabled={disabled} onCommit={onCommit} />
+  }
+
+  return (
+    <ExchangeCountInput
+      exchangeCount={converted.exchangeCount}
+      disabled={disabled}
+      onCommit={(exchangeCount) => onCommit(convertExchangeCountToGrams(exchangeCount, info))}
+    />
+  )
+}
+
+function ExchangeCountInput({
+  exchangeCount,
+  disabled,
+  onCommit,
+}: {
+  exchangeCount: number
+  disabled?: boolean
+  onCommit: (exchangeCount: number) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(Math.round(exchangeCount * 10) / 10))
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        className="w-20 shrink-0 rounded px-1 text-right text-sm hover:bg-muted disabled:opacity-50"
+        onClick={() => {
+          setValue(String(Math.round(exchangeCount * 10) / 10))
+          setEditing(true)
+          requestAnimationFrame(() => inputRef.current?.select())
+        }}
+      >
+        {(Math.round(exchangeCount * 10) / 10).toFixed(1)} değişim
+      </button>
+    )
+  }
+
+  function commit() {
+    const parsed = Number(value.replace(',', '.'))
+    setEditing(false)
+    if (Number.isFinite(parsed) && parsed > 0) onCommit(parsed)
+  }
+
+  return (
+    <Input
+      ref={inputRef}
+      type="number"
+      min={0}
+      step="0.5"
+      value={value}
+      className="h-7 w-20 px-1 text-right text-sm"
       onChange={(event) => setValue(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {

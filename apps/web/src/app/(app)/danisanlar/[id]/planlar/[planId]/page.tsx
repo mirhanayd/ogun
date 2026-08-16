@@ -70,6 +70,7 @@ export default async function PlanEditorPage({
       startDate={tree.plan.startDate}
       endDate={tree.plan.endDate}
       targetKcal={tree.plan.targetKcal}
+      outputFormat={tree.plan.outputFormat}
       tree={tree}
       clientSex={client.sex}
       clientAge={calculateAge(client.birthDate)}

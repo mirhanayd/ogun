@@ -7,6 +7,7 @@ import {
   planMeals,
   type ComputedPlanTotals,
   type PlanMealType,
+  type PlanOutputFormat,
   type PlanStatus,
   type PlanTemplateCategory,
   type PlanType,
@@ -88,6 +89,8 @@ export interface PlanInput {
   templateCategory?: PlanTemplateCategory | null
   notes?: string | null
   generalInstructions?: string | null
+  // GitHub issue #28 / Prompt 5.6, GÖREV 4.
+  outputFormat?: PlanOutputFormat
 }
 
 export async function createPlan(
@@ -113,6 +116,7 @@ export async function createPlan(
       createdBy,
       notes: input.notes ?? null,
       generalInstructions: input.generalInstructions ?? null,
+      ...(input.outputFormat !== undefined && { outputFormat: input.outputFormat }),
     })
     .returning()
   if (!plan) throw new Error('Plan oluşturulamadı.')
@@ -182,6 +186,7 @@ export async function updatePlan(
       ...(input.generalInstructions !== undefined && {
         generalInstructions: input.generalInstructions,
       }),
+      ...(input.outputFormat !== undefined && { outputFormat: input.outputFormat }),
     })
     .where(and(eq(dietPlans.id, planId), eq(dietPlans.clinicId, clinicId)))
     .returning()
@@ -695,6 +700,10 @@ async function clonePlanInternal(
         createdBy,
         notes: source.plan.notes,
         generalInstructions: source.plan.generalInstructions,
+        // GitHub issue #28 / Prompt 5.6 — çıktı formatı tercihi diğer plan
+        // meta alanları gibi (targetKcal, targetMacros...) kaynaktan aynen
+        // kopyalanır.
+        outputFormat: source.plan.outputFormat,
         // computedTotals BİLİNÇLİ olarak taşınmıyor — kopyanın kendi
         // yeniden hesaplanması gerekir (bkz. GÖREV 2 notu), eski bir
         // klinik/danışan hedefine göre hesaplanmış değer yanıltıcı olurdu.

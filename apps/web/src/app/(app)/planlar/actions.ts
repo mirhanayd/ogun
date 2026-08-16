@@ -132,6 +132,7 @@ const createPlanForClinic = withAuth(
         templateCategory: input.templateCategory ?? null,
         notes: input.notes ?? null,
         generalInstructions: input.generalInstructions ?? null,
+        outputFormat: input.outputFormat,
       }),
   ),
 )
@@ -170,6 +171,7 @@ const updatePlanForClinic = withAuth(
         ...(input.generalInstructions !== undefined && {
           generalInstructions: input.generalInstructions,
         }),
+        ...(input.outputFormat !== undefined && { outputFormat: input.outputFormat }),
       }),
   ),
 )

@@ -31,6 +31,11 @@ export interface FoodIndexRow {
   // temeli).
   nutrientsPer100g: Record<string, number>
   hasImputedValues: boolean
+  // GitHub issue #28 / Prompt 5.6, GÖREV 1 — bkz.
+  // packages/db/src/queries/food-search.ts FoodIndexEntry.exchange üstündeki
+  // not: değişim modunun gram<->değişim dönüşümü için besinin birincil
+  // değişim grubu. AYNI desen — indekslenmeyen düz alan.
+  exchange: { groupCode: string; groupNameTr: string; gramsPerExchange: number } | null
 }
 
 interface MetaRow {
@@ -127,6 +132,7 @@ async function ensureIndexLoaded(): Promise<void> {
       defaultPortion: { label: string; grams: number } | null
       nutrientsPer100g: Record<string, number>
       hasImputedValues: boolean
+      exchange: { groupCode: string; groupNameTr: string; gramsPerExchange: number } | null
     }>
     nutrientDefs: NutrientDefRow[]
   }
@@ -147,6 +153,7 @@ async function ensureIndexLoaded(): Promise<void> {
         defaultPortionGrams: entry.defaultPortion?.grams ?? null,
         nutrientsPer100g: entry.nutrientsPer100g,
         hasImputedValues: entry.hasImputedValues,
+        exchange: entry.exchange,
       })),
     )
     await dexieDb.nutrientDefs.clear()

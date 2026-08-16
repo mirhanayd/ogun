@@ -186,6 +186,12 @@ export interface FoodIndexEntry {
   // food_nutrients.isImputed'ın (herhangi bir besin öğesi için) özeti —
   // plan.ts FoodReference.hasImputedValues ile AYNI anlam.
   hasImputedValues: boolean
+  // GitHub issue #28 / Prompt 5.6, GÖREV 1 — Değişim modunun gram<->değişim
+  // dönüşümü için besinin BİRİNCİL değişim grubu (food_exchanges.isPrimary,
+  // yoksa gruplardan herhangi biri). Bir besinin hiç food_exchanges satırı
+  // yoksa null — değişim modunda bu besin için dönüşüm YAPILAMAZ, UI kalemi
+  // gram olarak göstermeye devam eder (bkz. plan-item-row.tsx).
+  exchange: { groupCode: string; groupNameTr: string; gramsPerExchange: number } | null
 }
 
 // İstemcinin (Dexie + Orama) offline arama indeksini kurmak için tüm katalogu
@@ -205,13 +211,19 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     // alınıyor.
     nutrients_json: Record<string, number | string> | null
     has_imputed: boolean | null
+    exchange_group_code: string | null
+    exchange_group_name_tr: string | null
+    exchange_grams_per_exchange: string | null
   }>(sql`
     SELECT
       f.id, f.name_tr, f.search_text, f.group_name_tr,
       fp.label AS portion_label,
       fp.grams AS portion_grams,
       na.nutrients_json,
-      na.has_imputed
+      na.has_imputed,
+      fx.group_code AS exchange_group_code,
+      fx.group_name_tr AS exchange_group_name_tr,
+      fx.grams_per_exchange AS exchange_grams_per_exchange
     FROM foods f
     LEFT JOIN LATERAL (
       SELECT label, grams FROM food_portions
@@ -227,6 +239,14 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
       JOIN nutrients n ON n.id = fn.nutrient_id
       WHERE fn.food_id = f.id AND fn.is_preferred = true
     ) na ON true
+    LEFT JOIN LATERAL (
+      SELECT eg.code AS group_code, eg.name_tr AS group_name_tr, fe.grams_per_exchange
+      FROM food_exchanges fe
+      JOIN exchange_groups eg ON eg.id = fe.group_id
+      WHERE fe.food_id = f.id
+      ORDER BY fe.is_primary DESC
+      LIMIT 1
+    ) fx ON true
   `)
 
   return rows.map((row) => {
@@ -250,6 +270,14 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
           : null,
       nutrientsPer100g,
       hasImputedValues: row.has_imputed ?? false,
+      exchange:
+        row.exchange_group_code && row.exchange_group_name_tr && row.exchange_grams_per_exchange
+          ? {
+              groupCode: row.exchange_group_code,
+              groupNameTr: row.exchange_group_name_tr,
+              gramsPerExchange: Number(row.exchange_grams_per_exchange),
+            }
+          : null,
     }
   })
 }

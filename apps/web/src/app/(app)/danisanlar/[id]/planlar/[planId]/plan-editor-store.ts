@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { ClientAllergenEntry, ClientSex, PlanMealType } from '@ogun/db/schema'
+import type { ClientAllergenEntry, ClientSex, PlanMealType, PlanOutputFormat } from '@ogun/db/schema'
 import type { PlanTree } from '@ogun/db/queries'
 import { buildAllergenConflictMap, type AllergenConflict } from '@/lib/allergen-conflict'
 import {
@@ -20,7 +20,12 @@ import {
 import type { FoodSearchSelection } from '@/components/food-search-input'
 import { getFoodIndexEntriesByIds } from '@/lib/food-index'
 import { resolveGramsFromSelection, type FoodMacroLookup } from '@/lib/plan-nutrients'
+import type { FoodExchangeInfo } from '@/lib/plan-exchanges'
 import { OfflineQueue, type QueueStatus } from '@/lib/offline-queue'
+
+// GitHub issue #28 / Prompt 5.6, GÖREV 1 — "Gram modu" / "Değişim modu"
+// geçişi.
+export type PlanViewMode = 'gram' | 'değişim'
 
 // GitHub issue #25 / Prompt 5.3 — plan editörünün taslak durumu + otomatik
 // kayıt. Zustand store, DB'deki PlanTree'yi (bkz. queries/plans.ts) düz
@@ -136,12 +141,29 @@ interface PlanEditorState {
   allergies: ClientAllergenEntry[] | null
   intolerances: ClientAllergenEntry[] | null
 
+  // GitHub issue #28 / Prompt 5.6 — GÖREV 1: mod geçişi. KASITLI OLARAK
+  // sunucuya YAZILMAZ (mobilePanelOpen ile AYNI gerekçe, bkz. plan-editor.tsx)
+  // — "hangi görünümdesin" bir oturum/UI tercihi, planın kendisinin bir
+  // parçası DEĞİL (bununla planın kalıcı ÇIKTI formatı tercihini — GÖREV 4,
+  // outputFormat — KARIŞTIRMA, o AYRI ve kalıcı bir alan, aşağıya bkz.).
+  viewMode: PlanViewMode
+  // GitHub issue #28, GÖREV 4 — plan-level PDF çıktı formatı tercihi
+  // (dietPlans.outputFormat). setPlanMeta ile AYNI offline-queue akışından
+  // geçer (bkz. aşağısı).
+  outputFormat: PlanOutputFormat
+  // GitHub issue #28, GÖREV 1 + GÖREV 3 — foodId -> birincil değişim grubu
+  // eşlemesi (bkz. lib/plan-exchanges.ts). foodMacros'un AYNI "eksik olanları
+  // tamamla" deseni (resolveFoodMacros), ayrı bir alan çünkü NutrientPanel'in
+  // İHTİYACI OLMAYAN bir veri — sadece değişim modunda okunuyor.
+  foodExchangeInfo: Record<string, FoodExchangeInfo | null>
+
   initialize: (input: {
     planId: string
     planName: string
     startDate: Date | null
     endDate: Date | null
     targetKcal: number | null
+    outputFormat: PlanOutputFormat
     tree: PlanTree
     clientSex: ClientSex | null
     clientAge: number | null
@@ -149,12 +171,15 @@ interface PlanEditorState {
     intolerances: ClientAllergenEntry[] | null
   }) => void
   resolveFoodMacros: () => Promise<void>
+  resolveExchangeInfo: () => Promise<void>
+  setViewMode: (mode: PlanViewMode) => void
 
   setPlanMeta: (patch: {
     name?: string
     targetKcal?: number | null
     startDate?: Date | null
     endDate?: Date | null
+    outputFormat?: PlanOutputFormat
   }) => void
   setMealMeta: (mealId: string, patch: { name?: string; time?: string | null }) => void
 
@@ -216,6 +241,9 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
   clientAge: null,
   allergies: null,
   intolerances: null,
+  viewMode: 'gram',
+  outputFormat: 'besin_listesi',
+  foodExchangeInfo: {},
 
   initialize: ({
     planId,
@@ -223,6 +251,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     startDate,
     endDate,
     targetKcal,
+    outputFormat,
     tree,
     clientSex,
     clientAge,
@@ -235,14 +264,22 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       startDate,
       endDate,
       targetKcal,
+      outputFormat,
       days: toDraftTree(tree),
       clientSex,
       clientAge,
       allergies,
       intolerances,
+      // GÖREV 1 — mod her plan açılışında Gram modunda BAŞLAR, önceki
+      // oturumdan hatırlanmaz (bkz. viewMode üstündeki not).
+      viewMode: 'gram',
+      foodExchangeInfo: {},
     })
     void get().resolveFoodMacros()
+    void get().resolveExchangeInfo()
   },
+
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   // Var olan kalemlerin (sayfa ilk yüklendiğinde) ad/kcal/makro bilgisi
   // DB'nin PlanTree'sinde YOK (sadece foodId var) — Dexie'deki offline besin
@@ -280,14 +317,44 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     set((state) => ({ foodMacros: { ...state.foodMacros, ...patch } }))
   },
 
+  // GitHub issue #28 / Prompt 5.6 — resolveFoodMacros'un AYNI deseni,
+  // foodExchangeInfo için. undefined ("hiç sorgulanmadı") ile null ("besinin
+  // değişim eşleşmesi yok") KASITLI OLARAK ayrılıyor (`id in foodExchangeInfo`
+  // kontrolü) — aksi halde her çağrıda değişim eşleşmesi olmayan besinler
+  // "eksik" sanılıp tekrar tekrar sorgulanırdı.
+  resolveExchangeInfo: async () => {
+    const { days, foodExchangeInfo } = get()
+    const allFoodIds = new Set<string>()
+    for (const day of days) {
+      for (const meal of day.meals) {
+        for (const item of meal.items) {
+          if (item.foodId) allFoodIds.add(item.foodId)
+          for (const alt of item.alternatives) {
+            if (alt.foodId) allFoodIds.add(alt.foodId)
+          }
+        }
+      }
+    }
+    const missing = [...allFoodIds].filter((id) => !(id in foodExchangeInfo))
+    if (missing.length === 0) return
+    const rows = await getFoodIndexEntriesByIds(missing)
+    const patch: Record<string, FoodExchangeInfo | null> = {}
+    for (const id of missing) {
+      const row = rows.get(id)
+      patch[id] = row?.exchange ?? null
+    }
+    set((state) => ({ foodExchangeInfo: { ...state.foodExchangeInfo, ...patch } }))
+  },
+
   setPlanMeta: (patch) => {
     set((state) => ({
       planName: patch.name ?? state.planName,
       targetKcal: patch.targetKcal !== undefined ? patch.targetKcal : state.targetKcal,
       startDate: patch.startDate !== undefined ? patch.startDate : state.startDate,
       endDate: patch.endDate !== undefined ? patch.endDate : state.endDate,
+      outputFormat: patch.outputFormat ?? state.outputFormat,
     }))
-    const { planId, planName, targetKcal, startDate, endDate } = get()
+    const { planId, planName, targetKcal, startDate, endDate, outputFormat } = get()
     offlineQueue.enqueue({
       key: 'plan:meta',
       run: async () => {
@@ -296,6 +363,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
           targetKcal,
           startDate,
           endDate,
+          outputFormat,
         })
         if (!result.success) throw new Error(result.error ?? 'Plan güncellenemedi.')
       },
@@ -392,6 +460,11 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       },
       { immediate: true },
     )
+    // GitHub issue #28 — yeni eklenen besinin değişim eşleşmesi henüz
+    // foodExchangeInfo'da yok (selection bunu TAŞIMIYOR — bkz.
+    // resolveExchangeInfo üstündeki not); değişim modu bu kalemi hemen
+    // gösterebilsin diye AYRICA (fire-and-forget) tetikleniyor.
+    void get().resolveExchangeInfo()
   },
 
   updateItemAmount: (itemId, amountGrams) => {
@@ -637,6 +710,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       },
       { immediate: true },
     )
+    void get().resolveExchangeInfo()
   },
 
   removeAlternativeById: (alternativeId) => {
@@ -707,6 +781,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     }))
 
     await get().resolveFoodMacros()
+    await get().resolveExchangeInfo()
   },
 
   notifyOnline: async () => {
@@ -736,4 +811,12 @@ export function useAllergenConflictMap(): Map<string, AllergenConflict[]> {
     const foodNamesById = new Map(Object.entries(foodMacros).map(([id, m]) => [id, m.nameTr]))
     return buildAllergenConflictMap(foodNamesById, allergies, intolerances)
   }, [foodMacros, allergies, intolerances])
+}
+
+// GitHub issue #28 / Prompt 5.6 — useAllergenConflictMap ile AYNI desen:
+// exchange-panel.tsx ve plan-item-row.tsx'in değişim modu görünümü,
+// prop drilling GEREKTİRMEDEN doğrudan bu hook'u çağırır.
+export function useFoodExchangeMap(): Map<string, FoodExchangeInfo | null> {
+  const foodExchangeInfo = usePlanEditorStore((s) => s.foodExchangeInfo)
+  return useMemo(() => new Map(Object.entries(foodExchangeInfo)), [foodExchangeInfo])
 }

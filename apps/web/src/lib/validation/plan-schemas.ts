@@ -3,7 +3,14 @@ import { z } from 'zod'
 // desen (bkz. o dosyaların başındaki not): drizzle-orm'u istemci paketine
 // sürüklememek için değer listeleri burada elle, DB değerleriyle birebir
 // eşleşecek şekilde tekrar tanımlanıyor.
-import type { PlanMealType, PlanStatus, PlanTemplateCategory, PlanType } from '@ogun/db/schema'
+import type {
+  PlanMealType,
+  PlanOutputFormat,
+  PlanStatus,
+  PlanTemplateCategory,
+  PlanType,
+} from '@ogun/db/schema'
+import type { ExchangeGroupCode } from '@ogun/nutrition-core'
 
 // GitHub issue #23 / Prompt 5.1 — plan şeması server action'larının Zod
 // doğrulaması. Bu issue'da HENÜZ bir editör UI'ı YOK (bkz. app/(app)/planlar/
@@ -41,6 +48,26 @@ export const PLAN_TEMPLATE_CATEGORY_OPTIONS: { value: PlanTemplateCategory; labe
   { value: 'karaciğer', label: 'Karaciğer' },
   { value: 'genel', label: 'Genel' },
 ]
+
+// GitHub issue #28 / Prompt 5.6, GÖREV 4 — "PDF'te iki format seçeneği".
+export const PLAN_OUTPUT_FORMAT_OPTIONS: { value: PlanOutputFormat; label: string }[] = [
+  { value: 'besin_listesi', label: 'Besin listesi' },
+  { value: 'değişim_listesi', label: 'Değişim listesi + eşdeğerler tablosu' },
+]
+
+// GitHub issue #28, GÖREV 2/3 — exchange-panel.tsx'in grup adları.
+// exchange-groups.ts seed'indeki nameTr değerleriyle BİREBİR aynı (ayrı bir
+// DB round-trip'i olmadan sabit gösterim için) — DB'deki gerçek değer
+// (listExchangeGroupsAction) değişirse bu sözlük de güncellenmeli, tıpkı
+// diğer *_LABELS_TR sözlükleri gibi.
+export const EXCHANGE_GROUP_LABELS_TR: Record<ExchangeGroupCode, string> = {
+  EKMEK: 'Ekmek',
+  ET: 'Et',
+  SUT: 'Süt',
+  MEYVE: 'Meyve',
+  SEBZE: 'Sebze',
+  YAG: 'Yağ',
+}
 
 export const PLAN_MEAL_TYPE_OPTIONS: { value: PlanMealType; label: string }[] = [
   { value: 'kahvaltı', label: 'Kahvaltı' },
@@ -91,6 +118,8 @@ export const planInputSchema = z.object({
     .max(4000, 'Genel talimatlar çok uzun.')
     .nullable()
     .optional(),
+  // GitHub issue #28 / Prompt 5.6, GÖREV 4.
+  outputFormat: z.enum(['besin_listesi', 'değişim_listesi']).optional(),
 })
 export type PlanInputValues = z.infer<typeof planInputSchema>
 

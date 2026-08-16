@@ -72,6 +72,20 @@ export const planMealTypeEnum = pgEnum('plan_meal_type', [
 ])
 export type PlanMealType = (typeof planMealTypeEnum.enumValues)[number]
 
+// GitHub issue #28 / Prompt 5.6, GÖREV 4 — "PDF'te iki format seçeneği:
+// 'besin listesi' ve 'değişim listesi + eşdeğerler tablosu'... Bu tercihler
+// [...] varsayılan olarak kaydedilsin". Roadmap Prompt 6.1'de "klinik
+// ayarlarında varsayılan" deniyor ama gerçek PDF üretimi (ve klinik ayarları
+// modülü) henüz YOK — bu issue kapsamında sadece PLAN başına bir tercih
+// sütunu ekleniyor (bkz. dosya başı GÖREV listesi: "veri/görünüm hazırlığı").
+// Klinik-varsayılanı ihtiyacı, o ayarlar modülü kurulduğunda ayrı bir
+// issue'nun kapsamı.
+export const planOutputFormatEnum = pgEnum('plan_output_format', [
+  'besin_listesi',
+  'değişim_listesi',
+])
+export type PlanOutputFormat = (typeof planOutputFormatEnum.enumValues)[number]
+
 // --- Hesaplanmış değer önbelleği tipi (GÖREV 2) -------------------------------
 
 // nutrition-core/src/plan.ts PlanCalculationResult ile UYUMLU şekilde
@@ -138,6 +152,11 @@ export const dietPlans = pgTable(
     // planı üretildiğinde" (isTemplate=true kaynaktan isTemplate=false hedefe
     // klonlanınca) artar — bkz. clonePlanInternal içindeki artış noktası.
     templateUsageCount: integer('template_usage_count').notNull().default(0),
+
+    // GitHub issue #28 / Prompt 5.6, GÖREV 4 — bkz. planOutputFormatEnum
+    // üstündeki not. Varsayılan 'besin_listesi': mevcut planların (bu
+    // sütun eklenmeden önce oluşturulanlar dahil) davranışı DEĞİŞMEZ.
+    outputFormat: planOutputFormatEnum('output_format').notNull().default('besin_listesi'),
 
     ...timestamps(),
   },
