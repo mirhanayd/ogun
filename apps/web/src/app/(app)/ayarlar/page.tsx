@@ -1,4 +1,4 @@
-import { Share2, ShieldCheck } from 'lucide-react'
+import { CalendarClock, Share2, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@ogun/db'
 import { getClinicById, getWorkingHoursForClinic } from '@ogun/db/queries'
@@ -107,6 +107,23 @@ export default async function AyarlarPage() {
         <CardContent>
           <Button asChild variant="outline" size="sm">
             <Link href="/ayarlar/paylasim">Paylaşım ayarlarını aç</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarClock className="size-4 text-primary" />
+            Abonelik ve SMS hatırlatma
+          </CardTitle>
+          <CardDescription>
+            Plan/deneme durumu, kullanım limitleri ve randevu hatırlatma SMS şablonu (bkz. GitHub issue #41).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/ayarlar/abonelik">Abonelik ayarlarını aç</Link>
           </Button>
         </CardContent>
       </Card>

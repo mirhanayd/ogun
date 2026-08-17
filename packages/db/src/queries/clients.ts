@@ -200,6 +200,11 @@ export interface UpdateClientGeneralInput {
   referralSource?: string | null
   notes?: string | null
   status: ClientStatus
+  // GitHub issue #41 / Prompt 7.3, GÖREV 3 — SMS rızasının TEK yazma yolu.
+  // undefined = bu alana DOKUNMA (form her zaman gönderir, ama ileride başka
+  // bir çağıran — ör. bir toplu import — bu alanı hiç bilmeyebilir);
+  // null/Date = rızayı AÇIKÇA geri al/ver.
+  smsConsentAt?: Date | null
 }
 
 export async function updateClientGeneralInfo(
@@ -221,6 +226,7 @@ export async function updateClientGeneralInfo(
       referralSource: input.referralSource ?? null,
       notes: input.notes ?? null,
       status: input.status,
+      ...(input.smsConsentAt !== undefined ? { smsConsentAt: input.smsConsentAt } : {}),
     })
     .where(and(eq(clients.id, clientId), eq(clients.clinicId, clinicId)))
     .returning()
@@ -291,4 +297,19 @@ export async function findClientsPastDeletionGracePeriod(db: Database, asOf: Dat
     .select()
     .from(clients)
     .where(and(isNotNull(clients.scheduledForDeletionAt), lte(clients.scheduledForDeletionAt, asOf)))
+}
+
+// GitHub issue #41 / Prompt 7.3, GÖREV 2 — kullanım limitleri ("danışan
+// sayısı") için. Soft-delete edilmiş kayıtlar SAYILMAZ (listClients ile AYNI
+// isNull(deletedAt) kuralı) — silinmiş bir danışan planın kotasını
+// doldurmaya devam etmemeli. apps/web/src/lib/subscription/limits.ts
+// computeUsageWarnings SADECE bu sayıyı okur, HİÇBİR yerde bu sayıyı bir
+// erişim engeline çevirmez (bkz. o dosyanın dosya başı notu — "asla
+// engelleme değil, uyarı").
+export async function countActiveClientsForClinic(db: Database, clinicId: string): Promise<number> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(clients)
+    .where(and(eq(clients.clinicId, clinicId), isNull(clients.deletedAt)))
+  return row?.total ?? 0
 }

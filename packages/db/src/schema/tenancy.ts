@@ -11,6 +11,7 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'past_due',
   'canceled',
 ])
+export type SubscriptionStatus = (typeof subscriptionStatusEnum.enumValues)[number]
 
 // GitHub issue #35 / Prompt 6.1 — PDF şablonu yoğunluk seçeneği (bkz.
 // clinics.pdfDefaultDensity üstündeki not). Diğer enum'lardan (planStatusEnum
@@ -102,6 +103,11 @@ export const clinics = pgTable('clinics', {
   // davranışı DEĞİŞMEZ. Yer tutucular ({danisanAdi}, {planAdi}, {link}) düz
   // metin İÇİNDE serbestçe kullanılabilir, bkz. o dosyadaki render fonksiyonu.
   whatsappMessageTemplate: text('whatsapp_message_template'),
+
+  // --- SMS hatırlatma şablonu (GitHub issue #41 / Prompt 7.3, GÖREV 3) ------
+  // whatsappMessageTemplate ile AYNI desen: NULL = varsayılan şablon (bkz.
+  // apps/web/src/lib/sms/reminder-template.ts DEFAULT_SMS_REMINDER_TEMPLATE).
+  smsReminderTemplate: text('sms_reminder_template'),
 
   ...timestamps(),
 })

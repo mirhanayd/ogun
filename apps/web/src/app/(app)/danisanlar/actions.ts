@@ -6,6 +6,7 @@ import {
   archiveClients,
   assignDietitianToClients,
   createClient,
+  getClientById,
   listClinicDietitians,
   updateClientGeneralInfo,
 } from '@ogun/db/queries'
@@ -96,8 +97,18 @@ export async function createClientAction(
 const updateClientGeneralInfoForClinic = withAuth(
   withAudit(
     { action: 'update', entityType: 'client', entityId: ([clientId]: [string, ClientGeneralInfoFormValues]) => clientId },
-    async (ctx, clientId: string, input: ClientGeneralInfoFormValues) =>
-      updateClientGeneralInfo(db, ctx.scope.clinicId, clientId, {
+    async (ctx, clientId: string, input: ClientGeneralInfoFormValues) => {
+      // GitHub issue #41 / Prompt 7.3, GÖREV 3 — smsConsentChecked sadece bir
+      // AÇIK/KAPALI anahtarı; rızanın VERİLDİĞİ anı (smsConsentAt) KORUMAK
+      // için önce mevcut satırı okuyoruz: checkbox zaten işaretliyken tekrar
+      // kaydetmek, rıza tarihini "şimdi"ye SIÇRATMAMALI (bkz.
+      // kvkkConsentAt'ın recordClientConsent'te AYNI şekilde bir kere
+      // yazılıp bir daha DOKUNULMAMASI ile aynı ilke — rıza ANI hukuken
+      // önemli bir kayıt).
+      const existing = await getClientById(db, ctx.scope.clinicId, clientId)
+      const smsConsentAt = input.smsConsentChecked ? (existing?.smsConsentAt ?? new Date()) : null
+
+      return updateClientGeneralInfo(db, ctx.scope.clinicId, clientId, {
         firstName: input.firstName,
         lastName: input.lastName,
         birthDate: input.birthDate || null,
@@ -108,7 +119,9 @@ const updateClientGeneralInfoForClinic = withAuth(
         referralSource: input.referralSource || null,
         notes: input.notes || null,
         status: input.status,
-      }),
+        smsConsentAt,
+      })
+    },
   ),
 )
 
