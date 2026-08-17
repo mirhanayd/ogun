@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@ogun/db'
 import {
+  getActiveClientPackageForClient,
   getAppointmentById,
   getClientNextAppointment as getClientNextAppointmentQuery,
   getLatestMeasurement,
@@ -14,6 +15,7 @@ import {
 } from '@ogun/db/queries'
 import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
+import { isLowSessionWarning, lowSessionWarningMessage } from '@/lib/billing/client-package'
 
 // GitHub issue #39 / Prompt 7.1 — randevu okumaları. measurements/queries.ts
 // (GitHub issue #18) ile AYNI desen: server action DEĞİL, sadece
@@ -117,5 +119,22 @@ export const getClientAppointments = withAuth(
   withAudit(
     { action: 'read', entityType: 'appointment', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => listAppointmentsForClient(db, ctx.scope.clinicId, clientId),
+  ),
+)
+
+// GitHub issue #40 / Prompt 7.2, GÖREV 2 — "Kalan seans 1'e düşünce randevu
+// ekranında uyarı". AppointmentDialog danışan seçilince bunu çağırır (bkz.
+// actions.ts getClientPackageWarningAction, istemci bileşenleri bu dosyayı
+// DOĞRUDAN import edemez). Uyarı ENGELLEYİCİ değil — checkAvailability'nin
+// çakışma/çalışma saati uyarısından FARKLI olarak sadece bilgilendirir,
+// kaydı durdurmaz.
+export const getClientPackageWarning = withAuth(
+  withAudit(
+    { action: 'read', entityType: 'client_package', entityId: ([clientId]: [string, string]) => clientId },
+    async (ctx, clientId: string, clientName: string) => {
+      const activePackage = await getActiveClientPackageForClient(db, ctx.scope.clinicId, clientId)
+      if (!activePackage || !isLowSessionWarning(activePackage)) return null
+      return lowSessionWarningMessage(clientName, activePackage)
+    },
   ),
 )

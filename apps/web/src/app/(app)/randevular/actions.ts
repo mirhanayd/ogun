@@ -3,9 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import {
+  consumeClientPackageSession,
   createAppointment,
   createClinicHoliday,
   deleteClinicHoliday,
+  getActiveClientPackageForClient,
   getWorkingHoursForClinic,
   listAppointmentIntervalsInRange,
   listClients,
@@ -27,7 +29,7 @@ import {
   appointmentFormToDateRange,
   type AppointmentFormInput,
 } from '@/lib/validation/appointment-schemas'
-import { getAppointmentDetail } from './queries'
+import { getAppointmentDetail, getClientPackageWarning } from './queries'
 
 // GitHub issue #39 / Prompt 7.1 — randevu mutasyonları. danisanlar/actions.ts
 // (GitHub issue #17) ile AYNI dönüş deseni: fırlatmak yerine bir sonuç
@@ -105,7 +107,16 @@ const createAppointmentForClinic = withAuth(
     },
     async (
       ctx,
-      input: { clientId: string; dietitianId: string; startsAt: Date; endsAt: Date; type: AppointmentFormInput['type']; location: string | null; notes: string | null },
+      input: {
+        clientId: string
+        dietitianId: string
+        startsAt: Date
+        endsAt: Date
+        type: AppointmentFormInput['type']
+        location: string | null
+        notes: string | null
+        packageSessionId: string | null
+      },
     ) =>
       createAppointment(db, ctx.scope.clinicId, {
         clientId: input.clientId,
@@ -115,9 +126,22 @@ const createAppointmentForClinic = withAuth(
         type: input.type,
         location: input.location,
         notes: input.notes,
+        packageSessionId: input.packageSessionId,
       }),
   ),
 )
+
+// GitHub issue #40 / Prompt 7.2 — appointments.packageSessionId placeholder'ının
+// ÇÖZÜMÜ (bkz. schema/appointments.ts üstündeki not). Danışanın 'aktif'
+// durumdaki bir paketi varsa (bkz. queries/billing.ts getActiveClientPackageForClient)
+// yeni randevu OTOMATİK o pakete bağlanır — diyetisyen manuel bir seçim
+// yapmak ZORUNDA değil (spec bunu istemedi, "basit tut" ruhuyla otomatik
+// bağlama tercih edildi). Sayaç (sessionsUsed) burada DEĞİL, randevu 'geldi'
+// işaretlendiğinde artırılır (bkz. updateAppointmentStatusAction).
+const resolveActivePackageForClient = withAuth(async (ctx, clientId: string) => {
+  const activePackage = await getActiveClientPackageForClient(db, ctx.scope.clinicId, clientId)
+  return activePackage?.id ?? null
+})
 
 export async function createAppointmentAction(
   input: AppointmentFormInput,
@@ -150,6 +174,7 @@ export async function createAppointmentAction(
   }
 
   try {
+    const packageSessionId = await resolveActivePackageForClient(parsed.data.clientId)
     const created = await createAppointmentForClinic({
       clientId: parsed.data.clientId,
       dietitianId: parsed.data.dietitianId,
@@ -158,6 +183,7 @@ export async function createAppointmentAction(
       type: parsed.data.type,
       location: parsed.data.location || null,
       notes: parsed.data.notes || null,
+      packageSessionId,
     })
     revalidatePath('/randevular')
     revalidatePath(`/danisanlar/${parsed.data.clientId}`)
@@ -277,15 +303,30 @@ const updateAppointmentStatusForClinic = withAuth(
   ),
 )
 
+// GitHub issue #40 / Prompt 7.2 — bir randevu bu pakete bağlıysa (bkz.
+// createAppointmentForClinic'in otomatik bağlaması) sessionsUsed sayacı
+// BURADA artırılır — "planlandı"da değil "geldi"de, no-show/iptal bir seans
+// harcamasın diye (bkz. schema/appointments.ts packageSessionId notu).
+const consumeSessionForClinic = withAuth(
+  withAudit(
+    { action: 'update', entityType: 'client_package', entityId: ([id]: [string]) => id },
+    async (ctx, clientPackageId: string) => consumeClientPackageSession(db, ctx.scope.clinicId, clientPackageId),
+  ),
+)
+
 export async function updateAppointmentStatusAction(
   appointmentId: string,
   clientId: string,
   status: AppointmentStatus,
 ): Promise<AppointmentActionResult> {
   try {
-    await updateAppointmentStatusForClinic(appointmentId, status)
+    const updated = await updateAppointmentStatusForClinic(appointmentId, status)
+    if (status === 'geldi' && updated?.packageSessionId) {
+      await consumeSessionForClinic(updated.packageSessionId)
+    }
     revalidatePath('/randevular')
     revalidatePath(`/danisanlar/${clientId}`)
+    revalidatePath('/finans')
     return { success: true, appointmentId }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Randevu durumu güncellenemedi.' }
@@ -364,6 +405,13 @@ export async function searchClientsAction(query: string): Promise<ClientPickerOp
   if (query.trim().length === 0) return []
   const rows = await searchClientsForClinic(query)
   return rows.map((row) => ({ id: row.id, firstName: row.firstName, lastName: row.lastName }))
+}
+
+// GitHub issue #40 / Prompt 7.2, GÖREV 2 — istemci bileşenleri (AppointmentDialog)
+// queries.ts'i DOĞRUDAN içe aktaramaz ('server-only'), searchClientsForClinic
+// İLE AYNI gerekçeyle bu ince sarmalayıcı ekleniyor.
+export async function getClientPackageWarningAction(clientId: string, clientName: string): Promise<string | null> {
+  return getClientPackageWarning(clientId, clientName)
 }
 
 // --- Randevu detayı ("10 saniyede hazırlansın") ------------------------------

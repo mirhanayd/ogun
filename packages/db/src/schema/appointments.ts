@@ -7,6 +7,7 @@
 // (randevu modülü, çakışma + çalışma saati dışı uyarısı için üçünü birlikte
 // okur, bkz. packages/db/src/queries/appointments.ts).
 import { boolean, date, index, integer, pgEnum, pgTable, text, time, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { clientPackages } from './billing'
 import { clients } from './clients'
 import { clinics, users } from './tenancy'
 import { id, timestamps } from './_helpers'
@@ -100,15 +101,24 @@ export const appointments = pgTable(
     status: appointmentStatusEnum('status').notNull().default('planlandı'),
     location: text('location'),
     notes: text('notes'),
-    // GitHub issue #40 (Prompt 7.2 — Paket ve tahsilat takibi) HENÜZ AÇILMADI
-    // — bu yüzden client_packages/sessions tablosu bu repoda yok. Roadmap
-    // (Prompt 7.1, GÖREV 1) packageSessionId'yi "nullable" olarak istedi;
-    // gerçek bir FK hedefi olmadığı için BİLEREK düz (constraint'siz) bir
-    // text sütun olarak açılıyor. #40 geldiğinde: (1) client_packages veya
-    // ayrı bir "package_sessions" tablosuna gerçek bir .references() eklenir,
-    // (2) mevcut satırlardaki (hepsi NULL olacak) veri kaybı olmaz. Randevu
-    // sorgu/UI katmanı bu alana şimdilik HİÇ dokunmuyor.
-    packageSessionId: text('package_session_id'),
+    // GitHub issue #40 / Prompt 7.2 — placeholder ÇÖZÜLDÜ. "Bu randevu hangi
+    // paket satırından kullanıldı" — YANİ bir randevu, danışanın satın aldığı
+    // bir client_packages satırından "tüketilir", ayrı bir "seans" satırı
+    // (package_sessions tablosu) İSTENMEDİ: tek bir client_packages satırı
+    // zaten sessionsUsed sayacını tutuyor (bkz. schema/billing.ts), her
+    // randevu için ayrı bir "seans" kaydı açmak gereksiz bir normalizasyon
+    // olurdu (bir seansın kendine özgü tarihi/tutarı yok, sadece "hangi
+    // randevu bu paketten mi geldi" bilgisi lazım). Bu yüzden burada
+    // clientPackages.id'ye DOĞRUDAN bir .references() var — nullable, çünkü
+    // her randevu bir pakete bağlı olmak ZORUNDA değil (paketsiz/tek seferlik
+    // danışan randevuları da olur). Otomatik bağlama mantığı: randevu
+    // oluşturulurken danışanın aktif paketi varsa buraya otomatik yazılır
+    // (bkz. apps/web/.../randevular/actions.ts resolveActivePackageForClient);
+    // sayaç (sessionsUsed) ise randevu 'geldi' işaretlendiğinde artırılır
+    // (bkz. queries/billing.ts consumeClientPackageSession) — "randevu
+    // planlanınca" değil "danışan GERÇEKTEN geldiğinde" tüketilir, no-show/
+    // iptal bir seans harcamaz.
+    packageSessionId: text('package_session_id').references(() => clientPackages.id),
     ...timestamps(),
   },
   (table) => [

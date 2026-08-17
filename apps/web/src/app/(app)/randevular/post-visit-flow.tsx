@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -31,7 +31,7 @@ import {
 } from '@/lib/validation/appointment-schemas'
 import { createMeasurementAction } from '../danisanlar/[id]/measurements/actions'
 import { createPlanAction } from '../planlar/actions'
-import { createAppointmentAction } from './actions'
+import { createAppointmentAction, getClientPackageWarningAction } from './actions'
 
 type Step = 'measurement' | 'plan' | 'next-appointment' | 'done'
 
@@ -93,6 +93,7 @@ export function PostVisitFlow({
         {step === 'next-appointment' && (
           <NextAppointmentStep
             clientId={clientId}
+            clientName={clientName}
             dietitianId={dietitianId}
             onDone={() => {
               setStep('done')
@@ -222,16 +223,33 @@ function PlanStep({
 
 function NextAppointmentStep({
   clientId,
+  clientName,
   dietitianId,
   onDone,
   onSkip,
 }: {
   clientId: string
+  clientName: string
   dietitianId: string
   onDone: () => void
   onSkip: () => void
 }) {
   const [warning, setWarning] = useState<string | null>(null)
+  const [packageWarning, setPackageWarning] = useState<string | null>(null)
+
+  // GitHub issue #40 / Prompt 7.2, GÖREV 2 — "Geldi" akışının son adımı TAM
+  // OLARAK bir seansın tükendiği an olduğu için (bkz. actions.ts
+  // consumeSessionForClinic), burada da AYNI uyarı gösterilir.
+  useEffect(() => {
+    let cancelled = false
+    getClientPackageWarningAction(clientId, clientName).then((message) => {
+      if (!cancelled) setPackageWarning(message)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [clientId, clientName])
+
   const {
     control,
     register,
@@ -323,6 +341,12 @@ function NextAppointmentStep({
           )}
         />
       </div>
+
+      {packageWarning && !warning && (
+        <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <p className="font-medium">{packageWarning}</p>
+        </div>
+      )}
 
       {warning && (
         <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">

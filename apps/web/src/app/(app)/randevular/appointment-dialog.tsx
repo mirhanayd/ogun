@@ -24,7 +24,12 @@ import {
   appointmentFormSchema,
   type AppointmentFormInput,
 } from '@/lib/validation/appointment-schemas'
-import { createAppointmentAction, updateAppointmentAction, type ClientPickerOption } from './actions'
+import {
+  createAppointmentAction,
+  getClientPackageWarningAction,
+  updateAppointmentAction,
+  type ClientPickerOption,
+} from './actions'
 import { ClientPicker } from './client-picker'
 import type { AppointmentListRow } from './types'
 
@@ -62,6 +67,11 @@ export function AppointmentDialog({
   const [formError, setFormError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [selectedClient, setSelectedClient] = useState<ClientPickerOption | null>(null)
+  // GitHub issue #40 / Prompt 7.2, GÖREV 2 — "kalan seans 1'e düşünce
+  // randevu ekranında uyarı". `warning` state'inden (çakışma/çalışma saati
+  // dışı, ENGELLEYİCİ) BİLEREK AYRI: bu SADECE bilgilendirir, kaydı
+  // durdurmaz.
+  const [packageWarning, setPackageWarning] = useState<string | null>(null)
 
   const {
     control,
@@ -114,6 +124,23 @@ export function AppointmentDialog({
       notes: '',
     })
   }, [open, appointment, prefill, defaultDietitianId, dietitians, reset])
+
+  // Danışan değiştikçe (seçim VEYA düzenlenen randevunun danışanı) kalan
+  // seans uyarısını yeniden kontrol eder — dialog kapalıyken ÇALIŞMAZ.
+  useEffect(() => {
+    if (!open || !selectedClient) {
+      setPackageWarning(null)
+      return
+    }
+    let cancelled = false
+    const clientName = `${selectedClient.firstName} ${selectedClient.lastName}`.trim()
+    getClientPackageWarningAction(selectedClient.id, clientName).then((message) => {
+      if (!cancelled) setPackageWarning(message)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedClient])
 
   async function onSubmit(values: AppointmentFormInput, acknowledgeWarning = false) {
     setFormError(null)
@@ -257,6 +284,12 @@ export function AppointmentDialog({
             <Label htmlFor="notes">Not</Label>
             <Textarea id="notes" rows={2} {...register('notes')} />
           </div>
+
+          {packageWarning && !warning && (
+            <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+              <p className="font-medium">{packageWarning}</p>
+            </div>
+          )}
 
           {warning && (
             <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
