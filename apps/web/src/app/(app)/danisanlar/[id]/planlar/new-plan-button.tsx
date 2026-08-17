@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { createPlanAction } from '@/app/(app)/planlar/actions'
+import { createDurationTracker } from '@/lib/analytics/track'
 
 // GitHub issue #25 — "Bu şablondan plan oluştur" / şablon kütüphanesi
 // Prompt 5.5'in kapsamı; burada SADECE en basit akış var: boş bir günlük
@@ -18,6 +19,10 @@ export function NewPlanButton({ clientId, className }: { clientId: string; class
 
   function handleClick() {
     setBusy(true)
+    // GitHub issue #47 / Prompt 8.3, GÖREV 2 — "plan oluşturma süresi".
+    // Ölçüm butona tıklandığı anda başlar (kullanıcının GERÇEK bekleme
+    // süresi), sunucu yanıt verince biter — bkz. lib/analytics/track.ts.
+    const tracker = createDurationTracker()
     startTransition(async () => {
       const result = await createPlanAction({
         clientId,
@@ -30,6 +35,7 @@ export function NewPlanButton({ clientId, className }: { clientId: string; class
         toast.error(result.error ?? 'Plan oluşturulamadı.')
         return
       }
+      tracker.finish('plan_created', '/danisanlar/[id]/planlar')
       router.push(`/danisanlar/${clientId}/planlar/${result.data.id}`)
     })
   }

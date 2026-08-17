@@ -20,12 +20,19 @@ export interface EmptyStateProps {
   description: string
   action?: EmptyStateAction
   className?: string
+  // GitHub issue #47 / Prompt 8.3, GÖREV 1 — "örnek plan oluştur" gibi bazı
+  // boş durumlar TEK bir birincil eylemden (action prop) fazlasını göstermek
+  // ister (ör. "Yeni danışan" YANINDA "Örnek danışan ve plan oluştur").
+  // EmptyStateAction'ı bir DİZİYE genişletmek yerine (mevcut TÜM çağıranların
+  // imzasını değiştirirdi) BİLEREK opsiyonel bir children eklendi — geriye
+  // dönük UYUMLU, sadece bu ihtiyacı olan çağıranlar kullanır.
+  children?: React.ReactNode
 }
 
 // Uygulama kabuğundaki her yer tutucu sayfa (Panel, Danışanlar, Randevular…)
 // bu bileşeni kullanır — ürünün "hızlı hissettiren" tarafının bir parçası
 // (bkz. GitHub issue #11 / Prompt 3.2, GÖREV 4).
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, action, className, children }: EmptyStateProps) {
   return (
     <div
       className={cn(
@@ -41,6 +48,7 @@ export function EmptyState({ icon: Icon, title, description, action, className }
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       {action && <EmptyStateActionButton action={action} />}
+      {children}
     </div>
   )
 }

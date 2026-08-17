@@ -1,6 +1,7 @@
 import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import type { SQLWrapper } from 'drizzle-orm'
 import { clients, type ClientSex, type ClientStatus } from '../schema/clients'
+import { measurements } from '../schema/measurements'
 import { users } from '../schema/tenancy'
 import type { Database } from '../client'
 
@@ -185,6 +186,107 @@ export async function createClient(db: Database, clinicId: string, input: Create
     .returning()
   if (!client) throw new Error('Danışan oluşturulamadı.')
   return client
+}
+
+// --- CSV içe aktarma (GitHub issue #47 / Prompt 8.3, GÖREV 3) --------------
+//
+// createClient (yukarıda) her zaman TAM rıza (kvkkConsentAt/explicitConsentAt
+// notNull) ister — tekil "yeni danışan" formunun invaryantı bu. Toplu içe
+// aktarımda ise rakip sistemden gelen 400 satırlık bir CSV'de gerçek rıza
+// ANI (tarihi) yoktur; diyetisyene "hepsi zaten rıza verdi, tarihini
+// UYDURUYORUM" seçeneği sunmak yanlış olur. Bu yüzden bu fonksiyon rıza
+// alanlarını NULLABLE bırakır (assertClientConsentComplete'i BİLEREK
+// atlar, ÇAĞIRAN taraf — apps/web/.../ice-aktar/actions.ts — bunu açıkça
+// bir "toplu içe aktarma, rıza sonradan onaylanacak" akışı olarak
+// belgeliyor): çağıran taraf ya (a) diyetisyenin "bu danışanlar için rıza
+// zaten [yazılı/sözlü] alınmıştı, onaylıyorum" onay kutusunu işaretlemesi
+// durumunda consentAt=şimdi geçirir, ya da (b) hiç geçirmez ve danışan
+// "rıza bekliyor" durumunda kalır — bu durumda apps/web/.../[id]/page.tsx
+// bir rozet gösterir ve confirmClientConsent (aşağıda) ile daha sonra
+// tamamlanabilir. Hiçbir durumda invaryant SESSİZCE atlanmıyor, sadece
+// "ne zaman tamamlanacağı" tek kaydı değil bir TOPLU akışa göre esnetiliyor.
+export interface BulkImportClientInput {
+  firstName: string
+  lastName: string
+  phone?: string | null
+  birthDate?: string | null
+  sex?: ClientSex | null
+  consentAt: Date | null
+  consentVersion: string | null
+  // Kilo geçmişi — her giriş measurements tablosuna AYRI bir satır olarak
+  // yazılır (bkz. aşağıdaki insert), tek bir CSV hücresinin birden fazla
+  // ölçüm satırına açılması gerekiyor (ör. "2024-01-15:72.5;2024-03-01:70.2").
+  weightHistory: Array<{ measuredAt: Date; weightKg: number }>
+}
+
+export interface BulkImportResult {
+  id: string
+  firstName: string
+  lastName: string
+}
+
+export async function bulkImportClients(
+  db: Database,
+  clinicId: string,
+  recordedBy: string,
+  rows: BulkImportClientInput[],
+): Promise<BulkImportResult[]> {
+  if (rows.length === 0) return []
+
+  return db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(clients)
+      .values(
+        rows.map((row) => ({
+          clinicId,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          phone: row.phone ?? null,
+          birthDate: row.birthDate ?? null,
+          sex: row.sex ?? null,
+          kvkkConsentAt: row.consentAt,
+          kvkkConsentVersion: row.consentVersion,
+          explicitConsentAt: row.consentAt,
+        })),
+      )
+      .returning({ id: clients.id, firstName: clients.firstName, lastName: clients.lastName })
+
+    const measurementRows = inserted.flatMap((client, index) =>
+      (rows[index]?.weightHistory ?? []).map((entry) => ({
+        clientId: client.id,
+        measuredAt: entry.measuredAt,
+        source: 'manuel' as const,
+        weightKg: entry.weightKg.toFixed(2),
+        recordedBy,
+        notes: 'CSV içe aktarma ile eklendi.',
+      })),
+    )
+    if (measurementRows.length > 0) {
+      await tx.insert(measurements).values(measurementRows)
+    }
+
+    return inserted
+  })
+}
+
+// Toplu içe aktarımda "rıza bekliyor" bırakılan bir danışan için rızanın
+// SONRADAN tamamlanması (bkz. yukarıdaki dosya başı notu). kvkkConsentVersion
+// çağıran taraftan gelir (apps/web/.../CURRENT_KVKK_CONSENT_VERSION) —
+// createClientAction'ın kullandığı AYNI sabit, iki farklı sürüm etiketi
+// üretmesin diye.
+export async function confirmClientConsent(
+  db: Database,
+  clinicId: string,
+  clientId: string,
+  kvkkConsentVersion: string,
+) {
+  const now = new Date()
+  const [client] = await db
+    .update(clients)
+    .set({ kvkkConsentAt: now, kvkkConsentVersion, explicitConsentAt: now })
+    .where(and(eq(clients.id, clientId), eq(clients.clinicId, clinicId)))
+    .returning()
+  return client ?? null
 }
 
 // --- Danışan detay / "Genel" sekmesi düzenleme (GÖREV 4) --------------------

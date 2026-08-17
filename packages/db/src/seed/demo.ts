@@ -21,6 +21,7 @@ import {
   type AppointmentType,
   type ClientAllergenEntry,
 } from '../schema'
+import { SAMPLE_PLAN_MEAL_TEMPLATES } from './sample-plan-template'
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 4 — "pnpm db:seed:demo → 1 klinik,
 // 2 diyetisyen, 25 gerçekçi danışan, ölçüm geçmişleri, 10 plan, randevular.
@@ -363,28 +364,10 @@ async function main() {
   }
 
   // --- 5. 10 diyet planı ---------------------------------------------------
-  const MEAL_TEMPLATES: Array<{ mealType: 'kahvaltı' | 'ara1' | 'öğle' | 'ara2' | 'akşam'; name: string; time: string; items: string[] }> = [
-    {
-      mealType: 'kahvaltı',
-      name: 'Kahvaltı',
-      time: '08:00',
-      items: ['2 adet haşlanmış yumurta', '1 dilim tam buğday ekmeği', '1 kase yoğurt', 'Domates, salatalık, yeşillik'],
-    },
-    { mealType: 'ara1', name: 'Ara Öğün', time: '10:30', items: ['1 orta boy elma', '5 adet badem'] },
-    {
-      mealType: 'öğle',
-      name: 'Öğle Yemeği',
-      time: '13:00',
-      items: ['1 kase mercimek çorbası', '150 g ızgara tavuk göğsü', '2 yemek kaşığı bulgur pilavı', 'Mevsim salatası'],
-    },
-    { mealType: 'ara2', name: 'Ara Öğün', time: '16:00', items: ['1 kase süzme yoğurt', '1 tatlı kaşığı bal'] },
-    {
-      mealType: 'akşam',
-      name: 'Akşam Yemeği',
-      time: '19:30',
-      items: ['150 g fırında somon', 'Buharda sebze (brokoli, havuç)', '1 kase yoğurt'],
-    },
-  ]
+  // GitHub issue #47 / Prompt 8.3 — bu öğün şablonu artık sample-plan-template.ts'e
+  // taşındı (bkz. o dosyanın başındaki not), "örnek plan oluştur" onboarding
+  // özelliği AYNI menüyü kullanıyor, burada TEKRARLANMIYOR.
+  const MEAL_TEMPLATES = SAMPLE_PLAN_MEAL_TEMPLATES
 
   const PLAN_STATUSES: Array<'taslak' | 'aktif' | 'arşiv'> = ['aktif', 'aktif', 'aktif', 'aktif', 'aktif', 'aktif', 'taslak', 'taslak', 'arşiv', 'aktif']
 

@@ -261,5 +261,32 @@ export async function searchFoodsOffline(
     )
   }
 
+  logFoodSearchQueryAsync(query, hits.length)
+
   return { hits, elapsedMs }
+}
+
+// GitHub issue #47 / Prompt 8.3, GÖREV 4 — "arama sonucu bulunamayan
+// sorgular" en kritik pilot metriği. searchFoodsOffline TAMAMEN istemci
+// tarafında (Dexie/Orama) çalıştığı için sunucunun bu aramalardan HABERİ
+// olmuyor — bu yüzden her aramadan sonra (komut paleti VE food-search-input,
+// ikisi de searchFoodsOffline'ı çağırıyor, TEK bir noktadan loglanıyor)
+// sonucu (SADECE sorgu metni + kaç sonuç döndüğü, bkz. api/analytics/
+// food-search/route.ts) sunucuya bildiriyoruz. Fire-and-forget: bu
+// isteğin başarısız olması aramanın kendisini ASLA engellemez. Çok kısa
+// (tek karakterlik, kazara basılan) sorgular gürültü yaratmasın diye 2
+// karakterden kısa sorgular loglanmıyor.
+function logFoodSearchQueryAsync(query: string, resultCount: number): void {
+  const trimmed = query.trim()
+  if (trimmed.length < 2) return
+  try {
+    void fetch('/api/analytics/food-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: trimmed, resultCount }),
+      keepalive: true,
+    }).catch(() => {})
+  } catch {
+    // Sessizce yut — arama günlüğü aramanın kendisini engellemez.
+  }
 }
