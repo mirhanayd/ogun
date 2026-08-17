@@ -10,6 +10,7 @@ import { requireClinic } from '@/lib/authz'
 import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
 import { SEX_LABELS_TR } from '@/lib/validation/client-schemas'
+import { ConfirmConsentButton } from './confirm-consent-button'
 import { GeneralTabForm } from './general-tab-form'
 import { getClientActiveGoal, getClientLatestMeasurement } from './measurements/queries'
 import { MeasurementsTab } from './measurements/measurements-tab'
@@ -72,6 +73,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       ? calculateBmi(currentWeightKg, currentHeightCm)
       : null
 
+  // GitHub issue #47 / Prompt 8.3, GÖREV 3 — CSV içe aktarmayla oluşan
+  // "rıza bekliyor" durumu (bkz. packages/db/src/queries/clients.ts
+  // bulkImportClients dosya başı notu). Normal (tekil) danışan oluşturma
+  // akışında bu durum HİÇ oluşmaz (createClientAction her zaman rızayı
+  // zorunlu kılar) — bu yüzden bu rozet SADECE toplu içe aktarımdan gelen
+  // kayıtlarda görünür.
+  const consentPending = client.kvkkConsentAt === null || client.explicitConsentAt === null
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -91,10 +100,19 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   {abnormalLabResults.length} anormal tahlil değeri
                 </Badge>
               )}
+              {consentPending && <Badge variant="destructive">Rıza bekliyor</Badge>}
             </div>
             <p className="text-sm text-muted-foreground">
               {client.phone || 'Telefon —'} {client.email ? `· ${client.email}` : ''}
             </p>
+            {consentPending && (
+              <div className="flex items-center gap-2 pt-1">
+                <p className="text-xs text-muted-foreground">
+                  Bu danışan CSV içe aktarma ile eklendi, KVKK/açık rıza henüz onaylanmadı.
+                </p>
+                <ConfirmConsentButton clientId={client.id} />
+              </div>
+            )}
           </div>
           {/* Son görüşme artık GERÇEK veri — GitHub issue #39 / Prompt 7.1
               randevu modülünün getClientNextAppointment sorgusundan. */}

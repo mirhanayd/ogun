@@ -14,6 +14,7 @@ import { listClientPlans, getClientPlanShareStatuses } from './queries'
 import { NewPlanButton } from './new-plan-button'
 import { GoalSkeletonButton } from './goal-skeleton-button'
 import { CopyPlanButton } from './copy-plan-button'
+import { CreateSamplePlanForClientButton } from './create-sample-plan-for-client-button'
 
 // GitHub issue #36 / Prompt 6.2, GÖREV 4 — "Plan listesinde küçük gösterge:
 // gönderildi / görüntülendi / görüntülenmedi". derivePlanShareStatus'ün
@@ -110,7 +111,11 @@ export async function PlanlarTab({ clientId }: { clientId: string }) {
           icon={ClipboardList}
           title="Henüz plan yok"
           description="Bu danışan için ilk diyet planını oluşturarak başlayın."
-        />
+        >
+          <div className="pt-1">
+            <CreateSamplePlanForClientButton clientId={clientId} />
+          </div>
+        </EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
           {plans.map((plan) => (

@@ -30,6 +30,12 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name').notNull(),
   image: text('image'),
+  // GitHub issue #47 / Prompt 8.3, GÖREV 1 — "İlk girişte 4 adımlı ürün turu".
+  // Kullanıcı bazlı (klinik bazlı DEĞİL): bir kullanıcı birden fazla klinikte
+  // üye olabilir (bkz. clinicMembers), ama ürün turu plan editörünün NASIL
+  // çalıştığını anlatıyor — bu bilgi kullanıcıya ait, hangi klinikte
+  // olduğuna değil. NULL = tur henüz görülmedi.
+  productTourCompletedAt: timestamp('product_tour_completed_at', { withTimezone: true }),
   ...timestamps(),
 })
 

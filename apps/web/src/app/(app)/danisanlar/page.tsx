@@ -1,13 +1,15 @@
 import Link from 'next/link'
-import { UserPlus } from 'lucide-react'
+import { ClipboardList, Upload, UserPlus } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import type { ClientStatus } from '@ogun/db/schema'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/empty-state'
 import { requireClinic } from '@/lib/authz'
 import { STATUS_OPTIONS } from '@/lib/validation/client-schemas'
 import { ClientsTable } from './clients-table'
 import { listClientsForClinic } from './queries'
+import { CreateSamplePlanButton } from './create-sample-plan-button'
 
 const PAGE_SIZE = 20
 
@@ -50,23 +52,49 @@ export default async function DanisanlarPage({
           <h1 className="text-lg font-semibold">Danışanlar</h1>
           <p className="text-sm text-muted-foreground">Kliniğinizdeki tüm danışanlar.</p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/danisanlar/yeni">
-            <UserPlus />
-            Yeni danışan
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/danisanlar/ice-aktar">
+              <Upload />
+              CSV içe aktar
+            </Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/danisanlar/yeni">
+              <UserPlus />
+              Yeni danışan
+            </Link>
+          </Button>
+        </div>
       </div>
-      <ClientsTable
-        result={result}
-        dietitians={dietitians}
-        role={role}
-        filters={{
-          search: search ?? '',
-          status: status ?? '',
-          assignedDietitianId: assignedDietitianId ?? '',
-        }}
-      />
+      {/* GitHub issue #47 / Prompt 8.3, GÖREV 1 — klinikte HİÇ danışan yoksa
+          (herhangi bir filtre uygulanmamışken) EmptyState + "örnek danışan ve
+          plan oluştur" kısayolu (bkz. create-sample-plan-button.tsx). Bir
+          filtre/arama sonucu boşsa (search/status/assignedDietitianId
+          doluyken) bu YANLIŞ bir mesaj olurdu — o durumda ClientsTable zaten
+          boş bir tabloyu kendi başına gösterir. */}
+      {result.rows.length === 0 && !search && !status && !assignedDietitianId ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="Henüz danışan yok"
+          description="İlk danışanınızı ekleyerek başlayın, ya da uygulamayı denemek için örnek bir danışan ve plan oluşturun."
+        >
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
+            <CreateSamplePlanButton />
+          </div>
+        </EmptyState>
+      ) : (
+        <ClientsTable
+          result={result}
+          dietitians={dietitians}
+          role={role}
+          filters={{
+            search: search ?? '',
+            status: status ?? '',
+            assignedDietitianId: assignedDietitianId ?? '',
+          }}
+        />
+      )}
     </div>
   )
 }

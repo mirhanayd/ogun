@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation'
+import { db } from '@ogun/db'
+import { hasCompletedProductTour } from '@ogun/db/queries'
 import { NoActiveClinicError, UnauthenticatedError, requireClinic } from '@/lib/authz'
 import { BottomNav } from './_components/bottom-nav'
+import { ProductTour } from './_components/product-tour'
+import { ScreenTimeTracker } from './_components/screen-time-tracker'
 import { SidebarNav } from './_components/sidebar-nav'
 import { TopBar } from './_components/top-bar'
 
@@ -20,6 +24,11 @@ async function getAppShellContext() {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAppShellContext()
+  // GitHub issue #47 / Prompt 8.3, GÖREV 1 — "İlk girişte 4 adımlı ürün
+  // turu". users.productTourCompletedAt NULL'sa (bkz. schema/tenancy.ts)
+  // tur gösterilir — bu kontrol layout'ta (her sayfa yüklemesinde) YAPILIR,
+  // ama tur SADECE bir kez (tamamlanana/atlanana kadar) render edilir.
+  const showProductTour = !(await hasCompletedProductTour(db, ctx.user.id))
 
   return (
     <div className="flex min-h-svh flex-col md:flex-row">
@@ -37,6 +46,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">{children}</main>
       </div>
       <BottomNav role={ctx.role} />
+      <ScreenTimeTracker />
+      {showProductTour && <ProductTour />}
     </div>
   )
 }

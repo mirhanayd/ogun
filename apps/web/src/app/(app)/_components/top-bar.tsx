@@ -3,6 +3,8 @@ import type { ClinicMemberRole } from '@ogun/db/schema'
 import { ClinicSwitcher } from './clinic-switcher'
 import { ClinicSwitcherSkeleton } from './clinic-switcher-skeleton'
 import { CommandPalette } from './command-palette'
+import { FeedbackButton } from './feedback-button'
+import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help'
 import { UserMenu } from './user-menu'
 
 export function TopBar({
@@ -24,6 +26,8 @@ export function TopBar({
       <div className="flex flex-1 justify-center px-2 sm:justify-start">
         <CommandPalette role={role} />
       </div>
+      <KeyboardShortcutsHelp />
+      <FeedbackButton />
       <UserMenu name={userName} email={userEmail} />
     </header>
   )
