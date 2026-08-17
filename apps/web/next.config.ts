@@ -2,8 +2,16 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import createBundleAnalyzer from '@next/bundle-analyzer'
 
+// GitHub issue #46 / Prompt 8.2, GÖREV 3 — "Dockerfile için standalone
+// Next.js çıktısı." `output: 'standalone'`, Next.js'in derlenmiş uygulamayı
+// + sadece GERÇEKTEN kullanılan node_modules dosyalarını (bağımlılık ağacı
+// izlenerek) `.next/standalone` altına kopyalamasını sağlar — Dockerfile'ın
+// son aşaması (bkz. apps/web/Dockerfile) tüm monorepo'yu değil SADECE bu
+// klasörü taşır, imaj küçük kalır. Vercel'e özel değil (mimari kural #6);
+// Vercel bu bayrağı YOK SAYAR (kendi build çıktısını kullanır), yani
+// Docker/VPS ve Vercel yolları AYNI next.config.ts ile çalışır.
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'standalone',
 }
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 2 — "Bundle analizi, 200 KB üstü

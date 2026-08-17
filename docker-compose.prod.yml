@@ -1,0 +1,118 @@
+# GitHub issue #46 / Prompt 8.2, GÖREV 3 — "docker-compose.prod.yml: web +
+# postgres + minio." docker-compose.yml (yerel geliştirme) İLE AYNI servis
+# şekli — postgres + minio burada da var, sadece web servisi eklendi ve
+# portlar/kimlik bilgileri .env üzerinden geliyor (docker-compose.yml'de
+# hardcoded olan minioadmin/postgres, üretimde ASLA varsayılan bırakılmamalı
+# — bkz. .env.example POSTGRES_PASSWORD/MINIO_ROOT_PASSWORD notu).
+#
+# Bu dosya, KURAL #6'nın (Vercel'e özel API yok) somut kanıtı: tek makine
+# (VPS) veya basit bir orkestratörle (Docker Swarm/Compose) TAM bir üretim
+# dağıtımı — web + veritabanı + dosya depolama — burada.
+#
+# Kullanım (bkz. docs/deployment.md "Self-hosted: Docker + VPS"):
+#   cp .env.example .env   # değerleri doldur
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml run --rm migrate
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# NOT — Neon kullanan dağıtımlar (bkz. docs/deployment.md "Vercel + Neon"):
+# bu compose dosyasındaki `postgres` servisini KULLANMAZ, DATABASE_URL
+# doğrudan Neon'un bağlantı dizesini gösterir; `web` ve `migrate`
+# servislerini yine de self-hosted çalıştırmak isteyen bir operatör
+# `postgres`/`minio` servislerini bu dosyadan çıkarabilir (ör. R2/S3
+# kullanılıyorsa minio de gereksizdir). Varsayılan hâliyle dosya "hepsi
+# aynı VPS'te" senaryosunu hedefler — "Türkiye'de VPS'e taşınma bir haftalık
+# iş olmalı" ifadesinin karşılığı budur.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env dosyasında tanımlanmalı}
+      POSTGRES_DB: ${POSTGRES_DB:-ogun}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Üretimde postgres portu HOST'a hiç açılmaz (docker-compose.yml'deki
+    # geliştirme sürümünün aksine) — sadece compose ağı içinden erişilir.
+    # Dışarıdan erişim gerekiyorsa (ör. yönetim aracı) SSH tüneli kullanın.
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD .env dosyasında tanımlanmalı}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Web konsolu (9001) ve S3 API'si (9000) üretimde ters proxy (Caddy/
+    # Nginx) ARKASINDA, TLS ile açılmalı — bkz. docs/deployment.md. Bu
+    # dosyada port dışa açılmıyor, reverse proxy aynı Docker ağından erişir.
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD}; do sleep 1; done;
+      mc mb --ignore-existing local/${S3_BUCKET:-ogun-documents};
+      "
+
+  # GitHub issue #46 / Prompt 8.2, GÖREV 2 — "Migration'ları dağıtımda
+  # otomatik çalıştıran adım." Uzun ömürlü BİR SERVİS DEĞİL, tek seferlik bir
+  # "run" hedefi (varsayılan `docker compose up` bunu BAŞLATMAZ — `profiles`
+  # ile web/postgres/minio'nun normal akışından ayrı tutulur). Deploy
+  # script'i her sürümde web'i güncellemeden ÖNCE bunu çalıştırır:
+  #   docker compose -f docker-compose.prod.yml run --rm migrate
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: migrator
+    profiles: ['tools']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+    ports:
+      - '3000:3000'
+    # Üretimde 3000 doğrudan dışarı açmak yerine bir ters proxy (Caddy/
+    # Nginx, TLS sonlandırma + gzip/HTTP2) arkasına almak önerilir — bkz.
+    # docs/deployment.md "Self-hosted: Docker + VPS" adım 5.
+
+volumes:
+  postgres_data:
+  minio_data:
