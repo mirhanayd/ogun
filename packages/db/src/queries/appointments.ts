@@ -145,6 +145,11 @@ export interface CreateAppointmentInput {
   type: AppointmentType
   location?: string | null
   notes?: string | null
+  // GitHub issue #40 / Prompt 7.2 — danışanın aktif paketi varsa randevu
+  // oluşturulurken OTOMATİK bağlanır (bkz. randevular/actions.ts
+  // resolveActivePackageForClient). Opsiyonel: paketsiz/tek seferlik
+  // randevularda hiç gönderilmez.
+  packageSessionId?: string | null
 }
 
 export async function createAppointment(db: Database, clinicId: string, input: CreateAppointmentInput) {

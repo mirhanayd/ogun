@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, Settings, UtensilsCrossed, Users, type LucideIcon } from 'lucide-react'
+import { CalendarDays, ClipboardList, LayoutDashboard, Settings, UtensilsCrossed, Users, Wallet, type LucideIcon } from 'lucide-react'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 
 export interface NavItem {
@@ -21,12 +21,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/randevular', label: 'Randevular', icon: CalendarDays },
   { href: '/planlar', label: 'Planlar', icon: ClipboardList },
   { href: '/tarifler', label: 'Tarifler', icon: UtensilsCrossed },
-  // requiredRole PoC'u: gerçek bir faturalama modülü henüz yok (bkz. Prompt
-  // 3.x sonrası yol haritası). "assistant finans göremez" kuralının asıl
-  // uygulanacağı yer, ileride eklenecek AYRI bir "Faturalama" menü öğesi
-  // olacak. Şimdilik mekanizmayı kanıtlamak için Ayarlar'a uygulandı —
-  // klinik ayarları sayfası ileride abonelik/faturalama bilgisini de
-  // (clinics.subscriptionStatus) içerecek.
+  // GitHub issue #40 / Prompt 7.2 — GÖREV 3'ün istediği "sadece owner
+  // görebilsin" kuralı: #11'in requiredRole PoC'u (o zaman "gerçek bir
+  // faturalama modülü henüz yok" dediği için Ayarlar'a uygulanmıştı) BURADA,
+  // asıl hedefine (bir Faturalama/Finans menü öğesi) kavuşuyor — mekanizma
+  // AYNEN kullanıldı, yeni bir rol-gating YAZILMADI.
+  { href: '/finans', label: 'Finans', icon: Wallet, requiredRole: ['owner'] },
   { href: '/ayarlar', label: 'Ayarlar', icon: Settings, requiredRole: ['owner', 'dietitian'] },
 ]
 

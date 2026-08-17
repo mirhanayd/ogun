@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { Wallet } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import { calculateBmi } from '@ogun/nutrition-core'
@@ -7,7 +6,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { EmptyState } from '@/components/empty-state'
 import { requireClinic } from '@/lib/authz'
 import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
@@ -24,6 +22,7 @@ import { NewPlanButton } from './planlar/new-plan-button'
 import { PlanlarTab } from './planlar/planlar-tab'
 import { AppointmentsTab } from './randevular/appointments-tab'
 import { NewAppointmentButton } from './randevular/new-appointment-button'
+import { OdemelerTab } from './odemeler/odemeler-tab'
 import { getClientNextAppointment } from '../../randevular/queries'
 
 function initials(firstName: string, lastName: string): string {
@@ -163,11 +162,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </TabsContent>
 
           <TabsContent value="odemeler" className="mt-4">
-            <EmptyState
-              icon={Wallet}
-              title="Ödemeler bu bölüm henüz hazır değil"
-              description="Paket ve tahsilat takibi, roadmap'in Hafta 7 (Prompt 7.2 — Paket ve tahsilat takibi) kapsamındaki ayrı bir modülde eklenecek."
-            />
+            <OdemelerTab clientId={client.id} />
           </TabsContent>
         </Tabs>
 
