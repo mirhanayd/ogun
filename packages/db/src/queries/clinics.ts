@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { clinicMembers, clinics, users, type ClinicMemberRole } from '../schema'
+import { clinicMembers, clinics, users, type ClinicMemberRole, type SubscriptionStatus } from '../schema'
 import type { Database } from '../client'
 import { normalizeSearchText } from '../lib/normalize'
 
@@ -186,6 +186,38 @@ export async function updateClinicWhatsappTemplate(
   return clinic
 }
 
+// GitHub issue #41 / Prompt 7.3, GÖREV 3 — "Klinik ayarlarında mesaj şablonu
+// özelleştirilebilsin" (SMS için, updateClinicWhatsappTemplate ile AYNI desen).
+export async function updateClinicSmsTemplate(db: Database, clinicId: string, smsReminderTemplate: string | null) {
+  const [clinic] = await db
+    .update(clinics)
+    .set({ smsReminderTemplate })
+    .where(eq(clinics.id, clinicId))
+    .returning()
+  if (!clinic) throw new Error('Klinik bulunamadı.')
+  return clinic
+}
+
+// GitHub issue #41 / Prompt 7.3, GÖREV 1 — abonelik durumu değiştiğinde
+// (plan seçimi, iptal) clinics.subscriptionStatus'un (schema/tenancy.ts,
+// GitHub #10'dan beri var olan TEK-KAYNAK alan) senkron kalması için. Sadece
+// bu alanı günceller — subscriptions/subscription_events satırlarının
+// kendisi apps/web/src/app/(app)/ayarlar/abonelik/actions.ts tarafından AYRI
+// ayrı yazılır (bkz. o dosya, ikisi tek bir transaction'da BİRLİKTE çağrılır).
+export async function updateClinicSubscriptionStatus(
+  db: Database,
+  clinicId: string,
+  subscriptionStatus: SubscriptionStatus,
+) {
+  const [clinic] = await db
+    .update(clinics)
+    .set({ subscriptionStatus })
+    .where(eq(clinics.id, clinicId))
+    .returning()
+  if (!clinic) throw new Error('Klinik bulunamadı.')
+  return clinic
+}
+
 // Klinik değiştirme (setActiveClinic) öncesi, kullanıcının hedef klinikte
 // gerçekten üye olduğunu doğrulamak için.
 export async function getClinicMembership(db: Database, clinicId: string, userId: string) {
@@ -230,4 +262,13 @@ export async function listClinicDietitians(db: Database, clinicId: string): Prom
 export async function getUserNameById(db: Database, userId: string): Promise<string | null> {
   const [row] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1)
   return row?.name ?? null
+}
+
+// GitHub issue #41 / Prompt 7.3, GÖREV 2 — kullanım limitleri ("kullanıcı
+// sayısı") için. countActiveClientsForClinic (queries/clients.ts) ile AYNI
+// gerekçe: sadece SAYIYI okur, uyarı üretimi apps/web/src/lib/subscription/
+// limits.ts'te.
+export async function countClinicMembers(db: Database, clinicId: string): Promise<number> {
+  const [row] = await db.select({ total: count() }).from(clinicMembers).where(eq(clinicMembers.clinicId, clinicId))
+  return row?.total ?? 0
 }

@@ -127,6 +127,13 @@
       "when": 1786925399304,
       "tag": "0017_nice_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786926683270,
+      "tag": "0018_glorious_hulk",
+      "breakpoints": true
     }
   ]
 }

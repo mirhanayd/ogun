@@ -8,6 +8,7 @@ import Link from 'next/link'
 import type { ClinicDietitianOption } from '@ogun/db/queries'
 import type { clients } from '@ogun/db/schema'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -56,6 +57,7 @@ export function GeneralTabForm({ client, dietitians }: { client: ClientRow; diet
       referralSource: client.referralSource ?? '',
       notes: client.notes ?? '',
       status: client.status,
+      smsConsentChecked: client.smsConsentAt !== null,
     },
   })
 
@@ -162,6 +164,22 @@ export function GeneralTabForm({ client, dietitians }: { client: ClientRow; diet
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="notes">Notlar</Label>
         <Textarea id="notes" rows={4} {...register('notes')} />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Controller
+          control={control}
+          name="smsConsentChecked"
+          render={({ field }) => (
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
+              <span>
+                Danışan, randevu hatırlatma SMS&apos;i almayı kabul ediyor (GitHub issue #41 — rıza olmadan hatırlatma
+                SMS&apos;i asla gönderilmez).
+              </span>
+            </label>
+          )}
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">

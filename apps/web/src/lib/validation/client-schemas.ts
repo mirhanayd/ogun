@@ -180,5 +180,11 @@ export const clientGeneralInfoSchema = z.object({
   referralSource: z.string().trim().max(120, 'Bu alan çok uzun.').optional().or(z.literal('')),
   notes: z.string().trim().max(4000, 'Notlar çok uzun.').optional().or(z.literal('')),
   status: z.enum(['aktif', 'pasif', 'arşiv']),
+  // GitHub issue #41 / Prompt 7.3, GÖREV 3 — "Danışanın SMS rızası yoksa
+  // gönderme". marketingConsentAt gibi checkbox'ı OPSİYONEL (kaydın
+  // tamamlanması için gerekmez) — ama BURADA, KVKK onaylarının aksine, DB
+  // seviyesinde de asla zorunlu (notNull) değil (bkz. schema/clients.ts
+  // smsConsentAt notu).
+  smsConsentChecked: z.boolean(),
 })
 export type ClientGeneralInfoFormValues = z.infer<typeof clientGeneralInfoSchema>

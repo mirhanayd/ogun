@@ -99,6 +99,16 @@ export const clients = pgTable(
     // "tamamlanmış" sayılması için bu alan gerekmez (bkz. GÖREV 3 kuralı,
     // apps/web/src/lib/validation/client-schemas.ts).
     marketingConsentAt: timestamp('marketing_consent_at', { withTimezone: true }),
+    // GitHub issue #41 / Prompt 7.3, GÖREV 3 — "Danışanın SMS rızası yoksa
+    // gönderme". marketingConsentAt'tan BİLEREK AYRI: randevu hatırlatma SMS'i
+    // pazarlama iletişimi DEĞİL, işlemsel (transactional) bir bildirimdir —
+    // ama yine de bir elektronik haberleşme kanalıdır ve KVKK/ETK (Elektronik
+    // Ticaretin Düzenlenmesi Hakkında Kanun) kapsamında kendi açık rızasını
+    // gerektirir; explicitConsentAt (özel nitelikli SAĞLIK verisi için) ile
+    // de KARIŞTIRILMAMALI, o farklı bir hukuki dayanak. NULL = rıza yok →
+    // apps/web/src/lib/sms/reminder-eligibility.ts bu danışanı ASLA kuyruğa
+    // almaz (bkz. o dosyadaki isEligibleForSmsReminder).
+    smsConsentAt: timestamp('sms_consent_at', { withTimezone: true }),
 
     // --- Veri sahibi hakları: silme (GitHub #12 / Prompt 3.3, GÖREV 4) ------
     ...softDelete(), // deletedAt — soft delete anı (bkz. _helpers.ts)
