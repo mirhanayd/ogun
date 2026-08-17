@@ -1,5 +1,6 @@
 import type { Instrumentation } from 'next'
 import { isSentryEnabled } from './lib/monitoring/sentry'
+import { assertValidEnv } from './env'
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 1 — Next.js'in KENDİ "Instrumentation"
 // hook'u (register/onRequestError). BİLEREK Vercel'e özel bir mekanizma
@@ -11,7 +12,16 @@ import { isSentryEnabled } from './lib/monitoring/sentry'
 // SENTRY_DSN yoksa (bu sandbox'ta böyle) hem register() hem onRequestError
 // NO-OP kalır — bkz. lib/monitoring/sentry.ts isSentryEnabled() dosya başı
 // notu.
+//
+// GitHub issue #46 / Prompt 8.2, GÖREV 1 — "eksik değişkenle uygulama
+// başlamasın." register(), Next.js'in yeni bir SUNUCU INSTANCE'I
+// başlattığı TEK yer (next dev / next start) — next build SIRASINDA
+// ÇAĞRILMAZ, bu yüzden burada assertValidEnv() çağırmak build'i etkilemez,
+// sadece gerçek sunucu açılışını (yerel/staging/production fark etmeksizin)
+// erken ve anlaşılır bir hatayla durdurur.
 export async function register(): Promise<void> {
+  assertValidEnv()
+
   if (!isSentryEnabled()) return
 
   if (process.env.NEXT_RUNTIME === 'nodejs') {

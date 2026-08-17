@@ -2,8 +2,23 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import createBundleAnalyzer from '@next/bundle-analyzer'
 
+// GitHub issue #46 / Prompt 8.2, GÖREV 3 — "Dockerfile için standalone
+// Next.js çıktısı." `output: 'standalone'`, Next.js'in derlenmiş uygulamayı
+// + sadece GERÇEKTEN kullanılan node_modules dosyalarını (bağımlılık ağacı
+// izlenerek) `.next/standalone` altına kopyalamasını sağlar — Dockerfile'ın
+// son aşaması (bkz. apps/web/Dockerfile) tüm monorepo'yu değil SADECE bu
+// klasörü taşır, imaj küçük kalır. Vercel'e özel değil (mimari kural #6);
+// Vercel bu bayrağı YOK SAYAR (kendi build çıktısını kullanır), yani
+// Docker/VPS ve Vercel yolları AYNI next.config.ts ile çalışır.
+//
+// SADECE Docker build'inde (`DOCKER_BUILD=1`, bkz. apps/web/Dockerfile)
+// etkin — standalone çıktısı node_modules içinde symlink kopyalamaya
+// çalışıyor, bu da Windows'ta Geliştirici Modu/yönetici izni olmadan
+// EPERM ile patlıyor. Yerel `pnpm build` (Windows dahil) bu bayrak
+// olmadan normal şekilde çalışmaya devam eder; Vercel de zaten bu alanı
+// yok saydığı için ondan da etkilenmez.
 const nextConfig: NextConfig = {
-  /* config options here */
+  ...(process.env.DOCKER_BUILD === '1' ? { output: 'standalone' as const } : {}),
 }
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 2 — "Bundle analizi, 200 KB üstü
