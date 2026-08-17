@@ -1,0 +1,23 @@
+{
+  "name": "@ogun/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "e2e": "playwright test",
+    "test:ui": "playwright test --ui",
+    "seed": "tsx fixtures/seed-e2e.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@ogun/db": "workspace:*",
+    "@ogun/tsconfig": "workspace:*",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^20",
+    "better-auth": "^1.6.29",
+    "drizzle-orm": "^0.38.3",
+    "postgres": "^3.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

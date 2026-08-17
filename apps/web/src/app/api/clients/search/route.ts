@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { NoActiveClinicError, UnauthenticatedError } from '@/lib/authz'
 import { listClientsForClinic } from '@/app/(app)/danisanlar/queries'
+import { withRequestLogging } from '@/lib/monitoring/logger'
 
 // GitHub issue #27 / Prompt 5.5, GÖREV 1 — "Bu şablondan plan oluştur →
 // danışan seç → düzenlemeye git" akışının danışan seçici diyaloğu (bkz.
@@ -27,7 +28,7 @@ function mapAuthError(error: unknown): NextResponse | null {
   return null
 }
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest): Promise<Response> {
   const search = request.nextUrl.searchParams.get('q') ?? undefined
 
   try {
@@ -42,3 +43,5 @@ export async function GET(request: NextRequest) {
     return mapAuthError(error) ?? NextResponse.json({ error: 'Beklenmeyen hata.' }, { status: 500 })
   }
 }
+
+export const GET = withRequestLogging('clients.search', handleGet)

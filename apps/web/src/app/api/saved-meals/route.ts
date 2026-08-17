@@ -3,6 +3,7 @@ import { db } from '@ogun/db'
 import { listSavedMeals } from '@ogun/db/queries'
 import type { PlanMealType } from '@ogun/db/schema'
 import { NoActiveClinicError, UnauthenticatedError, requireClinic } from '@/lib/authz'
+import { withRequestLogging } from '@/lib/monitoring/logger'
 
 // GitHub issue #27 / Prompt 5.5, GÖREV 3 — food-search-input.tsx'teki "@"
 // tetikleyicisinin istemci tarafında bir kez çektiği, klinik bazlı kayıtlı
@@ -27,7 +28,7 @@ function mapAuthError(error: unknown): NextResponse | null {
   return null
 }
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest): Promise<Response> {
   let clinicId: string
   try {
     clinicId = (await requireClinic()).scope.clinicId
@@ -48,3 +49,5 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(dto)
 }
+
+export const GET = withRequestLogging('saved-meals', handleGet)

@@ -2,12 +2,13 @@ import { gzipSync } from 'node:zlib'
 import { NextResponse, type NextRequest } from 'next/server'
 import { db } from '@ogun/db'
 import { getAllFoodIndexEntries, getFoodIndexVersion, getNutrientDefinitions } from '@ogun/db/queries'
+import { withRequestLogging } from '@/lib/monitoring/logger'
 
 // İstemci tarafı (Dexie + Orama) offline arama indeksinin kaynağı. Tüm katalogu
 // tek seferde, sıkıştırılmış olarak döner — hedef: 10.000 besin için < 1.5 MB.
 // ?v= sürümü mevcut sürümle eşleşiyorsa (veya If-None-Match tutuyorsa) 304 döner,
 // böylece istemci sürüm değişmediği sürece hiç veri indirmez.
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest): Promise<Response> {
   const version = await getFoodIndexVersion(db)
   const etag = `"${version}"`
 
@@ -51,3 +52,5 @@ export async function GET(request: NextRequest) {
     },
   })
 }
+
+export const GET = withRequestLogging('foods.index', handleGet)

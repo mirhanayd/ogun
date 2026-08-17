@@ -50,7 +50,25 @@ export class InsufficientRoleError extends Error {
 // `ClinicScope`'a atanamaz. Bu, "clinicId almayan bir client sorgusu
 // yazılamasın" kuralını, çalışma zamanı kontrolü yerine tip sisteminde
 // zorunlu kılar.
-declare const clinicScopeBrand: unique symbol
+// GitHub issue #45 / Prompt 8.1 — GERÇEK bir hata düzeltmesi (bu satırın
+// kendisiyle İLGİSİZ görünen bir "kalite" issue'sunda bulundu): `declare
+// const` SADECE TypeScript'in tip denetleyicisine "bu bir yerde tanımlı"
+// diye bir SÖZ verir, gerçek bir çalışma zamanı (runtime) değeri ÜRETMEZ.
+// Aşağıdaki toClinicScope() ise `[clinicScopeBrand]: true`'yu GERÇEK bir
+// obje literalinde, ÇALIŞMA ZAMANINDA computed property key olarak
+// kullanıyor — derlenmiş JS'te `clinicScopeBrand` hiçbir yerde
+// tanımlanmadığı için bu `ReferenceError: clinicScopeBrand is not defined`
+// ile PATLAR. Vitest birim testleri requireClinic()/toClinicScope()'u
+// GERÇEKTEN çağırmadığı (mock ClinicContext kullandıkları) ve Turbopack
+// dev/build bu koda ulaşamadan başka hatalarla durduğu için bu şimdiye
+// kadar YAKALANAMAMIŞTI — bu issue'nun E2E testleri (bkz. apps/e2e), bir
+// oturumu GERÇEKTEN /panel'e kadar götüren İLK çalıştırma oldu ve
+// requireClinic()'e giden HER istekte (danışan listesi, klinik seçimi,
+// panel) bunu tetikledi. Düzeltme: `unique symbol` tipini GERÇEK bir
+// `Symbol()` çalışma zamanı değerine bağlamak — marka (branding) deseni
+// aynen korunuyor (sembol hâlâ dışa aktarılmıyor), sadece artık GERÇEKTEN
+// var.
+const clinicScopeBrand: unique symbol = Symbol('clinicScope')
 export interface ClinicScope {
   readonly clinicId: string
   readonly [clinicScopeBrand]: true
