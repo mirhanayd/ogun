@@ -28,8 +28,64 @@ pnpm + Turborepo ile yönetilen monorepo.
    pnpm dev
    ```
 
-## Dağıtım
+## Masaüstü geliştirme (Tauri)
 
-Üretim dağıtımı (Vercel + Neon ya da self-hosted Docker + VPS), ortam
-değişkeni doğrulaması ve yedekleme/kurtarma prosedürü için bkz.
-[`docs/deployment.md`](docs/deployment.md) ve [`docs/runbook.md`](docs/runbook.md).
+GitHub issue #51 / Faz 9 — `apps/desktop`, apps/web'i saran bir Tauri 2.x
+native pencere kabuğudur. apps/web'in kod tabanı bu paketten ETKİLENMEZ;
+Tauri sadece onu SARAR (bkz. `faz-9-masaustu-kabugu.md`'deki mimari not:
+bu OFFLINE bir uygulama değil, klinik verisi merkezi Postgres'te kalır).
+
+### Gereksinimler
+
+- [Rust + Cargo](https://www.rust-lang.org/tools/install) (stabil kanal)
+- Windows: "C++ ile masaüstü geliştirme" iş yükü (Visual Studio Build
+  Tools, MSVC bağlayıcısı için) + [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+  (çoğu güncel Windows kurulumunda zaten mevcuttur)
+- macOS: Xcode Command Line Tools
+- Linux: `webkit2gtk`, `libayatana-appindicator3` (bkz. [Tauri önkoşulları](https://v2.tauri.app/start/prerequisites/))
+
+### Geliştirme
+
+```bash
+# Web dev sunucusunu (next dev, :3000) ve Tauri penceresini birlikte başlat:
+pnpm dev
+
+# Ya da sadece masaüstü kabuğunu (apps/web'in ayrı bir terminalde
+# `pnpm --filter web dev` ile zaten çalışıyor olması gerekir):
+cd apps/desktop && pnpm tauri dev
+```
+
+Geliştirmede pencere doğrudan `http://localhost:3000`'e işaret eder — hot
+reload apps/web'in kendi `next dev` sunucusundan gelir, kabuk tarafında
+EK bir şey gerekmez.
+
+### Üretim paketleme
+
+```bash
+cd apps/desktop
+pnpm build   # apps/web'i standalone modda derler + Node sidecar hazırlar + tauri build çalıştırır
+```
+
+Üretimde Next.js API route'ları ve server action'lar GERÇEK bir sunucu
+gerektirdiğinden (statik export YETERSİZ), Tauri apps/web'in standalone
+çıktısını yerelde başlatan küçük bir Node sidecar süreci paketler (bkz.
+`apps/desktop/src-tauri/src/sidecar.rs` ve `apps/desktop/scripts/prepare-sidecar.mjs`).
+
+NOT (Windows): standalone çıktısı (`STANDALONE_BUILD=1`) pnpm'in
+node_modules'teki symlink'lerini kopyalamaya çalışır — Windows
+Geliştirici Modu ya da yönetici izni yoksa `EPERM: symlink` hatası
+verir (bkz. #46, docs/deployment.md "Bilinen sınırlamalar" — bu YENİ bir
+sorun değil, Docker/Linux'ta karşılaşılmaz).
+
+### Doğrulama durumu (dürüstlük notu)
+
+Bu sandbox'ta MSVC bağlayıcısı (link.exe) VE Windows SDK import
+kütüphaneleri (kernel32.lib vb.) kurulu DEĞİL (`tauri info` bunu
+bağımsız olarak doğruluyor). Sonuç: `cargo build` BAĞLANAMADI; `cargo
+check` bile bağımlılıkların (serde, thiserror, proc-macro2 vb.) build
+script'lerini çalıştırmak için linklemeye ihtiyaç duyduğundan AYNI
+şekilde başarısız oldu — yani Rust kodu derleyiciyle DOĞRULANAMADI,
+sadece tauri/tauri-plugin-* paketlerinin gerçek kaynak kodu okunarak
+dikkatli yazıldı. Gerçek bir pencere açılıp GÖRSEL olarak test edilmesi
+de mümkün değildi (headless ortam). Ayrıntılar için ilgili PR
+açıklamasına bakın.

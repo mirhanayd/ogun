@@ -11,14 +11,23 @@ import createBundleAnalyzer from '@next/bundle-analyzer'
 // Vercel bu bayrağı YOK SAYAR (kendi build çıktısını kullanır), yani
 // Docker/VPS ve Vercel yolları AYNI next.config.ts ile çalışır.
 //
-// SADECE Docker build'inde (`DOCKER_BUILD=1`, bkz. apps/web/Dockerfile)
+// SADECE bayrakla açık şekilde istenen build'lerde (`STANDALONE_BUILD=1`)
 // etkin — standalone çıktısı node_modules içinde symlink kopyalamaya
 // çalışıyor, bu da Windows'ta Geliştirici Modu/yönetici izni olmadan
 // EPERM ile patlıyor. Yerel `pnpm build` (Windows dahil) bu bayrak
 // olmadan normal şekilde çalışmaya devam eder; Vercel de zaten bu alanı
 // yok saydığı için ondan da etkilenmez.
+//
+// GitHub issue #51 / Prompt 9.1 notu: bu değişken eskiden `DOCKER_BUILD`
+// idi (bkz. issue #46) — Tauri masaüstü kabuğu da (bkz. apps/desktop)
+// AYNI standalone çıktıya (kendi kendine yeten server.js + gerçekten
+// kullanılan node_modules) prod paketleme için sidecar process olarak
+// ihtiyaç duyduğundan, bayrak tek bir tüketiciye (Docker) özel olmaktan
+// çıkarılıp genel bir isme (`STANDALONE_BUILD`) taşındı. Davranış AYNI —
+// sadece isim, artık iki tüketicisi olduğunu yansıtıyor. apps/web'in
+// kendi kodu/davranışı bu değişiklikle DEĞİŞMEDİ, sadece bayrak adı.
 const nextConfig: NextConfig = {
-  ...(process.env.DOCKER_BUILD === '1' ? { output: 'standalone' as const } : {}),
+  ...(process.env.STANDALONE_BUILD === '1' ? { output: 'standalone' as const } : {}),
 }
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 2 — "Bundle analizi, 200 KB üstü

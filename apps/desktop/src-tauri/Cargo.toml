@@ -1,0 +1,54 @@
+[package]
+name = "ogun-desktop"
+version = "0.1.0"
+description = "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere."
+authors = ["Öğün"]
+edition = "2021"
+# GitHub issue #51 / Prompt 9.1 — bkz. src-tauri/README yok, açıklamalar
+# main.rs içinde. apps/web'in kod tabanı bu paketten hiç ETKİLENMEZ; bu
+# yalnızca onu saran native kabuk.
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Pencere durumu (boyut/konum/maximize) kalıcılığı — GÖREV 2.
+tauri-plugin-window-state = "2"
+# Üretimde Node sidecar sürecini başlatmak (Command::sidecar) için —
+# GÖREV 1, bkz. sidecar.rs.
+tauri-plugin-shell = "2"
+# Dış http(s) linkleri sistem tarayıcısında açmak için — GÖREV 3, bkz.
+# navigation.rs / lib.rs. NOT: issue metni "tauri-plugin-shell'in open()"
+# diyor; o fonksiyon tauri-plugin-shell 2.1.0'dan beri KULLANIMDAN
+# KALDIRILDI ("Use tauri-plugin-opener instead"), bu yüzden AYNI davranışı
+# (varsayılan uygulamada http(s)/tel/mailto açma) sağlayan, kaldırılmamış
+# resmi halefi tercih edildi — bkz. PR açıklamasındaki not.
+tauri-plugin-opener = "2"
+url = "2"
+# Sidecar TCP hazır-olma yoklaması (sidecar.rs) için — Tauri'nin
+# async_runtime'ı zaten tokio üzerine kurulu, aynı sürümü doğrudan
+# bağımlılık olarak eklemek ayrı bir runtime YARATMAZ.
+tokio = { version = "1", features = ["net", "time"] }
+
+[dependencies.tauri]
+version = "2"
+features = []
+
+[lib]
+# `cargo check`/`cargo test` gibi araçların ve gelecekteki mobil hedeflerin
+# kütüphaneyi bulabilmesi için Tauri'nin standart adlandırması.
+name = "ogun_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ogun-desktop"
+path = "src/main.rs"
+
+# GitHub issue #46'da (Windows symlink/EPERM) olduğu gibi, burada da
+# platforma özgü bir tuzak YOK — Cargo/rustc çıktı dizinleri symlink
+# kullanmaz. Ancak MSVC bağlayıcısı (link.exe, "C++ ile masaüstü
+# geliştirme" iş yükü) bu sandbox'ta kurulu değil; bkz. PR açıklaması ve
+# README.md "Masaüstü geliştirme" bölümündeki doğrulama notu.
