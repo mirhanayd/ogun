@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 200 104"
+   role="img"
+   aria-label="Öğün logo — koyu zemin"
+   version="1.1"
+   id="svg4"
+   width="200"
+   height="104"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs4" />
+  <title
+     id="title1">Öğün logo — koyu zemin</title>
+  <rect
+     x="0"
+     y="0"
+     width="200"
+     height="104"
+     rx="12"
+     fill="#12211B"
+     style="color:#0b0b0b;font-weight:400;font-size:16px;font-family:anthropic-sans, '-apple-system', BlinkMacSystemFont, 'Segoe UI', sans-serif;dominant-baseline:auto;text-anchor:start;opacity:1;fill:#12211b;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter"
+     id="rect1" />
+  <circle
+     cx="50"
+     cy="52"
+     r="22"
+     fill="none"
+     stroke="#FFFFFF"
+     stroke-opacity="0.28"
+     stroke-width="8"
+     style="color:#0b0b0b;font-weight:400;font-size:16px;font-family:anthropic-sans, '-apple-system', BlinkMacSystemFont, 'Segoe UI', sans-serif;dominant-baseline:auto;text-anchor:start;opacity:1;fill:none;stroke:#ffffff;stroke-width:8px;stroke-linecap:butt;stroke-linejoin:miter"
+     id="circle1" />
+  <circle
+     cx="-52"
+     cy="50"
+     r="22"
+     fill="none"
+     stroke="#FFFFFF"
+     stroke-width="8"
+     stroke-linecap="round"
+     stroke-dasharray="95 44"
+     transform="rotate(-90)"
+     style="color:#0b0b0b;font-weight:400;font-size:16px;font-family:anthropic-sans, '-apple-system', BlinkMacSystemFont, 'Segoe UI', sans-serif;dominant-baseline:auto;text-anchor:start;opacity:1;fill:none;stroke:#ffffff;stroke-width:8px;stroke-linecap:round;stroke-linejoin:miter;stroke-dasharray:95px, 44px"
+     id="circle2" />
+  <circle
+     cx="40"
+     cy="18"
+     r="4.5"
+     fill="#FFFFFF"
+     style="color:#0b0b0b;font-weight:400;font-size:16px;font-family:anthropic-sans, '-apple-system', BlinkMacSystemFont, 'Segoe UI', sans-serif;dominant-baseline:auto;text-anchor:start;opacity:1;fill:#ffffff;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter"
+     id="circle3" />
+  <circle
+     cx="60"
+     cy="18"
+     r="4.5"
+     fill="#5DCAA5"
+     style="color:#0b0b0b;font-weight:400;font-size:16px;font-family:anthropic-sans, '-apple-system', BlinkMacSystemFont, 'Segoe UI', sans-serif;dominant-baseline:auto;text-anchor:start;opacity:1;fill:#5dcaa5;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter"
+     id="circle4" />
+  <path
+     d="m 103.4,52.408 q 0,2.664 -0.888,4.656 -0.888,1.968 -2.664,3.072 -1.776,1.104 -4.416,1.104 -2.712,0 -4.488,-1.104 -1.776,-1.104 -2.64,-3.096 -0.864,-1.992 -0.864,-4.656 0,-2.64 0.864,-4.608 0.888,-1.968 2.664,-3.072 1.776,-1.104 4.488,-1.104 2.64,0 4.392,1.104 1.776,1.08 2.664,3.072 0.888,1.968 0.888,4.632 z m -13.224,0 q 0,3.072 1.272,4.848 1.272,1.776 3.984,1.776 2.736,0 3.984,-1.776 1.248,-1.776 1.248,-4.848 0,-3.072 -1.248,-4.824 -1.224,-1.752 -3.96,-1.752 -2.736,0 -4.008,1.752 -1.272,1.752 -1.272,4.824 z m 1.68,-11.976 q 0,-0.696 0.36,-0.984 0.384,-0.312 0.912,-0.312 0.528,0 0.912,0.312 0.384,0.288 0.384,0.984 0,0.648 -0.384,0.984 -0.384,0.312 -0.912,0.312 -0.528,0 -0.912,-0.312 -0.36,-0.336 -0.36,-0.984 z m 4.584,0 q 0,-0.696 0.36,-0.984 0.384,-0.312 0.912,-0.312 0.504,0 0.888,0.312 0.384,0.288 0.384,0.984 0,0.648 -0.384,0.984 -0.384,0.312 -0.888,0.312 -0.528,0 -0.912,-0.312 -0.36,-0.336 -0.36,-0.984 z m 19.032,11.352 h 6.192 v 8.544 q -1.368,0.456 -2.808,0.672 -1.416,0.24 -3.24,0.24 -3.936,0 -6.048,-2.328 -2.088,-2.352 -2.088,-6.48 0,-2.688 1.032,-4.656 1.056,-1.992 3.048,-3.072 1.992,-1.08 4.824,-1.08 1.416,0 2.712,0.288 1.296,0.264 2.4,0.744 l -0.936,2.16 q -0.888,-0.384 -1.992,-0.672 -1.08,-0.288 -2.28,-0.288 -2.856,0 -4.488,1.776 -1.632,1.776 -1.632,4.824 0,1.944 0.6,3.432 0.6,1.464 1.896,2.304 1.296,0.84 3.384,0.84 1.032,0 1.728,-0.096 0.72,-0.12 1.32,-0.264 v -4.656 h -3.624 z m 4.344,-12.96 q -0.144,1.536 -1.2,2.496 -1.056,0.936 -2.856,0.936 -1.872,0 -2.856,-0.936 -0.984,-0.936 -1.08,-2.496 h 1.512 q 0.096,0.984 0.744,1.248 0.648,0.24 1.728,0.24 0.912,0 1.632,-0.264 0.72,-0.288 0.84,-1.224 z m 20.44798,16.128 q 0,1.776 -0.744,3.216 -0.744,1.416 -2.256,2.256 -1.488,0.816 -3.792,0.816 -3.264,0 -4.968,-1.728 -1.68,-1.752 -1.68,-4.608 v -11.04 h 2.592 v 10.92 q 0,4.248 4.176,4.248 2.16,0 3.12,-1.152 0.984,-1.152 0.984,-3.12 V 43.864 h 2.568 z m -10.296,-14.52 q 0,-0.696 0.36,-0.984 0.384,-0.312 0.912,-0.312 0.528,0 0.912,0.312 0.384,0.288 0.384,0.984 0,0.648 -0.384,0.984 -0.384,0.312 -0.912,0.312 -0.528,0 -0.912,-0.312 -0.36,-0.336 -0.36,-0.984 z m 4.584,0 q 0,-0.696 0.36,-0.984 0.384,-0.312 0.912,-0.312 0.504,0 0.888,0.312 0.384,0.288 0.384,0.984 0,0.648 -0.384,0.984 -0.384,0.312 -0.888,0.312 -0.528,0 -0.912,-0.312 -0.36,-0.336 -0.36,-0.984 z M 159.944,61 H 156.8 l -8.664,-13.848 h -0.096 q 0.048,0.96 0.12,2.208 0.072,1.224 0.072,2.52 V 61 H 145.88 V 43.864 H 149 l 8.64,13.776 h 0.072 q -0.024,-0.504 -0.072,-1.272 -0.024,-0.768 -0.048,-1.632 -0.024,-0.888 -0.048,-1.656 v -9.216 h 2.4 z"
+     id="text4"
+     style="color:#0b0b0b;font-weight:500;font-size:24px;font-family:anthropic-sans, sans-serif;letter-spacing:1.2px;fill:#ffffff;stroke-width:1px"
+     aria-label="ÖĞÜN" />
+</svg>
