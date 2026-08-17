@@ -10,3 +10,10 @@ coverage
 *.tsbuildinfo
 ogun-roadmap.md
 \.claude
+
+# GitHub issue #45 / Prompt 8.1 — Playwright E2E
+apps/e2e/playwright-report
+apps/e2e/test-results
+apps/e2e/fixtures/.e2e-credentials.json
+apps/web/.next/analyze
+apps/web/.lighthouse-reports

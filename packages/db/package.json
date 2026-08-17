@@ -16,12 +16,14 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/seed/index.ts",
+    "db:seed:demo": "tsx src/seed/demo.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@ogun/nutrition-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
+    "better-auth": "^1.6.29",
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
   },

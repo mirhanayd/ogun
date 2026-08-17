@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { db } from '@ogun/db'
 import { getClinicById } from '@ogun/db/queries'
-import { addDayAction, addMealAction, getPlanTreeAction } from '@/app/(app)/planlar/actions'
+import { addDayDuringRender, addMealAction, getPlanTreeAction } from '@/app/(app)/planlar/actions'
 import { getClientHealthRecord } from '@/app/(app)/danisanlar/[id]/anamnez/queries'
 import { PLAN_MEAL_TYPE_OPTIONS } from '@/lib/validation/plan-schemas'
 import { viewClientRecord } from '@/lib/data-subject-rights'
@@ -22,7 +22,12 @@ async function ensurePlanBootstrapped(planId: string) {
   if (!result.success || !result.data) return null
   if (result.data.days.length > 0) return result.data
 
-  const dayResult = await addDayAction(planId, { dayNumber: 1 })
+  // GitHub issue #45 / Prompt 8.1 — addDayAction DEĞİL, addDayDuringRender:
+  // bu fonksiyon (ensurePlanBootstrapped) sayfa RENDER EDİLİRKEN çalışıyor,
+  // addDayAction'ın revalidatePath yan etkisi burada Next.js 15'te bir
+  // çalışma zamanı hatasına yol açıyordu (bkz. actions.ts'teki
+  // addDayDuringRender'ın üstündeki not).
+  const dayResult = await addDayDuringRender(planId, { dayNumber: 1 })
   if (!dayResult.success || !dayResult.data) return result.data
 
   for (const [index, option] of PLAN_MEAL_TYPE_OPTIONS.entries()) {

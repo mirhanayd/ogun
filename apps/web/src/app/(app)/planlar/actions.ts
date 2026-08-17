@@ -307,6 +307,28 @@ export async function addDayAction(
   return result
 }
 
+// GitHub issue #45 / Prompt 8.1 — GERÇEK bir hata düzeltmesi (#25'ten kalma,
+// bu issue'yla İLGİSİZ bir kod yolunda, E2E testlerinin GERÇEK bir sunucuya
+// karşı ilk canlı çalıştırmasında bulundu): [planId]/page.tsx'teki
+// ensurePlanBootstrapped(), YENİ oluşturulan (henüz hiç günü olmayan) bir
+// planı İLK AÇILIŞTA doldurmak için addDayAction'ı DOĞRUDAN, sayfa RENDER
+// EDİLİRKEN çağırıyordu. addDayAction ise başarıda revalidatePlans() (bkz.
+// yukarısı) çağırıyor — Next.js 15, "revalidatePath render sırasında
+// çağrıldı" durumunu ARTIK bir çalışma zamanı HATASI olarak fırlatıyor (bkz.
+// https://nextjs.org/docs/messages/next-prerender-current-time — ilgili
+// dinamik API kısıtı), yani HER YENİ planın İLK açılışı 500 İLE ÇÖKÜYORDU.
+// Düzeltme: render sırasında çağrılacak, revalidation YAPMAYAN ayrı bir
+// fonksiyon — addDayAction'ın KENDİSİ (ve onun genel istemci-tetiklemeli
+// revalidation davranışı) DEĞİŞMEDİ, mevcut çağıranlar ETKİLENMEDİ.
+export async function addDayDuringRender(
+  planId: string,
+  input: DayInputValues,
+): Promise<PlanActionResult<{ id: string }>> {
+  const parsed = dayInputSchema.safeParse(input)
+  if (!parsed.success) return fail(firstZodMessage(parsed.error))
+  return runAction(() => addDayForClinic(planId, parsed.data))
+}
+
 const addMealForClinic = withAuth(
   withAudit(
     {

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@ogun/db'
 import { getFoodSummaries, searchFoods } from '@ogun/db/queries'
+import { withRequestLogging } from '@/lib/monitoring/logger'
 
 const searchParamsSchema = z.object({
   q: z.string().min(1),
@@ -17,7 +18,10 @@ export interface FoodSearchDto {
   kcalPer100g: number | null
 }
 
-export async function GET(request: NextRequest) {
+// GitHub issue #45 / Prompt 8.1 — withRequestLogging ile sarmalandı (bkz.
+// lib/monitoring/logger.ts): sorgu metni (q) GÖVDE/param olarak loglanmaz,
+// sadece metod/status/süre.
+async function handleGet(request: NextRequest): Promise<Response> {
   const parsed = searchParamsSchema.safeParse({
     q: request.nextUrl.searchParams.get('q') ?? undefined,
     limit: request.nextUrl.searchParams.get('limit') ?? undefined,
@@ -46,3 +50,5 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(dto)
 }
+
+export const GET = withRequestLogging('foods.search', handleGet)

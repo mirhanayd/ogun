@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@ogun/db'
 import { getFoodSummaries, getPinnedFoodUsage, recordFoodUsage } from '@ogun/db/queries'
 import { NoActiveClinicError, UnauthenticatedError, requireClinic } from '@/lib/authz'
+import { withRequestLogging } from '@/lib/monitoring/logger'
 
 // GitHub issue #24 / Prompt 5.2 GÖREV 1 — klinik bazlı "son kullanılanlar /
 // sık kullanılanlar" pinlemesi. api/foods/search ve api/foods/index'in
@@ -39,7 +40,7 @@ export interface FoodUsageDto {
   lastUsedAt: string
 }
 
-export async function GET() {
+async function handleGet(): Promise<Response> {
   let clinicId: string
   try {
     clinicId = (await requireClinic()).scope.clinicId
@@ -69,9 +70,11 @@ export async function GET() {
   return NextResponse.json(dto)
 }
 
+export const GET = withRequestLogging('foods.usage', handleGet)
+
 const recordUsageSchema = z.object({ foodId: z.string().min(1) })
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest): Promise<Response> {
   let clinicId: string
   try {
     clinicId = (await requireClinic()).scope.clinicId
@@ -88,3 +91,5 @@ export async function POST(request: NextRequest) {
   await recordFoodUsage(db, clinicId, parsed.data.foodId)
   return NextResponse.json({ success: true })
 }
+
+export const POST = withRequestLogging('foods.usage', handlePost)
