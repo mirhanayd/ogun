@@ -46,6 +46,9 @@ RUN pnpm install --frozen-lockfile
 # Şimdi gerçek kaynak kodunu kopyala ve derle.
 COPY --from=pruner /app/out/full/ .
 ENV NEXT_TELEMETRY_DISABLED=1
+# next.config.ts'teki output:'standalone'u SADECE Docker build'inde açar
+# (Windows'ta yerel `pnpm build`'i symlink EPERM hatasından korumak için).
+ENV DOCKER_BUILD=1
 
 # GERÇEK SIR (secret) BUILD ZAMANINDA GEREKMEZ — env.ts doğrulaması
 # (assertValidEnv) SADECE runtime'da, instrumentation.ts register()
