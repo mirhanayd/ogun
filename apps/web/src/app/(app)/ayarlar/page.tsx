@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { requireClinic } from '@/lib/authz'
 import { WEEKDAYS_TR } from '@/lib/onboarding'
+import { DesktopSettingsCard } from './desktop-settings-card'
 
 // Ayarlar sayfası — Prompt 3.2 kapsamında sadece bir yer tutucu istenmişti,
 // ama onboarding'de toplanan veriyi (klinik bilgileri, marka, çalışma
@@ -145,6 +146,10 @@ export default async function AyarlarPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* GitHub issue #53 / Prompt 9.3, GÖREV 2 — web tarayıcısında render
+          edilmez (bkz. desktop-settings-card.tsx dosya başı notu). */}
+      <DesktopSettingsCard />
     </div>
   )
 }

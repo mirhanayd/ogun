@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import { Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { isNativeShell } from '@/lib/native-shell'
 
 // GitHub issue #47 / Prompt 8.3, GÖREV 1 — "Klavye kısayolları yardım kartı
 // (? tuşu)". Liste UYDURULMADI — uygulamada GERÇEKTEN çalışan kısayollar
@@ -73,6 +75,18 @@ export function KeyboardShortcutsHelp() {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // GitHub issue #53 / Prompt 9.3, GÖREV 1 — native Yardım menüsündeki
+  // "Klavye Kısayolları" öğesi (bkz. apps/desktop/src-tauri/src/
+  // menu_actions.rs) apps/web'e YENİ bir diyalog EKLEMEK yerine bu MEVCUT
+  // diyaloğu bir Tauri olayıyla açar — "?" tuşuyla açmakla AYNI mekanizma.
+  useEffect(() => {
+    if (!isNativeShell()) return
+    const unlistenPromise = listen('ogun-menu-open-shortcuts', () => setOpen(true))
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten())
+    }
   }, [])
 
   return (

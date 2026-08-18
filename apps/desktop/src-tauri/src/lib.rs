@@ -16,13 +16,19 @@
 //!   getirilir.
 
 mod deep_link;
+mod menu;
+mod menu_actions;
 mod navigation;
+mod notifications;
 mod secure_storage;
+mod settings;
 mod sidecar;
+mod tray;
+mod window_ops;
 
 use deep_link::{FrontendReady, PendingDeepLink};
 use navigation::AppOrigin;
-use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 
 /// apps/web'in `next dev` sunucusunun varsayılan adresi.
@@ -55,6 +61,18 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         // GÖREV 3 — dış http(s) linkleri sistem tarayıcısında açmak için.
         .plugin(tauri_plugin_opener::init())
+        // GitHub issue #53 / Prompt 9.3, GÖREV 3 — native OS bildirimleri
+        // (bkz. notifications.rs).
+        .plugin(tauri_plugin_notification::init())
+        // GÖREV 4 — native "Farklı Kaydet" / dosya seçici diyalogları.
+        // JS tarafı (@tauri-apps/plugin-dialog) doğrudan bu eklentinin
+        // kendi komutlarını çağırır — apps/desktop'ta AYRICA bir sarmalayıcı
+        // Rust komutu YOK (bkz. capabilities/default.json izin notu).
+        .plugin(tauri_plugin_dialog::init())
+        // GÖREV 4 — dialog'un seçtiği/kaydettiği yoldan GERÇEK byte
+        // okuma/yazma (JS tarafı @tauri-apps/plugin-fs). Aynı şekilde
+        // apps/desktop'ta sarmalayıcı bir komut YOK.
+        .plugin(tauri_plugin_fs::init())
         // GitHub issue #52 / Prompt 9.2, GÖREV 1 — ogun:// şemasını yakalar
         // (bkz. deep_link.rs modül notu — navigation.rs'teki on_navigation'dan
         // TAMAMEN FARKLI bir mekanizma).
@@ -69,6 +87,15 @@ pub fn run() {
             secure_storage::load_session_token,
             secure_storage::clear_session_token,
             deep_link::notify_frontend_ready,
+            // GitHub issue #53 / Prompt 9.3 — dar kapsamlı, tek-amaçlı
+            // komutlar (bkz. Cargo.toml/PR'daki genel prensip: sadece
+            // GERÇEKTEN gereken kadar IPC yüzeyi aç, secure_storage.rs'teki
+            // ile AYNI disiplin).
+            notifications::show_native_notification,
+            window_ops::focus_main_window_command,
+            settings::get_minimize_to_tray_setting,
+            settings::set_minimize_to_tray_setting,
+            tray::update_tray_today_appointments_summary,
         ])
         .setup(|app| {
             let is_dev = tauri::is_dev();
@@ -94,6 +121,22 @@ pub fn run() {
             // `notify_frontend_ready` çağrısı) işaretler; bundan ÖNCE
             // yayınlanan bir OAuth olayı dinleyicisiz kalıp KAYBOLABİLİRDİ.
             app.manage(FrontendReady::default());
+
+            // GitHub issue #53 / Prompt 9.3 — GÖREV 1 (Görünüm > Yakınlaştır/
+            // Uzaklaştır zoom seviyesi) ve GÖREV 2 (tray'e küçültme tercihi,
+            // bkz. settings.rs dosya başı "TASARIM KARARI" notu) durumu.
+            // Pencere/menü/tray HENÜZ kurulmadı ama ikisi de bu state'e
+            // ihtiyaç duyacak — önce yönetime alınmalı (navigation.rs'teki
+            // AppOrigin ile AYNI sıralama gerekçesi).
+            app.manage(window_ops::ZoomLevel::default());
+            app.manage(settings::SettingsState::load(app.handle()));
+
+            // GÖREV 1 — native menü çubuğu. GÖREV 2 — tray simgesi. İkisi de
+            // "main" penceresinin VAR OLMASINI gerektirmez (bkz. menu.rs/
+            // tray.rs dosya başı notları) — tıklama olayları penceriyi
+            // SADECE tetiklendiklerinde ararlar.
+            menu::build_and_set(app)?;
+            tray::build(app)?;
 
             // GitHub issue #52 / Prompt 9.2, GÖREV 1 — TEK deep link
             // dinleyicisi: hem soğuk başlangıçta (bkz. tauri-plugin-
@@ -169,6 +212,38 @@ pub fn run() {
                     }
                 })
                 .build()?;
+
+            // GitHub issue #53 / Prompt 9.3, GÖREV 2 — "Pencere kapatılınca
+            // uygulama tamamen kapanmasın, tray'de kalsın (X butonu = simge
+            // durumuna küçült, gerçek çıkış menüden) ... ayarlarda
+            // kapatılabilir yap." `CloseRequested` olayını (kullanıcı X'e
+            // bastığında) engelleyip, ayar AÇIKSA gerçek kapatmayı İPTAL
+            // edip pencereyi sadece GİZLİYORUZ (`hide()` — `unminimize()`
+            // ile window_ops::focus_main_window() tarafından geri
+            // getirilebilir, bkz. tray "Uygulamayı aç"). Ayar KAPALIYSA
+            // (kullanıcı klasik "X = tamamen kapat" davranışını seçtiyse)
+            // olayı HİÇ engellemiyoruz — normal Tauri kapatma akışı devam
+            // eder. Gerçek çıkış (tray/menü "Çıkış") BU engelleyiciden HİÇ
+            // geçmez: `app.exit(0)` (bkz. menu_actions.rs) doğrudan süreci
+            // sonlandırır, bir "close requested" penceri OLAYI değildir.
+            {
+                let settings_handle = app.handle().clone();
+                let window_to_hide = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        let minimize_to_tray = settings_handle
+                            .state::<settings::SettingsState>()
+                            .get()
+                            .minimize_to_tray_on_close;
+                        if minimize_to_tray {
+                            api.prevent_close();
+                            if let Err(err) = window_to_hide.hide() {
+                                eprintln!("[ogun-desktop] pencere tepsiye küçültülemedi: {err}");
+                            }
+                        }
+                    }
+                });
+            }
 
             // GitHub issue #52 / Prompt 9.2 — ÖNEMLİ SIRALAMA NOTU:
             // tauri-plugin-deep-link'in KENDİ eklenti setup'ı (yukarıdaki

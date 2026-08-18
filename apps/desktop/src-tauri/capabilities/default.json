@@ -1,10 +1,15 @@
 {
   "identifier": "default",
-  "description": "Öğün masaüstü kabuğu — ana pencere için varsayılan izinler (GitHub issue #51, #52).",
+  "description": "Öğün masaüstü kabuğu — ana pencere için varsayılan izinler (GitHub issue #51, #52, #53).",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
-    "deep-link:default"
+    "deep-link:default",
+    "notification:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file"
   ]
 }

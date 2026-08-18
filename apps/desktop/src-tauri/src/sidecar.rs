@@ -135,17 +135,19 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
         let sidecar_origin = format!("http://{address}");
         app.state::<AppOrigin>().set(sidecar_origin.clone());
 
-        // GitHub issue #52 / Prompt 9.2 — uygulama KAPALIYKEN (soğuk
-        // başlangıç) bir şifre sıfırlama e-postası linkine tıklanmışsa,
-        // deep_link.rs origin henüz bilinmediği için deep link'i
-        // `PendingDeepLink`'e KOYMUŞTUR (bkz. o dosyadaki dispatch/
-        // try_process). Origin ARTIK bilindiğine göre `process_pending`'i
-        // çağırıyoruz; `true` dönerse pencere ZATEN o bekleyen sıfırlama
-        // sayfasına yönlendirildi demektir — bu durumda AŞAĞIDAKİ kök
-        // navigasyonunu ATLAMALIYIZ (aksi halde önce köke, sonra deep
-        // link'e iki ayrı navigasyon YARIŞA girer, kök kazanabilir).
-        // Bekleyen bir OAuth geri dönüşü varsa `process_pending` `false`
-        // döner (frontend henüz hazır olmayabilir) — o durumda kök
+        // GitHub issue #52 / Prompt 9.2 (genişletildi #53 / Prompt 9.3) —
+        // uygulama KAPALIYKEN (soğuk başlangıç) bir şifre sıfırlama
+        // e-postası linkine YA DA bir `ogun://app/navigate` linkine (ör.
+        // native menü/tray henüz pencere/sidecar hazır olmadan tıklandıysa,
+        // pratikte NADİR ama imkansız değil) tıklanmışsa, deep_link.rs
+        // origin henüz bilinmediği için deep link'i `PendingDeepLink`'e
+        // KOYMUŞTUR (bkz. o dosyadaki dispatch/try_process). Origin ARTIK
+        // bilindiğine göre `process_pending`'i çağırıyoruz; `true` dönerse
+        // pencere ZATEN o bekleyen sayfaya yönlendirildi demektir — bu
+        // durumda AŞAĞIDAKİ kök navigasyonunu ATLAMALIYIZ (aksi halde önce
+        // köke, sonra deep link'e iki ayrı navigasyon YARIŞA girer, kök
+        // kazanabilir). Bekleyen bir OAuth geri dönüşü varsa `process_pending`
+        // `false` döner (frontend henüz hazır olmayabilir) — o durumda kök
         // navigasyonuna NORMAL şekilde devam ediyoruz, OAuth olayı
         // frontend `notify_frontend_ready` çağırdığında AYRICA işlenecek.
         if crate::deep_link::process_pending(&app) {

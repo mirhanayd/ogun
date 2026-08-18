@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getGoogleSignInRedirects, isNativeShell } from './native-shell'
+import { getGoogleSignInRedirects, isNativeShell, saveFileNatively } from './native-shell'
 
 // GitHub issue #52 / Prompt 9.2 — bu modülün SAF (Tauri çalışma zamanı
 // gerektirmeyen) kısmının birim testi. vitest.config.ts'te
@@ -39,5 +39,15 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
       callbackURL: '/api/auth/native/callback',
       errorCallbackURL: '/api/auth/native/callback',
     })
+  })
+
+  // GitHub issue #53 / Prompt 9.3, GÖREV 4 — `saveFileNatively`'nin
+  // Tauri çalışma zamanı GEREKTİRMEYEN tek dalı: web bağlamında hiçbir
+  // eklenti import ETMEDEN erkenden `false` döner (bkz. dosya başı notu:
+  // gerçek dosya yazma dalı test ortamında ÇALIŞTIRILAMAZ, @tauri-apps/
+  // plugin-dialog/-fs bir Tauri köprüsü gerektirir).
+  it('web bağlamında saveFileNatively hiçbir şey yapmadan false döner', async () => {
+    const blob = new Blob(['test'], { type: 'application/pdf' })
+    await expect(saveFileNatively(blob, 'test.pdf')).resolves.toBe(false)
   })
 })
