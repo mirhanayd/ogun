@@ -120,6 +120,79 @@ yönlendirmenin kendisi.
 
 <!-- LIGHTHOUSE_RESULTS_PLACEHOLDER -->
 
+### 4.1 Landing sayfası (`/`) — GitHub issue #60 / Faz 10, Prompt 10.2, GÖREV 4
+
+Hedef (issue #60): **erişilebilirlik ve SEO 100, performans 90+**.
+
+Ölçüm GERÇEKTEN çalıştırıldı. Komut (webpack `next build` + `next start -p 3210`
+ile ayağa kaldırılmış GERÇEK bir üretim sunucusuna karşı):
+
+```
+npx lighthouse http://localhost:3210/ \
+  --only-categories=performance,accessibility,best-practices,seo \
+  --chrome-flags="--headless=new --no-sandbox"      # varsayılan: mobil profil
+npx lighthouse http://localhost:3210/ --preset=desktop ...   # masaüstü profili
+```
+
+Lighthouse 12.8.2, `throttlingMethod: simulate`.
+
+| Profil | Performans | Erişilebilirlik | İyi Uygulamalar | SEO |
+|---|---|---|---|---|
+| **Masaüstü** (`--preset=desktop`) | **99** ✅ | **100** ✅ | **100** ✅ | **100** ✅ |
+| **Mobil** (Lighthouse varsayılanı) | **71** ❌ | **100** ✅ | **100** ✅ | **100** ✅ |
+
+| Metrik | Masaüstü | Mobil |
+|---|---|---|
+| First Contentful Paint | 0.5 s | 1.9 s |
+| Largest Contentful Paint | 1.0 s | 5.0 s |
+| Total Blocking Time | 0 ms | 400 ms |
+| Cumulative Layout Shift | 0 | 0 |
+| Speed Index | 0.5 s | 1.9 s |
+
+**Dürüst sonuç**: erişilebilirlik / SEO / iyi uygulamalar hedefi (100)
+İKİ profilde de tutuyor. Performans hedefi (90+) **masaüstünde tutuyor (99)**,
+**mobilde TUTMUYOR (71)** — bu sayı yuvarlanmadı, "yaklaşık 90" diye
+sunulmuyor.
+
+**Mobil açığın nedeni ölçüldü**: sayfanın kendi kodu değil, TÜM sayfaların
+paylaştığı JS demeti. Lighthouse'un ağ dökümünde en büyük script
+`chunks/567-*.js` — **104 kB (transfer)** — ve bu, bu belgenin 3. bölümünde
+zaten `@sentry` istemci SDK'sı olarak TESPİT EDİLMİŞ chunk'ın ta kendisi.
+Landing sayfası bir pazarlama sayfası; Sentry'ye ihtiyacı yok ama
+`instrumentation-client.ts` uygulama genelinde yüklendiği için payını
+ödüyor. 3. bölümdeki "DSN yoksa yükleme de yapılmasın" iyileştirmesi
+(NEXT_PUBLIC_SENTRY_DSN boşken build-time tree-shake) bu skoru doğrudan
+yukarı çeker — issue #60'ın kapsamı DIŞINDA bırakıldı, çünkü gerçek bir DSN
+olmadan o optimizasyonun doğrulanması mümkün değil (aynı gerekçe, aynı
+karar).
+
+**Bu issue kapsamında GERÇEKTEN yapılan performans düzeltmesi**: ürün
+görselinin (`public/marketing/plan-editor.png`) `next/image` `priority`
+bayrağı KALDIRILDI. Görsel kahraman bölümünün ALTINDA, yani ilk ekranda
+değil; preload edilmesi onu kritik yolun önüne koyuyordu. Ölçülen etki
+(mobil profil, aynı sunucu, aynı build dışında tek fark bu bayrak):
+
+| | `priority` ile | `priority` olmadan |
+|---|---|---|
+| Performans | 58 | **71** |
+| Total Blocking Time | 850 ms | **400 ms** |
+| Speed Index | 2.5 s | **1.9 s** |
+| LCP öğesi | ürün görseli | kahraman alt başlığı (metin) |
+
+**Script'le ilgili iki gerçek düzeltme** (`apps/web/scripts/lighthouse.ts`):
+
+1. `pnpm --filter web lighthouse` (yani script'in tsx üzerinden çalıştırılması)
+   bu sürümlerde **çalışmıyor**: tsx/esbuild'in `keepNames` dönüşümü
+   Lighthouse'un tarayıcıya enjekte ettiği fonksiyonlara `__name` çağrıları
+   ekliyor ve ölçüm sayfa içinde `ReferenceError: __name is not defined` ile
+   düşüyor. Yukarıdaki sayılar bu yüzden **Lighthouse CLI'ı doğrudan**
+   çağırarak alındı. Script'in kendisi korundu (rota listesine `/` eklendi);
+   tsx'siz bir çalıştırma yolu ayrı bir iyileştirme konusu.
+2. Chrome'un geçici profil dizini Windows'ta EPERM ile silinemiyordu ve bu
+   temizlik hatası `finally` bloğundan fırlayıp **asıl ölçüm hatasını
+   eziyordu**. Artık yakalanıp uyarı olarak geçiliyor — yukarıdaki (1)
+   numaralı gerçek hata ancak bu düzeltmeden SONRA görünür oldu.
+
 ## 5. E2E test sonuçları (Playwright) — canlı çalıştırma
 
 Bu bölüm GERÇEKTEN çalıştırılan (mock/simüle EDİLMEYEN) sonuçları raporluyor
@@ -224,6 +297,40 @@ planlar/actions.ts`'e revalidation YAPMAYAN ayrı bir `addDayDuringRender`
 fonksiyonu eklendi; `addDayAction`'ın kendisi (ve onu çağıran GERÇEK
 istemci-tetiklemeli akışlar) DEĞİŞMEDİ/ETKİLENMEDİ.
 
+### 6.3 Besin indeksi 6 KEZ indiriliyordu — `apps/web/src/lib/food-index.ts` (issue #60'ta bulundu)
+
+Landing sayfasının ürün görseli için plan editörünün GERÇEK ekran görüntüsü
+alınırken bulundu (bkz. `apps/e2e/scripts/capture-plan-editor.ts`). Her öğün
+bloğunun kendi `FoodSearchInput`'u mount olurken `initFoodIndex()` çağırıyor;
+`ensureIndexLoaded`'da hiçbir eş zamanlılık koruması YOKTU. 6 standart öğünlü
+bir planda bu, `/api/foods/index`in **6 KEZ** indirilmesi (bu ortamda tek
+başına ~14 MB ham) ve ardından AYNI Dexie tablosunda 6 ayrı `readwrite`
+transaction'ın `clear()` + 15.402 satırlık `bulkPut` yapması demekti.
+Transaction'lar sıraya girip birbirinin yazdığını siliyordu: **ölçüldü — 10
+dakika sonra bile indeks oturmadı**, plan kalemleri "Bilinmeyen besin" olarak
+kaldı ve canlı besin öğesi paneli hiçbir şey hesaplayamadı.
+
+Düzeltme: aynı dosyadaki `oramaIndexPromise` deseninin aynısı — modül
+seviyesinde bir "uçuştaki yükleme" promise'i; eş zamanlı çağıranlar aynı
+promise'i bekler, hata durumunda sıfırlanır. Düzeltmeden SONRA ölçülen:
+**tek istek, indeks ~30 saniyede Dexie'ye yazıldı** ve panel gerçek değerleri
+hesapladı (ekran görüntüsü bu sayede alınabildi).
+
+### 6.4 İlk açılışta plan kalemleri hiç çözülmüyor (BULUNDU, DÜZELTİLMEDİ — #61'e bırakıldı)
+
+Yukarıdakiyle aynı oturumda bulundu. `plan-editor.tsx`, `initFoodIndex()`i
+BEKLEMEDEN (fire-and-forget) çağırıyor; store'un `resolveFoodMacros()`u ise
+yalnızca mount'ta BİR KEZ çalışıyor. Dexie BOŞKEN yapılan İLK açılışta indeks
+henüz yazılmadığı için hiçbir kalem çözülemiyor ve indeks sonradan geldiğinde
+YENİDEN DENENMİYOR — kalemler "Bilinmeyen besin" olarak kalıyor. İkinci ve
+sonraki tüm açılışlarda (indeks artık yerelde) doğru çalışıyor.
+
+BİLEREK düzeltilmedi: düzeltme plan editörünün durum yönetimine dokunuyor ve
+o ekranın kendi issue'sunun (#61, plan editörü arayüz revizyonu) konusu.
+Ekran görüntüsü script'i bu yüzden indeks yerele yazıldıktan sonra sayfayı
+BİR KEZ yeniliyor — yani kullanıcının ikinci ve sonraki tüm açılışlarında
+gördüğü NORMAL durumu yakalıyor.
+
 ## Özet
 
 | Ölçüm | Durum |
@@ -235,3 +342,5 @@ istemci-tetiklemeli akışlar) DEĞİŞMEDİ/ETKİLENMEDİ.
 | E2E — smoke + authorization (3 test) | ✅ Canlı çalıştırıldı, GEÇTİ — cross-tenant izolasyon GERÇEKTEN doğrulandı |
 | E2E — critical-flow / offline-sync | ⚠️ Kısmen — login→plan editörü açılışına kadar canlı doğrulandı (2 gerçek prod hatası bulup düzeltti), besin indeksi yükleme adımında bu sandbox'ın Chromium performans kısıtına takıldı |
 | Demo seed (`db:seed:demo`) | ✅ Canlı çalıştırıldı — 25 danışan, 10 plan, 53 randevu, gerçek DB satırları |
+| Lighthouse — landing `/` (issue #60, bkz. 4.1) | ⚠️ Erişilebilirlik/SEO/İyi Uygulamalar 100 (iki profilde de) · performans masaüstünde 99 ✅, mobilde 71 ❌ (neden ölçüldü: paylaşılan Sentry chunk'ı) |
+| Ürün ekran görüntüsü (`public/marketing/plan-editor.png`, issue #60) | ✅ GERÇEK — demo seed verisiyle, gerçek plan editöründen, gerçek BLS/USDA değerleri hesaplanmış hâlde alındı (uydurma görsel YOK) |

@@ -101,9 +101,43 @@ async function setStoredVersion(version: string) {
   await dexieDb.meta.put({ key: 'version', value: version })
 }
 
+// GitHub issue #60 — EŞ ZAMANLI YÜKLEME KİLİDİ (bu issue'nun konusu DEĞİL,
+// landing sayfasının ürün görseli için plan editörünün ekran görüntüsü
+// alınırken BULUNAN GERÇEK HATA).
+//
+// SEMPTOM: plan editörü açıldığında her öğün bloğunun kendi
+// FoodSearchInput'u mount olurken `initFoodIndex()` çağırıyor. 6 standart
+// öğünlü bir planda bu 6 EŞ ZAMANLI çağrı demek ve `ensureIndexLoaded`ın
+// hiçbir tekilleştirmesi (in-flight guard) yoktu: tarayıcı `/api/foods/
+// index`i 6 KEZ indiriyor (bu ortamda tek başına ~14 MB ham / ~3 MB gzip,
+// bkz. docs/performance.md bölüm 5) ve ardından 6 ayrı `readwrite`
+// Dexie transaction'ı AYNI tabloda `foods.clear()` + 15.402 satırlık
+// `bulkPut` yapmaya çalışıyor. Transaction'lar sıraya giriyor, her biri
+// bir öncekinin yazdığını SİLİP baştan yazıyor — ölçüldü: 10 dakika sonra
+// bile indeks OTURMADI, plan kalemleri "Bilinmeyen besin" olarak kaldı ve
+// canlı besin öğesi paneli hiçbir şey hesaplayamadı.
+//
+// DÜZELTME: aynı dosyadaki `oramaIndexPromise` deseninin AYNISI — yükleme
+// bir kez başlar, eş zamanlı çağıranlar AYNI promise'i bekler. Hata
+// durumunda promise sıfırlanır (yeniden denenebilir olsun diye). Davranış
+// farkı: aynı sayfa oturumunda ikinci bir mount artık 304 sürüm kontrolü
+// YAPMAZ — tek bir sayfa görüntülemesi içinde katalog değişmeyeceği için
+// bu bilinçli ve istenen sonuç.
+let indexLoadPromise: Promise<void> | null = null
+
+async function ensureIndexLoaded(): Promise<void> {
+  if (!indexLoadPromise) {
+    indexLoadPromise = downloadAndStoreIndex().catch((error: unknown) => {
+      indexLoadPromise = null
+      throw error
+    })
+  }
+  return indexLoadPromise
+}
+
 // İlk açılışta (veya sunucudaki katalog değiştiğinde) tüm indeksi indirip
 // Dexie'ye yazar. Sürüm değişmediyse ağa hiç çıkmaz — sunucu 304 döner.
-async function ensureIndexLoaded(): Promise<void> {
+async function downloadAndStoreIndex(): Promise<void> {
   const storedVersion = await getStoredVersion()
   const url = storedVersion
     ? `/api/foods/index?v=${encodeURIComponent(storedVersion)}`

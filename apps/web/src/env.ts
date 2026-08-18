@@ -86,6 +86,19 @@ const optionalSchema = z.object({
   SENTRY_AUTH_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
   APP_ENV: z.enum(['local', 'staging', 'production']).optional(),
+  // GitHub issue #60 / Faz 10, Prompt 10.2 — landing sayfası.
+  // Sitenin herkese açık kök adresi; canonical, sitemap.xml ve OpenGraph
+  // görselinin mutlak URL'leri buradan türetilir (bkz. lib/site-url.ts).
+  // HER ORTAMDA OPSİYONEL: eksikse uygulama BAŞLAR, sadece bu URL'ler
+  // localhost'u gösterir — bir pazarlama metadata'sı eksikliği bir kliniğin
+  // uygulamayı açmasını engellememeli. Üretimde doldurulması docs/
+  // deployment.md'de GÜÇLÜ ÖNERİ olarak işaretli (SENTRY_DSN ile aynı
+  // muamele, bkz. dosya başındaki not).
+  NEXT_PUBLIC_SITE_URL: z.string().optional(),
+  // Pilot iletişim formunun (landing → "Pilot için başvur") talebi
+  // gönderdiği ve sayfada gösterilen e-posta adresi. Boşken form AÇIK bir
+  // hata döndürür, talebi SESSİZCE KAYBETMEZ (bkz. app/_landing/actions.ts).
+  NEXT_PUBLIC_PILOT_CONTACT_EMAIL: z.string().optional(),
 })
 
 const envShape = alwaysRequiredSchema.merge(optionalSchema)
