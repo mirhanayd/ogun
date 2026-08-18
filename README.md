@@ -91,6 +91,22 @@ için `apps/desktop/src-tauri/src/deep_link.rs`, `secure_storage.rs` ve
 manuel test adımları için `docs/desktop-native-auth-manual-testing.md`'ye
 bakın.
 
+### Native entegrasyonlar (menü, tray, bildirimler, dosya diyalogları) — GitHub issue #53
+
+Native menü çubuğu (Dosya/Düzen/Görünüm/Yardım, macOS'ta ayrıca bir "Öğün"
+uygulama menüsü), görev çubuğu (tray) simgesi (sağ tık: bugünün randevuları
+özeti, yeni danışan, uygulamayı aç, çıkış — pencere kapatma X'i varsayılan
+olarak tray'e küçültür, `/ayarlar`'daki "Masaüstü uygulaması" kartından
+kapatılabilir), OS native bildirimleri (bkz. `apps/web/src/components/
+native-notification-bridge.tsx` — apps/web panel özetini periyodik okuyup
+Rust'a "göster" der, karar mantığı apps/web'de kalır) ve native dosya
+diyalogları (PDF "Farklı Kaydet", belge yükleme için native seçici +
+pencere geneli sürükle-bırak) eklendi. Ayrıntılı mimari kararlar (menü API
+kaynağı, bildirim köprüleme yönü, tray tercihi depolama yeri, deep-link tipi
+genişletmesi) için `apps/desktop/src-tauri/src/menu.rs`, `tray.rs`,
+`notifications.rs`, `settings.rs` ve `deep_link.rs` dosya başı notlarına
+bakın.
+
 ### Doğrulama durumu (dürüstlük notu)
 
 Bu sandbox'ta MSVC bağlayıcısı (link.exe) VE Windows SDK import
@@ -104,5 +120,19 @@ dikkatli yazıldı. Gerçek bir pencere açılıp GÖRSEL olarak test edilmesi
 de mümkün değildi (headless ortam). Issue #52'nin deep-link/stronghold
 eklentileri de AYNI şekilde (`cargo add`/`cargo fetch` gerçek ağ erişimiyle
 ÇALIŞTI, sürümler doğrulandı — ama `cargo check` yine link.exe'de
-başarısız oldu) sadece kaynak kodu okunarak doğrulandı. Ayrıntılar için
+başarısız oldu) sadece kaynak kodu okunarak doğrulandı. Issue #53'ün YENİ
+bağımlılıkları (tauri-plugin-notification 2.3.3, tauri-plugin-dialog 2.7.2,
+tauri-plugin-fs 2.5.1) da AYNI şekilde `cargo add` ile gerçek ağ erişimiyle
+çözüldü/doğrulandı, `cargo check` ise AYNI linker hatasıyla (bu sefer daha
+erken, `proc-macro2`/`serde` build script'lerinde) başarısız oldu — Rust
+API'leri (Menu/MenuBuilder/TrayIconBuilder/NotificationBuilder/vb.) docs.rs
+üzerinden tek tek doğrulanarak, ama derleyiciyle DOĞRULANMADAN yazıldı. Bu
+YENİ Rust modüllerindeki (`menu.rs`, `tray.rs`, `notifications.rs`,
+`menu_actions.rs`, `settings.rs`, `window_ops.rs`, `deep_link.rs`'e eklenen
+kısımlar) SAF mantık (id ayrıştırma, URL inşası, ayar (de)serileştirme, zoom
+sınırlama) `cargo test`'le DEĞİL ama `#[cfg(test)]` birim testleriyle
+kaynak seviyesinde doğrulanmıştır — gerçek çalıştırma bu sandbox'ta mümkün
+olmadı. JS/TS tarafı (apps/web) TAM olarak doğrulandı: `pnpm typecheck`,
+`pnpm --filter web lint`, `pnpm --filter web test` (yeni testler dahil) ve
+`pnpm --filter web build` (turbopack'siz) hepsi geçti. Ayrıntılar için
 ilgili PR açıklamalarına bakın.

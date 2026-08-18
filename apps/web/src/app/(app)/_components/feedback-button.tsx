@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { usePathname } from 'next/navigation'
+import { listen } from '@tauri-apps/api/event'
 import { Camera, MessageSquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
+import { isNativeShell } from '@/lib/native-shell'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -70,6 +72,17 @@ export function FeedbackButton() {
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null)
   const [capturingScreenshot, setCapturingScreenshot] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // GitHub issue #53 / Prompt 9.3, GÖREV 1 — native Yardım menüsündeki
+  // "Geri Bildirim Gönder" öğesi (bkz. menu_actions.rs) bu MEVCUT diyaloğu
+  // (issue #47) bir Tauri olayıyla açar — üstteki simgeye tıklamakla AYNI.
+  useEffect(() => {
+    if (!isNativeShell()) return
+    const unlistenPromise = listen('ogun-menu-open-feedback', () => setOpen(true))
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten())
+    }
+  }, [])
 
   async function handleCapture() {
     setCapturingScreenshot(true)

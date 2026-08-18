@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import type { PdfDensity } from '@ogun/db/schema'
 import type { PdfPlanData } from '@ogun/pdf'
+import { isNativeShell, saveFileNatively } from '@/lib/native-shell'
 import { getPlanPdfDataAction, generateAndSavePlanPdfAction } from './pdf-actions'
 
 // GitHub issue #35 / Prompt 6.1 — GÖREV: "önizleme/PDF butonu" — #25'in
@@ -108,10 +109,21 @@ export function PlanPdfDialog({
         return
       }
       // GÖREV: sunucu tarafı üretim + documents'a kayıt (#19'un depolama
-      // akışı) — indirme, o kaydedilen dosyanın presigned URL'i üzerinden
-      // (bkz. pdf-actions.ts generateAndSavePlanPdfAction), istemcideki
-      // önizleme blob'undan DEĞİL — böylece "indirilen dosya" ile "danışan
-      // dosyaları sekmesinde görünen dosya" HER ZAMAN birebir aynı olur.
+      // akışı) — bu HER ZAMAN yapılır (yukarıda), "indirilen dosya" ile
+      // "danışan dosyaları sekmesinde görünen dosya" HER ZAMAN aynı render.
+      //
+      // GitHub issue #53 / Prompt 9.3, GÖREV 4 — native kabukta tarayıcı
+      // indirme diyaloğu yerine native "Farklı Kaydet": `pdfBlob` ZATEN
+      // istemcide (önizleme için üretildi, bkz. PdfPreviewBody onBlobReady)
+      // — presigned URL'i AYRICA fetch etmeye (yeni bir CORS yüzeyi açmaya)
+      // gerek YOK, doğrudan onu diske yazıyoruz (bkz. native-shell.ts
+      // saveFileNatively). Native kaydetme BAŞARISIZ olursa (ör. kullanıcı
+      // diyaloğu iptal etti) yine de tarayıcı indirme yoluna DÜŞÜYORUZ.
+      if (isNativeShell() && pdfBlob) {
+        const suggestedName = `${pdfData?.planName?.trim() || 'diyet-plani'}.pdf`
+        const savedNatively = await saveFileNatively(pdfBlob, suggestedName, [{ name: 'PDF', extensions: ['pdf'] }])
+        if (savedNatively) return
+      }
       window.open(result.data.downloadUrl, '_blank', 'noopener,noreferrer')
     } finally {
       setSaving(false)

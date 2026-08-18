@@ -125,3 +125,46 @@ export async function clearNativeSessionToken(): Promise<void> {
     console.warn('[native-shell] oturum token\'ı güvenli depolamadan silinemedi', err)
   }
 }
+
+// ---------------------------------------------------------------------------
+// GitHub issue #53 / Prompt 9.3, GÖREV 4 — "PDF indirme: tarayıcı indirme
+// diyaloğu yerine native Farklı Kaydet." `@tauri-apps/plugin-dialog` /
+// `@tauri-apps/plugin-fs` BURADA (yukarıdaki `invoke`'un aksine) DİNAMİK
+// import edilir — bu dosya HEM native kabukta HEM düz tarayıcıda geniş
+// çapta (birçok bileşen tarafından) import ediliyor; bu iki eklenti
+// paketini tarayıcı kullanıcıları için başlangıç paketine (bundle)
+// SOKMAMAK için `import()` ile kod bölme (code splitting) kullanılıyor —
+// `@tauri-apps/api/core`'un aksine (o zaten @tauri-apps/api'nin KENDİSİ,
+// her durumda gerekli), bu ikisi SADECE native kabukta gerçekten
+// ÇAĞRILIYOR.
+// ---------------------------------------------------------------------------
+
+/**
+ * Verilen byte'ları native "Farklı Kaydet" diyaloğuyla kullanıcının seçtiği
+ * bir dosya yoluna yazar. `true` DÖNERSE dosya BAŞARIYLA kaydedildi —
+ * çağıran taraf tarayıcı indirme yoluna (window.open/vb.) DÜŞMEMELİ.
+ * `false` DÖNERSE (native kabuk DEĞİL, kullanıcı diyaloğu İPTAL etti, ya da
+ * bir HATA oluştu) çağıran taraf KENDİ tarayıcı indirme yoluna düşmeli —
+ * bu fonksiyon o yedek (fallback) davranışı KENDİSİ tetiklemez.
+ */
+export async function saveFileNatively(
+  blob: Blob,
+  suggestedFileName: string,
+  filters: { name: string; extensions: string[] }[] = [],
+): Promise<boolean> {
+  if (!isNativeShell()) return false
+  try {
+    const [{ save }, { writeFile }] = await Promise.all([
+      import('@tauri-apps/plugin-dialog'),
+      import('@tauri-apps/plugin-fs'),
+    ])
+    const targetPath = await save({ defaultPath: suggestedFileName, filters })
+    if (!targetPath) return false // kullanıcı diyaloğu İPTAL etti
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    await writeFile(targetPath, bytes)
+    return true
+  } catch (err) {
+    console.warn('[native-shell] dosya native olarak kaydedilemedi', err)
+    return false
+  }
+}

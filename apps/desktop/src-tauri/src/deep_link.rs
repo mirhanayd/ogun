@@ -45,6 +45,35 @@
 //! (`try_process`) AYRI AYRI kontrol edilir: OAuth → `FrontendReady`
 //! (yeni `notify_frontend_ready` komutuyla JS'ten sinyallenir, bkz. lib.rs),
 //! ResetPassword → `AppOrigin` (bkz. sidecar.rs'teki drenaj çağrısı).
+//!
+//! GitHub issue #53 / Prompt 9.3 — ÜÇÜNCÜ bir kullanım senaryosu eklendi:
+//! `AppDeepLink` (genel uygulama-içi navigasyon, ör. bildirim tıklaması ya
+//! da native menü/tray "Yeni Danışan" gibi eylemler). TASARIM KARARI (bkz.
+//! PR açıklaması): bunu `AuthDeepLink`'e üçüncü bir varyant olarak EKLEMEDİK
+//! — o tip bilinçli olarak SADECE auth (OAuth/şifre sıfırlama) taşımak
+//! üzere tasarlandı (bkz. yukarıdaki dosya başı yorumları, ismi bile
+//! "Auth" önekiyle başlıyor) ve `try_process`'teki koşulları (FrontendReady
+//! vs AppOrigin) birbirinden TAMAMEN farklı. Bunun yerine KARDEŞ bir tip
+//! (`AppDeepLink`) tanımlayıp ikisini ORTAK bir `DeepLink` üst-tipinde
+//! (enum) birleştirdik — `PendingDeepLink` kuyruğu ARTIK `DeepLink` taşıyor,
+//! yani "soğuk başlangıç kuyruğu + koşul sağlanınca drenaj" deseni ÜÇÜNCÜ
+//! senaryo için de AYNEN yeniden kullanılıyor (mimari kural: yeni bir
+//! üçüncü mekanizma İCAT ETMEDİK). `AppDeepLink::Navigate`'in koşulu
+//! `ResetPassword`'le AYNI (`AppOrigin` biliniyor mu) — ikisi de doğrudan
+//! `window.navigate()` ile SONUÇLANIYOR.
+//!
+//! `AppDeepLink`, HEM gerçek bir `ogun://app/navigate?path=...` URL'i OS
+//! tarafından teslim edildiğinde (ör. gelecekte bir e-posta linki) HEM DE
+//! Rust'ın KENDİSİ bir navigasyon istediğinde (native menü/tray tıklaması,
+//! bkz. `request_navigation` — menu_actions.rs'in TEK çağırdığı fonksiyon)
+//! AYNI yoldan (`dispatch`/`try_process`) geçer — böylece "pencere henüz
+//! sidecar'a yönlendirilmeden ÖNCE bir menü tıklaması gelirse ne olur"
+//! sorusunun cevabı otomatik olarak DOĞRU: kuyruğa girer, origin bilinir
+//! bilinmez drenaj edilir (bkz. sidecar.rs). NOT: bildirim TIKLAMASI bu
+//! mekanizmayı KULLANMAZ — bkz. notifications.rs dosya başı notu: tauri-
+//! plugin-notification'ın JS `onAction` API'si tıklamayı DOĞRUDAN frontend'e
+//! teslim ediyor, Rust'ın bir URL inşa/ayrıştırma round-trip'ine hiç gerek
+//! yok (pencere zaten çalışıyor, React zaten mount).
 
 use serde::Serialize;
 use std::sync::Mutex;
@@ -52,7 +81,8 @@ use tauri::{AppHandle, Emitter, Manager, Url};
 
 use crate::navigation::AppOrigin;
 
-/// `ogun://` deep link'lerinin taşıyabileceği İKİ anlamlı biçim.
+/// `ogun://` deep link'lerinin taşıyabileceği İKİ anlamlı AUTH biçimi (bkz.
+/// dosya başı notu — genel navigasyon için bkz. `AppDeepLink`, aşağıda).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthDeepLink {
     /// `ogun://auth/callback?ott=<one-time-token>` (Ok) YA DA
@@ -96,6 +126,56 @@ pub fn parse_auth_deep_link(url: &Url) -> Option<AuthDeepLink> {
     }
 }
 
+/// GitHub issue #53 / Prompt 9.3 — genel uygulama-içi navigasyon (bkz. dosya
+/// başı notu). Şu an TEK varyantı var (`Navigate`) ama gelecekte (ör.
+/// "belirli bir randevuyu aç") büyüyebileceği için `AuthDeepLink`'le AYNI
+/// enum deseni kullanıldı.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppDeepLink {
+    /// `path` apps/web'in KENDİ (değişmemiş) route'larından biri olmalı
+    /// (ör. "/danisanlar/yeni", "/randevular") — bu modül bunun GEÇERLİ bir
+    /// route olduğunu DOĞRULAMAZ, sorumluluk çağıran tarafta (menu_actions.rs
+    /// sabit, elle yazılmış path'ler kullanıyor; gerçek bir `ogun://`
+    /// URL'inden gelirse de aynı şekilde apps/web'in kendi 404 sayfası
+    /// devreye girer — savunmacı bir davranış, PANİK YOK).
+    Navigate { path: String },
+}
+
+/// `ogun://app/navigate?path=<url-kodlu-yol>` biçimini çözer — bkz.
+/// `AppDeepLink` doc-comment'i.
+pub fn parse_app_deep_link(url: &Url) -> Option<AppDeepLink> {
+    if url.scheme() != "ogun" || url.host_str() != Some("app") {
+        return None;
+    }
+    match url.path() {
+        "/navigate" => url
+            .query_pairs()
+            .find(|(key, _)| key.as_ref() == "path")
+            .map(|(_, value)| AppDeepLink::Navigate {
+                path: value.into_owned(),
+            }),
+        _ => None,
+    }
+}
+
+/// İki alt-tipi (`AuthDeepLink`, `AppDeepLink`) TEK bir `PendingDeepLink`
+/// kuyruğunda taşıyabilmek için ortak üst-tip — bkz. dosya başı "GitHub
+/// issue #53" notu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeepLink {
+    Auth(AuthDeepLink),
+    App(AppDeepLink),
+}
+
+/// Gelen bir `ogun://` URL'ini TANIDIĞIMIZ biçimlerden HERHANGİ birine
+/// (auth YA DA genel navigasyon) çözer — `handle_urls`'in TEK çağırdığı
+/// giriş noktası.
+pub fn parse_deep_link(url: &Url) -> Option<DeepLink> {
+    parse_auth_deep_link(url)
+        .map(DeepLink::Auth)
+        .or_else(|| parse_app_deep_link(url).map(DeepLink::App))
+}
+
 /// JS tarafına (bkz. native-auth-bridge.tsx `listen('ogun-oauth-callback', ...)`)
 /// yayınlanan olayın payload biçimi — hem başarı hem hata durumunu taşır
 /// (bkz. dosya başı notu (1)). `status` alanı JS tarafında ayırt edici
@@ -123,14 +203,14 @@ impl From<Result<String, String>> for OAuthCallbackPayload {
 /// aynı anda hem bir OAuth dönüşü HEM bir sıfırlama linkini tetiklemez;
 /// tıklarsa SONUNCUSU kazanır (makul bir basitleştirme, bkz. PR açıklaması).
 #[derive(Default)]
-pub struct PendingDeepLink(Mutex<Option<AuthDeepLink>>);
+pub struct PendingDeepLink(Mutex<Option<DeepLink>>);
 
 impl PendingDeepLink {
-    fn set(&self, link: AuthDeepLink) {
+    fn set(&self, link: DeepLink) {
         *self.0.lock().expect("PendingDeepLink mutex zehirlendi") = Some(link);
     }
 
-    fn take(&self) -> Option<AuthDeepLink> {
+    fn take(&self) -> Option<DeepLink> {
         self.0.lock().expect("PendingDeepLink mutex zehirlendi").take()
     }
 }
@@ -160,7 +240,7 @@ impl FrontendReady {
 /// bir deep link için AYNI mantık.
 pub fn handle_urls(app: &AppHandle, urls: Vec<Url>) {
     for url in urls {
-        match parse_auth_deep_link(&url) {
+        match parse_deep_link(&url) {
             Some(link) => dispatch(app, link),
             None => {
                 eprintln!("[ogun-desktop] tanınmayan/eksik parametreli ogun:// deep link yok sayıldı: {url}");
@@ -171,10 +251,23 @@ pub fn handle_urls(app: &AppHandle, urls: Vec<Url>) {
 
 /// Deep link'i HEMEN işleyebiliyorsak işler; işleyemiyorsak (bkz. dosya
 /// başı "SOĞUK BAŞLANGIÇ" notu) `PendingDeepLink`'e koyar.
-fn dispatch(app: &AppHandle, link: AuthDeepLink) {
+fn dispatch(app: &AppHandle, link: DeepLink) {
     if !try_process(app, &link) {
         app.state::<PendingDeepLink>().set(link);
     }
+}
+
+/// GitHub issue #53 / Prompt 9.3 — native menü/tray tıklamalarının (bkz.
+/// menu_actions.rs, TEK çağırdığı fonksiyon budur) apps/web'in bir
+/// route'una navigasyon İSTEMESİ için TEK giriş noktası. Gerçek bir
+/// `ogun://app/navigate?...` URL'i OS'tan gelseydi İZLEYECEĞİ TAM OLARAK
+/// AYNI yoldan (`dispatch` → soğuk başlangıçta `PendingDeepLink`, origin
+/// bilinir bilinmez drenaj) geçer — Rust'ın kendi tetiklediği bir eylem
+/// için sahte bir URL string'i inşa edip TEKRAR ayrıştırmak yerine
+/// doğrudan `AppDeepLink` değerini kuruyoruz (gereksiz round-trip'ten
+/// kaçınmak için tek fark budur, DAVRANIŞ AYNI).
+pub fn request_navigation(app: &AppHandle, path: impl Into<String>) {
+    dispatch(app, DeepLink::App(AppDeepLink::Navigate { path: path.into() }));
 }
 
 /// GitHub PR #56 kod incelemesi — hem `notify_frontend_ready` komutundan
@@ -184,19 +277,23 @@ fn dispatch(app: &AppHandle, link: AuthDeepLink) {
 /// gerçekleşirse gerçekleşsin (frontend önce hazır olabilir ya da origin
 /// önce bilinebilir) doğru şekilde drenaj yapılır.
 ///
-/// `true` DÖNERSE: bekleyen bir ŞİFRE SIFIRLAMA deep link'i vardı VE
-/// pencere onun sayfasına yönlendirildi — sidecar.rs bu durumda pencereyi
-/// AYRICA kök sayfaya yönlendirMEMELİ (aksi halde iki navigasyon YARIŞA
-/// girer, bkz. sidecar.rs'teki çağrı noktası). OAuth geri dönüşü bu
-/// dönüş değerini hiç ETKİLEMEZ (kök navigasyon kararıyla İLGİSİZ — o
-/// ayrı bir Tauri olayı üzerinden işlenir).
+/// `true` DÖNERSE: bekleyen deep link pencereyi DOĞRUDAN bir sayfaya
+/// yönlendiren türdendi (ŞİFRE SIFIRLAMA YA DA GitHub issue #53'ün genel
+/// `AppDeepLink::Navigate`'i) VE bu navigasyon ZATEN yapıldı — sidecar.rs
+/// bu durumda pencereyi AYRICA kök sayfaya yönlendirMEMELİ (aksi halde iki
+/// navigasyon YARIŞA girer, bkz. sidecar.rs'teki çağrı noktası). OAuth geri
+/// dönüşü bu dönüş değerini hiç ETKİLEMEZ (kök navigasyon kararıyla
+/// İLGİSİZ — o ayrı bir Tauri olayı üzerinden işlenir).
 pub fn process_pending(app: &AppHandle) -> bool {
     let Some(link) = app.state::<PendingDeepLink>().take() else {
         return false;
     };
-    let is_reset_password = matches!(link, AuthDeepLink::ResetPassword { .. });
+    let is_direct_navigation = matches!(
+        link,
+        DeepLink::Auth(AuthDeepLink::ResetPassword { .. }) | DeepLink::App(AppDeepLink::Navigate { .. })
+    );
     if try_process(app, &link) {
-        is_reset_password
+        is_direct_navigation
     } else {
         // Bu tetikleyici için henüz koşul sağlanmadı (ör. origin hazır
         // oldu ama bekleyen aslında bir OAuth geri dönüşüydü ve frontend
@@ -209,9 +306,9 @@ pub fn process_pending(app: &AppHandle) -> bool {
 /// `true` dönerse deep link İŞLENDİ (bir daha denemeye gerek yok); `false`
 /// dönerse şu an gerekli koşul (frontend hazır / origin biliniyor) HENÜZ
 /// sağlanmıyor — çağıran taraf bunu `PendingDeepLink`'e koymalı.
-fn try_process(app: &AppHandle, link: &AuthDeepLink) -> bool {
+fn try_process(app: &AppHandle, link: &DeepLink) -> bool {
     match link {
-        AuthDeepLink::OAuthCallback(result) => {
+        DeepLink::Auth(AuthDeepLink::OAuthCallback(result)) => {
             if !app.state::<FrontendReady>().is_ready() {
                 return false;
             }
@@ -221,9 +318,19 @@ fn try_process(app: &AppHandle, link: &AuthDeepLink) -> bool {
             }
             true
         }
-        AuthDeepLink::ResetPassword { token } => match app.state::<AppOrigin>().current() {
+        DeepLink::Auth(AuthDeepLink::ResetPassword { token }) => match app.state::<AppOrigin>().current() {
             Some(origin) => {
                 navigate_to_reset_password(app, &origin, token);
+                true
+            }
+            None => false,
+        },
+        // GitHub issue #53 / Prompt 9.3 — koşulu ResetPassword'le AYNI
+        // (bkz. dosya başı notu): AppOrigin bilinmeden gerçek bir pencere
+        // navigasyonu yapılamaz.
+        DeepLink::App(AppDeepLink::Navigate { path }) => match app.state::<AppOrigin>().current() {
+            Some(origin) => {
+                navigate_to_app_path(app, &origin, path);
                 true
             }
             None => false,
@@ -255,6 +362,35 @@ pub fn navigate_to_reset_password(app: &AppHandle, origin: &str, token: &str) {
         Ok(url) => {
             if let Err(err) = window.navigate(url) {
                 eprintln!("[ogun-desktop] şifre sıfırlama sayfasına yönlendirilemedi: {err}");
+            }
+        }
+        Err(err) => eprintln!("[ogun-desktop] sidecar origin'i geçersiz URL: {err}"),
+    }
+}
+
+/// GitHub issue #53 / Prompt 9.3 — `build_reset_password_url` ile AYNI
+/// desen, ama sorgu parametresi YERİNE `path` DOĞRUDAN URL'in yol+sorgu
+/// kısmı olarak kullanılıyor (`Url::join`, göreli/mutlak çözümleme
+/// kurallarını doğru uygular — `path` "/randevular" gibi mutlak bir yol
+/// OLMALI, `menu_actions.rs`'teki sabit path'lerin HEPSİ böyle).
+fn build_app_navigate_url(origin: &str, path: &str) -> Result<Url, url::ParseError> {
+    let base = Url::parse(origin)?;
+    base.join(path)
+}
+
+/// sidecar.rs'in (origin hazır olduğunda) de dolaylı olarak (process_pending
+/// üzerinden) tetikleyebileceği, genel uygulama-içi navigasyon için gerçek
+/// pencere navigasyonunu yapan fonksiyon — `navigate_to_reset_password`
+/// ile AYNI yapı.
+pub fn navigate_to_app_path(app: &AppHandle, origin: &str, path: &str) {
+    let Some(window) = app.get_webview_window("main") else {
+        eprintln!("[ogun-desktop] ana pencere bulunamadı, uygulama-içi navigasyon işlenemedi");
+        return;
+    };
+    match build_app_navigate_url(origin, path) {
+        Ok(url) => {
+            if let Err(err) = window.navigate(url) {
+                eprintln!("[ogun-desktop] '{path}' sayfasına yönlendirilemedi: {err}");
             }
         }
         Err(err) => eprintln!("[ogun-desktop] sidecar origin'i geçersiz URL: {err}"),
@@ -376,14 +512,14 @@ mod tests {
         let pending = PendingDeepLink::default();
         assert!(pending.take().is_none());
 
-        pending.set(AuthDeepLink::ResetPassword {
+        pending.set(DeepLink::Auth(AuthDeepLink::ResetPassword {
             token: "abc123".to_string(),
-        });
+        }));
         assert_eq!(
             pending.take(),
-            Some(AuthDeepLink::ResetPassword {
+            Some(DeepLink::Auth(AuthDeepLink::ResetPassword {
                 token: "abc123".to_string()
-            })
+            }))
         );
         // İkinci take() BOŞ dönmeli — "al ve temizle" semantiği.
         assert!(pending.take().is_none());
@@ -392,16 +528,86 @@ mod tests {
     #[test]
     fn pending_deep_link_last_write_wins() {
         let pending = PendingDeepLink::default();
-        pending.set(AuthDeepLink::OAuthCallback(Ok("first".to_string())));
-        pending.set(AuthDeepLink::ResetPassword {
+        pending.set(DeepLink::Auth(AuthDeepLink::OAuthCallback(Ok("first".to_string()))));
+        pending.set(DeepLink::Auth(AuthDeepLink::ResetPassword {
             token: "second".to_string(),
-        });
+        }));
         assert_eq!(
             pending.take(),
-            Some(AuthDeepLink::ResetPassword {
+            Some(DeepLink::Auth(AuthDeepLink::ResetPassword {
                 token: "second".to_string()
+            }))
+        );
+    }
+
+    // --- GitHub issue #53 / Prompt 9.3 — AppDeepLink / DeepLink testleri ---
+
+    #[test]
+    fn parses_app_navigate() {
+        let parsed = parse_app_deep_link(&url("ogun://app/navigate?path=%2Frandevular"));
+        assert_eq!(
+            parsed,
+            Some(AppDeepLink::Navigate {
+                path: "/randevular".to_string()
             })
         );
+    }
+
+    #[test]
+    fn app_deep_link_ignores_wrong_host() {
+        assert_eq!(parse_app_deep_link(&url("ogun://auth/navigate?path=/x")), None);
+    }
+
+    #[test]
+    fn app_deep_link_ignores_unknown_path() {
+        assert_eq!(parse_app_deep_link(&url("ogun://app/unknown?path=/x")), None);
+    }
+
+    #[test]
+    fn app_deep_link_ignores_missing_path_param() {
+        assert_eq!(parse_app_deep_link(&url("ogun://app/navigate?foo=bar")), None);
+    }
+
+    #[test]
+    fn parse_deep_link_resolves_auth_variant() {
+        let parsed = parse_deep_link(&url("ogun://auth/callback?ott=abc123"));
+        assert_eq!(
+            parsed,
+            Some(DeepLink::Auth(AuthDeepLink::OAuthCallback(Ok("abc123".to_string()))))
+        );
+    }
+
+    #[test]
+    fn parse_deep_link_resolves_app_variant() {
+        let parsed = parse_deep_link(&url("ogun://app/navigate?path=%2Fdanisanlar%2Fyeni"));
+        assert_eq!(
+            parsed,
+            Some(DeepLink::App(AppDeepLink::Navigate {
+                path: "/danisanlar/yeni".to_string()
+            }))
+        );
+    }
+
+    #[test]
+    fn parse_deep_link_ignores_unrecognized_url() {
+        assert_eq!(parse_deep_link(&url("ogun://unknown-host/x")), None);
+    }
+
+    #[test]
+    fn build_app_navigate_url_resolves_absolute_path() {
+        let built = build_app_navigate_url("http://127.0.0.1:3000", "/danisanlar/yeni").unwrap();
+        assert_eq!(built.as_str(), "http://127.0.0.1:3000/danisanlar/yeni");
+    }
+
+    #[test]
+    fn build_app_navigate_url_preserves_query_string() {
+        let built = build_app_navigate_url("http://127.0.0.1:3000", "/randevular?tarih=2026-08-18").unwrap();
+        assert_eq!(built.as_str(), "http://127.0.0.1:3000/randevular?tarih=2026-08-18");
+    }
+
+    #[test]
+    fn build_app_navigate_url_rejects_invalid_origin() {
+        assert!(build_app_navigate_url("not-a-valid-origin", "/x").is_err());
     }
 
     #[test]

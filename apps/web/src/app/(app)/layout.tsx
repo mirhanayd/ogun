@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
 import { hasCompletedProductTour } from '@ogun/db/queries'
+import { NativeNotificationBridge } from '@/components/native-notification-bridge'
 import { NoActiveClinicError, UnauthenticatedError, requireClinic } from '@/lib/authz'
 import { BottomNav } from './_components/bottom-nav'
 import { ProductTour } from './_components/product-tour'
@@ -48,6 +49,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <BottomNav role={ctx.role} />
       <ScreenTimeTracker />
       {showProductTour && <ProductTour />}
+      {/* GitHub issue #53 / Prompt 9.3, GÖREV 3 — kimlik doğrulaması VE aktif
+          klinik ZATEN garanti (bkz. yukarıdaki getAppShellContext) burada
+          monte ediliyor; kök layout.tsx'e KOYMADIK çünkü /giris, /p/[token]
+          gibi genel sayfalarda klinik bağlamı yok, bildirim özeti anlamsız
+          olurdu. Web tarayıcısında (isNativeShell() false) bu bileşen NO-OP. */}
+      <NativeNotificationBridge />
     </div>
   )
 }

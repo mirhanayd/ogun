@@ -59,10 +59,32 @@ tauri-plugin-stronghold = "2"
 # Builder::callback varsayılanı). macOS bunu işletim sistemi düzeyinde zaten
 # native olarak hallettiğinden bu eklenti orada devreye GİRMEZ.
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# GitHub issue #53 / Prompt 9.3, GÖREV 3 — native OS bildirimleri (bkz.
+# notifications.rs). Sürüm 2.3.3 olarak çözüldü (bkz. Cargo.lock) — bu
+# sandbox'ta gerçek network erişimiyle `cargo add` ÇALIŞTI, TAHMİN değil.
+tauri-plugin-notification = "2"
+# GÖREV 4 — native "Farklı Kaydet" (PDF indirme) ve native dosya seçici
+# (belge yükleme) diyalogları (bkz. file_ops.rs). Sürüm 2.7.2 çözüldü.
+tauri-plugin-dialog = "2"
+# GÖREV 4 — dialog'un seçtiği/kaydettiği yoldan GERÇEK byte okuma/yazma
+# (JS tarafında @tauri-apps/plugin-fs `readFile`/`writeFile`) için — dialog
+# eklentisi SADECE yol seçtirir, dosya I/O'sunu YAPMAZ. Sürüm 2.5.1 çözüldü
+# (tauri-plugin-dialog'un kendisi de buna bağımlı, bkz. yukarıdaki `cargo
+# add` çıktısı — burada AYRICA açıkça bağımlılık olarak listeliyoruz çünkü
+# JS tarafı doğrudan bu paketin API'sini çağırıyor, sadece dialog'un
+# transitive bağımlılığına GÜVENMİYORUZ).
+tauri-plugin-fs = "2"
 
 [dependencies.tauri]
 version = "2"
-features = []
+# GÖREV 2 — görev çubuğu/menü çubuğu simgesi (tray). `TrayIconBuilder`,
+# `tauri` çekirdek crate'inde YAŞAR (ayrı bir eklenti paketi YOK) ama
+# `tray-icon` bir Cargo feature'ı ARKASINDA (varsayılan KAPALI) — bkz.
+# PR açıklaması: bu sandbox'ta `cargo add tauri@2 --dry-run` çıktısı
+# feature listesini DOĞRULADI ("- tray-icon" opsiyonel özellikler
+# arasında). Menü çubuğu (Menu/MenuBuilder/MenuItem) İSE herhangi bir
+# ek feature GEREKTİRMEZ, çekirdekte varsayılan olarak açık.
+features = ["tray-icon"]
 
 [lib]
 # `cargo check`/`cargo test` gibi araçların ve gelecekteki mobil hedeflerin
