@@ -10,6 +10,7 @@ coverage
 *.tsbuildinfo
 ogun-roadmap.md
 \.claude
+faz-9-masaustu-kabugu.md
 
 # GitHub issue #45 / Prompt 8.1 — Playwright E2E
 apps/e2e/playwright-report
