@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ThemeMenu } from '@/components/theme-menu'
 import { authClient } from '@/lib/auth-client'
 import { clearNativeSessionToken } from '@/lib/native-shell'
 
@@ -60,6 +61,10 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
           <Settings className="size-4" />
           Ayarlar
         </DropdownMenuItem>
+        {/* GitHub issue #59 / Faz 10, Prompt 10.1, GÖREV 2 — tema geçişi
+            (açık / koyu / sistem). Bugüne kadar temayı YALNIZCA native
+            Tauri menüsü değiştirebiliyordu (bkz. theme-menu.tsx). */}
+        <ThemeMenu />
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" disabled={isSigningOut} onSelect={handleSignOut}>
           <LogOut className="size-4" />

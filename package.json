@@ -14,6 +14,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "validate:palette": "node scripts/validate_palette.js",
     "tauri": "pnpm --filter desktop tauri"
   },
   "devDependencies": {

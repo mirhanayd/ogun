@@ -217,7 +217,10 @@ function EnergySummary({
       </svg>
       <div className="flex flex-col">
         <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-semibold">{totalKcal.toFixed(0)}</span>
+          {/* GitHub issue #59 / Faz 10, GÖREV 3 — toplam kcal her düzenlemede
+              canlı güncelleniyor; orantılı rakamlarda sayının genişliği
+              değiştikçe yanındaki "kcal" etiketi zıplıyordu. */}
+          <span className="text-2xl font-semibold tabular-nums">{totalKcal.toFixed(0)}</span>
           <span className="text-sm text-muted-foreground">kcal</span>
         </div>
         <span className="text-xs text-muted-foreground">
