@@ -18,6 +18,12 @@ const BASE_URL = process.env.LIGHTHOUSE_BASE_URL ?? 'http://localhost:3100'
 // Roadmap'in "ana akış sayfaları" dediği, kullanıcının GERÇEKTEN en çok
 // zaman geçirdiği sayfalar — tüm site değil, kritik akışın omurgası.
 const PAGES: Array<{ path: string; label: string }> = [
+  // GitHub issue #60 / Faz 10, Prompt 10.2, GÖREV 4 — "Lighthouse:
+  // erişilebilirlik ve SEO 100, performans 90+". Landing sayfası bu listeye
+  // BAŞA eklendi: oturum GEREKTİRMEYEN tek gerçek içerik sayfası olduğu için
+  // ölçülen skor, gerçek ziyaretçi deneyiminin TA KENDİSİ (aşağıdaki auth'lu
+  // rotaların aksine).
+  { path: '/', label: 'Landing (pazarlama sayfası)' },
   { path: '/giris', label: 'Giriş' },
   { path: '/panel', label: 'Panel (auth gerektirir — bkz. not)' },
   { path: '/danisanlar', label: 'Danışan listesi (auth gerektirir — bkz. not)' },
@@ -114,7 +120,16 @@ async function main() {
       }
     }
   } finally {
-    await chrome.kill()
+    // chrome-launcher, kapanışta kendi geçici profil dizinini siler; Windows'ta
+    // bu silme antivirüs/OneDrive dosya kilidi yüzünden EPERM ile
+    // patlayabiliyor. O hata `finally` içinden fırlarsa ASIL ölçüm hatasını
+    // (ya da başarılı sonucu) EZER — temizlik hatası ölçümü geçersiz
+    // kılmamalı, sadece uyarı olarak geçilmeli.
+    try {
+      await chrome.kill()
+    } catch (error) {
+      console.warn('[lighthouse] Chrome geçici profili temizlenemedi (ölçümü etkilemez):', error)
+    }
   }
 
   // process.cwd() varsayımı: script `pnpm --filter web lighthouse` (bkz.
