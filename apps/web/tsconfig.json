@@ -3,6 +3,22 @@
   "compilerOptions": {
     "allowJs": true,
     "incremental": true,
+    // GitHub issue #52 / Prompt 9.2 — @ogun/tsconfig/base.json "declaration:
+    // true" ayarını (packages/* KÜTÜPHANELERİ .d.ts üretsin diye konmuş)
+    // burada KAPATIYORUZ. apps/web bir Next.js UYGULAMASI — hiçbir zaman
+    // başka bir paket tarafından import EDİLMEZ, yani .d.ts üretimi/
+    // taşınabilirliği hiç gerekmez. Bunu AÇIK bırakmak, tsc'nin `--noEmit`
+    // ile bile "dışa aktarılan tipin taşınabilir biçimde yazılabilir olması"
+    // denetimini (TS2742) ZORUNLU kılıyor — bearer()/oneTimeToken()
+    // eklentilerini eklediğimizde (GitHub issue #52) bu denetim,
+    // @better-auth/core'un KENDİ (uygulamanın zod'undan BAĞIMSIZ, kasıtlı
+    // olarak izole) iç zod@4 bağımlılığına pnpm'in iç içe (nested) kurulum
+    // yoluna referans vermeye çalışıp BAŞARISIZ oluyor — bu GERÇEK bir tip
+    // hatası DEĞİL, sadece .d.ts üretmeyen bir uygulamada anlamsız bir
+    // taşınabilirlik kısıtı. Gerçek tip denetimi (business logic) bundan
+    // ETKİLENMEZ.
+    "declaration": false,
+    "declarationMap": false,
     "paths": {
       "@/*": ["./src/*"]
     }

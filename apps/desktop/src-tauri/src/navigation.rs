@@ -41,6 +41,16 @@ impl AppOrigin {
         *self.0.lock().expect("AppOrigin mutex zehirlendi") = Some(origin);
     }
 
+    /// GitHub issue #52 / Prompt 9.2 — deep_link.rs, üretimde sidecar henüz
+    /// hazır değilken (origin BOŞKEN) gelen bir şifre sıfırlama deep
+    /// link'ini hemen mi işleyeceğine yoksa `PendingResetPasswordToken`'a mı
+    /// koyacağına karar vermek için origin'in şu anki değerine ihtiyaç
+    /// duyar. `is_own_origin` (yukarıda) sadece bir KARŞILAŞTIRMA yapar,
+    /// değeri DIŞARI vermez — bu yüzden ayrı bir okuma metodu gerekiyor.
+    pub fn current(&self) -> Option<String> {
+        self.0.lock().expect("AppOrigin mutex zehirlendi").clone()
+    }
+
     fn is_own_origin(&self, url: &Url) -> bool {
         let current = self.0.lock().expect("AppOrigin mutex zehirlendi");
         match (&*current, origin_of(url)) {

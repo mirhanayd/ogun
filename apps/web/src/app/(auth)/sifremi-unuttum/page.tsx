@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
+import { isNativeShell } from '@/lib/native-shell'
 import { forgotPasswordSchema, type ForgotPasswordFormValues } from '@/lib/validation/auth-schemas'
 
 export default function SifremiUnuttumPage() {
@@ -25,9 +26,16 @@ export default function SifremiUnuttumPage() {
 
   async function onSubmit(values: ForgotPasswordFormValues) {
     setFormError(null)
+    // GitHub issue #52 / Prompt 9.2, GÖREV 2 — native kabukta çalışırken
+    // e-postadaki bağlantı ogun://auth/reset-password deep link şemasını
+    // kullanmalı ki tıklanınca DOĞRUDAN masaüstü uygulaması açılsın (bkz.
+    // apps/desktop/src-tauri/src/deep_link.rs — token'ı YAKALAYIP pencereyi
+    // doğrudan bu web sayfasının (sifre-sifirla) KENDİSİNE, aynı token'la
+    // yönlendirir; bu sayfada BAŞKA hiçbir değişiklik YOK). Web tarayıcısında
+    // davranış TAMAMEN aynı kalır (auth.ts'teki trustedOrigins notuna bkz.).
     const { error } = await authClient.requestPasswordReset({
       email: values.email,
-      redirectTo: '/sifre-sifirla',
+      redirectTo: isNativeShell() ? 'ogun://auth/reset-password' : '/sifre-sifirla',
     })
     if (error) {
       setFormError(error.message ?? 'İstek gönderilemedi, lütfen tekrar deneyin.')

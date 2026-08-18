@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GoogleSignInButton } from '@/components/google-sign-in-button'
 import { authClient } from '@/lib/auth-client'
 import { registerSchema, type RegisterFormValues } from '@/lib/validation/auth-schemas'
 
@@ -89,6 +90,14 @@ export default function KayitPage() {
             {isSubmitting ? 'Hesap oluşturuluyor…' : 'Kayıt ol'}
           </Button>
         </form>
+        {/* GitHub issue #52 / Prompt 9.2 — bkz. google-sign-in-button.tsx
+            dosya başı notu: bu düğme YENİ eklendi, yukarıdaki form DEĞİŞMEDİ. */}
+        <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          veya
+          <span className="h-px flex-1 bg-border" />
+        </div>
+        <GoogleSignInButton />
         <p className="mt-4 text-center text-sm text-muted-foreground">
           Zaten hesabınız var mı?{' '}
           <Link href="/giris" className="text-primary hover:underline">

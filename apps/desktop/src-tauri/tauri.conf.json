@@ -28,5 +28,12 @@
     "resources": {
       "resources/web-server": "resources/web-server"
     }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["ogun"]
+      }
+    }
   }
 }

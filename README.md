@@ -77,6 +77,20 @@ Geliştirici Modu ya da yönetici izni yoksa `EPERM: symlink` hatası
 verir (bkz. #46, docs/deployment.md "Bilinen sınırlamalar" — bu YENİ bir
 sorun değil, Docker/Linux'ta karşılaşılmaz).
 
+### Native kimlik doğrulama (OAuth + deep link) — GitHub issue #52
+
+Masaüstü uygulamasında Google girişi **sistem tarayıcısında** açılır
+(gömülü webview'lerde Google tarafından engellenir) ve geri dönüşte
+`ogun://auth/callback` özel URL şeması ile uygulamaya devredilir; "şifremi
+unuttum" e-postası da native'de aynı şemayı (`ogun://auth/reset-password`)
+kullanır. Oturum, tarayıcı çerezine değil Tauri'nin stronghold tabanlı
+güvenli depolamasına (bearer token) yazılır — uygulama kapatılıp
+açıldığında oturum otomatik devam eder. Ayrıntılı mimari/güvenlik kararları
+için `apps/desktop/src-tauri/src/deep_link.rs`, `secure_storage.rs` ve
+`apps/web/src/app/api/auth/native/callback/route.ts` dosya başı notlarına,
+manuel test adımları için `docs/desktop-native-auth-manual-testing.md`'ye
+bakın.
+
 ### Doğrulama durumu (dürüstlük notu)
 
 Bu sandbox'ta MSVC bağlayıcısı (link.exe) VE Windows SDK import
@@ -87,5 +101,8 @@ script'lerini çalıştırmak için linklemeye ihtiyaç duyduğundan AYNI
 şekilde başarısız oldu — yani Rust kodu derleyiciyle DOĞRULANAMADI,
 sadece tauri/tauri-plugin-* paketlerinin gerçek kaynak kodu okunarak
 dikkatli yazıldı. Gerçek bir pencere açılıp GÖRSEL olarak test edilmesi
-de mümkün değildi (headless ortam). Ayrıntılar için ilgili PR
-açıklamasına bakın.
+de mümkün değildi (headless ortam). Issue #52'nin deep-link/stronghold
+eklentileri de AYNI şekilde (`cargo add`/`cargo fetch` gerçek ağ erişimiyle
+ÇALIŞTI, sürümler doğrulandı — ama `cargo check` yine link.exe'de
+başarısız oldu) sadece kaynak kodu okunarak doğrulandı. Ayrıntılar için
+ilgili PR açıklamalarına bakın.

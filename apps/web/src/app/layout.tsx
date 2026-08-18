@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { Toaster } from '@/components/ui/sonner'
+import { NativeAuthBridge } from '@/components/native-auth-bridge'
 
 const inter = Inter({
   variable: '--font-sans',
@@ -21,10 +22,15 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <body className={`${inter.variable} antialiased`}>
-        <Providers>
-          {children}
-          <Toaster />
-        </Providers>
+        {/* GitHub issue #52 / Prompt 9.2 — native (Tauri) kabukta oturum
+            kalıcılığı + OAuth deep link köprüsü; web tarayıcısında NO-OP
+            (bkz. native-auth-bridge.tsx dosya başı notu). */}
+        <NativeAuthBridge>
+          <Providers>
+            {children}
+            <Toaster />
+          </Providers>
+        </NativeAuthBridge>
       </body>
     </html>
   )
