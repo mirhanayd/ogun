@@ -1,0 +1,147 @@
+# GitHub issue #54 / Prompt 9.4 — Paketleme, imzalama ve dağıtım.
+#
+# Windows (.msi + .exe/NSIS) ve macOS (.dmg, universal arm64+x86_64) masaüstü
+# paketlerini derler, MEVCUTSA (bkz. aşağıdaki "credential-pending" notu) kod
+# imzalar/notarize eder ve bir GitHub Release taslağı oluşturur. Linux BİLEREK
+# YOK (bkz. faz-9-masaustu-kabugu.md Prompt 9.4: "Linux şimdilik hedef DEĞİL,
+# v2'ye not düş").
+#
+# DÜRÜSTLÜK NOTU (bkz. PR açıklaması): bu workflow bu sandbox'ta GERÇEK bir
+# GitHub Actions çalıştırması ile test EDİLEMEDİ (izole bir agent ortamında
+# workflow tetiklemek/izlemek mümkün değil) — sadece dikkatli kod incelemesi
+# ve resmi `tauri-apps/tauri-action` dokümantasyonu (bkz. PR açıklamasındaki
+# kaynak) ile yazıldı. `apps/desktop/scripts/prepare-sidecar.mjs`'in
+# `--source=download` mekanizması İSE bu PR'ın hazırlanması sırasında GERÇEK
+# nodejs.org indirmeleriyle canlı doğrulandı (bkz. o betiğin dosya başı notu).
+#
+# CREDENTIAL-PENDING (bkz. issue metni: "ben halledeceğim, sen yapılandırmayı
+# hazırla") — aşağıdaki secret/variable'lar bu repoda HENÜZ TANIMLI DEĞİL.
+# Hiçbiri set edilmeden bu workflow YİNE DE BAŞARIYLA çalışır — sadece
+# İMZASIZ paketler üretir (yerel `pnpm build` ile AYNI davranış, bkz.
+# tauri-action'ın ilgili env değişkeni yoksa imzalamayı/notarization'ı
+# SESSİZCE atladığı resmi davranışı). Gerçek değerler eklendiği AN, bir
+# sonraki release çalıştırması onları OTOMATİK kullanır — KOD DEĞİŞİKLİĞİ
+# GEREKMEZ:
+#   Secrets (GİZLİ):
+#     - WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD (Windows kod imzalama)
+#     - APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#       APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID (macOS kod imzalama + notarization)
+#     - TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#       (otomatik güncelleme paketi imzası — `pnpm --filter desktop tauri
+#       signer generate` ile üretilir, bkz. docs/desktop-deployment.md)
+#   Variables (GİZLİ DEĞİL — düz metin):
+#     - OGUN_UPDATE_PUBKEY: yukarıdaki komutun ürettiği GENEL anahtar
+#     - OGUN_UPDATE_MANIFEST_URL: R2/S3'te barındırılan güncelleme
+#       manifestinin taban URL'i (bkz. docs/desktop-deployment.md)
+
+name: Masaüstü Sürüm Yayını
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            tauri-args: ''
+            rust-targets: ''
+          - platform: macos-latest
+            # Evrensel macOS binary (arm64+x86_64) — bkz. issue metni.
+            tauri-args: '--target universal-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Bağımlılıkları kur
+        run: pnpm install --frozen-lockfile
+
+      # GitHub issue #54, GÖREV 1 — GERÇEK, imzalı, platforma özgü Node
+      # dağıtımını indirir (bkz. apps/desktop/scripts/prepare-sidecar.mjs
+      # dosya başı notu — bu betiğin `--source=download` mekanizması bu PR'ın
+      # hazırlanması sırasında canlı doğrulandı). macOS job'ı için hedef
+      # `universal-apple-darwin` — betik İKİ mimariyi AYRI indirip `lipo`
+      # ile birleştirir (SADECE macOS runner'ında ÇALIŞIR, bkz. betiğin
+      # `prepareUniversalMacosBinary` notu).
+      - name: Sidecar Node ikilisini indir
+        working-directory: apps/desktop
+        run: node scripts/prepare-sidecar.mjs --source=download --target=${{ matrix.platform == 'macos-latest' && 'universal-apple-darwin' || (matrix.platform == 'windows-latest' && 'x86_64-pc-windows-msvc' || '') }}
+
+      # GitHub issue #54, GÖREV 3 — `createUpdaterArtifacts`/`plugins.updater.
+      # pubkey` BİLEREK statik tauri.conf.json'da DEĞİL (bkz. updater.rs
+      # dosya başı notu: bunlar orada olsaydı, pubkey secret'ı henüz YOKKEN
+      # normal/imzasız `pnpm build` bile "no private key" hatasıyla
+      # BAŞARISIZ olurdu). Bunun yerine SADECE bu release workflow'unda,
+      # SADECE `OGUN_UPDATE_PUBKEY` GERÇEKTEN tanımlıysa, `--config` ile
+      # BİRLEŞTİRİLEN küçük bir ek yapılandırma dosyası üretilir.
+      - name: Güncelleme yapılandırmasını hazırla (varsa)
+        shell: bash
+        working-directory: apps/desktop
+        env:
+          OGUN_UPDATE_PUBKEY: ${{ vars.OGUN_UPDATE_PUBKEY }}
+        run: |
+          if [ -n "$OGUN_UPDATE_PUBKEY" ]; then
+            printf '{"bundle":{"createUpdaterArtifacts":true},"plugins":{"updater":{"pubkey":%s}}}' \
+              "$(node -e 'process.stdout.write(JSON.stringify(process.env.OGUN_UPDATE_PUBKEY))')" \
+              > release-updater.conf.json
+            echo "[desktop-release] OGUN_UPDATE_PUBKEY tanımlı — createUpdaterArtifacts AÇILDI."
+          else
+            echo '{}' > release-updater.conf.json
+            echo "[desktop-release] OGUN_UPDATE_PUBKEY tanımlı DEĞİL — güncelleme paketi imzalanmayacak (bkz. workflow başı notu)."
+          fi
+
+      - name: Derle, imzala (varsa) ve GitHub Release'e yükle
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # bkz. apps/desktop/src-tauri/src/updater.rs dosya başı notu — bu
+          # ikisi DERLEME ZAMANINDA `option_env!` ile ikili dosyaya gömülür
+          # (istemci tarafı güncelleme kontrolü İÇİN, yukarıdaki build-time
+          # imzalama yapılandırmasından AYRI bir mekanizma).
+          OGUN_UPDATE_MANIFEST_URL: ${{ vars.OGUN_UPDATE_MANIFEST_URL }}
+          OGUN_UPDATE_PUBKEY: ${{ vars.OGUN_UPDATE_PUBKEY }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Öğün masaüstü v__VERSION__'
+          releaseBody: |
+            Sürüm notları için bkz. CHANGELOG.md.
+
+            Bu bir taslak (draft) release'tir — indirme sayfasında/güncelleme
+            manifestinde görünmeden ÖNCE elle yayınlanmalıdır (bkz.
+            docs/desktop-deployment.md "Yayın kontrol listesi").
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.tauri-args }} --config release-updater.conf.json

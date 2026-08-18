@@ -107,6 +107,17 @@ genişletmesi) için `apps/desktop/src-tauri/src/menu.rs`, `tray.rs`,
 `notifications.rs`, `settings.rs` ve `deep_link.rs` dosya başı notlarına
 bakın.
 
+### Paketleme, imzalama ve dağıtım — GitHub issue #54
+
+Windows (.msi + .exe/NSIS) ve macOS (.dmg, universal arm64+x86_64) paketleri,
+kod imzalama (credential-pending — sertifikalar geldiğinde otomatik
+aktifleşir), `tauri-plugin-updater` ile otomatik güncelleme (2 sürümden
+fazla geride kalınca zorunlu güncelleme uyarısı) ve `apps/web/src/app/indir`
+indirme sayfası eklendi. **Bu, Faz 9'un (Masaüstü Kabuğu) SON parçasıdır —
+#51/#52/#53/#54 ile faz tamamlandı.** Ayrıntılar (sertifika kurulumu, sürüm
+yayınlama kontrol listesi, güncelleme manifest şeması) için
+`docs/desktop-deployment.md`ye bakın.
+
 ### Doğrulama durumu (dürüstlük notu)
 
 Bu sandbox'ta MSVC bağlayıcısı (link.exe) VE Windows SDK import
@@ -136,3 +147,18 @@ olmadı. JS/TS tarafı (apps/web) TAM olarak doğrulandı: `pnpm typecheck`,
 `pnpm --filter web lint`, `pnpm --filter web test` (yeni testler dahil) ve
 `pnpm --filter web build` (turbopack'siz) hepsi geçti. Ayrıntılar için
 ilgili PR açıklamalarına bakın.
+
+Issue #54'ün YENİ bağımlılığı `tauri-plugin-updater` de AYNI şekilde
+(`cargo add` gerçek ağ erişimiyle 2.10.1'e ÇÖZÜLDÜ, `cargo check` AYNI
+linker hatasıyla başarısız oldu) sadece docs.rs üzerinden doğrulanan Rust
+API'leriyle (`UpdaterExt`, `UpdaterBuilder`, `MessageDialogBuilder`) yazıldı
+— derleyiciyle DOĞRULANAMADI. Buna KARŞILIK,
+`apps/desktop/scripts/prepare-sidecar.mjs`'in yeni `--source=download`
+mekanizması (platforma özgü resmi Node dağıtımını indirme + SHA-256
+doğrulama + tar.gz çıkarma) bu PR'ın hazırlanması sırasında canlı
+nodejs.org'a karşı GERÇEKTEN test edildi (bkz.
+`docs/desktop-deployment.md` bölüm 2 — bir Windows'a özgü `tar` tuzağı
+GERÇEKTEN yakalanıp `--force-local` ile düzeltildi). `lipo` (evrensel macOS
+birleştirme) VE `.github/workflows/desktop-release.yml` (gerçek bir GitHub
+Actions çalıştırması) bu sandbox'ta doğrulanamadı — ayrıntılar için
+`docs/desktop-deployment.md`nin "Bilinen sınırlamalar" bölümüne bakın.

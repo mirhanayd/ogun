@@ -28,3 +28,10 @@ apps/desktop/src-tauri/target
 apps/desktop/src-tauri/gen
 apps/desktop/src-tauri/resources
 apps/desktop/src-tauri/binaries
+
+# GitHub issue #54 / Prompt 9.4 — .github/workflows/desktop-release.yml'in
+# release build sırasında ÜRETTİĞİ geçici updater imzalama yapılandırması
+# (bkz. o workflow'un "Güncelleme yapılandırmasını hazırla" adımı) — genel
+# anahtar İÇEREBİLİR (özel anahtar DEĞİL, ama YİNE DE kaynak kontrolüne
+# GİRMEMELİ, sadece CI'da üretilip tüketilen bir ARA dosya).
+apps/desktop/release-updater.conf.json

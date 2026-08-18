@@ -74,6 +74,14 @@ tauri-plugin-dialog = "2"
 # JS tarafı doğrudan bu paketin API'sini çağırıyor, sadece dialog'un
 # transitive bağımlılığına GÜVENMİYORUZ).
 tauri-plugin-fs = "2"
+# GitHub issue #54 / Prompt 9.4, GÖREV 3 — otomatik güncelleme (bkz.
+# updater.rs). Sürüm 2.10.1 olarak çözüldü (bkz. Cargo.lock) — bu
+# sandbox'ta gerçek network erişimiyle `cargo add tauri-plugin-updater`
+# ÇALIŞTI, TAHMİN değil (`cargo add`'in Cargo.toml'a otomatik yazdığı
+# "2.0.0-rc.4" gereksinimi diğer eklentilerle AYNI gevşek "2" caret'ine
+# ELLE düzeltildi — Cargo'nun ön-sürüm gereksinim kuralları 2.10.1'in
+# yine de eşleştiğini DOĞRULADI, bkz. Cargo.lock).
+tauri-plugin-updater = "2"
 
 [dependencies.tauri]
 version = "2"

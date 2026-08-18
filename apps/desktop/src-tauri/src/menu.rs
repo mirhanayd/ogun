@@ -82,6 +82,10 @@ pub fn build_and_set(app: &App) -> tauri::Result<()> {
         .item(&MenuItemBuilder::with_id(ACTION_SHOW_SHORTCUTS, "Klavye Kısayolları").build(app)?)
         .item(&MenuItemBuilder::with_id(ACTION_SEND_FEEDBACK, "Geri Bildirim Gönder").build(app)?)
         .separator()
+        // GitHub issue #54 / Prompt 9.4, GÖREV 3 — açılıştaki sessiz
+        // kontrolün (bkz. lib.rs, updater.rs) YANI SIRA kullanıcının
+        // istediği an manuel tetikleyebileceği bir yüzey.
+        .item(&MenuItemBuilder::with_id(ACTION_CHECK_FOR_UPDATES, "Güncellemeleri Kontrol Et").build(app)?)
         .item(&MenuItemBuilder::with_id(ACTION_VERSION_INFO, "Sürüm Bilgisi").build(app)?)
         .build()?;
 

@@ -7,8 +7,10 @@
     "tauri": "tauri",
     "dev": "wait-on tcp:3000 && tauri dev",
     "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
+    "prepare:sidecar:release": "node scripts/prepare-sidecar.mjs --source=download",
     "icons": "node scripts/generate-icons.mjs",
     "build": "node scripts/prepare-sidecar.mjs && tauri build",
+    "signer:generate": "tauri signer generate -w ~/.tauri/ogun-updater.key",
     "typecheck": "echo 'apps/desktop: Rust tarafı `cargo check` ile doğrulanır, JS tarafında derlenecek TypeScript yok' && exit 0",
     "lint": "echo 'apps/desktop: JS tarafında lint edilecek uygulama kodu yok (yalnızca build script\\'leri)' && exit 0",
     "test": "echo 'apps/desktop: bu paket için otomatik test yok (bkz. README.md doğrulama notları)' && exit 0"
