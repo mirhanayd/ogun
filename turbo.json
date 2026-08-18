@@ -29,7 +29,8 @@
         "SENTRY_AUTH_TOKEN",
         "LOG_LEVEL",
         "APP_ENV",
-        "ANALYZE"
+        "ANALYZE",
+        "STANDALONE_BUILD"
       ]
     },
     "dev": {

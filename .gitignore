@@ -17,3 +17,13 @@ apps/e2e/test-results
 apps/e2e/fixtures/.e2e-credentials.json
 apps/web/.next/analyze
 apps/web/.lighthouse-reports
+
+# GitHub issue #51 / Prompt 9.1 — Tauri masaüstü kabuğu (apps/desktop).
+# Rust derleme çıktısı, prepare-sidecar.mjs'in ürettiği (apps/web'in
+# standalone build'i + yerel Node ikili dosyası kopyası içeren) yerel
+# kaynaklar ve Tauri'nin otomatik ürettiği izin şemaları — hiçbiri
+# kaynak kontrolüne GİRMEMELİ (bkz. apps/desktop/scripts/*.mjs).
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen
+apps/desktop/src-tauri/resources
+apps/desktop/src-tauri/binaries
