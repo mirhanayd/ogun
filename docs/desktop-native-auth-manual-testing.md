@@ -66,9 +66,21 @@ Aşağıdaki checklist bunun yerine kullanılacak.
       (ya da zaten açıksa öne çıktığını) ve otomatik olarak `/kurulum`'a
       (ya da giriş yapılmış ana ekrana) yönlendiğini doğrula — bu esnada
       ARA bir "yükleniyor" ekranından hızlıca geçmesi normal.
-- [ ] Bu adım BAŞARISIZ olursa (ör. Google reddederse) `/giris?hata=
-      google-girisi-basarisiz`'e yönlendiğini ve anlamlı bir durumda
-      kaldığını doğrula (sonsuza kadar boş ekranda TAKILI KALMAMALI).
+- [ ] Google girişini (Google'ın kendi ekranında "İptal" ya da hesap
+      seçmeden geri dönerek) **BAŞARISIZ** kıl. "Google ile devam et"
+      düğmesi SONSUZA KADAR "Yönlendiriliyor…" durumunda TAKILI
+      KALMAMALI — `/giris`'e dönüp anlamlı bir hata bildirimi (toast)
+      göstermeli (kod incelemesi PR #56'da bulunup düzeltilen hata —
+      önceden Rust tarafı bu geri dönüşü hiç ayrıştırmıyordu).
+- [ ] **Soğuk başlangıç varyantı**: Google girişini BAŞLAT, sistem
+      tarayıcısı açıldıktan SONRA masaüstü uygulamasını (girişi henüz
+      TAMAMLAMADAN) tamamen KAPAT. Tarayıcıda girişi tamamla — bu,
+      uygulamayı `ogun://auth/callback` ile YENİDEN başlatmalı ve
+      (React henüz mount olmamışken gelen olayı `PendingDeepLink` +
+      `notify_frontend_ready` el sıkışması sayesinde kaybetmeden)
+      normal şekilde `/kurulum`'a inmeli — SESSİZCE hiçbir şey
+      olmaması (3 dakika sonra token'ın sessizce süresinin dolması)
+      bir REGRESYONDUR.
 
 ## 3 — Oturum kalıcılığı (uygulama kapat/aç)
 
@@ -85,6 +97,11 @@ Aşağıdaki checklist bunun yerine kullanılacak.
       `native-session.stronghold` VE `native-session.salt` dosyalarının
       var olduğunu, ama `native-session.stronghold` dosyasının düz metin
       bir editörle AÇILAMADIĞINI (şifreli/ikili olduğunu) doğrula.
+- [ ] Kullanıcı menüsünden **"Çıkış yap"**'a tıkla, uygulamayı TAMAMEN
+      kapatıp yeniden aç. Doğrudan `/giris` ekranında başlaMALI —
+      OTOMATİK olarak tekrar oturum açılmamalı (kod incelemesi PR #56'da
+      eklendi: "çıkış yap" artık stronghold'daki bearer token'ı da siler,
+      aksi halde çıkış native'de kalıcı OLMAZDI).
 
 ## 4 — Şifremi unuttum (deep link e-postası)
 

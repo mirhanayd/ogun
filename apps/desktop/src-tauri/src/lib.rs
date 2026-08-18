@@ -20,7 +20,7 @@ mod navigation;
 mod secure_storage;
 mod sidecar;
 
-use deep_link::PendingResetPasswordToken;
+use deep_link::{FrontendReady, PendingDeepLink};
 use navigation::AppOrigin;
 use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -68,6 +68,7 @@ pub fn run() {
             secure_storage::store_session_token,
             secure_storage::load_session_token,
             secure_storage::clear_session_token,
+            deep_link::notify_frontend_ready,
         ])
         .setup(|app| {
             let is_dev = tauri::is_dev();
@@ -84,10 +85,15 @@ pub fn run() {
                 None
             }));
 
-            // GitHub issue #52 / Prompt 9.2 — üretimde sidecar hazır olana
-            // kadar bekletilen şifre sıfırlama deep link'i (bkz. deep_link.rs
-            // PendingResetPasswordToken ve sidecar.rs'teki drenaj).
-            app.manage(PendingResetPasswordToken::default());
+            // GitHub issue #52 / Prompt 9.2 — henüz işlenemeyen (origin ya
+            // da frontend hazır değilken gelen) TEK bir deep link'i bekletir
+            // (bkz. deep_link.rs dosya başı "SOĞUK BAŞLANGIÇ" notu).
+            app.manage(PendingDeepLink::default());
+            // Kod incelemesi (PR #56) — frontend'in `ogun-oauth-callback`
+            // olayını DİNLEMEYE BAŞLADIĞINI (bkz. native-auth-bridge.tsx
+            // `notify_frontend_ready` çağrısı) işaretler; bundan ÖNCE
+            // yayınlanan bir OAuth olayı dinleyicisiz kalıp KAYBOLABİLİRDİ.
+            app.manage(FrontendReady::default());
 
             // GitHub issue #52 / Prompt 9.2, GÖREV 1 — TEK deep link
             // dinleyicisi: hem soğuk başlangıçta (bkz. tauri-plugin-
@@ -178,8 +184,12 @@ pub fn run() {
             // app was started via a deep link") burada AYRICA kontrol
             // ediyoruz. Pencere ARTIK var (bir üstteki `.build()?`) — bu
             // yüzden bu kontrol PENCERE OLUŞTURULMADAN önce DEĞİL, hemen
-            // SONRA yapılıyor (route_reset_password/navigate_to_reset_
-            // password "main" penceresini bulabilsin diye).
+            // SONRA yapılıyor (navigate_to_reset_password "main" penceresini
+            // bulabilsin diye). Bu noktada frontend HENÜZ hazır değildir
+            // (React mount olmadı) — bir OAuth geri dönüşü bulunursa
+            // `dispatch`/`try_process` (bkz. deep_link.rs) bunu otomatik
+            // olarak `PendingDeepLink`'e koyar, `notify_frontend_ready`
+            // çağrıldığında drenaj edilir.
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 if let Ok(Some(urls)) = app.deep_link().get_current() {

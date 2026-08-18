@@ -51,6 +51,15 @@ const SESSION_TOKEN_KEY: &[u8] = b"better-auth-session-token";
 /// salt dosyasında.
 const VAULT_PASSPHRASE: &str = "ogun-desktop-native-session-v1";
 
+// NOT (kod incelemesi PR #56): bu dosyadaki `.map_err(|err| format!("...:
+// {err}"))` deseni tekrar ediyor — DRY için jenerik bir yardımcıya (`impl
+// Fn(E) -> String`) çıkarmayı denedik, ama bu sandbox'ta HİÇBİR Rust kodu
+// derlenemediğinden (bkz. README.md "Doğrulama durumu") böyle bir soyutlamayı
+// doğrulanmadan bırakmak güvenlik-hassas bir PR için gereksiz risk —
+// okunması kolay, her biri bağımsız olarak apaçık doğru olan tekrar eden
+// closure'lar BİLİNÇLİ olarak KORUNDU. Küçük bir kod tekrarı, derleyiciyle
+// doğrulanamayan bir soyutlamadan daha güvenli.
+
 fn vault_paths(app: &AppHandle) -> Result<(std::path::PathBuf, std::path::PathBuf), String> {
     let dir = app
         .path()
@@ -69,6 +78,15 @@ fn open_vault(app: &AppHandle) -> Result<Stronghold, String> {
 /// Bearer oturum token'ını güvenli kasaya yazar (var olan değerin ÜZERİNE
 /// yazar). Frontend'den `store_session_token` komutu olarak çağrılır (bkz.
 /// apps/web/src/lib/native-shell.ts `persistNativeSessionToken`).
+///
+/// PERFORMANS (kod incelemesi PR #56): frontend tarafı ZATEN değişmeyen
+/// token'lar için bu komutu hiç ÇAĞIRMIYOR (bkz. native-shell.ts
+/// `persistNativeSessionToken` — asıl maliyet olan Argon2 türetimini VE bu
+/// IPC çağrısının kendisini önler). Burada AYRICA savunmacı bir kısayol
+/// EKLEMİYORUZ: kasayı yalnızca "değişti mi" diye açmak Argon2 maliyetinin
+/// TAMAMINI zaten gerektirir (asıl pahalı adım) — sadece `.insert()`/
+/// `.save()` diskyazımını atlamak, bu ek karmaşıklığa değecek kadar
+/// anlamlı bir kazanç sağlamaz. Bilinçli bir kapsam kararı.
 #[tauri::command]
 pub fn store_session_token(app: AppHandle, token: String) -> Result<(), String> {
     let vault = open_vault(&app)?;
@@ -104,8 +122,9 @@ pub fn load_session_token(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Saklanan bearer oturum token'ını siler (çıkış yapıldığında kullanılmak
-/// üzere — bkz. native-shell.ts `clearNativeSessionToken`). Kayıtlı bir
-/// token yoksa sessizce başarılı sayılır (idempotent).
+/// üzere — bkz. native-shell.ts `clearNativeSessionToken`, artık
+/// user-menu.tsx'in "Çıkış yap" akışından çağrılıyor). Kayıtlı bir token
+/// yoksa sessizce başarılı sayılır (idempotent).
 #[tauri::command]
 pub fn clear_session_token(app: AppHandle) -> Result<(), String> {
     let vault = open_vault(&app)?;

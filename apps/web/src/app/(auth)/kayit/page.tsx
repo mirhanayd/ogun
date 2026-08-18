@@ -92,11 +92,6 @@ export default function KayitPage() {
         </form>
         {/* GitHub issue #52 / Prompt 9.2 — bkz. google-sign-in-button.tsx
             dosya başı notu: bu düğme YENİ eklendi, yukarıdaki form DEĞİŞMEDİ. */}
-        <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          veya
-          <span className="h-px flex-1 bg-border" />
-        </div>
         <GoogleSignInButton />
         <p className="mt-4 text-center text-sm text-muted-foreground">
           Zaten hesabınız var mı?{' '}

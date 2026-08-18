@@ -26,6 +26,11 @@ import { getGoogleSignInRedirects } from '@/lib/native-shell'
 // bu, kendi origin'imiz DIŞINDA bir https navigasyonu olduğundan
 // on_navigation tarafından YAKALANIP sistem tarayıcısına yönlendirilir ve
 // pencere içi navigasyon İPTAL edilir. Burada EK bir şey yapmaya gerek YOK.
+//
+// Kod incelemesi (PR #56) notu: "veya" ayırıcısı (divider) giris/page.tsx
+// ve kayit/page.tsx'te AYNI şekilde tekrarlanıyordu — buraya, bileşenin
+// KENDİSİNE taşındı (dışa aktarılan tek şey artık BU bileşen, ayırıcı ayrı
+// bir markup parçası olarak İKİ yerde bakım gerektirmiyor).
 export function GoogleSignInButton() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,14 +52,24 @@ export function GoogleSignInButton() {
     // (yukarıdaki not) — burada başka bir şey yapmıyoruz, pending durumu
     // sayfa ayrılana kadar (ya da native'de sistem tarayıcısı açılana
     // kadar) düğmeyi devre dışı bırakmak için kasıtlı olarak sıfırlanmıyor.
+    // (Native'de OAuth başarısız olursa tam sayfa navigasyonla bu bileşen
+    // sıfırdan mount olur, bkz. native-auth-bridge.tsx — pending "takılı"
+    // kalmaz.)
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={handleClick}>
-        {pending ? 'Yönlendiriliyor…' : 'Google ile devam et'}
-      </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+    <div>
+      <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        veya
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={handleClick}>
+          {pending ? 'Yönlendiriliyor…' : 'Google ile devam et'}
+        </Button>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
     </div>
   )
 }

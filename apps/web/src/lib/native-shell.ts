@@ -93,10 +93,18 @@ export async function loadNativeSessionToken(): Promise<string | undefined> {
  * better-auth'un `bearer` eklentisinin her başarılı auth isteğinde eklediği
  * `set-auth-token` yanıt başlığını yakalayıp kalıcı olarak saklar (bkz.
  * auth-client.ts `onSuccess` kancası). Native kabuk DIŞINDA no-op.
+ *
+ * GitHub issue #52 / Prompt 9.2, kod incelemesi (PR #56) — PERFORMANS: bu
+ * `set-auth-token` başlığı SADECE ilk girişte değil, better-auth'un rutin
+ * oturum çerezi yenilemelerinde de (normal kullanım sırasında sıkça) YENİDEN
+ * gönderilir. Değer ÖNCEKİYLE AYNIYSA `store_session_token` IPC çağrısını
+ * (bu da tam bir Argon2 anahtar türetimi + Stronghold snapshot açma/
+ * kaydetme demektir) HİÇ YAPMIYORUZ — gereksiz CPU/disk maliyetini önler.
  */
 export async function persistNativeSessionToken(token: string): Promise<void> {
+  const unchanged = cachedSessionToken === token
   cachedSessionToken = token
-  if (!isNativeShell()) return
+  if (!isNativeShell() || unchanged) return
   try {
     await invoke('store_session_token', { token })
   } catch (err) {

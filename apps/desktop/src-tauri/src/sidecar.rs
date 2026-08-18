@@ -24,7 +24,6 @@ use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 use tokio::net::TcpStream;
 use tokio::time::{sleep, timeout, Duration};
 
-use crate::deep_link::PendingResetPasswordToken;
 use crate::navigation::AppOrigin;
 
 /// apps/web standalone server.js'in dinleyeceği yerel adres. Sadece bu
@@ -138,14 +137,18 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
 
         // GitHub issue #52 / Prompt 9.2 — uygulama KAPALIYKEN (soğuk
         // başlangıç) bir şifre sıfırlama e-postası linkine tıklanmışsa,
-        // deep_link.rs origin henüz bilinmediği için token'ı
-        // `PendingResetPasswordToken`'a KOYMUŞTUR (bkz. o dosyadaki
-        // route_reset_password). Origin ARTIK bilindiğine göre, pencereyi
-        // her zamanki kök sayfa yerine DOĞRUDAN o bekleyen sıfırlama
-        // sayfasına yönlendiriyoruz — aksi halde önce köke, sonra deep
-        // link'e iki ayrı navigasyon YARIŞA girer (ve kök kazanabilir).
-        if let Some(token) = app.state::<PendingResetPasswordToken>().take() {
-            crate::deep_link::navigate_to_reset_password(&app, &sidecar_origin, &token);
+        // deep_link.rs origin henüz bilinmediği için deep link'i
+        // `PendingDeepLink`'e KOYMUŞTUR (bkz. o dosyadaki dispatch/
+        // try_process). Origin ARTIK bilindiğine göre `process_pending`'i
+        // çağırıyoruz; `true` dönerse pencere ZATEN o bekleyen sıfırlama
+        // sayfasına yönlendirildi demektir — bu durumda AŞAĞIDAKİ kök
+        // navigasyonunu ATLAMALIYIZ (aksi halde önce köke, sonra deep
+        // link'e iki ayrı navigasyon YARIŞA girer, kök kazanabilir).
+        // Bekleyen bir OAuth geri dönüşü varsa `process_pending` `false`
+        // döner (frontend henüz hazır olmayabilir) — o durumda kök
+        // navigasyonuna NORMAL şekilde devam ediyoruz, OAuth olayı
+        // frontend `notify_frontend_ready` çağırdığında AYRICA işlenecek.
+        if crate::deep_link::process_pending(&app) {
             return;
         }
 
