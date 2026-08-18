@@ -37,12 +37,21 @@ fn default_minimize_to_tray_on_close() -> bool {
 pub struct AppSettings {
     #[serde(default = "default_minimize_to_tray_on_close")]
     pub minimize_to_tray_on_close: bool,
+    // GitHub issue #54 / Prompt 9.4, GÖREV 3 — kullanıcı OPSİYONEL bir
+    // güncellemeyi "Sonra" ile ertelediğinde, uygulama HER açılışta AYNI
+    // sürüm için tekrar sormasın diye ertelenen sürüm numarası burada
+    // saklanır (bkz. updater.rs `prompt_update`). ZORUNLU güncellemeler bu
+    // alanı HİÇ kullanmaz — "sonsuza kadar ertele" seçeneği yoktur, zorunlu
+    // uyarı her açılışta yeniden gösterilir.
+    #[serde(default)]
+    pub dismissed_update_version: Option<String>,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             minimize_to_tray_on_close: default_minimize_to_tray_on_close(),
+            dismissed_update_version: None,
         }
     }
 }
@@ -117,12 +126,37 @@ pub fn get_minimize_to_tray_setting(app: AppHandle) -> bool {
 /// denemesi eski değeri görür, uygulama yeniden başlatılana kadar).
 #[tauri::command]
 pub fn set_minimize_to_tray_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let settings = AppSettings {
-        minimize_to_tray_on_close: enabled,
-    };
+    // Mevcut ayarlardan (özellikle `dismissed_update_version`, bkz. GitHub
+    // issue #54) DEVRALARAK güncelliyoruz — sıfırdan bir `AppSettings`
+    // KURMAK, bu komut çağrıldığında diğer alanları SESSİZCE varsayılana
+    // SIFIRLARDI (ör. kullanıcının ertelediği bir güncelleme unutulurdu).
+    let mut settings = app.state::<SettingsState>().get();
+    settings.minimize_to_tray_on_close = enabled;
     save_settings_to_disk(&app, &settings)?;
     app.state::<SettingsState>().set(settings);
     Ok(())
+}
+
+/// GitHub issue #54 / Prompt 9.4 — updater.rs'in "bu sürüm zaten ertelendi
+/// mi" kontrolü için okuma.
+pub fn get_dismissed_update_version(app: &AppHandle) -> Option<String> {
+    app.state::<SettingsState>().get().dismissed_update_version
+}
+
+/// updater.rs'in "Sonra"/"Daha Sonra Hatırlat" DIŞINDAKİ tıklamasında
+/// çağırdığı, diske YAZAN VE bellek önbelleğini GÜNCELLEYEN setter —
+/// `set_minimize_to_tray_setting` komutuyla AYNI desen (bkz. yukarısı), ama
+/// bu bir `#[tauri::command]` DEĞİL: JS'ten hiç çağrılmaz, SADECE
+/// updater.rs'ten (Rust tarafından) tetiklenir — mimari kural #3 gereği
+/// apps/web'e bu özellik için HİÇ DOKUNULMADI.
+pub fn set_dismissed_update_version(app: &AppHandle, version: Option<String>) {
+    let mut settings = app.state::<SettingsState>().get();
+    settings.dismissed_update_version = version;
+    if let Err(err) = save_settings_to_disk(app, &settings) {
+        eprintln!("[ogun-desktop] güncelleme erteleme tercihi kaydedilemedi: {err}");
+        return;
+    }
+    app.state::<SettingsState>().set(settings);
 }
 
 #[cfg(test)]
@@ -132,6 +166,31 @@ mod tests {
     #[test]
     fn default_settings_minimize_to_tray_is_enabled() {
         assert!(AppSettings::default().minimize_to_tray_on_close);
+    }
+
+    #[test]
+    fn default_settings_has_no_dismissed_update_version() {
+        assert_eq!(AppSettings::default().dismissed_update_version, None);
+    }
+
+    #[test]
+    fn parse_settings_defaults_missing_dismissed_update_version() {
+        // Issue #53'ten kalan ESKİ bir settings.json dosyası (bu alan hiç
+        // yokken yazılmış) panikletmeMELİ — bkz. `parse_settings_defaults_
+        // missing_field` ile AYNI geriye dönük uyumluluk garantisi.
+        let settings = parse_settings(r#"{"minimize_to_tray_on_close":false}"#);
+        assert_eq!(settings.dismissed_update_version, None);
+        assert!(!settings.minimize_to_tray_on_close);
+    }
+
+    #[test]
+    fn parse_settings_roundtrips_dismissed_update_version() {
+        let settings = AppSettings {
+            minimize_to_tray_on_close: true,
+            dismissed_update_version: Some("1.4.0".to_string()),
+        };
+        let raw = serialize_settings(&settings);
+        assert_eq!(parse_settings(&raw), settings);
     }
 
     #[test]
@@ -148,6 +207,7 @@ mod tests {
     fn parse_settings_roundtrips_through_serialize() {
         let settings = AppSettings {
             minimize_to_tray_on_close: false,
+            dismissed_update_version: None,
         };
         let raw = serialize_settings(&settings);
         assert_eq!(parse_settings(&raw), settings);

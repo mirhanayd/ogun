@@ -24,6 +24,7 @@ mod secure_storage;
 mod settings;
 mod sidecar;
 mod tray;
+mod updater;
 mod window_ops;
 
 use deep_link::{FrontendReady, PendingDeepLink};
@@ -73,6 +74,18 @@ pub fn run() {
         // okuma/yazma (JS tarafı @tauri-apps/plugin-fs). Aynı şekilde
         // apps/desktop'ta sarmalayıcı bir komut YOK.
         .plugin(tauri_plugin_fs::init())
+        // GitHub issue #54 / Prompt 9.4, GÖREV 3 — otomatik güncelleme
+        // (bkz. updater.rs dosya başı notu). Eklenti HER ZAMAN kaydedilir
+        // (diğer tüm eklentilerle AYNI desen) — ama gerçek bir güncelleme
+        // KONTROLÜ sadece `OGUN_UPDATE_MANIFEST_URL`/`OGUN_UPDATE_PUBKEY`
+        // derleme zamanında tanımlıysa tetiklenir (bkz. aşağıdaki
+        // `updater::check_for_updates_on_startup` çağrısı ve updater.rs'in
+        // `build_updater` fonksiyonu) — bu ikisi tanımsızken eklentinin
+        // KAYITLI olması zararsızdır, sadece hiç kullanılmaz. Resmi çoklu
+        // platform örneği bu eklentiyi `#[cfg(desktop)]` ile SADECE
+        // masaüstünde kaydeder (mobil hedefte YOK) — bu paket hiç mobil
+        // hedeflemediğinden (bkz. Cargo.toml [[bin]]) o koşul GEREKSİZ.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // GitHub issue #52 / Prompt 9.2, GÖREV 1 — ogun:// şemasını yakalar
         // (bkz. deep_link.rs modül notu — navigation.rs'teki on_navigation'dan
         // TAMAMEN FARKLI bir mekanizma).
@@ -274,6 +287,12 @@ pub fn run() {
 
             if !is_dev {
                 sidecar::spawn_and_redirect(app.handle().clone(), window);
+                // GitHub issue #54 / Prompt 9.4, GÖREV 3 — sadece üretimde
+                // (dev'de zaten gerçek bir sürüm/manifest YOK) ve pencere
+                // ARTIK var (mandatory/optional diyaloğun bir ebeveyni
+                // olabilsin diye, sidecar spawn'ıyla AYNI sıralama
+                // gerekçesi). SESSİZCE çalışır — bkz. updater.rs.
+                updater::check_for_updates_on_startup(app.handle().clone());
             }
 
             Ok(())

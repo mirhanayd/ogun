@@ -31,6 +31,7 @@ pub const ACTION_THEME_DARK: &str = "ogun-action:theme-dark";
 pub const ACTION_THEME_SYSTEM: &str = "ogun-action:theme-system";
 pub const ACTION_SHOW_SHORTCUTS: &str = "ogun-action:show-shortcuts";
 pub const ACTION_SEND_FEEDBACK: &str = "ogun-action:send-feedback";
+pub const ACTION_CHECK_FOR_UPDATES: &str = "ogun-action:check-for-updates";
 pub const ACTION_VERSION_INFO: &str = "ogun-action:version-info";
 pub const ACTION_TODAY_APPOINTMENTS: &str = "ogun-action:today-appointments";
 pub const ACTION_OPEN_APP: &str = "ogun-action:open-app";
@@ -49,6 +50,7 @@ pub enum MenuAction {
     ThemeSystem,
     ShowShortcuts,
     SendFeedback,
+    CheckForUpdates,
     VersionInfo,
     TodayAppointments,
     OpenApp,
@@ -75,6 +77,7 @@ pub fn parse_menu_action(id: &str) -> Option<MenuAction> {
         ACTION_THEME_SYSTEM => MenuAction::ThemeSystem,
         ACTION_SHOW_SHORTCUTS => MenuAction::ShowShortcuts,
         ACTION_SEND_FEEDBACK => MenuAction::SendFeedback,
+        ACTION_CHECK_FOR_UPDATES => MenuAction::CheckForUpdates,
         ACTION_VERSION_INFO => MenuAction::VersionInfo,
         ACTION_TODAY_APPOINTMENTS => MenuAction::TodayAppointments,
         ACTION_OPEN_APP => MenuAction::OpenApp,
@@ -124,6 +127,10 @@ fn dispatch(app: &AppHandle, action: MenuAction) {
         // açılabilir hale getiriyoruz.
         MenuAction::ShowShortcuts => emit_simple(app, "ogun-menu-open-shortcuts"),
         MenuAction::SendFeedback => emit_simple(app, "ogun-menu-open-feedback"),
+        // GitHub issue #54 / Prompt 9.4, GÖREV 3 — manuel güncelleme
+        // kontrolü, apps/web'e HİÇ dokunmadan tamamen native (bkz.
+        // updater.rs dosya başı notu).
+        MenuAction::CheckForUpdates => crate::updater::check_for_updates_manual(app.clone()),
         // Sürüm bilgisi — apps/web'e HİÇ dokunmadan, tamamen native bir
         // diyalogla (tauri-plugin-dialog) gösterilir.
         MenuAction::VersionInfo => show_version_info(app),
@@ -170,6 +177,7 @@ mod tests {
             (ACTION_THEME_SYSTEM, MenuAction::ThemeSystem),
             (ACTION_SHOW_SHORTCUTS, MenuAction::ShowShortcuts),
             (ACTION_SEND_FEEDBACK, MenuAction::SendFeedback),
+            (ACTION_CHECK_FOR_UPDATES, MenuAction::CheckForUpdates),
             (ACTION_VERSION_INFO, MenuAction::VersionInfo),
             (ACTION_TODAY_APPOINTMENTS, MenuAction::TodayAppointments),
             (ACTION_OPEN_APP, MenuAction::OpenApp),
@@ -207,6 +215,7 @@ mod tests {
             ACTION_THEME_SYSTEM,
             ACTION_SHOW_SHORTCUTS,
             ACTION_SEND_FEEDBACK,
+            ACTION_CHECK_FOR_UPDATES,
             ACTION_VERSION_INFO,
             ACTION_TODAY_APPOINTMENTS,
             ACTION_OPEN_APP,
