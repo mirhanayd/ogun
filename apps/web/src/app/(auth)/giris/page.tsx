@@ -1,20 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GoogleSignInButton } from '@/components/google-sign-in-button'
 import { authClient } from '@/lib/auth-client'
 import { loginSchema, type LoginFormValues } from '@/lib/validation/auth-schemas'
+
+// GitHub issue #52 / Prompt 9.2, kod incelemesi (PR #56) — native Google
+// girişi başarısız olursa (bkz. native-auth-bridge.tsx) kullanıcı buraya
+// `?hata=<kod>` ile geri döner. `window.location.search`'ten (useSearchParams
+// DEĞİL — bu, sayfayı bir Suspense sınırına ayırma ZORUNLULUĞU getirirdi,
+// bkz. sifre-sifirla/page.tsx; burada tek seferlik, mount-anı bir okuma
+// yeterli) okuyup anlaşılır bir Türkçe bildirim (toast) gösteriyoruz.
+const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
+  'google-girisi-basarisiz': 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.',
+  no_session: 'Google girişi tamamlanamadı (oturum bulunamadı), lütfen tekrar deneyin.',
+  token_generation_failed: 'Google girişi tamamlanamadı, lütfen tekrar deneyin.',
+}
 
 export default function GirisPage() {
   const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const hata = new URLSearchParams(window.location.search).get('hata')
+    if (!hata) return
+    toast.error(GOOGLE_ERROR_MESSAGES[hata] ?? 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.')
+    // URL'deki ?hata= parametresini temizle — sayfa yenilendiğinde/geri
+    // gidildiğinde bildirim TEKRAR gösterilmesin.
+    router.replace('/giris')
+  }, [router])
 
   const {
     register,
@@ -76,6 +99,10 @@ export default function GirisPage() {
             {isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}
           </Button>
         </form>
+        {/* GitHub issue #52 / Prompt 9.2 — bkz. google-sign-in-button.tsx
+            dosya başı notu: bu düğme YENİ eklendi, yukarıdaki e-posta+şifre
+            formu DEĞİŞMEDİ. */}
+        <GoogleSignInButton />
         <p className="mt-4 text-center text-sm text-muted-foreground">
           Hesabınız yok mu?{' '}
           <Link href="/kayit" className="text-primary hover:underline">

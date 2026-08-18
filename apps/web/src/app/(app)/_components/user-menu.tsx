@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { authClient } from '@/lib/auth-client'
+import { clearNativeSessionToken } from '@/lib/native-shell'
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -29,6 +30,13 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
   async function handleSignOut() {
     setIsSigningOut(true)
     await authClient.signOut()
+    // GitHub issue #52 / Prompt 9.2, kod incelemesi (PR #56) — native
+    // kabukta çerez/oturum burada temizlense bile stronghold'da saklı
+    // bearer token'ı SİLMEZSEK, bir sonraki uygulama açılışında
+    // native-auth-bridge.tsx o ESKİ token'ı okuyup kullanıcıyı SESSİZCE
+    // tekrar oturum açık hale getirirdi — "çıkış yap" native'de gerçekten
+    // KALICI olmazdı. Web tarayıcısında no-op (bkz. native-shell.ts).
+    await clearNativeSessionToken()
     router.push('/giris')
     router.refresh()
   }

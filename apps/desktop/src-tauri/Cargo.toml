@@ -32,6 +32,33 @@ url = "2"
 # async_runtime'ı zaten tokio üzerine kurulu, aynı sürümü doğrudan
 # bağımlılık olarak eklemek ayrı bir runtime YARATMAZ.
 tokio = { version = "1", features = ["net", "time"] }
+# GitHub issue #52 / Prompt 9.2, GÖREV 1 — ogun:// özel URL şemasını
+# kaydeder ve yakalar (bkz. deep_link.rs). Sürüm 2.4.9 olarak çözüldü
+# (bkz. Cargo.lock) — bu sandbox'ta gerçek network erişimiyle `cargo add`
+# ÇALIŞTI, bu yüzden bu sürüm TAHMİN değil, doğrulanmış.
+tauri-plugin-deep-link = "2"
+# GÖREV 3 — oturum (bearer) token'ının güvenli/şifreli depolanması.
+# NEDEN STRONGHOLD (OS keychain DEĞİL): resmi tauri-apps organizasyonunun
+# TEK ilk-taraf "secret storage" eklentisi bu — ayrı bir OS keychain
+# eklentisi (macOS Keychain/Windows Credential Manager/Linux Secret
+# Service) resmi Tauri eklenti ekosisteminde YOK; kendi yazacağımız bir
+# `keyring` crate sarmalayıcısı platforma özgü 3 AYRI native API'ye
+# (ve bu sandbox'ta zaten kanıtlanmış kırık bağlayıcı sorununa EK riske)
+# ihtiyaç duyardı. Stronghold saf/taşınabilir bir şifreli kasa — Windows
+# ÖNCELİKLİ dağıtım sırası (bkz. faz-9-masaustu-kabugu.md Prompt 9.4) için
+# daha öngörülebilir. bkz. secure_storage.rs dosya başı notu: bu paketin
+# JS-çağrılabilir genel amaçlı komutları (initialize/save_store_record/...)
+# KULLANILMIYOR — sadece `stronghold::Stronghold` ve `kdf::KeyDerivation`
+# Rust API'leri DOĞRUDAN, kendi 3 dar kapsamlı komutumuzun içinde.
+tauri-plugin-stronghold = "2"
+# Windows/Linux'ta ikinci bir "ogun://..." tıklaması normalde YENİ bir
+# süreç başlatır (uygulama zaten açıkken bile) — bu eklenti olmadan
+# GÖREV 1'deki OAuth deep link'i ÇALIŞAN pencereye asla ULAŞMAZ. "deep-link"
+# özelliği (feature), ikinci süreç argümanlarını OTOMATİK olarak
+# tauri-plugin-deep-link'e iletir (bkz. lib.rs ve o paketin kaynak kodundaki
+# Builder::callback varsayılanı). macOS bunu işletim sistemi düzeyinde zaten
+# native olarak hallettiğinden bu eklenti orada devreye GİRMEZ.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [dependencies.tauri]
 version = "2"

@@ -135,6 +135,23 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
         let sidecar_origin = format!("http://{address}");
         app.state::<AppOrigin>().set(sidecar_origin.clone());
 
+        // GitHub issue #52 / Prompt 9.2 — uygulama KAPALIYKEN (soğuk
+        // başlangıç) bir şifre sıfırlama e-postası linkine tıklanmışsa,
+        // deep_link.rs origin henüz bilinmediği için deep link'i
+        // `PendingDeepLink`'e KOYMUŞTUR (bkz. o dosyadaki dispatch/
+        // try_process). Origin ARTIK bilindiğine göre `process_pending`'i
+        // çağırıyoruz; `true` dönerse pencere ZATEN o bekleyen sıfırlama
+        // sayfasına yönlendirildi demektir — bu durumda AŞAĞIDAKİ kök
+        // navigasyonunu ATLAMALIYIZ (aksi halde önce köke, sonra deep
+        // link'e iki ayrı navigasyon YARIŞA girer, kök kazanabilir).
+        // Bekleyen bir OAuth geri dönüşü varsa `process_pending` `false`
+        // döner (frontend henüz hazır olmayabilir) — o durumda kök
+        // navigasyonuna NORMAL şekilde devam ediyoruz, OAuth olayı
+        // frontend `notify_frontend_ready` çağırdığında AYRICA işlenecek.
+        if crate::deep_link::process_pending(&app) {
+            return;
+        }
+
         let target_url = Url::parse(&format!("{sidecar_origin}/")).expect("geçerli sidecar URL'i");
         if let Err(err) = window.navigate(target_url) {
             eprintln!("[ogun-desktop] pencere sidecar adresine yönlendirilemedi: {err}");
