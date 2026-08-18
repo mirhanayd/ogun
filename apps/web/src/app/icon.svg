@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- GitHub issue #59 / Faz 10, Prompt 10.1, GÖREV 4 — public/brand/
+     ogun-favicon-32px.svg'nin Next.js "app/icon" dosya kuralına bağlanmış
+     kopyası (Inkscape'in yinelenen style="" nitelikleri temizlendi, geometri
+     birebir aynı). Next bunu <link rel="icon" type="image/svg+xml"> olarak
+     yayınlar; app/favicon.ico eski tarayıcılar için yerinde kalır. -->
+<svg viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Öğün"
+     xmlns="http://www.w3.org/2000/svg">
+  <title>Öğün</title>
+  <rect x="0" y="0" width="32" height="32" rx="8" fill="#1B7A5A" />
+  <circle cx="16" cy="18" r="7.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" />
+  <circle cx="-18" cy="16" r="7.5" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"
+          stroke-dasharray="32 15" transform="rotate(-90)" />
+  <circle cx="12.5" cy="6" r="1.8" fill="#FFFFFF" />
+  <circle cx="19.5" cy="6" r="1.8" fill="#9FE1CB" />
+</svg>

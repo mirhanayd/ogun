@@ -4,6 +4,40 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ===========================================================================
+   ÖĞÜN TASARIM SİSTEMİ — GitHub issue #59 / Faz 10, Prompt 10.1
+   ---------------------------------------------------------------------------
+   MARKA PALETİ (bkz. public/brand/*.svg):
+     birincil  #1B7A5A → oklch(0.518 0.100 165.2)
+     ikincil   #4FA97F → oklch(0.668 0.108 161.1)
+     accent    #9FE1CB → oklch(0.859 0.074 171.8)
+     koyu      #12211B → oklch(0.232 0.024 167.2)
+
+   TÜRETME YÖNTEMİ — dört marka rengi de OKLCH uzayında 161°–172° ton
+   aralığına düşüyor; sistemin TON ÇAPASI olarak 165° (birincil rengin tonu)
+   seçildi. Tüm nötr yüzeyler (background/card/muted/border/secondary) bu
+   çapadan, DÜŞÜK doygunlukla (C = 0.002–0.020) türetildi: gri değil, hafif
+   yeşile çalan gri — "klinik ama steril değil". Doygunluk bilinçli olarak
+   0.02'nin altında tutuldu; üstünde nötrler "yeşil" olarak okunmaya başlıyor
+   ve aşağıdaki KURAL'ı ihlal ediyor.
+
+   KURAL (issue #59): DOYGUN yeşil yalnızca EYLEM ve MARKA içindir
+   (--primary, --ring, --sidebar-primary). Veri gösteriminde kullanılmaz:
+   besin öğesi durum renklerinin (bkz. packages/nutrition-core/src/
+   reference-comparison.ts `classifyNutrientLevel` → low/adequate/optimal/
+   excessive ve nutrient-panel.tsx'teki kırmızı/sarı/yeşil/turuncu eşlemesi)
+   kendi semantiği var; marka yeşilini oraya taşımak "optimal" ile "marka"
+   arasında belirsizlik yaratır. --accent bu yüzden #9FE1CB'nin AÇIK bir
+   tonu (C ≈ 0.038) — vurgu/seçili satır/hover için yeterince görünür, bir
+   durum rengi sanılacak kadar doygun değil.
+
+   KONTRAST (WCAG, tüm değerler ölçüldü — bkz. PR açıklaması):
+     açık: foreground/background 17.02:1 · muted-foreground/background 5.62:1
+           primary/background 5.11:1 · primary-foreground/primary 5.06:1
+     koyu: foreground/background 16.81:1 · muted-foreground/background 7.56:1
+           primary/background 6.62:1 · primary-foreground/primary 6.90:1
+   =========================================================================== */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -49,31 +83,99 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ---------------------------------------------------------------------------
+   TİPOGRAFİ ÖLÇEĞİ — issue #59, GÖREV 3
+   ---------------------------------------------------------------------------
+   Ekranlar bugüne kadar ad-hoc `text-sm` / `text-xs` kullanıyordu; hangi
+   boyutun "gövde", hangisinin "yardımcı metin" olduğu hiçbir yerde yazılı
+   değildi. Aşağıdaki beş ROL bunu isimlendirir. Boyutlar bilinçli olarak
+   MEVCUT değerlerle aynı seçildi (gövde 14px = text-sm, yardımcı 12px =
+   text-xs), böylece bir sınıfı `text-sm` → `text-body` olarak değiştirmek
+   GÖRSEL OLARAK HİÇBİR ŞEYİ DEĞİŞTİRMEZ — ölçek kademeli olarak, ekran
+   davranışı bozulmadan benimsenebilir.
+
+     rol              utility          boyut / satır   ağırlık
+     ---------------- ---------------- --------------- --------
+     Sayfa başlığı    text-title       24px / 32px     600
+     Bölüm başlığı    text-section     18px / 28px     600
+     Gövde            text-body        14px / 20px     miras
+     Yardımcı metin   text-helper      12px / 16px     miras
+     Sayısal veri     text-data        14px / 20px     miras   + tabular-nums
+                      text-data-lg     20px / 28px     600     + tabular-nums
+
+   SAYISAL VERİ: kcal / gram / besin öğesi değerleri sütun hâlinde alt alta
+   dizildiğinde orantılı rakamlar sütunları kaydırıyordu. `text-data` ve
+   `text-data-lg` `tabular-nums` uygular (Tailwind'in kendi `tabular-nums`
+   yardımcı sınıfı da tek başına kullanılabilir). Yerleşimin kendisi
+   (sabit genişlikli sütunlar, hizalama) issue #61'in işi — burada yalnızca
+   token/utility hazırlanıyor.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --text-title: 1.5rem;
+  --text-title--line-height: 2rem;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+
+  --text-section: 1.125rem;
+  --text-section--line-height: 1.75rem;
+  --text-section--font-weight: 600;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+
+  --text-helper: 0.75rem;
+  --text-helper--line-height: 1rem;
+}
+
+@utility text-data {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility text-data-lg {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #1b7a5a;
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Kaydırma çubukları ve native form denetimleri de temayı izlesin —
+     bu olmadan koyu modda beyaz scrollbar/select kalıyor. */
+  color-scheme: light;
+  /* Nötr ölçek — ton çapası 165°, C ≤ 0.022 (yeşile çalan gri) */
+  --background: oklch(0.988 0.004 165);
+  --foreground: oklch(0.21 0.015 165);
+  --card: oklch(0.999 0.002 165);
+  --card-foreground: oklch(0.21 0.015 165);
+  --popover: oklch(0.999 0.002 165);
+  --popover-foreground: oklch(0.21 0.015 165);
+  /* Marka / eylem — #1B7A5A'nın oklch karşılığı (hex bırakılmadı) */
+  --primary: oklch(0.518 0.1 165.2);
+  --primary-foreground: oklch(0.985 0.005 165);
+  --secondary: oklch(0.955 0.012 165);
+  --secondary-foreground: oklch(0.33 0.035 165);
+  --muted: oklch(0.964 0.008 165);
+  --muted-foreground: oklch(0.505 0.022 165);
+  /* --accent: #9FE1CB'den türetildi (aynı ton, düşürülmüş doygunluk) */
+  --accent: oklch(0.93 0.038 171.8);
+  --accent-foreground: oklch(0.33 0.055 165);
+  /* Kırmızı semantiği KORUNDU — yıkıcı eylem markadan bağımsızdır */
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: #1b7a5a;
+  --border: oklch(0.91 0.011 165);
+  --input: oklch(0.898 0.013 165);
+  --ring: oklch(0.518 0.1 165.2);
   /* Kategorik grafik paleti (GitHub issue #18 / Prompt 4.2, ilerleme
-     grafikleri) — dataviz skill'in doğrulanmış referans paletinden (bkz.
-     references/palette.md), adjacent-pair CVD/kontrast kontrolleri bu
-     yüzey (#ffffff) için node scripts/validate_palette.js ile geçti.
-     Önceki değerler (gri tonlamalı, oklch(... 0 0)) hiç kullanılmayan bir
-     shadcn yer tutucusuydu. */
+     grafikleri; issue #26'da dataviz skill'in doğrulanmış referans
+     paletinden alındı) — issue #59'da YENİ açık/koyu yüzeylere karşı
+     TEKRAR doğrulandı, değerler değişmedi. Çalıştır:
+       node scripts/validate_palette.js
+     Sıra SABİT (mavi, turuncu, deniz yeşili, sarı, macenta, yeşil) —
+     sıralama CVD güvenliğinin mekanizması, kozmetik değil.
+     NOT: --chart-* marka yeşilinden BİLEREK bağımsızdır (bkz. yukarıdaki
+     KURAL) — grafik serileri veri gösterimidir, marka değil. */
   --chart-1: #2a78d6; /* mavi */
   --chart-2: #eb6834; /* turuncu */
   --chart-3: #1baf7a; /* deniz mavisi-yeşil */
@@ -81,52 +183,57 @@
   --chart-5: #e87ba4; /* macenta */
   --chart-6: #008300; /* yeşil */
   --radius: 0.5rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #1b7a5a;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: #1b7a5a;
+  --sidebar: oklch(0.972 0.007 165);
+  --sidebar-foreground: oklch(0.21 0.015 165);
+  --sidebar-primary: oklch(0.518 0.1 165.2);
+  --sidebar-primary-foreground: oklch(0.985 0.005 165);
+  --sidebar-accent: oklch(0.93 0.038 171.8);
+  --sidebar-accent-foreground: oklch(0.33 0.055 165);
+  --sidebar-border: oklch(0.902 0.012 165);
+  --sidebar-ring: oklch(0.518 0.1 165.2);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #2fae83;
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  color-scheme: dark;
+  /* Koyu nötr ölçek — marka koyusundan (#12211B, ton 167°) türetildi */
+  --background: oklch(0.186 0.014 167);
+  --foreground: oklch(0.965 0.006 165);
+  --card: oklch(0.232 0.017 167);
+  --card-foreground: oklch(0.965 0.006 165);
+  --popover: oklch(0.245 0.018 167);
+  --popover-foreground: oklch(0.965 0.006 165);
+  /* Koyu zeminde #1B7A5A yeterince okunmuyor; marka ailesinin daha açık
+     adımı kullanılıyor (ikincil #4FA97F ile aynı L bandı, ton 165.5°) */
+  --primary: oklch(0.672 0.127 165.5);
+  --primary-foreground: oklch(0.16 0.018 167);
+  --secondary: oklch(0.288 0.02 167);
+  --secondary-foreground: oklch(0.965 0.006 165);
+  --muted: oklch(0.278 0.018 167);
+  --muted-foreground: oklch(0.72 0.02 165);
+  --accent: oklch(0.33 0.038 171.8);
+  --accent-foreground: oklch(0.925 0.045 171.8);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: #2fae83;
-  /* Aynı paletin karanlık mod adımları (bkz. :root bloğundaki not) — dark
-     surface (#1a1a19'a yakın, gerçek yüzey oklch(0.145 0 0)) için ayrıca
-     doğrulandı. */
+  /* Kenarlıklar yarı saydam beyaz DEĞİL, opak yeşile-çalan gri — yarı
+     saydam beyaz koyu yeşil zeminde nötr griye kayıyor ve ölçekten kopuyor */
+  --border: oklch(0.318 0.02 167);
+  --input: oklch(0.352 0.021 167);
+  --ring: oklch(0.672 0.127 165.5);
+  /* Aynı paletin koyu mod adımları — AYRI bir palet değil, aynı altı tonun
+     koyu yüzey için seçilmiş adımları (bkz. :root bloğundaki not). */
   --chart-1: #3987e5;
   --chart-2: #d95926;
   --chart-3: #199e70;
   --chart-4: #c98500;
   --chart-5: #d55181;
   --chart-6: #008300;
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #2fae83;
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: #2fae83;
+  --sidebar: oklch(0.21 0.016 167);
+  --sidebar-foreground: oklch(0.965 0.006 165);
+  --sidebar-primary: oklch(0.672 0.127 165.5);
+  --sidebar-primary-foreground: oklch(0.16 0.018 167);
+  --sidebar-accent: oklch(0.33 0.038 171.8);
+  --sidebar-accent-foreground: oklch(0.925 0.045 171.8);
+  --sidebar-border: oklch(0.305 0.02 167);
+  --sidebar-ring: oklch(0.672 0.127 165.5);
 }
 
 @layer base {

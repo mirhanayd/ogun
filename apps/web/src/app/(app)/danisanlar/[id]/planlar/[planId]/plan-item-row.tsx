@@ -111,7 +111,10 @@ export function PlanItemRow({
           />
         )}
 
-        <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
+        {/* GitHub issue #59 / Faz 10, GÖREV 3 — sabit genişlikli, sağa
+            hizalı sayısal sütun: orantılı rakamlarda satırdan satıra
+            kayıyordu. Yerleşimin geri kalanı issue #61'in işi. */}
+        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
           {kcal !== null ? `${kcal.toFixed(0)} kcal` : '—'}
         </span>
 

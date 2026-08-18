@@ -98,7 +98,7 @@ export default async function FinansPage({
                 {dietitianRevenue.map((row) => (
                   <div key={row.dietitianId} className="flex items-center justify-between text-sm">
                     <span>{row.dietitianName}</span>
-                    <span className="font-medium">{formatCurrency(row.total)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(row.total)}</span>
                   </div>
                 ))}
               </div>
@@ -124,7 +124,7 @@ export default async function FinansPage({
                 ).map(([method, total]) => (
                   <div key={method} className="flex items-center justify-between text-sm">
                     <span>{PAYMENT_METHOD_LABELS_TR[method as keyof typeof PAYMENT_METHOD_LABELS_TR]}</span>
-                    <span className="font-medium">{formatCurrency(total)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(total)}</span>
                   </div>
                 ))}
               </div>
@@ -162,7 +162,7 @@ function StatCard({
         <Icon className={`size-5 ${toneClass}`} />
         <div>
           <p className="text-xs text-muted-foreground">{label}</p>
-          <p className={`text-lg font-semibold ${toneClass}`}>{value}</p>
+          <p className={`text-lg font-semibold tabular-nums ${toneClass}`}>{value}</p>
         </div>
       </CardContent>
     </Card>
