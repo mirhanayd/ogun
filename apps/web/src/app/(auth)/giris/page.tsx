@@ -61,7 +61,15 @@ export default function GirisPage() {
       )
       return
     }
-    router.push('/kurulum')
+    // GitHub issue #67 — GİRİŞ sonrası hedef /kurulum DEĞİL /panel. Buraya
+    // gelen kullanıcının kliniği ÇOKTAN olabilir (yeni cihaz, çerez temizliği,
+    // oturum süresi dolması) ve onu kurulum sihirbazına atmak yanlıştı.
+    // /panel (app) segmentinde: layout.tsx'teki requireClinic() üç durumu da
+    // doğru ele alıyor — tek üyelik varsa otomatik seçip devam ediyor, birden
+    // fazlaysa /klinik-sec'e, hiç yoksa /kurulum'a yönlendiriyor. Yeni KAYIT
+    // akışı (kayit/page.tsx) /kurulum'a gitmeye devam ediyor; orada kullanıcının
+    // gerçekten kliniği yok.
+    router.push('/panel')
     router.refresh()
   }
 

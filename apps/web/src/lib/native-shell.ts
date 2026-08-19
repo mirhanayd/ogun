@@ -44,7 +44,10 @@ export function getGoogleSignInRedirects(): { callbackURL: string; errorCallback
       errorCallbackURL: '/api/auth/native/callback',
     }
   }
-  return { callbackURL: '/kurulum', errorCallbackURL: '/giris' }
+  // GitHub issue #67 — e-posta+şifre girişiyle AYNI hedef: /panel. Google ile
+  // giren kullanıcının da kliniği çoktan olabilir; (app)/layout.tsx zaten
+  // kliniksiz kullanıcıyı /kurulum'a yönlendiriyor.
+  return { callbackURL: '/panel', errorCallbackURL: '/giris' }
 }
 
 // ---------------------------------------------------------------------------
