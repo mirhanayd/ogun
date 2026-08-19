@@ -82,10 +82,22 @@ test.describe('Kritik akış', () => {
       await expect(foodSearchInput).toHaveValue('')
     }
     // Eklenen 3 kalemin öğün bloğunda gerçekten göründüğünü doğrula.
-    await expect(page.locator('[data-slot="card"]').first()).toBeVisible()
+    // GitHub issue #61 — ESKİ HÂLİ ÖLÇMÜYORDU: `[data-slot="card"]` seçicisi
+    // shadcn Card bileşenine ait, plan editörü ise HİÇBİR YERDE Card
+    // KULLANMIYOR (öğün blokları düz `div`) — yani bu beklenti hiçbir zaman
+    // eşleşemezdi. Turu atlama düzeltmesiyle (bkz. fixtures/auth.ts) test ilk
+    // kez buraya kadar ULAŞABİLDİĞİ için ortaya çıktı. Yerine GERÇEK ölçüm:
+    // eklenen kalem sayısı kadar kalem satırı render edilmiş olmalı (her
+    // satırın "Kalemi sil" düğmesi var, bkz. plan-item-row.tsx).
+    await expect(page.getByRole('button', { name: 'Kalemi sil' })).toHaveCount(3)
 
     // --- PDF üret --------------------------------------------------------------
-    await page.getByRole('button', { name: 'PDF önizleme / indir' }).click()
+    // GitHub issue #61 — "PDF önizleme / indir" artık üst şeritte DEĞİL,
+    // birincil eylemin ("Danışana ulaştır") yanındaki taşma menüsünde (bkz.
+    // plan-editor.tsx EditorTopBar). İşlev AYNI, yalnızca bir tık ötede —
+    // test de gerçek kullanıcının yapacağı gibi önce menüyü açıyor.
+    await page.getByRole('button', { name: 'Diğer plan eylemleri' }).click()
+    await page.getByRole('menuitem', { name: 'PDF önizleme / indir' }).click()
     await expect(page.getByRole('button', { name: 'İndir ve kaydet' })).toBeEnabled({ timeout: 20_000 })
     const downloadPromise = page.waitForEvent('download')
     await page.getByRole('button', { name: 'İndir ve kaydet' }).click()

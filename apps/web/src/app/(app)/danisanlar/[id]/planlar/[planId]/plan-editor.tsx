@@ -3,10 +3,37 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { CloudOff, Eye, FileDown, Layers, Loader2, RefreshCw, Share2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  CloudOff,
+  Eye,
+  FileDown,
+  Layers,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  Share2,
+  SlidersHorizontal,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -14,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { computeDragEndPlan } from '@/lib/dnd-reorder'
 import { cn } from '@/lib/utils'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
@@ -64,9 +92,22 @@ export interface PlanEditorProps {
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör düzeni.
 // - Üst: plan adı, tarih, hedef kalori, kaydet durumu, önizleme/PDF butonu.
 // - Sol: öğün blokları listesi (dikey akış).
-// - Sağ: sabit besin öğesi paneli (Prompt 5.4'te dolduracağız, şimdilik yer
-//   tutucu — bkz. nutrient-panel.tsx).
+// - Sağ: sabit besin öğesi paneli (bkz. nutrient-panel.tsx).
 // - Mobilde panel alta katlanır sekme olsun.
+//
+// GitHub issue #61 / Faz 10, Prompt 10.3 — ARAÇ ÇUBUĞU İKİ KATMANA AYRILDI.
+// #25'ten beri her şey TEK bir `flex flex-wrap` satırındaydı: 5 eşit ağırlıklı
+// buton + mod geçişi + çıktı formatı + 2 tarih + hedef kalori. Dizüstü
+// genişliğinde üç satıra sarıyordu ve hiçbir eylem diğerinden daha önemli
+// GÖRÜNMÜYORDU. Yeni hiyerarşi:
+//   1. katman (her zaman görünür): ← geri, plan adı, kayıt durumu | mod
+//      geçişi, "Plan ayarları", TEK birincil eylem ("Danışana ulaştır"),
+//      taşma menüsü.
+//   2. katman (açılınca görünür): plan üstverisi "Plan ayarları" popover'ında
+//      (tarihler, hedef kalori, çıktı formatı, format önizlemesi); ikincil
+//      eylemler ("PDF önizleme / indir", "Şablona dönüştür") taşma menüsünde.
+// HİÇBİR İŞLEV KALDIRILMADI — hepsi bir tık ötede ve AYNI store action'larına
+// bağlı (bkz. plan-editor-store.ts setPlanMeta).
 export function PlanEditor({
   planId,
   clientId,
@@ -109,6 +150,7 @@ export function PlanEditor({
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
 
   useEffect(() => {
     initialize({
@@ -127,7 +169,9 @@ export function PlanEditor({
     // Besin arama/miktar hesabı için offline indeksin (Dexie+Orama, #24)
     // hazır olduğundan emin ol — plan editörüne DOĞRUDAN bir link'ten (ör.
     // yer imi) gelindiyse komut paleti/FoodSearchInput henüz tetiklenmemiş
-    // olabilir.
+    // olabilir. NOT (#61): store'un resolveFoodMacros'u ARTIK bu çağrının
+    // bitmesini beklemek zorunda değil — kendisi indeksin hazır olmasını
+    // bekliyor (bkz. lib/food-index.ts whenFoodIndexReady).
     initFoodIndex().catch((error: unknown) =>
       console.error('[PlanEditor] besin indeksi yüklenemedi:', error),
     )
@@ -150,6 +194,18 @@ export function PlanEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId])
 
+  // GitHub issue #61 / GÖREV 4 — DOKUNMATİK SÜRÜKLE-BIRAK DOĞRULAMASI.
+  // dnd-kit'in PointerSensor'ü Pointer Events üzerinden çalışır, yani fare VE
+  // dokunma girdisini TEK sensörle karşılar (ayrıca bir TouchSensor eklemek
+  // aynı jesti iki kez tetikleme riski taşır — dnd-kit'in kendi önerisi
+  // "PointerSensor" YA DA "MouseSensor + TouchSensor", ikisinin karışımı
+  // değil). Dokunmanın gerçekten çalışması için gereken iki koşul da
+  // sağlanıyor:
+  //   1. sürükleme tutamağında `touch-none` (CSS touch-action: none) — bu
+  //      olmadan tarayıcı jesti sayfa kaydırması sanar (bkz. plan-item-row.tsx)
+  //   2. tutamağın dokunmatik cihazda GÖRÜNÜR olması — tutamak yalnızca
+  //      hover'da beliriyordu, hover'ı olmayan cihazda hiç görünmüyordu;
+  //      #61'de `pointer: coarse` medya sorgusuyla kalıcı görünür yapıldı.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
   const { itemsByMeal, itemMealOf } = useMemo(() => {
@@ -184,11 +240,17 @@ export function PlanEditor({
     moveItemToMeal(String(active.id), plan.sourceMealId, plan.targetMealId, toIndex)
   }
 
+  const panel =
+    viewMode === 'değişim' ? (
+      <ExchangePanel targetKcal={currentTargetKcal} days={days} />
+    ) : (
+      <NutrientPanel targetKcal={currentTargetKcal} days={days} />
+    )
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex flex-col gap-3 pb-24 lg:pb-0">
+      <div className="flex flex-col gap-4 pb-24 lg:pb-0">
         <EditorTopBar
-          planId={planId}
           clientId={clientId}
           planName={currentPlanName}
           startDate={currentStartDate}
@@ -200,13 +262,14 @@ export function PlanEditor({
           onOpenPreview={() => setPreviewDialogOpen(true)}
           onOpenPdfDialog={() => setPdfDialogOpen(true)}
           onOpenShareDialog={() => setShareDialogOpen(true)}
+          onOpenTemplateDialog={() => setTemplateDialogOpen(true)}
           saveStatus={saveStatus}
           pendingCount={pendingCount}
           onCommit={setPlanMeta}
         />
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="flex flex-col gap-4">
             {days.map((day) => (
               <DaySection key={day.id} day={day} showHeading={days.length > 1} />
             ))}
@@ -215,41 +278,51 @@ export function PlanEditor({
           {/* Masaüstünde sabit sağ panel — GitHub issue #28 / Prompt 5.6,
               GÖREV 2: "Gram modundaki besin öğesi panelinin YERİNE geçer".
               AYNI reserved panel alanı (#25/#26), İÇERİK değişim moduna göre
-              değişir. */}
+              değişir. #61: genişlik 320 → 360px; besin öğesi satırı artık ad +
+              değer + referans çubuğu + yüzde taşıyor ve 320px'de ad sütunu
+              sürekli kırpılıyordu. */}
           <div className="hidden lg:block">
-            <div className="sticky top-4">
-              {viewMode === 'değişim' ? (
-                <ExchangePanel targetKcal={currentTargetKcal} days={days} />
-              ) : (
-                <NutrientPanel targetKcal={currentTargetKcal} days={days} />
-              )}
-            </div>
+            <div className="sticky top-4">{panel}</div>
           </div>
         </div>
 
-        {/* GÖREV 1: "Mobilde panel alta katlanır sekme olsun" */}
+        {/* GÖREV 1: "Mobilde panel alta katlanır sekme olsun" — GitHub issue
+            #61 / GÖREV 4'te satır içi açılır bölümden Sheet'e taşındı (#59'da
+            eklenen bileşen). NOT: faz-10 spec'inin dosya başı uyarısı uyarınca
+            uygulama artık masaüstü penceresi hedefliyor; bu şerit yalnızca dar
+            pencereler için bir güvenlik ağı. */}
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background lg:hidden">
           <button
             type="button"
-            className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium"
-            onClick={() => setMobilePanelOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-2.5 text-body font-medium"
+            onClick={() => setMobilePanelOpen(true)}
           >
             {viewMode === 'değişim' ? 'Değişim hedefleri paneli' : 'Besin öğesi paneli'}
-            <Badge variant="secondary">{mobilePanelOpen ? 'Kapat' : 'Aç'}</Badge>
+            <Badge variant="secondary">Aç</Badge>
           </button>
-          {mobilePanelOpen && (
-            <div className="max-h-[60vh] overflow-y-auto border-t border-border p-3">
-              {viewMode === 'değişim' ? (
-                <ExchangePanel targetKcal={currentTargetKcal} days={days} />
-              ) : (
-                <NutrientPanel targetKcal={currentTargetKcal} days={days} />
-              )}
-            </div>
-          )}
         </div>
+        <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+          <SheetContent side="bottom" className="max-h-[80svh] gap-0 lg:hidden">
+            <SheetHeader className="pb-0">
+              <SheetTitle>
+                {viewMode === 'değişim' ? 'Değişim hedefleri paneli' : 'Besin öğesi paneli'}
+              </SheetTitle>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">{panel}</div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <OutputFormatPreviewDialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen} />
+      {/* GitHub issue #27 / Prompt 5.5, GÖREV 1 — "Mevcut planı şablona
+          dönüştür". #61'de yalnızca TETİKLEYİCİSİ taşma menüsüne taşındı;
+          diyalog (ve durumu) editörün kökünde duruyor. */}
+      <SaveAsTemplateDialog
+        planId={planId}
+        currentPlanName={currentPlanName}
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+      />
       <PlanPdfDialog
         open={pdfDialogOpen}
         onOpenChange={setPdfDialogOpen}
@@ -275,9 +348,9 @@ export function PlanEditor({
 
 function DaySection({ day, showHeading }: { day: DraftDay; showHeading: boolean }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {showHeading && (
-        <h2 className="text-sm font-semibold text-muted-foreground">
+        <h2 className="text-section text-muted-foreground">
           {day.dayLabel ?? `Gün ${day.dayNumber}`}
         </h2>
       )}
@@ -288,8 +361,12 @@ function DaySection({ day, showHeading }: { day: DraftDay; showHeading: boolean 
   )
 }
 
+// GitHub issue #61 / GÖREV 1 — ÜST ŞERİT. Tek satır, sakin: solda gezinme +
+// kimlik + kayıt durumu, sağda görünüm anahtarı + ayarlar + TEK birincil eylem
+// + taşma menüsü. `flex-wrap` BİLEREK kaldırıldı — sarmayı imkânsız kılmak bu
+// revizyonun asıl amacı; yalnızca plan adı esner, geri kalan her şey sabit
+// genişlikli ve `shrink-0`.
 function EditorTopBar({
-  planId,
   clientId,
   planName,
   startDate,
@@ -301,11 +378,11 @@ function EditorTopBar({
   onOpenPreview,
   onOpenPdfDialog,
   onOpenShareDialog,
+  onOpenTemplateDialog,
   saveStatus,
   pendingCount,
   onCommit,
 }: {
-  planId: string
   clientId: string
   planName: string
   startDate: Date | null
@@ -317,6 +394,7 @@ function EditorTopBar({
   onOpenPreview: () => void
   onOpenPdfDialog: () => void
   onOpenShareDialog: () => void
+  onOpenTemplateDialog: () => void
   saveStatus: string
   pendingCount: number
   onCommit: (patch: {
@@ -328,101 +406,170 @@ function EditorTopBar({
   }) => void
 }) {
   const router = useRouter()
-  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/danisanlar/${clientId}?tab=planlar`)}
-        >
-          ← Danışana dön
-        </Button>
-        <Input
-          value={planName}
-          onChange={(e) => onCommit({ name: e.target.value })}
-          className="h-8 max-w-72 min-w-32 flex-1 font-medium"
-          aria-label="Plan adı"
+    <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Danışana dön"
+        title="Danışana dön"
+        onClick={() => router.push(`/danisanlar/${clientId}?tab=planlar`)}
+      >
+        <ArrowLeft className="size-4" />
+      </Button>
+      {/* Plan adı satır içi düzenlenir (kaydet butonu YOK, bkz.
+          SaveStatusIndicator). Üst şerit sakin dursun diye kenarlık yalnızca
+          hover/odakta beliriyor — alan yine de gerçek bir <input>. */}
+      <Input
+        value={planName}
+        onChange={(e) => onCommit({ name: e.target.value })}
+        className="h-8 min-w-32 max-w-80 flex-1 border-transparent bg-transparent font-medium shadow-none hover:border-input focus-visible:border-input dark:bg-transparent"
+        aria-label="Plan adı"
+      />
+      <SaveStatusIndicator status={saveStatus} pendingCount={pendingCount} />
+
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {/* GitHub issue #28 / Prompt 5.6, GÖREV 1 — "Gram modu" / "Değişim
+            modu" geçişi. #61'de üst şeritte KALDI: sık kullanılan bir görünüm
+            anahtarı bir menünün arkasına saklanamaz. */}
+        <ViewModeToggle viewMode={viewMode} onChange={onViewModeChange} />
+        <PlanSettingsPopover
+          startDate={startDate}
+          endDate={endDate}
+          targetKcal={targetKcal}
+          outputFormat={outputFormat}
+          onCommit={onCommit}
+          onOpenPreview={onOpenPreview}
         />
-        <SaveStatusIndicator status={saveStatus} pendingCount={pendingCount} />
-        {/* GitHub issue #27 / Prompt 5.5, GÖREV 1 — "Mevcut planı şablona
-            dönüştür". */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setTemplateDialogOpen(true)}
-        >
-          <Layers className="size-3.5" />
-          Şablona dönüştür
-        </Button>
-        <SaveAsTemplateDialog
-          planId={planId}
-          currentPlanName={planName}
-          open={templateDialogOpen}
-          onOpenChange={setTemplateDialogOpen}
-        />
-        {/* GitHub issue #35 / Prompt 6.1 — #25'in "yakında" bıraktığı stub
-            burada GERÇEK bir diyaloğa bağlandı (bkz. plan-pdf-dialog.tsx). */}
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenPdfDialog}>
-          <FileDown className="size-3.5" />
-          PDF önizleme / indir
-        </Button>
         {/* GitHub issue #36 / Prompt 6.2 — "Danışana ulaştırma": paylaşım
-            linki + WhatsApp/e-posta gönderimi (bkz. share-dialog.tsx). */}
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenShareDialog}>
+            linki + WhatsApp/e-posta gönderimi (bkz. share-dialog.tsx). #61:
+            bu ekranın TEK birincil eylemi — planın gitmesi gereken yer. */}
+        <Button size="sm" className="gap-1.5" onClick={onOpenShareDialog}>
           <Share2 className="size-3.5" />
           Danışana ulaştır
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label="Diğer plan eylemleri">
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Diğer eylemler</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {/* GitHub issue #35 / Prompt 6.1 — gerçek PDF diyaloğu
+                (plan-pdf-dialog.tsx). */}
+            <DropdownMenuItem onSelect={onOpenPdfDialog}>
+              <FileDown className="size-4" />
+              PDF önizleme / indir
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onOpenTemplateDialog}>
+              <Layers className="size-4" />
+              Şablona dönüştür
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        {/* GitHub issue #28 / Prompt 5.6, GÖREV 1 — "Gram modu" / "Değişim
-            modu" geçişi, plan editörü üstünde. */}
-        <ViewModeToggle viewMode={viewMode} onChange={onViewModeChange} />
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Çıktı formatı</span>
-          <Select
-            value={outputFormat}
-            onValueChange={(value) => onCommit({ outputFormat: value as PlanOutputFormat })}
+    </div>
+  )
+}
+
+// GitHub issue #61 / GÖREV 1 — "Plan üstverisi (tarihler, hedef kalori, çıktı
+// formatı) → katlanabilir bir 'Plan ayarları' popover'ına al. Bunlar plan
+// başında bir kez ayarlanıyor, her an görünür olmalarına gerek yok."
+// Alanlar AYNI onCommit (setPlanMeta) akışına bağlı — yalnızca YERLERİ değişti,
+// davranışları (anında kaydetme, offline kuyruğu) aynı.
+function PlanSettingsPopover({
+  startDate,
+  endDate,
+  targetKcal,
+  outputFormat,
+  onCommit,
+  onOpenPreview,
+}: {
+  startDate: Date | null
+  endDate: Date | null
+  targetKcal: number | null
+  outputFormat: PlanOutputFormat
+  onCommit: (patch: {
+    targetKcal?: number | null
+    startDate?: Date | null
+    endDate?: Date | null
+    outputFormat?: PlanOutputFormat
+  }) => void
+  onOpenPreview: () => void
+}) {
+  // Tetikleyicide bir özet kalıyor: hedef kalori panelin TÜM referans
+  // karşılaştırmasını belirlediği için "hedef girilmiş miydi?" sorusunun
+  // cevabı popover açılmadan da görünmeli.
+  const summary = targetKcal !== null ? `${targetKcal} kcal` : 'Hedef yok'
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <SlidersHorizontal className="size-3.5" />
+          Plan ayarları
+          <span className="text-data text-muted-foreground">{summary}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-3">
+        <PopoverHeader>
+          <PopoverTitle>Plan ayarları</PopoverTitle>
+          <PopoverDescription>
+            Plan başında bir kez ayarlanır; değişiklikler anında kaydedilir.
+          </PopoverDescription>
+        </PopoverHeader>
+        <div className="flex flex-col gap-2.5">
+          <DateField
+            label="Başlangıç"
+            value={startDate}
+            onChange={(d) => onCommit({ startDate: d })}
+          />
+          <DateField label="Bitiş" value={endDate} onChange={(d) => onCommit({ endDate: d })} />
+          <label className="flex items-center justify-between gap-2">
+            <span className="text-helper text-muted-foreground">Hedef kalori</span>
+            <Input
+              type="number"
+              min={0}
+              value={targetKcal ?? ''}
+              onChange={(e) =>
+                onCommit({ targetKcal: e.target.value === '' ? null : Number(e.target.value) })
+              }
+              className="h-7 w-36 text-data"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-helper text-muted-foreground">Çıktı formatı</span>
+            <Select
+              value={outputFormat}
+              onValueChange={(value) => onCommit({ outputFormat: value as PlanOutputFormat })}
+            >
+              <SelectTrigger className="h-7 w-36 text-helper" aria-label="Çıktı formatı">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PLAN_OUTPUT_FORMAT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-1.5"
+            onClick={onOpenPreview}
           >
-            <SelectTrigger className="h-7 w-auto text-xs" aria-label="Çıktı formatı">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PLAN_OUTPUT_FORMAT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2" onClick={onOpenPreview}>
             <Eye className="size-3.5" />
             Önizleme (demo)
           </Button>
         </div>
-        <DateField
-          label="Başlangıç"
-          value={startDate}
-          onChange={(d) => onCommit({ startDate: d })}
-        />
-        <DateField label="Bitiş" value={endDate} onChange={(d) => onCommit({ endDate: d })} />
-        <label className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Hedef kalori</span>
-          <Input
-            type="number"
-            min={0}
-            value={targetKcal ?? ''}
-            onChange={(e) =>
-              onCommit({ targetKcal: e.target.value === '' ? null : Number(e.target.value) })
-            }
-            className="h-7 w-24"
-          />
-        </label>
-      </div>
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -437,13 +584,13 @@ function DateField({
 }) {
   const isoValue = value ? value.toISOString().slice(0, 10) : ''
   return (
-    <label className="flex items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <label className="flex items-center justify-between gap-2">
+      <span className="text-helper text-muted-foreground">{label}</span>
       <Input
         type="date"
         value={isoValue}
         onChange={(e) => onChange(e.target.value ? new Date(e.target.value) : null)}
-        className="h-7 w-36"
+        className="h-7 w-36 text-data"
       />
     </label>
   )
@@ -461,12 +608,12 @@ function ViewModeToggle({
   onChange: (mode: PlanViewMode) => void
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-border p-0.5">
+    <div className="inline-flex shrink-0 rounded-lg border border-border p-0.5">
       <button
         type="button"
         onClick={() => onChange('gram')}
         className={cn(
-          'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+          'rounded-md px-2.5 py-1 text-helper font-medium transition-colors',
           viewMode === 'gram'
             ? 'bg-primary text-primary-foreground'
             : 'text-muted-foreground hover:text-foreground',
@@ -478,7 +625,7 @@ function ViewModeToggle({
         type="button"
         onClick={() => onChange('değişim')}
         className={cn(
-          'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+          'rounded-md px-2.5 py-1 text-helper font-medium transition-colors',
           viewMode === 'değişim'
             ? 'bg-primary text-primary-foreground'
             : 'text-muted-foreground hover:text-foreground',
@@ -495,7 +642,7 @@ function ViewModeToggle({
 function SaveStatusIndicator({ status, pendingCount }: { status: string; pendingCount: number }) {
   if (status === 'offline') {
     return (
-      <Badge variant="destructive" className="gap-1">
+      <Badge variant="destructive" className="shrink-0 gap-1">
         <CloudOff className="size-3" />
         Bağlantı yok, yerel kayıt{pendingCount > 0 ? ` (${pendingCount} bekliyor)` : ''}
       </Badge>
@@ -503,7 +650,7 @@ function SaveStatusIndicator({ status, pendingCount }: { status: string; pending
   }
   if (status === 'saving') {
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge variant="secondary" className="shrink-0 gap-1">
         <Loader2 className="size-3 animate-spin" />
         Kaydediliyor…
       </Badge>
@@ -511,14 +658,18 @@ function SaveStatusIndicator({ status, pendingCount }: { status: string; pending
   }
   if (status === 'error') {
     return (
-      <Badge variant="destructive" className="gap-1">
+      <Badge variant="destructive" className="shrink-0 gap-1">
         <RefreshCw className="size-3" />
         Kaydedilemedi, tekrar denenecek
       </Badge>
     )
   }
   if (status === 'saved') {
-    return <Badge variant="outline">Kaydedildi</Badge>
+    return (
+      <Badge variant="outline" className="shrink-0">
+        Kaydedildi
+      </Badge>
+    )
   }
   return null
 }

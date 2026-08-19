@@ -316,7 +316,7 @@ promise'i bekler, hata durumunda sıfırlanır. Düzeltmeden SONRA ölçülen:
 **tek istek, indeks ~30 saniyede Dexie'ye yazıldı** ve panel gerçek değerleri
 hesapladı (ekran görüntüsü bu sayede alınabildi).
 
-### 6.4 İlk açılışta plan kalemleri hiç çözülmüyor (BULUNDU, DÜZELTİLMEDİ — #61'e bırakıldı)
+### 6.4 İlk açılışta plan kalemleri hiç çözülmüyor (BULUNDU #60'ta, DÜZELTİLDİ #61'de)
 
 Yukarıdakiyle aynı oturumda bulundu. `plan-editor.tsx`, `initFoodIndex()`i
 BEKLEMEDEN (fire-and-forget) çağırıyor; store'un `resolveFoodMacros()`u ise
@@ -325,22 +325,31 @@ henüz yazılmadığı için hiçbir kalem çözülemiyor ve indeks sonradan gel
 YENİDEN DENENMİYOR — kalemler "Bilinmeyen besin" olarak kalıyor. İkinci ve
 sonraki tüm açılışlarda (indeks artık yerelde) doğru çalışıyor.
 
-BİLEREK düzeltilmedi: düzeltme plan editörünün durum yönetimine dokunuyor ve
-o ekranın kendi issue'sunun (#61, plan editörü arayüz revizyonu) konusu.
-Ekran görüntüsü script'i bu yüzden indeks yerele yazıldıktan sonra sayfayı
-BİR KEZ yeniliyor — yani kullanıcının ikinci ve sonraki tüm açılışlarında
-gördüğü NORMAL durumu yakalıyor.
+DÜZELTME (issue #61): `food-index.ts`'e `whenFoodIndexReady()` eklendi —
+`initFoodIndex` ile AYNI "uçuştaki yükleme" promise'ini paylaşan, beklenebilir
+bir hazır-olma noktası. `resolveFoodMacros()`, `resolveExchangeInfo()` ve
+`NutrientPanel`'in Dexie okumaları artık okumadan ÖNCE bunu bekliyor; yani
+"mount'ta bir kez çalış" davranışı korunuyor, sadece DOĞRU ANDA çalışıyor.
+Çağrı sırası artık önemli değil: hangisi önce çağrılırsa yüklemeyi o başlatır,
+diğerleri aynı promise'e katılır.
+
+DOĞRULAMA: `apps/e2e/scripts/capture-plan-editor.ts`'teki "indeks yerele
+yazıldıktan sonra sayfayı BİR KEZ yenile" geçici çözümü KALDIRILDI. Script
+artık tek bir açılışta hazır duruma geliyor — canlı ölçüm (1440×900, temiz
+profil): `t=45s indeks=15402 çözülmemiş=15` → `t=50s indeks=15402
+çözülmemiş=0`, yani indeks Dexie'ye yazıldıktan sonra kalemler yenileme
+OLMADAN çözüldü. Yenileme geri gelirse hata geri gelmiş demektir.
 
 ## Özet
 
 | Ölçüm | Durum |
 |---|---|
 | Besin arama p95 (#24 benchmark'ı, yeniden çalıştırıldı) | ✅ Gerçek, hedefin ÇOK altında |
-| Nutrient panel p95 (#26 için YENİ yazılan benchmark) | ✅ Gerçek, hedefin ÇOK altında |
+| Nutrient panel p95 (#26 için YENİ yazılan benchmark) | ✅ Gerçek, hedefin ÇOK altında — #61'in panel bölümlendirmesinden SONRA yeniden ölçüldü: p95 = 0,220 ms (6×6) / 0,261 ms (6×12) / 1,271 ms (7 gün) — hedef < 50 ms |
 | Bundle analizi (200KB+ chunk tespiti) | ✅ Gerçek üretim build'inden (webpack), 1 chunk (react-pdf, lazy-load'lu) 200KB gzip sınırını aşıyor |
 | Lighthouse | ⚠️ Kısmen — /giris için gerçek, auth'lu sayfalar için YOK (kapsam dışı bırakıldı) |
 | E2E — smoke + authorization (3 test) | ✅ Canlı çalıştırıldı, GEÇTİ — cross-tenant izolasyon GERÇEKTEN doğrulandı |
-| E2E — critical-flow / offline-sync | ⚠️ Kısmen — login→plan editörü açılışına kadar canlı doğrulandı (2 gerçek prod hatası bulup düzeltti), besin indeksi yükleme adımında bu sandbox'ın Chromium performans kısıtına takıldı |
+| E2E — critical-flow / offline-sync | ✅ Canlı çalıştırıldı, GEÇTİ (issue #61) — 5 testin tamamı yeşil. #45'te takılma nedeni sandbox performansı DEĞİLMİŞ: #47'nin ilk giriş ürün turu diyaloğu tüm sayfayı modal overlay ile kaplıyordu (fixtures/auth.ts artık "Turu atla"yı tıklıyor). Bu düzeltmeyle test ilk kez sonuna kadar ulaşınca ikinci bir ölü nokta çıktı: `[data-slot="card"]` beklentisi plan editöründe HİÇ var olmayan bir bileşeni arıyordu — gerçek bir ölçümle (kalem satırı sayısı) değiştirildi |
 | Demo seed (`db:seed:demo`) | ✅ Canlı çalıştırıldı — 25 danışan, 10 plan, 53 randevu, gerçek DB satırları |
 | Lighthouse — landing `/` (issue #60, bkz. 4.1) | ⚠️ Erişilebilirlik/SEO/İyi Uygulamalar 100 (iki profilde de) · performans masaüstünde 99 ✅, mobilde 71 ❌ (neden ölçüldü: paylaşılan Sentry chunk'ı) |
 | Ürün ekran görüntüsü (`public/marketing/plan-editor.png`, issue #60) | ✅ GERÇEK — demo seed verisiyle, gerçek plan editöründen, gerçek BLS/USDA değerleri hesaplanmış hâlde alındı (uydurma görsel YOK) |

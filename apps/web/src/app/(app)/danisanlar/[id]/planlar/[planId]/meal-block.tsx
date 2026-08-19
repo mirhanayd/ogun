@@ -68,9 +68,14 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
   const itemIds = meal.items.map((item) => item.id)
 
   return (
+    // GitHub issue #61 / Faz 10, Prompt 10.3, GÖREV 2 — DİKEY RİTİM.
+    // Blok içindeki boşluklar `mt-2` / `py-2` / `gap-0.5` karışımıydı; iki
+    // öğün bloğu arasındaki mesafe (plan-editor.tsx DaySection) blok İÇİ
+    // mesafeyle neredeyse aynıydı ve gruplar birbirine yapışıyordu. Artık tek
+    // bir ölçü var: blok içi `gap-2` (8px), bloklar arası `gap-4` (16px).
     <div
       ref={setDroppableRef}
-      className="rounded-xl border border-border bg-card p-3"
+      className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3"
       onFocus={registerActive}
       onClick={registerActive}
     >
@@ -92,7 +97,7 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
       />
 
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <ul className="mt-2 flex flex-col gap-0.5">
+        <ul className="flex flex-col">
           {meal.items.map((item) => (
             <PlanItemRow key={item.id} item={item} foodMacros={foodMacros} />
           ))}
@@ -100,13 +105,15 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
       </SortableContext>
 
       {meal.items.length === 0 && (
-        <p className="py-2 text-xs text-muted-foreground">Bu öğüne henüz kalem eklenmedi.</p>
+        <p className="px-1.5 py-1 text-helper text-muted-foreground">
+          Bu öğüne henüz kalem eklenmedi.
+        </p>
       )}
 
       {/* GÖREV 2: "Blok sonunda hep açık bir arama kutusu (yeni kalem eklemek
           için ekstra tık olmasın)" — FoodSearchInput HER ZAMAN görünür, hiç
           gizli/kapalı bir "ekle" butonu YOK. */}
-      <div className="mt-2">
+      <div>
         <FoodSearchInput
           placeholder={`${mealTypeLabel} için besin ara… (ör. "150 gr tavuk göğsü", "@" ile kayıtlı öğün)`}
           onSelect={(selection) => addItemFromSelection(meal.id, selection)}
@@ -131,14 +138,18 @@ function MealHeader({
   onSaveAsMealLibraryEntry: () => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // GitHub issue #61 — başlık satırı da kalem satırlarıyla AYNI ritmi
+    // izlesin diye sabit yükseklikli (min-h-8) ve `flex-wrap` YOK: öğün
+    // toplamları (sağ blok) sarmayacak şekilde `shrink-0`, yalnızca öğün adı
+    // esner.
+    <div className="flex min-h-8 items-center gap-2">
       <Badge variant="secondary" className="shrink-0">
         {mealTypeLabel}
       </Badge>
       <InlineText
         value={meal.name}
         onCommit={(name) => onSave({ name })}
-        className="min-w-24 flex-1 font-medium"
+        className="min-w-20 flex-1 text-body font-medium"
       />
       <InlineTime value={meal.time} onCommit={(time) => onSave({ time })} />
       {/* GÖREV 3 — bu öğünü "öğün blokları kütüphanesi"ne kaydet. Boş bir
@@ -155,14 +166,26 @@ function MealHeader({
       >
         <Bookmark className="size-3.5" />
       </Button>
-      <div className="ml-auto flex items-center gap-1.5 text-xs">
-        <Badge variant="outline">{totals.kcalTotal.toFixed(0)} kcal</Badge>
-        <Badge variant="outline">P {totals.proteinGrams.toFixed(0)}g</Badge>
-        <Badge variant="outline">K {totals.carbGrams.toFixed(0)}g</Badge>
-        <Badge variant="outline">Y {totals.fatGrams.toFixed(0)}g</Badge>
+      {/* Öğün toplamları — `tabular-nums` (text-data) ve sabit genişlikli
+          rozetler: sayılar değiştikçe (canlı hesap) rozetlerin genişliği
+          değişip başlık satırı zıplıyordu. */}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        <Badge variant="outline" className="w-20 justify-center text-data">
+          {totals.kcalTotal.toFixed(0)} kcal
+        </Badge>
+        <Badge variant="outline" className="w-14 justify-center text-data">
+          P {totals.proteinGrams.toFixed(0)}g
+        </Badge>
+        <Badge variant="outline" className="w-14 justify-center text-data">
+          K {totals.carbGrams.toFixed(0)}g
+        </Badge>
+        <Badge variant="outline" className="w-14 justify-center text-data">
+          Y {totals.fatGrams.toFixed(0)}g
+        </Badge>
         {totals.uncalculatedItemCount > 0 && (
           <Badge
             variant="destructive"
+            className="text-helper"
             title="Bu kalemler serbest metin/tarif olduğu veya besin verisi eksik olduğu için toplama dahil değil"
           >
             {totals.uncalculatedItemCount} kalem hesap dışı

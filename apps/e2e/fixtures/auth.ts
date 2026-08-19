@@ -73,11 +73,32 @@ function cardTitle(page: Page, text: string) {
 // sürümün — sabit sayıda deneme + isVisible() anlık kontrolü — geçiş
 // ortasında HER İKİ butonu da "görünmez" bulup adımda TAKILI KALMASININ
 // gerçek nedeniydi, bkz. bu fonksiyonun ilk canlı E2E koşusunda yakalandı).
+// GitHub issue #61 — ÜRÜN TURU DİYALOĞUNU KAPAT. Bu yardımcı, #47'nin ilk
+// giriş turundan (bkz. app/(app)/_components/product-tour.tsx) ÖNCE yazıldı:
+// seed-e2e.ts'in oluşturduğu kullanıcıda `productTourCompletedAt` NULL olduğu
+// için /panel'e varır varmaz 4 adımlı tur diyaloğu AÇILIYOR ve sayfanın
+// tamamını modal overlay ile kaplıyor. critical-flow bu yüzden ilk adımda
+// ("KVKK ... okudum" onay kutusu) 240 sn boyunca "subtree intercepts pointer
+// events" ile takılıp kalıyordu — plan editörüne HİÇ ULAŞAMIYORDU (bkz.
+// docs/performance.md bölüm 7'nin "E2E — kısmen doğrulandı" satırı).
+// apps/e2e/scripts/capture-plan-editor.ts (#60) bunu zaten yapıyordu; aynı
+// gerçek kullanıcı davranışı ("Turu atla") artık ortak yardımcıda.
+async function dismissProductTourIfPresent(page: Page): Promise<void> {
+  const skipTour = page.getByRole('button', { name: 'Turu atla' })
+  if (await skipTour.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    await skipTour.click()
+    await skipTour.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {})
+  }
+}
+
 export async function loginAndEnsureOnboarded(page: Page, email: string, password: string): Promise<void> {
   await login(page, email, password)
   await page.waitForURL(/\/(kurulum|panel)/)
 
-  if (page.url().includes('/panel')) return
+  if (page.url().includes('/panel')) {
+    await dismissProductTourIfPresent(page)
+    return
+  }
 
   // Sihirbaz, seed-e2e.ts'in yazdığı clinics.onboardingStep'e göre 1., 2.
   // VEYA doğrudan 3. adımdan başlayabilir (bkz. app/kurulum/page.tsx
@@ -110,4 +131,5 @@ export async function loginAndEnsureOnboarded(page: Page, email: string, passwor
   await workingHoursHeading.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {})
   await page.getByRole('button', { name: 'Kurulumu tamamla' }).click()
   await page.waitForURL('**/panel', { timeout: 20_000 })
+  await dismissProductTourIfPresent(page)
 }

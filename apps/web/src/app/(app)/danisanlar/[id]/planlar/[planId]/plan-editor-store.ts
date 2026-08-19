@@ -18,7 +18,7 @@ import {
   updatePlanAction,
 } from '@/app/(app)/planlar/actions'
 import type { FoodSearchSelection } from '@/components/food-search-input'
-import { getFoodIndexEntriesByIds } from '@/lib/food-index'
+import { getFoodIndexEntriesByIds, whenFoodIndexReady } from '@/lib/food-index'
 import { resolveGramsFromSelection, type FoodMacroLookup } from '@/lib/plan-nutrients'
 import type { FoodExchangeInfo } from '@/lib/plan-exchanges'
 import { OfflineQueue, type QueueStatus } from '@/lib/offline-queue'
@@ -287,7 +287,17 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
   // eklenen kalemler için bu zaten FoodSearchSelection ile birlikte gelir
   // (bkz. addItemFromSelection), burada sadece İLK YÜKLEME için eksik
   // olanlar tamamlanıyor.
+  //
+  // GitHub issue #61 — "İLK açılışta tüm kalemler 'Bilinmeyen besin'" HATASI.
+  // Bu fonksiyon mount'ta BİR KEZ çalışıyor ve Dexie'deki besin indeksi o an
+  // HENÜZ İNMEMİŞ olabiliyordu (ilk açılışta ~20-30 sn); okuma boş dönüyor,
+  // indeks sonradan gelse bile YENİDEN DENENMİYORDU. Artık okumadan ÖNCE
+  // indeksin hazır olması bekleniyor (bkz. lib/food-index.ts
+  // whenFoodIndexReady) — "bir kez çalış" davranışı korunuyor, sadece DOĞRU
+  // ANDA çalışıyor. `days`/`foodMacros` bekleme SIRASINDA değişmiş olabilir,
+  // bu yüzden durum bekleme SONRASINDA yeniden okunuyor.
   resolveFoodMacros: async () => {
+    await whenFoodIndexReady()
     const { days, foodMacros } = get()
     const allFoodIds = new Set<string>()
     for (const day of days) {
@@ -314,7 +324,16 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
         fatPer100g: row.fatPer100g,
       }
     }
-    set((state) => ({ foodMacros: { ...state.foodMacros, ...patch } }))
+    // Beklerken kullanıcı arama kutusundan AYNI besini eklemiş olabilir
+    // (addItemFromSelection foodMacros'a yazar) — o kayıt daha tazedir,
+    // üzerine YAZMA.
+    set((state) => {
+      const next = { ...state.foodMacros }
+      for (const [id, macro] of Object.entries(patch)) {
+        if (!next[id]) next[id] = macro
+      }
+      return { foodMacros: next }
+    })
   },
 
   // GitHub issue #28 / Prompt 5.6 — resolveFoodMacros'un AYNI deseni,
@@ -323,6 +342,11 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
   // kontrolü) — aksi halde her çağrıda değişim eşleşmesi olmayan besinler
   // "eksik" sanılıp tekrar tekrar sorgulanırdı.
   resolveExchangeInfo: async () => {
+    // GitHub issue #61 — resolveFoodMacros ile AYNI gerekçe: indeks Dexie'ye
+    // yazılmadan okunursa TÜM besinler "değişim eşleşmesi yok" (null) olarak
+    // ÖNBELLEKLENİR ve `id in foodExchangeInfo` kontrolü yüzünden bir daha
+    // ASLA sorgulanmazdı — değişim modu ilk açılışta kalıcı olarak boş kalırdı.
+    await whenFoodIndexReady()
     const { days, foodExchangeInfo } = get()
     const allFoodIds = new Set<string>()
     for (const day of days) {

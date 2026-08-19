@@ -4,7 +4,6 @@ import { useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Plus, ShieldAlert, X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FoodSearchInput } from '@/components/food-search-input'
@@ -18,6 +17,33 @@ import { convertExchangeCountToGrams, convertItemToExchange } from '@/lib/plan-e
 // - "Satır içi düzenleme — modal AÇMA. Tıkla, düzenle, Tab ile geç."
 // - "Kalemin altında 'veya' satırları, girintili gösterim. Kaleme hover'da
 //   beliren '+ alternatif' butonu."
+//
+// GitHub issue #61 / Faz 10, Prompt 10.3, GÖREV 2 — SÜTUN DÜZENİ VE RİTİM.
+// Satırlar `flex ... gap-1.5` ile akıyordu: her sütunun genişliği içeriğine
+// göre değişiyor, "150 g" ile "1500 g" yan yana gelince miktar ve kcal
+// sütunları satırdan satıra KAYIYORDU. Artık tek bir sütun sözleşmesi var ve
+// hem ana kalem hem alternatif satırları AYNI sağ kenar hizasını paylaşıyor:
+//
+//   [tutamak w-5] [besin adı esner] [miktar w-24] [kcal w-20] [eylemler w-14]
+//   alternatif:   [        ad esner] [miktar w-24] [ boş w-20] [eylemler w-14]
+//
+// Sabitler tek yerde tanımlı ki iki satır tipi ayrışmasın.
+const COL_AMOUNT = 'w-24 shrink-0'
+const COL_KCAL = 'w-20 shrink-0'
+const COL_ACTIONS = 'w-14 shrink-0'
+
+// GÖREV 2: "Sil butonu ve '+ alternatif' yalnızca hover/odakta görünsün ama
+// YER KAPLAMAYA DEVAM ETSİN (görünürken düzen zıplamasın)." — bu yüzden
+// `hidden`/koşullu render DEĞİL, yalnızca `opacity`. Klavye kullanıcısı için
+// odak (kendi odağı VE satırın içindeki herhangi bir odak) da gösterir;
+// hover'ı olmayan dokunmatik cihazlarda (pointer: coarse) kalıcı görünür —
+// aksi halde sürükleme tutamağına ve silme butonuna DOKUNARAK ERİŞİLEMİYORDU
+// (bkz. plan-editor.tsx sensors notu).
+const REVEAL_ON_HOVER =
+  'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100'
+const REVEAL_ON_HOVER_ALT =
+  'opacity-0 transition-opacity group-hover/alt:opacity-100 group-focus-within/alt:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100'
+
 export function PlanItemRow({
   item,
   foodMacros,
@@ -54,6 +80,10 @@ export function PlanItemRow({
   // GitHub issue #26 / Prompt 5.4, GÖREV 3 — "Alerji/intolerans çakışması →
   // kalem satırında kırmızı ikon".
   const conflicts = item.foodId ? allergenConflicts.get(item.foodId) : undefined
+  const conflictLabel =
+    conflicts && conflicts.length > 0
+      ? `Alerji/intolerans çakışması: ${conflicts.map((c) => c.entry.label).join(', ')}`
+      : null
 
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -61,15 +91,17 @@ export function PlanItemRow({
     <li
       ref={setNodeRef}
       style={style}
-      className={cn(
-        'group/item rounded-md border border-transparent px-1.5 py-1 hover:border-border',
-        isDragging && 'opacity-50',
-      )}
+      className={cn('group/item rounded-md py-0.5', isDragging && 'opacity-50')}
     >
-      <div className="flex items-center gap-1.5">
+      {/* Sabit satır yüksekliği (min-h-8) — kalemler arasındaki dikey ritim
+          içeriğe (uzun ad / çakışma ikonu / mod) göre DEĞİŞMESİN. */}
+      <div className="flex min-h-8 items-center gap-2 rounded-md px-1.5 hover:bg-muted/50">
         <button
           type="button"
-          className="cursor-grab touch-none text-muted-foreground opacity-0 group-hover/item:opacity-100"
+          className={cn(
+            'w-5 shrink-0 cursor-grab touch-none text-muted-foreground',
+            REVEAL_ON_HOVER,
+          )}
           aria-label="Sürükle"
           {...attributes}
           {...listeners}
@@ -79,72 +111,79 @@ export function PlanItemRow({
 
         <span
           className={cn(
-            'min-w-0 flex-1 truncate text-sm',
+            'min-w-0 flex-1 truncate text-body',
             isPending && 'text-muted-foreground italic',
           )}
+          title={displayName}
         >
           {displayName}
           {isPending && ' (kaydediliyor…)'}
         </span>
 
-        {conflicts && conflicts.length > 0 && (
-          <ShieldAlert
-            className="size-3.5 shrink-0 text-destructive"
-            aria-label={`Alerji/intolerans çakışması: ${conflicts.map((c) => c.entry.label).join(', ')}`}
-          >
-            <title>{`Alerji/intolerans çakışması: ${conflicts.map((c) => c.entry.label).join(', ')}`}</title>
+        {conflictLabel && (
+          <ShieldAlert className="size-4 shrink-0 text-destructive" aria-label={conflictLabel}>
+            <title>{conflictLabel}</title>
           </ShieldAlert>
         )}
 
-        {viewMode === 'değişim' ? (
-          <ExchangeAmountEditor
-            item={item}
-            foodExchangeMap={foodExchangeMap}
-            disabled={isPending}
-            onCommit={(grams) => updateItemAmount(item.id, grams)}
-          />
-        ) : (
-          <AmountEditor
-            amountGrams={item.amountGrams}
-            disabled={isPending}
-            onCommit={(grams) => updateItemAmount(item.id, grams)}
-          />
-        )}
+        <div className={cn('flex justify-end', COL_AMOUNT)}>
+          {viewMode === 'değişim' ? (
+            <ExchangeAmountEditor
+              item={item}
+              foodExchangeMap={foodExchangeMap}
+              disabled={isPending}
+              onCommit={(grams) => updateItemAmount(item.id, grams)}
+            />
+          ) : (
+            <AmountEditor
+              amountGrams={item.amountGrams}
+              disabled={isPending}
+              onCommit={(grams) => updateItemAmount(item.id, grams)}
+            />
+          )}
+        </div>
 
-        {/* GitHub issue #59 / Faz 10, GÖREV 3 — sabit genişlikli, sağa
-            hizalı sayısal sütun: orantılı rakamlarda satırdan satıra
-            kayıyordu. Yerleşimin geri kalanı issue #61'in işi. */}
-        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+        {/* GitHub issue #59 / #61 — sabit genişlikli, sağa hizalı sayısal
+            sütun (`text-data` tabular-nums uygular): orantılı rakamlarda
+            satırdan satıra kayıyordu. */}
+        <span className={cn('text-right text-data text-muted-foreground', COL_KCAL)}>
           {kcal !== null ? `${kcal.toFixed(0)} kcal` : '—'}
         </span>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="opacity-0 group-hover/item:opacity-100"
-          onClick={() => setShowAltSearch((v) => !v)}
-          disabled={isPending}
-          title="Alternatif ekle"
-        >
-          <Plus className="size-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground opacity-0 hover:text-destructive group-hover/item:opacity-100"
-          onClick={() => removeItemById(item.id)}
-          title="Kalemi sil"
-        >
-          <X className="size-3.5" />
-        </Button>
+        <div className={cn('flex items-center justify-end gap-0.5', COL_ACTIONS)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={REVEAL_ON_HOVER}
+            onClick={() => setShowAltSearch((v) => !v)}
+            disabled={isPending}
+            aria-label="Alternatif ekle"
+            title="Alternatif ekle"
+          >
+            <Plus className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={cn('text-muted-foreground hover:text-destructive', REVEAL_ON_HOVER)}
+            onClick={() => removeItemById(item.id)}
+            aria-label="Kalemi sil"
+            title="Kalemi sil"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
       </div>
 
-      {item.note && <p className="ml-6 text-xs text-muted-foreground">{item.note}</p>}
+      {item.note && <p className="ml-7 px-1.5 text-helper text-muted-foreground">{item.note}</p>}
 
+      {/* GÖREV 2: "Alternatif (VEYA) satırları: girinti + sol kenar çizgisi ile
+          görsel bağ." — girinti ana kalemin AD sütunuyla hizalanır (tutamak
+          w-5 + gap), çizgi de bu kalemin alternatifleri olduğunu gösterir. */}
       {item.alternatives.length > 0 && (
-        <ul className="ml-6 mt-1 flex flex-col gap-0.5 border-l border-dashed border-border pl-2">
+        <ul className="mt-0.5 ml-7 flex flex-col border-l-2 border-border pl-2">
           {item.alternatives.map((alt) => (
             <AlternativeRow key={alt.id} alternative={alt} foodMacros={foodMacros} />
           ))}
@@ -152,7 +191,7 @@ export function PlanItemRow({
       )}
 
       {showAltSearch && (
-        <div className="ml-6 mt-1">
+        <div className="mt-1 ml-7 border-l-2 border-border pl-2">
           <FoodSearchInput
             placeholder="Alternatif besin ara…"
             autoFocus
@@ -180,23 +219,29 @@ function AlternativeRow({
   const isPending = alternative.id.startsWith('temp-')
 
   return (
-    <li className="group/alt flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Badge variant="outline" className="h-4 px-1 text-[0.65rem]">
-        veya
-      </Badge>
-      <span className={cn('flex-1 truncate', isPending && 'italic')}>
-        {displayName} — {alternative.amountGrams} g
+    <li className="group/alt flex min-h-7 items-center gap-2 rounded-md px-1.5 text-muted-foreground hover:bg-muted/50">
+      <span className="shrink-0 text-helper font-medium tracking-wide uppercase">veya</span>
+      <span className={cn('min-w-0 flex-1 truncate text-body', isPending && 'italic')}>
+        {displayName}
       </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="size-5 opacity-0 hover:text-destructive group-hover/alt:opacity-100"
-        onClick={() => removeAlternativeById(alternative.id)}
-        title="Alternatifi sil"
-      >
-        <X className="size-3" />
-      </Button>
+      {/* Ana kalemle AYNI sağ kenar hizası: miktar → kcal sütunu kadar boşluk
+          → eylemler. Alternatiflerin kendi kcal'ı gösterilmiyor (ana kalemin
+          yerine geçerler), ama sütun YERİ korunuyor ki hizalama bozulmasın. */}
+      <span className={cn('text-right text-data', COL_AMOUNT)}>{alternative.amountGrams} g</span>
+      <span className={COL_KCAL} aria-hidden />
+      <div className={cn('flex items-center justify-end', COL_ACTIONS)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn('hover:text-destructive', REVEAL_ON_HOVER_ALT)}
+          onClick={() => removeAlternativeById(alternative.id)}
+          aria-label="Alternatifi sil"
+          title="Alternatifi sil"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </div>
     </li>
   )
 }
@@ -222,7 +267,7 @@ function AmountEditor({
       <button
         type="button"
         disabled={disabled}
-        className="w-16 shrink-0 rounded px-1 text-right text-sm hover:bg-muted disabled:opacity-50"
+        className="w-full rounded px-1 text-right text-data hover:bg-muted disabled:opacity-50"
         onClick={() => {
           setValue(String(amountGrams))
           setEditing(true)
@@ -247,7 +292,7 @@ function AmountEditor({
       min={0}
       step="0.1"
       value={value}
-      className="h-7 w-16 px-1 text-right text-sm"
+      className="h-7 w-full px-1 text-right text-data"
       onChange={(event) => setValue(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
@@ -319,7 +364,7 @@ function ExchangeCountInput({
       <button
         type="button"
         disabled={disabled}
-        className="w-20 shrink-0 rounded px-1 text-right text-sm hover:bg-muted disabled:opacity-50"
+        className="w-full rounded px-1 text-right text-data hover:bg-muted disabled:opacity-50"
         onClick={() => {
           setValue(String(Math.round(exchangeCount * 10) / 10))
           setEditing(true)
@@ -344,7 +389,7 @@ function ExchangeCountInput({
       min={0}
       step="0.5"
       value={value}
-      className="h-7 w-20 px-1 text-right text-sm"
+      className="h-7 w-full px-1 text-right text-data"
       onChange={(event) => setValue(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
