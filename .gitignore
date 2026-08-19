@@ -11,6 +11,7 @@ coverage
 ogun-roadmap.md
 \.claude
 faz-9-masaustu-kabugu.md
+faz-10-ui-cilasi.md
 
 # GitHub issue #45 / Prompt 8.1 — Playwright E2E
 apps/e2e/playwright-report
@@ -35,3 +36,4 @@ apps/desktop/src-tauri/binaries
 # anahtar İÇEREBİLİR (özel anahtar DEĞİL, ama YİNE DE kaynak kontrolüne
 # GİRMEMELİ, sadece CI'da üretilip tüketilen bir ARA dosya).
 apps/desktop/release-updater.conf.json
+NASIL-CALISTIRIRIM.md
