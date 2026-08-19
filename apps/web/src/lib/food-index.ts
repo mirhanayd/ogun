@@ -232,6 +232,34 @@ export async function initFoodIndex(): Promise<void> {
   await getOramaIndex()
 }
 
+// GitHub issue #61 — "Dexie BOŞKEN yapılan İLK açılışta kalemler 'Bilinmeyen
+// besin' olarak kalıyor" hatasının çözüm noktası (semptomu #60'ın
+// apps/e2e/scripts/capture-plan-editor.ts dosyasında ayrıntılı yazılmıştı).
+//
+// KÖK NEDEN: `getFoodIndexEntriesByIds` yalnızca Dexie'de O AN ne varsa onu
+// okur. Plan editörü mount olurken `initFoodIndex()`i BEKLEMEDEN çağırıyor,
+// store'un `resolveFoodMacros()`u ise hemen çalışıp BOŞ bir tablo okuyordu;
+// indeks ~20-30 sn sonra Dexie'ye yazıldığında hiçbir şey yeniden
+// denenmiyordu.
+//
+// ÇÖZÜM: "indeks hazır olduğunda" diye BEKLENEBİLİR bir nokta. initFoodIndex
+// ile AYNI `indexLoadPromise`i paylaşır (yani ek bir indirme TETİKLEMEZ,
+// zaten başlamışsa ona katılır; hiç başlamamışsa başlatır — çağrı sırası
+// artık önemli değil). Orama arama indeksini KURMAZ: bu fonksiyonun
+// çağıranları (bkz. plan-editor-store.ts, nutrient-panel.tsx) id ile doğrudan
+// okuma yapar, tam metin aramaya ihtiyaçları yoktur.
+//
+// Hata YUTULUR (loglanır): indeks indirilemese bile Dexie'de ESKİ bir kopya
+// olabilir ve onu okumak hiç okumamaktan iyidir — çağıranlar her koşulda
+// devam edebilsin diye bu fonksiyon reject ETMEZ.
+export async function whenFoodIndexReady(): Promise<void> {
+  try {
+    await ensureIndexLoaded()
+  } catch (error: unknown) {
+    console.error('[food-index] besin indeksi hazırlanamadı:', error)
+  }
+}
+
 // GitHub issue #25 — plan editörünün öğün toplamı hesabı (bkz.
 // lib/plan-nutrients.ts) plan_items.foodId'lere karşılık gelen besin
 // öğesi değerlerini AĞA ÇIKMADAN okumak için bu fonksiyonu kullanır.

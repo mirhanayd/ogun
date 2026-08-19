@@ -50,10 +50,19 @@ if (!DATABASE_URL) {
 const BASE_URL = process.env.CAPTURE_BASE_URL ?? 'http://localhost:3100'
 const DEMO_EMAIL = process.env.CAPTURE_EMAIL ?? 'elif.kaya@yesiladimdiyet.com'
 const DEMO_PASSWORD = process.env.CAPTURE_PASSWORD ?? 'OgunDemo2026!'
-const OUT_PATH = path.resolve(
-  __dirname,
-  '../../web/public/marketing/plan-editor.png',
-)
+// GitHub issue #61 — çıktı yolu ve tema artık ortam değişkeniyle
+// EZİLEBİLİR. Gerekçe: bu script'in asıl işi (#60) landing sayfasının ürün
+// görselini üretmek, ama plan editörünün YERLEŞİM değişikliklerini gözle
+// doğrulamak için de aynı gerçek ekranı — açık VE koyu temada — çekmek
+// gerekiyor. Varsayılanlar DEĞİŞMEDİ: değişkensiz çalıştırıldığında script
+// eskisi gibi public/marketing/plan-editor.png'yi açık temada üretir.
+const OUT_PATH = process.env.CAPTURE_OUT_PATH
+  ? path.resolve(process.env.CAPTURE_OUT_PATH)
+  : path.resolve(__dirname, '../../web/public/marketing/plan-editor.png')
+// 'light' | 'dark' — next-themes tercihi localStorage'ta 'theme' anahtarında
+// tutulur (bkz. apps/web/src/app/providers.tsx), sayfa yüklenmeden ÖNCE
+// yazılır ki ilk boyamada doğru tema uygulansın.
+const CAPTURE_THEME = process.env.CAPTURE_THEME === 'dark' ? 'dark' : 'light'
 
 // Demo planının serbest metin kalemleri → veritabanındaki gerçek besin
 // kaydı + gram miktarı. `match` serbest metinde aranan ipucu, `foodQuery`
@@ -179,7 +188,16 @@ async function main() {
     }
 
     const browser = await chromium.launch()
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 2,
+      colorScheme: CAPTURE_THEME,
+    })
+    // next-themes'in kendi tercihini de yaz — `colorScheme` yalnızca
+    // prefers-color-scheme medya sorgusunu etkiler, uygulamanın varsayılanı
+    // "system" olduğu için ikisi birlikte tutarlı davranır; tercih açıkça
+    // yazıldığında tema geçişi ilk boyamada kesinleşir.
+    await context.addInitScript(`window.localStorage.setItem('theme', '${CAPTURE_THEME}')`)
     const page = await context.newPage()
 
     try {
@@ -225,20 +243,18 @@ async function main() {
       //      SIFIRDAN BÜYÜK bir enerji hesaplamış olmalı. Hesaplamamış bir
       //      panelin görüntüsü ürünü YANLIŞ gösterirdi.
       //
-      // (b) için BİR KEZ sayfa yenilenir. Gerekçe — BULUNAN İKİNCİ GERÇEK
-      // HATA (bu issue'nun kapsamı DIŞINDA bırakıldı): plan-editor.tsx
-      // `initFoodIndex()`i BEKLEMEDEN çağırıyor, ama store'un
-      // `resolveFoodMacros()`u yalnızca mount'ta BİR KEZ çalışıyor; indeks
-      // o an Dexie'de olmadığı için hiçbir kalem çözülemiyor ve indeks
-      // sonradan gelse bile YENİDEN DENENMİYOR. Yani Dexie BOŞKEN yapılan
-      // İLK açılışta kalemler "Bilinmeyen besin" olarak KALIYOR; ikinci ve
-      // sonraki TÜM açılışlarda (indeks artık yerelde) doğru çalışıyor.
-      // Yenileme, kullanıcının normalde gördüğü durumu üretir — ekran
-      // görüntüsü de bu normal durumu göstermeli. (Kalıcı düzeltme plan
-      // editörünün kendi issue'sunun işi — #61.)
+      // GitHub issue #61 — BU DÖNGÜ ARTIK SAYFAYI YENİLEMİYOR. #60'ta buraya
+      // "indeks yerele yazıldıktan sonra bir kez yenile" geçici çözümü
+      // konmuştu, çünkü store'un `resolveFoodMacros()`u yalnızca mount'ta bir
+      // kez çalışıyor ve Dexie BOŞKEN yapılan İLK açılışta hiçbir kalemi
+      // çözemiyordu (kalemler "Bilinmeyen besin" olarak kalıyordu). O hata
+      // #61'de KAYNAĞINDA düzeltildi: `resolveFoodMacros`/`resolveExchangeInfo`
+      // artık okumadan önce indeksin hazır olmasını bekliyor (bkz.
+      // apps/web/src/lib/food-index.ts whenFoodIndexReady). Yenilemenin
+      // kaldırılması bu düzeltmenin CANLI DOĞRULAMASI: script tek bir açılışta
+      // hazır duruma gelmiyorsa hata geri gelmiş demektir.
       const READY_DEADLINE_MS = 420_000
       const startedAt = Date.now()
-      let reloaded = false
       let ready = false
 
       while (Date.now() - startedAt < READY_DEADLINE_MS) {
@@ -295,12 +311,6 @@ async function main() {
         if (state.unresolved === 0 && !state.stillLoading && state.hasNonZeroKcal) {
           ready = true
           break
-        }
-        if (state.foodRows > 0 && !reloaded) {
-          reloaded = true
-          console.log('[capture] İndeks yerelde; sayfa bir kez yenileniyor (bkz. yukarıdaki not).')
-          await page.reload({ waitUntil: 'domcontentloaded' })
-          continue
         }
         await page.waitForTimeout(5_000)
       }

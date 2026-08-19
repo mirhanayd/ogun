@@ -57,7 +57,7 @@ export default async function TemplateLibraryPage({
         <EmptyState
           icon={Layers}
           title="Henüz şablon yok"
-          description='Bir plan editöründeyken üst çubuktaki "Şablona dönüştür" butonuyla ilk şablonunuzu oluşturun.'
+          description='Bir plan editöründeyken üst şeritteki "…" menüsünden "Şablona dönüştür" ile ilk şablonunuzu oluşturun.'
         />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
