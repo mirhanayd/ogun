@@ -267,6 +267,9 @@ function AmountEditor({
       <button
         type="button"
         disabled={disabled}
+        // GitHub issue #62 / Prompt 10.4, GÖREV 3 — arama kutusundan Tab ile
+        // gelen odağın hedefi (bkz. meal-block.tsx focusLastAmountCell).
+        data-amount-cell=""
         className="w-full rounded px-1 text-right text-data hover:bg-muted disabled:opacity-50"
         onClick={() => {
           setValue(String(amountGrams))
@@ -292,6 +295,7 @@ function AmountEditor({
       min={0}
       step="0.1"
       value={value}
+      data-amount-cell=""
       className="h-7 w-full px-1 text-right text-data"
       onChange={(event) => setValue(event.target.value)}
       onBlur={commit}
@@ -364,6 +368,7 @@ function ExchangeCountInput({
       <button
         type="button"
         disabled={disabled}
+        data-amount-cell=""
         className="w-full rounded px-1 text-right text-data hover:bg-muted disabled:opacity-50"
         onClick={() => {
           setValue(String(Math.round(exchangeCount * 10) / 10))
@@ -389,6 +394,7 @@ function ExchangeCountInput({
       min={0}
       step="0.5"
       value={value}
+      data-amount-cell=""
       className="h-7 w-full px-1 text-right text-data"
       onChange={(event) => setValue(event.target.value)}
       onBlur={commit}

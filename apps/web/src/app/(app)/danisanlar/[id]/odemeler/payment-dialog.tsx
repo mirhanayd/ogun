@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -62,7 +63,7 @@ export function PaymentDialog({
   async function onSubmit(values: PaymentFormValues) {
     const result = await createPaymentAction(clientId, values)
     if (!result.success) {
-      toast.error(result.error ?? 'Ödeme kaydedilemedi.')
+      toastActionError(result.error ?? 'Ödeme kaydedilemedi.', 'Tutar ve tarih alanlarını kontrol edip tekrar kaydedin; ödeme henüz işlenmedi.')
       return
     }
     toast.success('Ödeme kaydedildi')

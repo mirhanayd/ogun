@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus } from 'lucide-react'
+import { Package, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { EmptyState } from '@/components/empty-state'
 import { packageFormSchema, type PackageFormValues } from '@/lib/validation/billing-schemas'
 import { createPackageAction, setPackageActiveAction } from './actions'
 
@@ -54,7 +56,7 @@ export function PackageManager({ packages }: { packages: BillingPackageRow[] }) 
   async function onSubmit(values: PackageFormValues) {
     const result = await createPackageAction(values)
     if (!result.success) {
-      toast.error(result.error ?? 'Paket oluşturulamadı.')
+      toastActionError(result.error ?? 'Paket oluşturulamadı.', 'Seans sayısı ve fiyatın sıfırdan büyük olduğundan emin olup tekrar deneyin.')
       return
     }
     toast.success('Paket oluşturuldu')
@@ -68,7 +70,7 @@ export function PackageManager({ packages }: { packages: BillingPackageRow[] }) 
     const result = await setPackageActiveAction(packageId, nextActive)
     setBusyId(null)
     if (!result.success) {
-      toast.error(result.error ?? 'Paket güncellenemedi.')
+      toastActionError(result.error ?? 'Paket güncellenemedi.', 'Sayfayı yenileyip tekrar deneyin; paketin durumu değişmedi.')
       return
     }
     router.refresh()
@@ -130,7 +132,12 @@ export function PackageManager({ packages }: { packages: BillingPackageRow[] }) 
       </CardHeader>
       <CardContent>
         {packages.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Henüz paket tanımı yok.</p>
+          <EmptyState
+            variant="inline"
+            icon={Package}
+            title="Henüz paket tanımı yok"
+            description='Örneğin "8 seans takip paketi" tanımlayın; danışan kartındaki Ödemeler sekmesinden tek tıkla satabilirsiniz.'
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {packages.map((pkg) => (

@@ -25,13 +25,37 @@ import { isNativeShell } from '@/lib/native-shell'
 //     Tab ile miktar alanına geçme.
 // Yeni bir kısayol eklendiğinde BURAYA da eklenmesi gerekir — aksi halde bu
 // kart "uydurma" bir belgeye dönüşür.
-const SHORTCUT_GROUPS: Array<{ heading: string; items: Array<{ keys: string[]; description: string }> }> = [
+//
+// GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 3 — "Klavye kısayolları
+// yardım kartı (? tuşu) zaten var — GÜNCEL OLDUĞUNU DOĞRULA". Doğrulandı ve
+// BAYAT ÇIKTI; iki kaynaktan:
+//   1. GitHub issue #53 (native menü, bkz. apps/desktop/src-tauri/src/
+//      menu.rs) GERÇEK hızlandırıcılar (accelerator) ekledi — Ctrl+N, Ctrl+,
+//      Ctrl+Q, Ctrl+Plus/-/0 — ve bunların HİÇBİRİ kartta yoktu. Bu tuşlar
+//      SADECE masaüstü kabuğunda çalışır (tarayıcıda Ctrl+N yeni pencere
+//      açar), bu yüzden ilgili grup `isNativeShell()` doğruyken gösteriliyor:
+//      tarayıcıda çalışmayan bir kısayolu listelemek de "uydurma" olurdu.
+//   2. GitHub issue #61 araç çubuğunu yeniden düzenledi: PDF ve "Şablona
+//      dönüştür" eylemleri artık taşma ("…") menüsünde, plan üstverisi
+//      "Plan ayarları" popover'ında. Kart "Esc: açık bir diyaloğu/paneli
+//      kapat" diyordu; bu yüzeyler de aynı tuşla kapanıyor ve Tab sırası
+//      artık arama → miktar → sonraki kalem olarak uçtan uca çalışıyor
+//      (apps/e2e/tests/keyboard-navigation.spec.ts bunu DOĞRULUYOR).
+interface ShortcutGroup {
+  heading: string
+  // true ise grup yalnızca masaüstü (Tauri) kabuğunda gösterilir.
+  nativeOnly?: boolean
+  items: Array<{ keys: string[]; description: string }>
+}
+
+const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     heading: 'Genel',
     items: [
       { keys: ['Ctrl', 'K'], description: 'Komut paletini aç (sayfa git, danışan/besin ara)' },
-      { keys: ['?'], description: 'Bu yardım kartını aç' },
-      { keys: ['Esc'], description: 'Açık bir diyaloğu/paneli kapat' },
+      { keys: ['?'], description: 'Bu yardım kartını aç/kapat' },
+      { keys: ['Esc'], description: 'Açık bir diyaloğu, paneli, taşma menüsünü veya ayar penceresini kapat' },
+      { keys: ['Tab'], description: 'Bir sonraki öğeye geç (odaklanan öğe marka renkli halkayla belirir)' },
     ],
   },
   {
@@ -47,8 +71,20 @@ const SHORTCUT_GROUPS: Array<{ heading: string; items: Array<{ keys: string[]; d
     items: [
       { keys: ['Tıkla'], description: 'Miktar/besin hücresini düzenlemeye aç' },
       { keys: ['Enter'], description: 'Kaydet' },
-      { keys: ['Tab'], description: 'Kaydet ve sıradaki alana geç' },
+      { keys: ['Tab'], description: 'Kaydet ve sıradaki alana geç (arama → miktar → sonraki kalem)' },
       { keys: ['Esc'], description: 'Düzenlemeden vazgeç' },
+    ],
+  },
+  {
+    heading: 'Masaüstü uygulaması',
+    nativeOnly: true,
+    items: [
+      { keys: ['Ctrl', 'N'], description: 'Yeni danışan' },
+      { keys: ['Ctrl', ','], description: 'Ayarlar' },
+      { keys: ['Ctrl', '+'], description: 'Yakınlaştır' },
+      { keys: ['Ctrl', '-'], description: 'Uzaklaştır' },
+      { keys: ['Ctrl', '0'], description: 'Yakınlaştırmayı sıfırla' },
+      { keys: ['Ctrl', 'Q'], description: 'Uygulamadan çık' },
     ],
   },
 ]
@@ -61,6 +97,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function KeyboardShortcutsHelp() {
   const [open, setOpen] = useState(false)
+  // isNativeShell() `window.__TAURI_INTERNALS__`e bakar — sunucuda YOK.
+  // Doğrudan render sırasında çağırmak hidrasyon uyumsuzluğu üretirdi, bu
+  // yüzden mount sonrası bir kez okunuyor (web'de değer HİÇ değişmez).
+  const [native, setNative] = useState(false)
+
+  useEffect(() => {
+    setNative(isNativeShell())
+  }, [])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -101,17 +145,17 @@ export function KeyboardShortcutsHelp() {
             <DialogDescription>Bu kartı istediğiniz zaman &quot;?&quot; tuşuyla açabilirsiniz.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">
-            {SHORTCUT_GROUPS.map((group) => (
+            {SHORTCUT_GROUPS.filter((group) => !group.nativeOnly || native).map((group) => (
               <div key={group.heading} className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase">{group.heading}</p>
+                <p className="text-helper font-medium text-muted-foreground uppercase">{group.heading}</p>
                 {group.items.map((item) => (
-                  <div key={item.description} className="flex items-center justify-between gap-3 text-sm">
+                  <div key={item.description} className="flex items-center justify-between gap-3 text-body">
                     <span>{item.description}</span>
                     <span className="flex shrink-0 gap-1">
                       {item.keys.map((key) => (
                         <kbd
                           key={key}
-                          className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs"
+                          className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-helper"
                         >
                           {key}
                         </kbd>

@@ -6,6 +6,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle2, Scale, Salad, CalendarPlus } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import {
   Dialog,
   DialogContent,
@@ -138,7 +139,7 @@ function MeasurementStep({
   async function onSubmit(values: MeasurementFormValues) {
     const result = await createMeasurementAction(clientId, values)
     if (!result.success) {
-      toast.error(result.error ?? 'Ölçüm kaydedilemedi.')
+      toastActionError(result.error ?? 'Ölçüm kaydedilemedi.', 'Girilen değerleri kontrol edip tekrar kaydedin; akışın kalan adımlarına geçmeden önce bu adım tamamlanmalı.')
       return
     }
     toast.success('Ölçüm kaydedildi')
@@ -195,7 +196,7 @@ function PlanStep({
     })
     setBusy(false)
     if (!result.success || !result.data) {
-      toast.error(result.error ?? 'Plan oluşturulamadı.')
+      toastActionError(result.error ?? 'Plan oluşturulamadı.', 'Bu adımı atlayıp planı danışan kartından da oluşturabilirsiniz.')
       return
     }
     onCreated()
@@ -276,7 +277,7 @@ function NextAppointmentStep({
       return
     }
     if (!result.success) {
-      toast.error(result.error ?? 'Randevu oluşturulamadı.')
+      toastActionError(result.error ?? 'Randevu oluşturulamadı.', 'Seçtiğiniz saatin çalışma saatleri içinde ve boş olduğundan emin olup tekrar deneyin.')
       return
     }
     toast.success('Bir sonraki randevu planlandı')

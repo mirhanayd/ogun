@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { confirmClientConsentAction } from '../ice-aktar/actions'
 
@@ -17,7 +18,7 @@ export function ConfirmConsentButton({ clientId }: { clientId: string }) {
     startTransition(async () => {
       const result = await confirmClientConsentAction(clientId)
       if (!result.success) {
-        toast.error(result.error ?? 'Rıza onaylanamadı.')
+        toastActionError(result.error ?? 'Rıza onaylanamadı.', 'KVKK onayı kaydedilmeden plan paylaşımı yapılamaz; sayfayı yenileyip tekrar deneyin.')
         return
       }
       toast.success('Rıza onaylandı.')

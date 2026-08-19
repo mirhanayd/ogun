@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { listen } from '@tauri-apps/api/event'
 import { Camera, MessageSquarePlus } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { isNativeShell } from '@/lib/native-shell'
 import { Button } from '@/components/ui/button'
 import {
@@ -104,7 +105,7 @@ export function FeedbackButton() {
         screenshotDataUrl,
       })
       if (!result.success) {
-        toast.error(result.error ?? 'Geri bildirim gönderilemedi.')
+        toastActionError(result.error ?? 'Geri bildirim gönderilemedi.', 'Mesajınız panoya kopyalanmadı; metni saklayıp birkaç dakika sonra tekrar gönderin.')
         return
       }
       trackEvent({ eventName: 'feedback_submitted', screen: pathname })

@@ -38,6 +38,9 @@ export default function robots(): MetadataRoute.Robots {
         '/ayarlar',
         '/p/',
         '/kurulum',
+        // GitHub issue #67 — oturum içi klinik seçim ekranı, /kurulum ile
+        // aynı kategoride: herkese açık içerik değil.
+        '/klinik-sec',
         '/dev',
       ],
     },

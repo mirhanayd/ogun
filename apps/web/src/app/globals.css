@@ -271,4 +271,56 @@
   html {
     @apply font-sans;
   }
+
+  /* -------------------------------------------------------------------------
+     GÖRÜNÜR ODAK HALKASI — GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 3
+     ("Tüm interaktif öğelerde görünür odak halkası (marka accent rengiyle)").
+     -------------------------------------------------------------------------
+     SORUN: shadcn bileşenleri (Button, Input, Select…) kendi
+     `focus-visible:ring-*` sınıflarını taşıyor, ama uygulamada bunları
+     KULLANMAYAN pek çok interaktif öğe var — düz `<button>`ler (plan
+     editörünün Gram/Değişim mod geçişi, kalem satırındaki satır içi düzenleme
+     hücreleri), `<Link>`ler (kart bağlantıları, şablon kategori filtreleri,
+     kenar çubuğu gezinme öğeleri) ve `<summary>`ler. Bunların hiçbirinde
+     klavye odağı GÖRÜNMÜYORDU: Tailwind'in preflight'ı tarayıcının varsayılan
+     odak ana hattını (outline) sıfırlıyor, yerine bir şey konmadığında
+     kullanıcı Tab'la nerede olduğunu göremiyor.
+
+     ÇÖZÜM: `:where()` ile SIFIR özgüllükte (specificity 0) bir taban kuralı.
+     Sıfır özgüllük kritik — bileşenlerin KENDİ ring sınıfları (ör. Button'ın
+     `focus-visible:ring-[3px]`) bu kuralı özgüllükleriyle EZER, yani mevcut
+     hiçbir bileşenin odak görünümü DEĞİŞMEZ; kural yalnızca hiçbir şeyi
+     olmayan öğelerde devreye girer.
+
+     RENK: `--ring` (marka birincil yeşili; koyu temada aynı ailenin daha açık
+     adımı — bkz. yukarıdaki :root/.dark blokları). `outline` kullanılıyor,
+     `box-shadow` DEĞİL: outline düzeni etkilemez ve `overflow: hidden` bir
+     ata elemanın içinde bile KIRPILMAZ (kenar çubuğu ve tablo satırlarında
+     box-shadow tabanlı halkalar kırpılıyordu).
+     `:focus-visible` (`:focus` DEĞİL): fareyle tıklamada halka çıkmaz.
+
+     ÇİFT HALKA OLMAZ: shadcn bileşenleri sınıf listelerinde `outline-none`
+     taşıyor ve Tailwind'de utility katmanı base katmanından SONRA geliyor —
+     yani onlarda bu kural değil, kendi `ring` gölgeleri kazanır. */
+  :where(
+    a[href],
+    area[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [role='link'],
+    [role='menuitem'],
+    [role='option'],
+    [role='tab'],
+    [role='switch'],
+    [role='checkbox'],
+    [contenteditable='true'],
+    [tabindex]:not([tabindex^='-'])
+  ):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }

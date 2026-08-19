@@ -2,7 +2,13 @@ import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
 import { hasCompletedProductTour } from '@ogun/db/queries'
 import { NativeNotificationBridge } from '@/components/native-notification-bridge'
-import { NoActiveClinicError, UnauthenticatedError, requireClinic } from '@/lib/authz'
+import {
+  ClinicSelectionRequiredError,
+  NoActiveClinicError,
+  UnauthenticatedError,
+  requireClinic,
+} from '@/lib/authz'
+import { OfflineIndicator } from '@/components/offline-indicator'
 import { BottomNav } from './_components/bottom-nav'
 import { ProductTour } from './_components/product-tour'
 import { ScreenTimeTracker } from './_components/screen-time-tracker'
@@ -18,6 +24,11 @@ async function getAppShellContext() {
     return await requireClinic()
   } catch (error) {
     if (error instanceof UnauthenticatedError) redirect('/giris')
+    // GitHub issue #67 — requireClinic() artık tek üyelikte kliniği kendisi
+    // seçiyor; buraya yalnızca GERÇEKTEN hiç kliniği olmayan (sihirbaza
+    // gitmesi gereken) veya birden fazla klinik arasından seçim yapması
+    // gereken kullanıcılar düşer.
+    if (error instanceof ClinicSelectionRequiredError) redirect('/klinik-sec')
     if (error instanceof NoActiveClinicError) redirect('/kurulum')
     throw error
   }
@@ -47,6 +58,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">{children}</main>
       </div>
       <BottomNav role={ctx.role} />
+      {/* GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 2 — "Çevrimdışı
+          göstergesi: plan editöründe var, uygulama geneline yay." Plan
+          editörünün kendi kaydetme durumu rozeti (bkz. plan-editor.tsx
+          SaveStatusIndicator) KALDIRILMADI; bu gösterge ondan FARKLI bir
+          şeyi söylüyor — bağlantının kendisi yok, yani hiçbir ekranda
+          kaydetme/yenileme çalışmaz. */}
+      <OfflineIndicator />
       <ScreenTimeTracker />
       {showProductTour && <ProductTour />}
       {/* GitHub issue #53 / Prompt 9.3, GÖREV 3 — kimlik doğrulaması VE aktif

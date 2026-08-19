@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarClock, MapPin, NotebookText, Scale, User } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { calculateBmi } from '@ogun/nutrition-core'
 import {
   Dialog,
@@ -65,7 +66,7 @@ export function AppointmentDetailSheet({
     const result = await updateAppointmentStatusAction(detail.appointment.id, detail.appointment.clientId, status)
     setBusyStatus(null)
     if (!result.success) {
-      toast.error(result.error ?? 'Durum güncellenemedi.')
+      toastActionError(result.error ?? 'Durum güncellenemedi.', 'Randevu başka bir kullanıcı tarafından değiştirilmiş olabilir; takvimi yenileyin.')
       return
     }
     toast.success(`Randevu "${APPOINTMENT_STATUS_LABELS_TR[status]}" olarak işaretlendi`)

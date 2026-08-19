@@ -157,7 +157,7 @@ export function ShareDialog({
         )}
 
         {status === 'error' && !share && (
-          <p className="text-sm text-destructive">{errorMessage ?? 'Bir hata oluştu.'}</p>
+          <p className="text-sm text-destructive">{errorMessage ?? 'Paylaşım bağlantısı oluşturulamadı. Danışanın KVKK onayının alındığını doğrulayıp tekrar deneyin.'}</p>
         )}
 
         {share && (

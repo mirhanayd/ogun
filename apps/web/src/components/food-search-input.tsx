@@ -57,6 +57,26 @@ export interface FoodSearchInputProps {
   // Tab tuşunda odağın taşınacağı miktar alanı (bkz. roadmap GÖREV 1: "Tab
   // ile miktara geç"). Verilmezse Tab varsayılan tarayıcı davranışını izler.
   quantityInputRef?: RefObject<HTMLInputElement | null>
+  // GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 3 — "Plan editöründe Tab
+  // sırasını uçtan uca test et: arama → miktar → sonraki kalem".
+  //
+  // BULUNAN GERÇEK HATA: yukarıdaki `quantityInputRef` yalnızca geliştirme
+  // oyun alanında (app/dev/food-search-input/page.tsx) bağlanmıştı — GERÇEK
+  // plan editöründe (meal-block.tsx) HİÇ verilmiyordu. Yani belgelenen
+  // "Tab ile miktar alanına geç" akışı üründe ÇALIŞMIYORDU: arama kutusunda
+  // Tab'a basmak tarayıcının varsayılan sırasını izliyor ve kalem satırları
+  // DOM'da arama kutusundan ÖNCE geldiği için odak bir SONRAKİ ÖĞÜN BLOĞUNA
+  // atlıyordu.
+  //
+  // Neden `quantityInputRef`i kullanmadık: plan editöründe miktar hücresi
+  // tıklanana kadar bir <input> DEĞİL, bir <button> (bkz. plan-item-row.tsx
+  // AmountEditor — "modal yok, tıkla-düzenle" deseni). RefObject<T> `current`
+  // üzerinde değişken (mutable) olduğu için değişmez (invariant): bir
+  // HTMLButtonElement ref'i HTMLInputElement ref'i bekleyen bu prop'a
+  // GEÇİRİLEMEZ. Mevcut prop'un tipini gevşetmek dev sayfasındaki çağrıyı
+  // kırardı; bunun yerine odaklanacak öğeyi ÇAĞIRANIN bulduğu bir geri çağrı
+  // eklendi. `true` dönerse varsayılan sekme sırası engellenir.
+  onTabToAmount?: () => boolean
   placeholder?: string
   autoFocus?: boolean
   className?: string
@@ -129,6 +149,7 @@ function fireRecordUsage(foodId: string) {
 export function FoodSearchInput({
   onSelect,
   quantityInputRef,
+  onTabToAmount,
   placeholder = 'Besin ara… (ör. "1 kase mercimek çorbası", "@" ile kayıtlı öğün)',
   autoFocus,
   className,
@@ -304,10 +325,19 @@ export function FoodSearchInput({
       setOpen(false)
       return
     }
-    if (event.key === 'Tab' && quantityInputRef?.current && !isSavedMealMode) {
-      event.preventDefault()
-      setOpen(false)
-      quantityInputRef.current.focus()
+    if (event.key === 'Tab' && !isSavedMealMode) {
+      if (quantityInputRef?.current) {
+        event.preventDefault()
+        setOpen(false)
+        quantityInputRef.current.focus()
+        return
+      }
+      // Odaklanacak bir miktar hücresi YOKSA (ör. öğünde henüz kalem yok)
+      // geri çağrı false döner ve tarayıcının varsayılan sırası korunur.
+      if (onTabToAmount?.()) {
+        event.preventDefault()
+        setOpen(false)
+      }
     }
   }
 

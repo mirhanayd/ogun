@@ -184,7 +184,7 @@ export function PlanPdfDialog({
           )}
           {status === 'error' && (
             <div className="flex h-[60vh] items-center justify-center text-sm text-destructive">
-              {errorMessage ?? 'Bir hata oluştu.'}
+              {errorMessage ?? 'PDF oluşturulamadı. Plan ekranına dönüp birkaç saniye sonra tekrar deneyin; hiçbir dosya indirilmedi.'}
             </div>
           )}
           {status === 'ready' && pdfData && (

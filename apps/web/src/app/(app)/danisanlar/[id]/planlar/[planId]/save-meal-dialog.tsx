@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -47,7 +48,7 @@ export function SaveMealDialog({
         notes: notes.trim() === '' ? null : notes,
       })
       if (!result.success) {
-        toast.error(result.error ?? 'Kayıtlı öğün oluşturulamadı.')
+        toastActionError(result.error ?? 'Kayıtlı öğün oluşturulamadı.', 'Öğün adını kontrol edip tekrar deneyin; plandaki öğün değişmedi.')
         return
       }
       toast.success('Öğün, kayıtlı öğünler kütüphanesine eklendi.', {

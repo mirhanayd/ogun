@@ -1,7 +1,13 @@
 import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
 import { getDraftClinicForUser, getWorkingHoursForClinic } from '@ogun/db/queries'
-import { NoActiveClinicError, UnauthenticatedError, requireAuth, requireClinic } from '@/lib/authz'
+import {
+  ClinicSelectionRequiredError,
+  NoActiveClinicError,
+  UnauthenticatedError,
+  requireAuth,
+  requireClinic,
+} from '@/lib/authz'
 import { DEFAULT_PRIMARY_COLOR, buildDefaultWorkingHours, mergeWorkingHours } from '@/lib/onboarding'
 import { OnboardingWizard } from './onboarding-wizard'
 
@@ -19,13 +25,18 @@ async function getSetupContext() {
     throw error
   }
 
-  // Kullanıcının zaten aktif bir kliniği varsa (onboarding daha önce
-  // tamamlanmış) burada tekrar sihirbaz göstermeye gerek yok.
+  // Kullanıcının zaten bir klinik üyeliği varsa (onboarding daha önce
+  // tamamlanmış) burada tekrar sihirbaz göstermeye gerek yok. GitHub issue
+  // #67'den sonra requireClinic() bunu ARTIK oturumda aktif klinik yazılı
+  // olmasa bile (tek üyelikte kendisi seçerek) anlıyor — yani giriş sonrası
+  // /kurulum'a gelen ZATEN KURULMUŞ bir kullanıcı doğrudan /panel'e gider.
   let alreadyOnboarded = false
   try {
     await requireClinic()
     alreadyOnboarded = true
   } catch (error) {
+    // Birden fazla klinikte üye → kurulum değil, seçim ekranı.
+    if (error instanceof ClinicSelectionRequiredError) redirect('/klinik-sec')
     if (!(error instanceof NoActiveClinicError)) throw error
   }
   if (alreadyOnboarded) redirect('/panel')
