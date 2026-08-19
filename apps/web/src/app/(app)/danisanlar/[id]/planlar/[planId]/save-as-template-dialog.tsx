@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -49,7 +50,7 @@ export function SaveAsTemplateDialog({
     startTransition(async () => {
       const result = await saveAsTemplateAction(planId, category, name.trim() || undefined)
       if (!result.success) {
-        toast.error(result.error ?? 'Şablon oluşturulamadı.')
+        toastActionError(result.error ?? 'Şablon oluşturulamadı.', 'Şablon adının boş olmadığından emin olup tekrar deneyin; plan olduğu gibi duruyor.')
         return
       }
       toast.success('Plan şablon olarak kaydedildi.', {

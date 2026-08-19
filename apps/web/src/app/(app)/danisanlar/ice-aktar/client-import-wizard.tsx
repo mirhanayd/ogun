@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Papa from 'papaparse'
 import { AlertTriangle, Upload } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -111,7 +111,7 @@ export function ClientImportWizard() {
     startTransition(async () => {
       const result = await importClientsAction(validRows, consentConfirmed)
       if (!result.success) {
-        toast.error(result.error ?? 'İçe aktarma başarısız oldu.')
+        toastActionError(result.error ?? 'İçe aktarma başarısız oldu.', 'Hiçbir danışan kaydedilmedi. Sütun eşlemesini kontrol edip dosyayı yeniden yükleyin.')
         return
       }
       setImportedCount(result.importedCount ?? 0)

@@ -36,7 +36,7 @@ async function main() {
   // createdBy=user.id veriliyor, testler (fixtures/auth.ts
   // loginAndEnsureOnboarded) GERÇEK sihirbazı (önceden dolu bilgilerle,
   // onboardingStep=3 sayesinde TEK tıkla) tamamlayarak /panel'e ulaşıyor.
-  async function createClinicWithDietitian(label: 'a' | 'b') {
+  async function createClinicWithDietitian(label: 'a' | 'b' | 'gorsel') {
     const email = `e2e-dietitian-${label}-${suffix}@ogun.test`
     const [user] = await db
       .insert(users)
@@ -77,6 +77,14 @@ async function main() {
 
   const clinicA = await createClinicWithDietitian('a')
   const clinicB = await createClinicWithDietitian('b')
+  // GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 4 — GÖRSEL REGRESYON İÇİN
+  // AYRI, DOKUNULMAYAN BİR KLİNİK. Gerekçe: ekran görüntüsü karşılaştırması
+  // ancak ekranın İÇERİĞİ deterministikse anlamlı. Klinik A'ya critical-flow
+  // ve keyboard-navigation testleri GERÇEK danışan/plan yazıyor — yani aynı
+  // koşuda görsel testler sıraya bağlı olarak farklı bir danışan listesi
+  // görürdü. Bu klinikte HİÇBİR test veri oluşturmaz; listeler her koşuda
+  // BOŞ kalır, bu da görsel suite'in aynı zamanda GÖREV 1'in boş
+  // durumlarını (marka illüstrasyonlu EmptyState) korumasını sağlar.
 
   // Klinik B'de, klinik A'nın kullanıcısının ASLA erişememesi gereken bir
   // danışan (tests/authorization.spec.ts bunu doğrudan URL ile açmaya
@@ -101,8 +109,16 @@ async function main() {
     smokingStatus: 'Kullanmıyor',
   })
 
+  const clinicVisual = await createClinicWithDietitian('gorsel')
+
   const credentials = {
     clinicA: { id: clinicA.clinic.id, name: clinicA.clinic.name, email: clinicA.email, password: DEMO_PASSWORD },
+    visual: {
+      id: clinicVisual.clinic.id,
+      name: clinicVisual.clinic.name,
+      email: clinicVisual.email,
+      password: DEMO_PASSWORD,
+    },
     clinicB: {
       id: clinicB.clinic.id,
       name: clinicB.clinic.name,

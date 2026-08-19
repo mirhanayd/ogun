@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { createDurationTracker } from '@/lib/analytics/track'
 import { createSampleClientAndPlanAction } from './onboarding-actions'
@@ -22,7 +22,7 @@ export function CreateSamplePlanButton() {
       const result = await createSampleClientAndPlanAction()
       setBusy(false)
       if (!result.success) {
-        toast.error(result.error)
+        toastActionError(result.error, 'Örnek veri oluşturulamadı. Sayfayı yenileyip tekrar deneyin.')
         return
       }
       tracker.finish('sample_plan_created', '/danisanlar')

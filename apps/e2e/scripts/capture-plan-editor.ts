@@ -207,13 +207,15 @@ async function main() {
       await page.getByRole('button', { name: 'Giriş yap' }).click()
       await page.waitForURL(/\/(panel|kurulum)/, { timeout: 120_000 })
 
-      // Demo kullanıcısının oturumu, giriş anında bir AKTİF KLİNİĞE bağlı
-      // DEĞİL (bkz. apps/web/src/lib/authz.ts setActiveClinic — bunu yalnızca
-      // onboarding'in son adımı ve klinik seçici yapar), bu yüzden uygulama
-      // /kurulum'a yönlendirir. Onboarding sihirbazını yeniden çalıştırmak
-      // YENİ bir taslak klinik yaratır ve demo verisini ıskalar; oturumu
-      // doğrudan mevcut demo kliniğine bağlamak, klinik seçicinin
-      // yapacağının AYNISI (aynı iki sütun) ve demo verisini KORUR.
+      // GÜNCELLEME (GitHub issue #67): bu satır artık bir GEÇİCİ ÇÖZÜM DEĞİL,
+      // yalnızca bir GARANTİ. Yukarıdaki notta anlatılan hata ("oturum giriş
+      // anında hiçbir kliniğe bağlanmıyor, uygulama /kurulum'a yönlendiriyor")
+      // kaynağında düzeltildi: requireClinic() tek üyelikte kliniği kendisi
+      // seçiyor (bkz. apps/web/src/lib/authz.ts). Satır yine de duruyor çünkü
+      // bu script'in ekran görüntüsünü almak istediği klinik BELLİ (demo
+      // kliniği) — demo kullanıcısı ileride ikinci bir klinikte üye yapılırsa
+      // otomatik seçim devre dışı kalır ve script yanlış kliniği çekebilirdi.
+      // Klinik seçicinin yaptığının AYNISI (aynı iki sütun).
       await sql`
         update sessions set active_clinic_id = ${clinic.id}, role = ${member.role}
         where user_id = ${member.user_id}

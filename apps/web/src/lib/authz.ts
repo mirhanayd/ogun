@@ -1,7 +1,7 @@
 import 'server-only'
 import { headers } from 'next/headers'
 import { db } from '@ogun/db'
-import { updateSessionActiveClinic } from '@ogun/db/queries'
+import { listClinicMembershipsForUser, updateSessionActiveClinic } from '@ogun/db/queries'
 import { auth } from './auth'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 
@@ -20,6 +20,19 @@ export class NoActiveClinicError extends Error {
   constructor(message = 'Aktif bir klinik seçilmedi.') {
     super(message)
     this.name = 'NoActiveClinicError'
+  }
+}
+
+// GitHub issue #67 — kullanıcı BİRDEN FAZLA klinikte üye ve oturumun aktif
+// kliniği henüz seçilmemişse hangisiyle devam edileceği OTOMATİK
+// belirlenemez; bu durumda klinik seçim ekranına (/klinik-sec) yönlendirilir.
+// NoActiveClinicError'dan AYRI bir tip olmasının nedeni: o hata "hiç kliniğin
+// yok, kurulum sihirbazına git" anlamına geliyor ve /kurulum'a yönlendiriyor —
+// birden fazla kliniği OLAN bir kullanıcıyı sihirbaza göndermek YANLIŞ olurdu.
+export class ClinicSelectionRequiredError extends Error {
+  constructor(message = 'Devam etmek için bir klinik seçin.') {
+    super(message)
+    this.name = 'ClinicSelectionRequiredError'
   }
 }
 
@@ -120,7 +133,40 @@ export async function requireClinic(): Promise<ClinicContext> {
   const clinicId = session.session.activeClinicId
   const role = session.session.role
   if (!clinicId || !role) {
-    throw new NoActiveClinicError()
+    // GitHub issue #67 — GERÇEK VE BLOKLAYAN BİR HATA DÜZELTMESİ.
+    // sessions.activeClinicId'yi bugüne kadar SADECE iki yer yazıyordu
+    // (onboarding sihirbazının son adımı ve üst bardaki klinik seçici, bkz.
+    // setActiveClinic altındaki not) — GİRİŞİN KENDİSİ HİÇBİR ZAMAN. Oturum
+    // ise her girişte SIFIRDAN oluşuyor. Sonuç: kliniği ÇOKTAN kurulmuş bir
+    // kullanıcı bile her yeni girişinde activeClinicId'si NULL bir oturumla
+    // geliyor, requireClinic() burada patlıyor ve (app)/layout.tsx kullanıcıyı
+    // /kurulum'a atıyordu — yani HER TAZE GİRİŞ uygulamanın kendisi yerine
+    // kurulum sihirbazına düşüyordu (demo hesabı dahil).
+    //
+    // Düzeltme, oturumun eksik alanını kullanıcının GERÇEK üyeliklerinden
+    // türetmek: clinic_members satırı ZATEN "onboarding tamamlandı" demektir
+    // (bkz. app/kurulum/actions.ts — üyelik satırı sihirbazın SON adımında
+    // yazılır), dolayısıyla tek üyelik varsa seçim yapılacak bir şey yoktur.
+    // Bu, klinik seçicinin yaptığının AYNISI (aynı iki sütun), sadece
+    // kullanıcıdan gereksiz bir tık istemeden.
+    const memberships = await listClinicMembershipsForUser(db, session.user.id)
+    if (memberships.length === 0) {
+      throw new NoActiveClinicError()
+    }
+    if (memberships.length > 1) {
+      throw new ClinicSelectionRequiredError()
+    }
+    const only = memberships[0]!
+    // lib/auth.ts'te cookie cache KAPALI — bir sonraki getSession() bu satırı
+    // veritabanından okuyacağı için oturum satırını güncellemek yeterli
+    // (bkz. setActiveClinic üstündeki aynı not).
+    await updateSessionActiveClinic(db, session.session.id, only.clinicId, only.role)
+    return {
+      user: { id: session.user.id, email: session.user.email, name: session.user.name },
+      sessionId: session.session.id,
+      scope: toClinicScope(only.clinicId),
+      role: only.role,
+    }
   }
   return {
     user: { id: session.user.id, email: session.user.email, name: session.user.name },

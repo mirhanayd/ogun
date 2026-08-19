@@ -2,7 +2,9 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { SearchX } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import {
   createColumnHelper,
   flexRender,
@@ -26,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { EmptyState } from '@/components/empty-state'
 import { calculateAge } from '@/lib/client-age'
 import { STATUS_LABELS_TR, STATUS_OPTIONS } from '@/lib/validation/client-schemas'
 import { archiveClientsAction, assignDietitianAction } from './actions'
@@ -192,7 +195,7 @@ export function ClientsTable({
   async function handleArchive() {
     const result = await archiveClientsAction(selectedIds)
     if (!result.success) {
-      toast.error(result.error ?? 'Arşivleme başarısız oldu.')
+      toastActionError(result.error ?? 'Arşivleme başarısız oldu.', 'Seçimi daraltıp tekrar deneyin; arşivlenmiş danışanlar durum filtresinden geri getirilebilir.')
       return
     }
     toast.success(`${selectedIds.length} danışan arşivlendi.`)
@@ -204,7 +207,7 @@ export function ClientsTable({
     if (!assignDietitianId) return
     const result = await assignDietitianAction(selectedIds, assignDietitianId)
     if (!result.success) {
-      toast.error(result.error ?? 'Atama başarısız oldu.')
+      toastActionError(result.error ?? 'Atama başarısız oldu.', 'Diyetisyenin bu klinikte hâlâ üye olduğundan emin olup tekrar deneyin.')
       return
     }
     toast.success(`${selectedIds.length} danışana diyetisyen atandı.`)
@@ -289,8 +292,25 @@ export function ClientsTable({
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="py-8 text-center text-sm text-muted-foreground">
-                  Kayıt bulunamadı.
+                {/* GitHub issue #62 / Prompt 10.4, GÖREV 1 — bu satır bir
+                    FİLTRE/ARAMA sonucu boş kaldığında görünür (klinikte hiç
+                    danışan yoksa page.tsx zaten tam boyutlu EmptyState
+                    gösteriyor). Düz "Kayıt bulunamadı." metni ne olduğunu
+                    da ne yapılacağını da söylemiyordu. */}
+                <TableCell colSpan={columns.length} className="p-0">
+                  <EmptyState
+                    variant="inline"
+                    icon={SearchX}
+                    title="Bu filtrelerle danışan bulunamadı"
+                    description="Arama metnini kısaltmayı ya da durum/diyetisyen filtrelerini temizlemeyi deneyin."
+                    action={{
+                      label: 'Filtreleri temizle',
+                      onClick: () => {
+                        setSearchInput('')
+                        navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
+                      },
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (

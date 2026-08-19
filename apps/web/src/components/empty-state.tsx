@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { EmptyStateIllustration } from '@/components/brand-illustration'
 import { cn } from '@/lib/utils'
 
 export interface EmptyStateAction {
@@ -27,25 +28,43 @@ export interface EmptyStateProps {
   // imzasını değiştirirdi) BİLEREK opsiyonel bir children eklendi — geriye
   // dönük UYUMLU, sadece bu ihtiyacı olan çağıranlar kullanır.
   children?: React.ReactNode
+  // GitHub issue #62 / Prompt 10.4, GÖREV 1 — bir KART veya PANEL İÇİNDE
+  // kullanıldığında (ör. /finans'taki "Bu ay ödeme kaydı yok" bölümleri)
+  // ikinci bir kesikli çerçeve ve 96px'lik illüstrasyon fazla ağır kalıyor.
+  // 'inline' varyantı çerçeveyi kaldırır, illüstrasyonu küçültür — metin
+  // ve ikon aynı bileşenden gelmeye devam eder, "düz metin" bırakılmaz.
+  variant?: 'default' | 'inline'
 }
 
 // Uygulama kabuğundaki her yer tutucu sayfa (Panel, Danışanlar, Randevular…)
 // bu bileşeni kullanır — ürünün "hızlı hissettiren" tarafının bir parçası
 // (bkz. GitHub issue #11 / Prompt 3.2, GÖREV 4).
-export function EmptyState({ icon: Icon, title, description, action, className, children }: EmptyStateProps) {
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+  children,
+  variant = 'default',
+}: EmptyStateProps) {
+  const inline = variant === 'inline'
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-10 text-center',
+        'flex flex-col items-center justify-center text-center',
+        inline
+          ? 'gap-2 py-6'
+          : 'gap-3 rounded-xl border border-dashed border-border p-10',
         className,
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-        <Icon className="size-6 text-muted-foreground" />
-      </div>
+      {/* GitHub issue #62 / Prompt 10.4, GÖREV 1 — nötr gri daire yerine
+          marka motifi (bkz. brand-illustration.tsx). */}
+      <EmptyStateIllustration icon={Icon} className={inline ? 'size-16' : undefined} />
       <div className="flex max-w-sm flex-col gap-1">
-        <h2 className="text-sm font-medium">{title}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <h2 className="text-body font-medium">{title}</h2>
+        <p className="text-body text-muted-foreground">{description}</p>
       </div>
       {action && <EmptyStateActionButton action={action} />}
       {children}

@@ -3,7 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Copy, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { duplicatePlanAction } from '@/app/(app)/planlar/actions'
 
@@ -24,7 +24,7 @@ export function CopyPlanButton({ clientId, planId }: { clientId: string; planId:
     startTransition(async () => {
       const result = await duplicatePlanAction(planId)
       if (!result.success || !result.data) {
-        toast.error(result.error ?? 'Plan kopyalanamadı.')
+        toastActionError(result.error ?? 'Plan kopyalanamadı.', 'Kaynak plan silinmiş olabilir; listeyi yenileyip tekrar deneyin.')
         return
       }
       router.push(`/danisanlar/${clientId}/planlar/${result.data.id}`)

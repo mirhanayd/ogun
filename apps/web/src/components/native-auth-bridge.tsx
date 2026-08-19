@@ -87,7 +87,10 @@ export function NativeAuthBridge({ children }: { children: React.ReactNode }) {
         // tam sayfa navigasyon KASITLI (React Query/oturum önbelleğini
         // sıfırdan, taze bir oturumla başlatır — ve "Google ile devam et"
         // düğmesinin pending durumunu da doğal olarak sıfırlar).
-        window.location.href = error ? '/giris?hata=google-girisi-basarisiz' : '/kurulum'
+        // GitHub issue #67 — başarıda /kurulum DEĞİL /panel (bkz. giris/page.tsx
+        // ve native-shell.ts'teki aynı düzeltme): kliniği olan kullanıcı
+        // sihirbaza düşmemeli, kliniksiz olan zaten layout'ta yönlendiriliyor.
+        window.location.href = error ? '/giris?hata=google-girisi-basarisiz' : '/panel'
       })()
     })
 

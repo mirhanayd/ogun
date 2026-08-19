@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import {
   Dialog,
   DialogContent,
@@ -48,7 +48,7 @@ export function HolidayManagerDialog({
     const result = await createHolidayAction(date, description)
     setBusy(false)
     if (!result.success) {
-      toast.error(result.error ?? 'Tatil eklenemedi.')
+      toastActionError(result.error ?? 'Tatil eklenemedi.', 'Tarihin başka bir tatille çakışmadığından emin olup tekrar deneyin.')
       return
     }
     setDate('')
@@ -59,7 +59,7 @@ export function HolidayManagerDialog({
   async function handleDelete(id: string) {
     const result = await deleteHolidayAction(id)
     if (!result.success) {
-      toast.error(result.error ?? 'Tatil silinemedi.')
+      toastActionError(result.error ?? 'Tatil silinemedi.', 'Sayfayı yenileyip tekrar deneyin; takvimdeki tatil kaldırılmadı.')
       return
     }
     router.refresh()

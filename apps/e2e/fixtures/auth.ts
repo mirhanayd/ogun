@@ -8,6 +8,9 @@ import type { Page } from '@playwright/test'
 // veriye SESSİZCE düşmek yerine net bir "önce seed çalıştır" hatası).
 export interface E2eCredentials {
   clinicA: { id: string; name: string; email: string; password: string }
+  // GitHub issue #62 — yalnızca görsel regresyon suite'inin kullandığı,
+  // hiçbir testin veri YAZMADIĞI klinik (bkz. seed-e2e.ts'teki gerekçe).
+  visual: { id: string; name: string; email: string; password: string }
   clinicB: { id: string; name: string; email: string; password: string; clientId: string }
 }
 
@@ -62,9 +65,12 @@ function cardTitle(page: Page, text: string) {
 // dolu), YENİ bir oturumda activeClinicId henüz set edilmemiştir ve kullanıcı
 // /kurulum'a düşer. getDraftClinicForUser bu durumda (onboardingCompletedAt
 // artık NULL olmadığı için) draft'ı BULAMAZ, sihirbaz BOŞ alanlarla açılır.
-// Bu, uygulamanın GERÇEK bugünkü davranışı (bir iyileştirme fırsatı olarak
-// not edilebilir ama bu issue'nun kapsamı DIŞINDA) — bu yüzden aşağıdaki
-// fonksiyon "alan dolu mu boş mu" varsaymadan, GEREKİRSE dolduruyor.
+// GÜNCELLEME (GitHub issue #67, PR ile birlikte): yukarıda tarif edilen
+// davranış ARTIK GEÇERLİ DEĞİL — bir iyileştirme fırsatı olarak not
+// edilmişti, issue #67 olarak açıldı ve düzeltildi. requireClinic() aktif
+// klinik yoksa kullanıcının üyeliklerine bakıyor; TEK üyelikte oturuma
+// kendisi bağlanıyor. Aşağıdaki sihirbaz akışı yine de KORUNUYOR: hiç
+// kliniği olmayan (yeni kayıt olmuş) bir kullanıcı hâlâ oraya düşer.
 // Adımlar arasındaki geçiş (her adımın "Devam et"i saveXAction() adlı bir
 // server action'ı BEKLİYOR, bkz. clinic-info-step.tsx/branding-step.tsx) her
 // zaman anlık DEĞİL — bir sonraki adımın başlığı görünene kadar EXPLICIT
@@ -93,12 +99,32 @@ async function dismissProductTourIfPresent(page: Page): Promise<void> {
 
 export async function loginAndEnsureOnboarded(page: Page, email: string, password: string): Promise<void> {
   await login(page, email, password)
-  await page.waitForURL(/\/(kurulum|panel)/)
 
-  if (page.url().includes('/panel')) {
+  // GitHub issue #62/#67 — GİRİŞ ARTIK DOĞRUDAN UYGULAMAYA GİRİYOR.
+  // Yukarıdaki notlarda anlatılan davranış (klinik zaten kurulmuş olsa bile
+  // her yeni oturumda /kurulum'a düşmek) issue #67'de KAYNAĞINDA düzeltildi:
+  // requireClinic() aktif klinik yoksa kullanıcının clinic_members
+  // üyeliklerine bakıyor ve TEK üyelik varsa oturuma kendisi bağlıyor (bkz.
+  // apps/web/src/lib/authz.ts). Giriş formu hâlâ /kurulum'a yönlendiriyor
+  // ama sunucu oradan /panel'e devam ettiriyor.
+  //
+  // Bu yüzden ÖNCE /panel bekleniyor: eski `waitForURL(/(kurulum|panel)/)`
+  // ara durumda (/kurulum, sunucu yönlendirmesi tamamlanmadan) eşleşip
+  // sihirbaz dalına giriyordu ve sihirbaz HİÇ AÇILMADIĞI için testler
+  // "Kurulumu tamamla" düğmesini boşuna bekliyordu.
+  const landedInApp = await page
+    .waitForURL('**/panel', { timeout: 30_000 })
+    .then(() => true)
+    .catch(() => false)
+
+  if (landedInApp) {
     await dismissProductTourIfPresent(page)
     return
   }
+
+  // Buraya yalnızca GERÇEKTEN hiç kliniği olmayan (yeni kayıt) bir kullanıcı
+  // düşer — aşağıdaki sihirbaz akışı o durum için OLDUĞU GİBİ korunuyor.
+  await page.waitForURL(/\/kurulum/, { timeout: 10_000 })
 
   // Sihirbaz, seed-e2e.ts'in yazdığı clinics.onboardingStep'e göre 1., 2.
   // VEYA doğrudan 3. adımdan başlayabilir (bkz. app/kurulum/page.tsx

@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Receipt, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { EmptyState } from '@/components/empty-state'
 import { expenseFormSchema, type ExpenseFormValues } from '@/lib/validation/billing-schemas'
 import { createExpenseAction, deleteExpenseAction } from './actions'
 
@@ -52,7 +54,7 @@ export function ExpenseManager({ expenses, monthLabel }: { expenses: ExpenseRow[
   async function onSubmit(values: ExpenseFormValues) {
     const result = await createExpenseAction(values)
     if (!result.success) {
-      toast.error(result.error ?? 'Gider kaydedilemedi.')
+      toastActionError(result.error ?? 'Gider kaydedilemedi.', 'Tutar, kategori ve tarih alanlarını kontrol edip tekrar kaydedin.')
       return
     }
     toast.success('Gider kaydedildi')
@@ -66,7 +68,7 @@ export function ExpenseManager({ expenses, monthLabel }: { expenses: ExpenseRow[
     const result = await deleteExpenseAction(expenseId)
     setBusyId(null)
     if (!result.success) {
-      toast.error(result.error ?? 'Gider silinemedi.')
+      toastActionError(result.error ?? 'Gider silinemedi.', 'Kayıt başka bir sekmede silinmiş olabilir; sayfayı yenileyin.')
       return
     }
     router.refresh()
@@ -127,7 +129,12 @@ export function ExpenseManager({ expenses, monthLabel }: { expenses: ExpenseRow[
       </CardHeader>
       <CardContent>
         {expenses.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Bu ay gider kaydı yok.</p>
+          <EmptyState
+            variant="inline"
+            icon={Receipt}
+            title="Bu ay gider kaydı yok"
+            description="Kira, malzeme veya abonelik giderlerinizi girdiğinizde net kâr hesabına dahil edilir."
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {expenses.map((expense) => (

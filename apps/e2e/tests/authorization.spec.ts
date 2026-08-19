@@ -25,9 +25,17 @@ test.describe('Kiracılar arası izolasyon', () => {
     // not-found.tsx bu route grubuna EKLENMEDİĞİ sürece). Asıl KVKK/güvenlik
     // vaadi HTTP durum kodu DEĞİL, "danışanın verisi hiçbir biçimde
     // görünmüyor" — bu yüzden asıl doğrulama İÇERİK üzerinden yapılıyor:
-    // "404" başlığı GÖRÜNMELİ, danışanın adı/soyadı HİÇ görünmemeli.
+    // bulunamadı ekranı GÖRÜNMELİ, danışanın adı/soyadı HİÇ görünmemeli.
+    //
+    // GitHub issue #62 / Prompt 10.4, GÖREV 2 — yukarıdaki notun öngördüğü
+    // şey OLDU: (app) segmentine artık bir not-found.tsx EKLENDİ, yani
+    // Next.js'in İngilizce varsayılan "404 | This page could not be found"
+    // ekranı yerine markalı Türkçe ekran render ediliyor. Güvenlik
+    // doğrulaması (danışan verisinin sızmaması) AYNEN korunuyor; yalnızca
+    // "bulunamadı" ekranının kimliği güncellendi.
     await page.goto(`/danisanlar/${credentials.clinicB.clientId}`)
-    await expect(page.getByRole('heading', { name: '404' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Kayıt bulunamadı' })).toBeVisible()
+    await expect(page.getByText('404', { exact: true })).toBeVisible()
     await expect(page.getByText('Gizli')).toHaveCount(0)
     await expect(page.getByText('DanışanB')).toHaveCount(0)
   })

@@ -26,9 +26,11 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
     expect(isNativeShell()).toBe(true)
   })
 
-  it('web bağlamında Google girişi /kurulum ve /giris\'e yönlenir (mevcut e-posta+şifre akışıyla PARALEL)', () => {
+  it('web bağlamında Google girişi /panel ve /giris\'e yönlenir (mevcut e-posta+şifre akışıyla PARALEL)', () => {
+    // GitHub issue #67 — hedef /kurulum'dan /panel'e taşındı: giriş yapan
+    // kullanıcının kliniği ÇOKTAN olabilir.
     expect(getGoogleSignInRedirects()).toEqual({
-      callbackURL: '/kurulum',
+      callbackURL: '/panel',
       errorCallbackURL: '/giris',
     })
   })

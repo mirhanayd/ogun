@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -60,7 +61,7 @@ export function PurchasePackageDialog({
   async function onSubmit(values: PurchasePackageFormValues) {
     const result = await purchasePackageAction(clientId, values)
     if (!result.success) {
-      toast.error(result.error ?? 'Paket satın alma kaydedilemedi.')
+      toastActionError(result.error ?? 'Paket satın alma kaydedilemedi.', 'Paketin hâlâ etkin olduğunu doğrulayıp tekrar deneyin; danışana bir seans yazılmadı.')
       return
     }
     toast.success('Paket satışı kaydedildi')

@@ -4,9 +4,11 @@ import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarPlus, ChevronLeft, ChevronRight, PartyPopper } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { EmptyState } from '@/components/empty-state'
 import { cn } from '@/lib/utils'
 import { checkWorkingHours, computeRescheduleUpdate, type HolidayRow, type WorkingHourRow } from '@/lib/scheduling'
 import { CalendarGrid, dietitianColor } from './calendar-grid'
@@ -140,7 +142,10 @@ export function CalendarView({
             true,
           )
           if (!retry.success) {
-            toast.error(retry.error ?? 'Randevu ertelenemedi.')
+            toastActionError(
+              retry.error ?? 'Randevu ertelenemedi.',
+              'Randevu eski saatinde duruyor. Takvimi yenileyip tekrar sürükleyin.',
+            )
             return
           }
           toast.success('Randevu ertelendi')
@@ -149,7 +154,10 @@ export function CalendarView({
         return
       }
       if (!result.success) {
-        toast.error(result.error ?? 'Randevu ertelenemedi.')
+        toastActionError(
+          result.error ?? 'Randevu ertelenemedi.',
+          'Randevu eski saatinde duruyor. Hedef saatin boş ve çalışma saatleri içinde olduğundan emin olun.',
+        )
         return
       }
       toast.success('Randevu ertelendi')
@@ -225,6 +233,28 @@ export function CalendarView({
             )
           })}
         </div>
+      )}
+
+      {/* GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 1 — "Tüm ana
+          listelerde (… randevular …) EmptyState uygula". Takvim IZGARASI
+          BİLEREK gizlenmiyor: diyetisyen boş bir saat kutusuna tıklayarak
+          randevu oluşturuyor, ızgarayı kaldırmak asıl eylemi ortadan
+          kaldırırdı. Bunun yerine ızgaranın ÜSTÜNDE, görünen aralıkta hiç
+          randevu olmadığını SÖYLEYEN ve doğrudan eylemi sunan bir boş durum
+          gösteriliyor (daha önce hiçbir şey yoktu — boş bir ızgara
+          "yüklenmedi mi, gerçekten boş mu?" belirsizliği bırakıyordu). */}
+      {appointments.length === 0 && (
+        <EmptyState
+          variant="inline"
+          icon={CalendarPlus}
+          title="Bu aralıkta randevu yok"
+          description={
+            selectedDietitianIds.length > 0
+              ? 'Seçili diyetisyen filtresine uyan randevu bulunamadı. Filtreyi kaldırabilir ya da yeni bir randevu oluşturabilirsiniz.'
+              : 'Takvimde boş bir saat kutusuna tıklayarak ya da aşağıdaki düğmeyle randevu oluşturabilirsiniz.'
+          }
+          action={{ label: 'Yeni randevu', onClick: () => setCreateDialog({ startsAt: currentDate }) }}
+        />
       )}
 
       {view === 'month' ? (

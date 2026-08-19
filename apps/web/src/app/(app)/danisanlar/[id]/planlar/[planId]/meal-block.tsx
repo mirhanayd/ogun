@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Bookmark } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,13 +25,33 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
   const insertSavedMeal = usePlanEditorStore((s) => s.insertSavedMeal)
   const foodMacros = usePlanEditorStore((s) => s.foodMacros)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  // GitHub issue #62 / Prompt 10.4, GÖREV 3 — arama kutusunda Tab'a
+  // basıldığında odağın taşınacağı miktar hücresini bulmak için (bkz.
+  // aşağıdaki focusLastAmountCell ve food-search-input.tsx onTabToAmount).
+  const itemListRef = useRef<HTMLUListElement>(null)
 
   const { setNodeRef: setDroppableRef } = useDroppable({ id: mealContainerId(meal.id) })
   const setActiveMeal = useActiveMealStore((s) => s.setActiveMeal)
 
+  // Arama kutusundan Tab: EN SON eklenen kalemin miktar hücresine odaklan.
+  // "En son" = listenin sonuncusu; addItemFromSelection kalemi listenin
+  // SONUNA ekliyor (bkz. plan-editor-store.ts), yani kullanıcının az önce
+  // seçtiği besin. Hiç kalem yoksa false döner ve tarayıcının varsayılan
+  // sekme sırası korunur.
+  function focusLastAmountCell(): boolean {
+    const cells = itemListRef.current?.querySelectorAll<HTMLElement>('[data-amount-cell]')
+    const last = cells && cells.length > 0 ? cells[cells.length - 1] : null
+    if (!last) return false
+    last.focus()
+    return true
+  }
+
   function handleInsertSavedMeal(savedMealId: string) {
     insertSavedMeal(meal.id, savedMealId).catch((error: unknown) => {
-      toast.error(error instanceof Error ? error.message : 'Kayıtlı öğün eklenemedi.')
+      toastActionError(
+        error instanceof Error ? error.message : 'Kayıtlı öğün eklenemedi.',
+        'Öğün plana eklenmedi. Sayfayı yenileyip tekrar deneyin.',
+      )
     })
   }
 
@@ -97,7 +117,7 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
       />
 
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <ul className="flex flex-col">
+        <ul ref={itemListRef} className="flex flex-col">
           {meal.items.map((item) => (
             <PlanItemRow key={item.id} item={item} foodMacros={foodMacros} />
           ))}
@@ -118,6 +138,7 @@ export function MealBlock({ meal }: { meal: DraftMeal }) {
           placeholder={`${mealTypeLabel} için besin ara… (ör. "150 gr tavuk göğsü", "@" ile kayıtlı öğün)`}
           onSelect={(selection) => addItemFromSelection(meal.id, selection)}
           onInsertSavedMeal={handleInsertSavedMeal}
+          onTabToAmount={focusLastAmountCell}
         />
       </div>
     </div>

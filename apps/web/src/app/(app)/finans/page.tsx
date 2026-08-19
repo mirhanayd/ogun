@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { CreditCard, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/empty-state'
 import {
   monthlyIncomeExpense,
   revenueByDietitian,
@@ -91,8 +92,15 @@ export default async function FinansPage({
             <CardDescription>Danışanın atanan diyetisyenine göre bu ayki ödeme toplamı.</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* GitHub issue #62 / Prompt 10.4, GÖREV 1 — düz metin yerine
+                EmptyState'in kart içi ('inline') varyantı. */}
             {dietitianRevenue.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Bu ay henüz ödeme kaydı yok.</p>
+              <EmptyState
+                variant="inline"
+                icon={Users}
+                title="Bu ay ödeme kaydı yok"
+                description="Bir danışanın Ödemeler sekmesinden tahsilat girdiğinizde ciro burada diyetisyen bazında toplanır."
+              />
             ) : (
               <div className="flex flex-col gap-2">
                 {dietitianRevenue.map((row) => (
@@ -113,7 +121,12 @@ export default async function FinansPage({
           </CardHeader>
           <CardContent>
             {overview.payments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Bu ay henüz ödeme kaydı yok.</p>
+              <EmptyState
+                variant="inline"
+                icon={CreditCard}
+                title="Bu ay ödeme kaydı yok"
+                description="Nakit, kart veya havale tahsilatlarını girdikçe yöntem dağılımı burada oluşur."
+              />
             ) : (
               <div className="flex flex-col gap-2">
                 {Object.entries(

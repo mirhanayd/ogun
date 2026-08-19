@@ -8,6 +8,8 @@
     "test:ui": "playwright test --ui",
     "seed": "tsx fixtures/seed-e2e.ts",
     "capture:plan-editor": "tsx scripts/capture-plan-editor.ts",
+    "test:visual": "playwright test visual-regression",
+    "test:visual:update": "playwright test visual-regression --update-snapshots",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

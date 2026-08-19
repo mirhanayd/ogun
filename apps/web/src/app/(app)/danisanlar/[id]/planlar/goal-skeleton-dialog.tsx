@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Target } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { distributeCalories } from '@ogun/nutrition-core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -133,7 +134,7 @@ export function GoalSkeletonDialog({
         mealTypes: orderedSelectedMeals.map((o) => o.value),
       })
       if (!result.success || !result.data) {
-        toast.error(result.error ?? 'Plan iskeleti oluşturulamadı.')
+        toastActionError(result.error ?? 'Plan iskeleti oluşturulamadı.', 'Hedef kalori ve öğün seçimini gözden geçirip tekrar deneyin.')
         return
       }
       onOpenChange(false)

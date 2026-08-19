@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { createPlanAction } from '@/app/(app)/planlar/actions'
 import { createDurationTracker } from '@/lib/analytics/track'
@@ -32,7 +32,7 @@ export function NewPlanButton({ clientId, className }: { clientId: string; class
       })
       setBusy(false)
       if (!result.success || !result.data) {
-        toast.error(result.error ?? 'Plan oluşturulamadı.')
+        toastActionError(result.error ?? 'Plan oluşturulamadı.', 'Plan adı ve tarih aralığını kontrol edip tekrar deneyin.')
         return
       }
       tracker.finish('plan_created', '/danisanlar/[id]/planlar')

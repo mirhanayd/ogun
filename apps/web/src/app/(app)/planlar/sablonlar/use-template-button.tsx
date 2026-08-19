@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Sparkles } from 'lucide-react'
-import { toast } from 'sonner'
+import { toastActionError } from '@/lib/action-toast'
 import { Button } from '@/components/ui/button'
 import { clonePlanAction } from '@/app/(app)/planlar/actions'
 import { ClientPickerDialog } from './client-picker-dialog'
@@ -23,7 +23,7 @@ export function UseTemplateButton({ templateId }: { templateId: string }) {
     startTransition(async () => {
       const result = await clonePlanAction(templateId, clientId)
       if (!result.success || !result.data) {
-        toast.error(result.error ?? 'Plan oluşturulamadı.')
+        toastActionError(result.error ?? 'Plan oluşturulamadı.', 'Şablon silinmiş ya da danışan arşivlenmiş olabilir; listeyi yenileyip tekrar deneyin.')
         return
       }
       router.push(`/danisanlar/${clientId}/planlar/${result.data.id}`)
