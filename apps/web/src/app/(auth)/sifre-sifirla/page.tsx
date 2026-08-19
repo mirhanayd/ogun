@@ -55,8 +55,16 @@ function SifreSifirlaForm() {
     )
   }
 
+  // method="post" — bkz. giris/page.tsx'teki aynı düzeltme: hydration
+  // öncesi native gönderim GET'e değil POST'a düşsün, yeni şifre URL'e
+  // yazılmasın.
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form
+      className="flex flex-col gap-4"
+      method="post"
+      onSubmit={handleSubmit(onSubmit)}
+      noValidate
+    >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Yeni şifre</Label>
         <Input

@@ -56,7 +56,14 @@ export default function SifremiUnuttumPage() {
             Bu e-posta sistemde kayıtlıysa, şifre sıfırlama bağlantısı gönderildi. Gelen kutunuzu kontrol edin.
           </p>
         ) : (
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+          // method="post" — bkz. giris/page.tsx'teki aynı düzeltme (burada
+          // e-posta URL'e/geçmişe yazılmasın diye, tutarlılık için).
+          <form
+            className="flex flex-col gap-4"
+            method="post"
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+          >
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">E-posta</Label>
               <Input

@@ -52,7 +52,15 @@ export default function KayitPage() {
         <CardDescription>Kliniğinizi Öğün&apos;e taşımaya başlayın.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+        {/* method="post" — bkz. giris/page.tsx'teki aynı düzeltme: hydration
+            öncesi native gönderim GET'e değil POST'a düşsün, şifre URL'e
+            yazılmasın. */}
+        <form
+          className="flex flex-col gap-4"
+          method="post"
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+        >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Ad soyad</Label>
             <Input id="name" type="text" autoComplete="name" aria-invalid={!!errors.name} {...register('name')} />

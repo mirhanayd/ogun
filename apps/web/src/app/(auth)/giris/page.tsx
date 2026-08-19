@@ -80,7 +80,20 @@ export default function GirisPage() {
         <CardDescription>Öğün hesabınıza giriş yapın.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+        {/* method="post" GÜVENLİK amaçlı: React hydrate OLMADAN (JS event
+            listener'ları bağlanmadan) kullanıcı gönder'e tıklarsa tarayıcı
+            native form davranışına düşer — method belirtilmemişse varsayılan
+            GET'tir ve şifre alanı (name="password") URL'e/tarayıcı geçmişine
+            YAZILIR. POST'ta bu olmaz; onSubmit zaten hydration sonrası devreye
+            girip gerçek isteği authClient.signIn.email() ile YAPIYOR, bu form
+            action'ı hiç TETİKLENMİYOR — sadece hydration-öncesi güvenli bir
+            geri düşüş (fallback). */}
+        <form
+          className="flex flex-col gap-4"
+          method="post"
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+        >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">E-posta</Label>
             <Input id="email" type="email" autoComplete="email" aria-invalid={!!errors.email} {...register('email')} />
