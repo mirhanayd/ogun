@@ -29,6 +29,20 @@ declare global {
 // Neon bağlantı dizesini sslmode PARAMETRESİ OLMADAN kopyalayan bir
 // operatörün (insan hatası) yine de şifresiz bağlanmasını ÖNLER, ama
 // yerel/self-hosted Postgres'i (TLS kurulmamışsa) BOZMAZ.
+// `tsx src/seed/index.ts` ve packages/etl'deki importer'lar (db:seed,
+// etl:bls, etl:usda) bu modülü düz bir Node process'inde çalıştırır — kök
+// .env dosyasını KENDİLİĞİNDEN görmezler (apps/web'de sorun değil, Next.js
+// zaten kendi .env yüklemesini yapıyor ve DATABASE_URL o zamana kadar
+// ZATEN set, aşağıdaki çağrı orada no-op olur). Node 20.6+'ın yerleşik
+// loadEnvFile'ı ile kök .env'i açıkça yükler — dosya yoksa (üretimde
+// platformun kendisi ortam değişkeni enjekte ediyorsa) sessizce geçilir.
+try {
+  process.loadEnvFile(new URL('../../../.env', import.meta.url))
+} catch {
+  // kök .env yoksa sorun değil — DATABASE_URL zaten set olabilir, aşağıdaki
+  // kontrol yine de eksikse hata verir.
+}
+
 function createConnection() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {

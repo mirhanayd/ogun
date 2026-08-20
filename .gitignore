@@ -13,6 +13,18 @@ ogun-roadmap.md
 faz-9-masaustu-kabugu.md
 faz-10-ui-cilasi.md
 
+# Tauri auto-updater özel imzalama anahtarı — `tauri signer generate -w
+# ~/.tauri/ogun-updater.key` Windows'ta `~`'yi genişletmediği için harfiyen
+# apps/desktop/~/.tauri/ altına yazılmış (gerçek ev dizini yerine). Ters
+# slash'lı önceki satır (\) git'in ignore eşleştirmesinde ÇALIŞMIYORDU —
+# gitignore desenleri DÜZ slash (/) kullanmalı, ters slash kaçış karakteri
+# sayılır. Bu, özel anahtarın YANLIŞLIKLA commit'lenebileceği gerçek bir
+# boşluktu.
+apps/desktop/~/
+.neon
+.agents/
+skills-lock.json
+
 # GitHub issue #45 / Prompt 8.1 — Playwright E2E
 apps/e2e/playwright-report
 apps/e2e/test-results

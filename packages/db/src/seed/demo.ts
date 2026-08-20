@@ -161,6 +161,14 @@ function normalize(text: string): string {
     .replace(/ç/g, 'c')
 }
 
+// bkz. ../client.ts'teki aynı not — düz `tsx` ile çalışan bu script kök
+// .env'i kendiliğinden görmez.
+try {
+  process.loadEnvFile(new URL('../../../../.env', import.meta.url))
+} catch {
+  // kök .env yoksa sorun değil — DATABASE_URL zaten set olabilir.
+}
+
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
