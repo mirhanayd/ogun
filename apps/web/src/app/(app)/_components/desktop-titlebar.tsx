@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Maximize2, Minus, Sprout, Square, X } from 'lucide-react'
+import Image from 'next/image'
+import { Maximize2, Minus, Square, X } from 'lucide-react'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import { isNativeShell } from '@/lib/native-shell'
 import { CommandPalette } from './command-palette'
@@ -55,9 +56,14 @@ export function DesktopTitlebar({
       className="desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b border-white/10 bg-desktop-chrome text-white shadow-[0_1px_0_rgba(0,0,0,0.22)]"
     >
       <div data-tauri-drag-region className="flex w-60 shrink-0 items-center gap-2.5 px-4">
-        <span className="grid size-7 place-items-center rounded-lg bg-emerald-300 text-emerald-950 shadow-sm">
-          <Sprout className="size-4" strokeWidth={2.4} />
-        </span>
+        {/* src-tauri/icons içindeki native uygulama ikonunun vektör karşılığı. */}
+        <Image
+          src="/brand/ogun-uygulama-ikonu.svg"
+          alt=""
+          width={28}
+          height={28}
+          className="size-7 shrink-0 rounded-lg shadow-sm"
+        />
         <span className="text-sm font-semibold tracking-[-0.02em]">öğün</span>
         <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em] text-emerald-100 uppercase">
           Desktop
