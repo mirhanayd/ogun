@@ -353,13 +353,8 @@
     overflow: hidden;
   }
 
-  html[data-native-shell] .app-topbar-search,
-  html[data-native-shell] .app-topbar-utility {
-    display: none;
-  }
-
   html[data-native-shell] .app-topbar {
-    height: 3.25rem;
+    display: none;
   }
 
   html[data-native-shell] .app-sidebar {
