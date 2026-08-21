@@ -10,6 +10,7 @@ import {
 } from '@/lib/authz'
 import { OfflineIndicator } from '@/components/offline-indicator'
 import { BottomNav } from './_components/bottom-nav'
+import { DesktopTitlebar } from './_components/desktop-titlebar'
 import { ProductTour } from './_components/product-tour'
 import { ScreenTimeTracker } from './_components/screen-time-tracker'
 import { SidebarNav } from './_components/sidebar-nav'
@@ -43,19 +44,36 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const showProductTour = !(await hasCompletedProductTour(db, ctx.user.id))
 
   return (
-    <div className="flex min-h-svh flex-col md:flex-row">
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-border md:flex">
-        <div className="flex h-14 items-center px-4 text-lg font-semibold text-primary">Öğün</div>
-        <SidebarNav role={ctx.role} />
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar
-          activeClinicId={ctx.scope.clinicId}
-          role={ctx.role}
-          userName={ctx.user.name}
-          userEmail={ctx.user.email}
-        />
-        <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">{children}</main>
+    <div className="flex min-h-svh flex-col bg-background" data-app-shell>
+      <DesktopTitlebar role={ctx.role} userName={ctx.user.name} userEmail={ctx.user.email} />
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+          <div className="flex h-[4.5rem] items-center gap-3 px-5">
+            <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_-10px_var(--primary)]">
+              <span className="text-base font-semibold">ö</span>
+            </span>
+            <div className="min-w-0">
+              <p className="text-base font-semibold tracking-[-0.025em] text-sidebar-foreground">
+                öğün
+              </p>
+              <p className="text-[10px] font-medium tracking-[0.13em] text-muted-foreground uppercase">
+                Klinik OS
+              </p>
+            </div>
+          </div>
+          <SidebarNav role={ctx.role} />
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar
+            activeClinicId={ctx.scope.clinicId}
+            role={ctx.role}
+            userName={ctx.user.name}
+            userEmail={ctx.user.email}
+          />
+          <main className="app-main flex-1 overflow-y-auto px-4 py-5 pb-20 sm:px-6 md:pb-7 lg:px-8">
+            <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+          </main>
+        </div>
       </div>
       <BottomNav role={ctx.role} />
       {/* GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 2 — "Çevrimdışı

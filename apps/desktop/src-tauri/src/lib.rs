@@ -204,6 +204,10 @@ pub fn run() {
                 // GÖREV 2 — varsayılan 1280x800, minimum 1024x680.
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(1024.0, 680.0)
+                // Uygulama kendi, Docker Desktop benzeri başlık çubuğunu
+                // apps/web içinde çiziyor; işletim sistemi başlığını kapatıp
+                // çift başlık oluşmasını önlüyoruz.
+                .decorations(false)
                 // GÖREV 3 — pencere içi TAM SAYFA navigasyon denemelerini
                 // yakalar (bkz. navigation.rs'teki modül notu: Next.js
                 // App Router'ın istemci-taraflı gezinmesi buradan hiç

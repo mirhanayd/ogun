@@ -282,7 +282,7 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-8 w-full max-w-64 items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted dark:bg-input/30"
+        className="flex h-9 w-full max-w-md items-center gap-2.5 rounded-xl border border-input/80 bg-muted/45 px-3 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-all hover:border-primary/25 hover:bg-muted/75 dark:bg-input/25"
       >
         <Search className="size-4 shrink-0" />
         <span className="flex-1 text-left">Ara…</span>

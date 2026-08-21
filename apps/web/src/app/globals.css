@@ -74,6 +74,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-app-canvas: var(--app-canvas);
+  --color-desktop-chrome: var(--desktop-chrome);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -207,7 +209,9 @@
   --chart-4: #eda100; /* sarı */
   --chart-5: #e87ba4; /* macenta */
   --chart-6: #008300; /* yeşil */
-  --radius: 0.5rem;
+  --radius: 0.625rem;
+  --app-canvas: oklch(0.978 0.006 165);
+  --desktop-chrome: oklch(0.245 0.055 171);
   --sidebar: oklch(0.972 0.007 165);
   --sidebar-foreground: oklch(0.21 0.015 165);
   --sidebar-primary: oklch(0.518 0.1 165.2);
@@ -259,6 +263,8 @@
   --sidebar-accent-foreground: oklch(0.925 0.045 171.8);
   --sidebar-border: oklch(0.305 0.02 167);
   --sidebar-ring: oklch(0.672 0.127 165.5);
+  --app-canvas: oklch(0.174 0.013 167);
+  --desktop-chrome: oklch(0.16 0.045 171);
 }
 
 @layer base {
@@ -266,7 +272,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
   html {
     @apply font-sans;
@@ -323,4 +329,44 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+}
+
+@layer components {
+  .app-main {
+    background-color: var(--app-canvas);
+    background-image:
+      radial-gradient(
+        circle at 84% -8%,
+        color-mix(in oklch, var(--primary) 6%, transparent) 0,
+        transparent 31rem
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in oklch, var(--background) 42%, transparent),
+        transparent 12rem
+      );
+  }
+
+  html[data-native-shell] [data-app-shell] {
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html[data-native-shell] .app-topbar-search,
+  html[data-native-shell] .app-topbar-utility {
+    display: none;
+  }
+
+  html[data-native-shell] .app-topbar {
+    height: 3.25rem;
+  }
+
+  html[data-native-shell] .app-sidebar {
+    box-shadow: inset -1px 0 color-mix(in oklch, var(--sidebar-border) 65%, transparent);
+  }
+}
+
+::selection {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
 }
