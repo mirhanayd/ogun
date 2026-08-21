@@ -76,7 +76,7 @@ export default function GirisPage() {
       }
     >
       <form
-        className="flex flex-col gap-5"
+        className="auth-login-form flex flex-col gap-5"
         method="post"
         onSubmit={handleSubmit(onSubmit)}
         noValidate

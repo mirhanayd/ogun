@@ -11,20 +11,22 @@ interface AuthCardProps {
 
 export function AuthCard({ eyebrow, title, description, children, footer }: AuthCardProps) {
   return (
-    <section className="w-full" aria-labelledby="auth-page-title">
+    <section className="auth-card w-full" aria-labelledby="auth-page-title">
       <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">{eyebrow}</p>
       <h1
         id="auth-page-title"
-        className="mt-3 text-[clamp(2rem,4vw,2.8rem)] leading-[1.08] font-semibold tracking-[-0.045em] text-balance"
+        className="auth-card-title mt-3 text-[clamp(2rem,4vw,2.8rem)] leading-[1.08] font-semibold tracking-[-0.045em] text-balance"
       >
         {title}
       </h1>
-      <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
+      <p className="auth-card-description mt-4 max-w-md text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
         {description}
       </p>
 
-      <div className="mt-8">{children}</div>
-      {footer ? <div className="mt-7 border-t border-border pt-6">{footer}</div> : null}
+      <div className="auth-card-body mt-8">{children}</div>
+      {footer ? (
+        <div className="auth-card-footer mt-7 border-t border-border pt-6">{footer}</div>
+      ) : null}
     </section>
   )
 }

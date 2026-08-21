@@ -10,8 +10,8 @@ const AUTH_BENEFITS = [
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-svh bg-background lg:grid lg:grid-cols-[minmax(22rem,0.78fr)_minmax(34rem,1.22fr)]">
-      <aside className="relative hidden min-h-svh overflow-hidden bg-[#0e2b21] px-10 py-9 text-white lg:flex lg:flex-col xl:px-14 xl:py-11">
+    <div className="auth-shell min-h-svh bg-background lg:grid lg:grid-cols-[minmax(22rem,0.78fr)_minmax(34rem,1.22fr)]">
+      <aside className="auth-shell-aside relative hidden min-h-svh overflow-hidden bg-[#0e2b21] px-10 py-9 text-white lg:flex lg:flex-col xl:px-14 xl:py-11">
         <div
           aria-hidden="true"
           className="absolute inset-0 opacity-80 [background-image:radial-gradient(circle_at_20%_15%,rgba(79,169,127,.24),transparent_34%),radial-gradient(circle_at_92%_85%,rgba(159,225,203,.12),transparent_30%)]"
@@ -41,7 +41,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           />
         </Link>
 
-        <div className="relative my-auto max-w-lg py-14">
+        <div className="auth-shell-copy relative my-auto max-w-lg py-14">
           <p className="text-xs font-semibold tracking-[0.16em] text-emerald-300 uppercase">
             Klinik çalışma alanınız
           </p>
@@ -53,7 +53,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             doğru yetkiyle.
           </p>
 
-          <ul className="mt-10 grid gap-3 xl:grid-cols-3">
+          <ul className="auth-shell-benefits mt-10 grid gap-3 xl:grid-cols-3">
             {AUTH_BENEFITS.map(({ icon: Icon, label, detail }) => (
               <li
                 key={label}
@@ -67,14 +67,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </ul>
         </div>
 
-        <div className="relative flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-emerald-50/55">
+        <div className="auth-shell-dataset relative flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-emerald-50/55">
           <Database aria-hidden="true" className="size-4 text-emerald-300" />
           <span>15.402 Türkçeleştirilmiş besin · 60 besin öğesi</span>
         </div>
       </aside>
 
-      <main className="relative flex min-h-svh flex-col bg-[radial-gradient(circle_at_80%_5%,color-mix(in_oklch,var(--accent)_42%,transparent),transparent_32%)]">
-        <div className="flex h-[4.5rem] items-center justify-between px-4 sm:px-8 lg:px-10 xl:px-14">
+      <main className="auth-shell-main relative flex min-h-svh flex-col bg-[radial-gradient(circle_at_80%_5%,color-mix(in_oklch,var(--accent)_42%,transparent),transparent_32%)]">
+        <div className="auth-shell-header flex h-[4.5rem] items-center justify-between px-4 sm:px-8 lg:px-10 xl:px-14">
           <Link href="/" aria-label="Öğün ana sayfa" className="rounded-lg lg:hidden">
             <Image
               src="/brand/ogun-logo-yatay.svg"
@@ -104,11 +104,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </Link>
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8 lg:px-12 xl:px-20">
+        <div className="auth-shell-form-area flex flex-1 items-center justify-center px-5 py-10 sm:px-8 lg:px-12 xl:px-20">
           <div className="w-full max-w-[30rem]">{children}</div>
         </div>
 
-        <p className="px-5 pb-6 text-center text-[0.6875rem] leading-4 text-muted-foreground sm:px-8">
+        <p className="auth-shell-legal px-5 pb-6 text-center text-[0.6875rem] leading-4 text-muted-foreground sm:px-8">
           Devam ederek kurumunuzun veri sorumluluğu ilkelerine uygun hareket etmeyi kabul edersiniz.
         </p>
       </main>

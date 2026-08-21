@@ -33,7 +33,8 @@ use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEven
 use tauri_plugin_opener::OpenerExt;
 
 /// apps/web'in `next dev` sunucusunun varsayılan adresi.
-const DEV_URL: &str = "http://localhost:3000";
+const DEV_ORIGIN: &str = "http://localhost:3000";
+const DEV_ENTRY_URL: &str = "http://localhost:3000/giris";
 
 pub fn run() {
     tauri::Builder::default()
@@ -120,7 +121,7 @@ pub fn run() {
             // (splash/dev sayfasının kendisi) daha pencere `build()`
             // dönmeden tetiklenebilir.
             app.manage(AppOrigin::new(if is_dev {
-                Some(DEV_URL.to_string())
+                Some(DEV_ORIGIN.to_string())
             } else {
                 None
             }));
@@ -187,7 +188,11 @@ pub fn run() {
             }
 
             let initial_url = if is_dev {
-                WebviewUrl::External(DEV_URL.parse().expect("DEV_URL geçerli bir URL olmalı"))
+                WebviewUrl::External(
+                    DEV_ENTRY_URL
+                        .parse()
+                        .expect("DEV_ENTRY_URL geçerli bir URL olmalı"),
+                )
             } else {
                 // apps/desktop/splash/index.html (bkz. tauri.conf.json
                 // build.frontendDist) — sidecar hazır olana kadar gösterilen

@@ -178,7 +178,8 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
             return;
         }
 
-        let target_url = Url::parse(&format!("{sidecar_origin}/")).expect("geçerli sidecar URL'i");
+        let target_url =
+            Url::parse(&format!("{sidecar_origin}/giris")).expect("geçerli sidecar URL'i");
         if let Err(err) = window.navigate(target_url) {
             eprintln!("[ogun-desktop] pencere sidecar adresine yönlendirilemedi: {err}");
         }

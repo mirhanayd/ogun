@@ -73,8 +73,8 @@ export function GoogleSignInButton() {
   }
 
   return (
-    <div>
-      <div className="my-6 flex items-center gap-3 text-[0.6875rem] font-medium tracking-[0.12em] text-muted-foreground uppercase">
+    <div className="google-sign-in">
+      <div className="google-sign-in-divider my-6 flex items-center gap-3 text-[0.6875rem] font-medium tracking-[0.12em] text-muted-foreground uppercase">
         <span className="h-px flex-1 bg-border" />
         veya
         <span className="h-px flex-1 bg-border" />

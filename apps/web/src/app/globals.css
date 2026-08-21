@@ -381,3 +381,86 @@ html[data-native-shell] .desktop-titlebar {
 html[data-native-shell] .public-desktop-titlebar ~ * {
   min-height: calc(100svh - 3rem);
 }
+
+/* The native titlebar consumes 3rem. Authentication screens use the exact
+   remaining viewport so the minimum supported desktop window never develops
+   a second, page-level scrollbar. Web pages retain their normal fluid layout. */
+html[data-native-shell] .auth-shell {
+  height: calc(100svh - 3rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-native-shell] .auth-shell-aside,
+html[data-native-shell] .auth-shell-main {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-native-shell] .auth-shell-aside {
+  padding-block: 1.5rem;
+}
+
+html[data-native-shell] .auth-shell-copy {
+  padding-block: 1rem;
+}
+
+html[data-native-shell] .auth-shell-benefits {
+  margin-top: 1.5rem;
+}
+
+html[data-native-shell] .auth-shell-dataset {
+  padding-top: 1rem;
+}
+
+html[data-native-shell] .auth-shell-header {
+  height: 2.75rem;
+}
+
+html[data-native-shell] .auth-shell-form-area {
+  min-height: 0;
+  padding-block: 0.75rem;
+}
+
+html[data-native-shell] .auth-shell-legal {
+  display: none;
+}
+
+html[data-native-shell] .auth-card-title {
+  margin-top: 0.5rem;
+  font-size: clamp(1.75rem, 3.2vw, 2.15rem);
+}
+
+html[data-native-shell] .auth-card-description {
+  margin-top: 0.65rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+html[data-native-shell] .auth-card-body {
+  margin-top: 1.25rem;
+}
+
+html[data-native-shell] .auth-card-footer {
+  margin-top: 1rem;
+  padding-top: 0.875rem;
+}
+
+html[data-native-shell] .auth-login-form {
+  gap: 0.875rem;
+}
+
+html[data-native-shell] .google-sign-in-divider {
+  margin-block: 0.875rem;
+}
+
+@media (max-height: 760px) {
+  html[data-native-shell] .auth-shell-benefits {
+    display: none;
+  }
+
+  html[data-native-shell] .auth-shell-copy h2 {
+    font-size: 2.5rem;
+  }
+}
