@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getGoogleSignInRedirects, isNativeShell, saveFileNatively } from './native-shell'
+import {
+  getGoogleSignInRedirects,
+  getNativeGoogleSignInURL,
+  isNativeShell,
+  saveFileNatively,
+} from './native-shell'
 
 // GitHub issue #52 / Prompt 9.2 — bu modülün SAF (Tauri çalışma zamanı
 // gerektirmeyen) kısmının birim testi. vitest.config.ts'te
@@ -26,7 +31,7 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
     expect(isNativeShell()).toBe(true)
   })
 
-  it('web bağlamında Google girişi /panel ve /giris\'e yönlenir (mevcut e-posta+şifre akışıyla PARALEL)', () => {
+  it("web bağlamında Google girişi /panel ve /giris'e yönlenir (mevcut e-posta+şifre akışıyla PARALEL)", () => {
     // GitHub issue #67 — hedef /kurulum'dan /panel'e taşındı: giriş yapan
     // kullanıcının kliniği ÇOKTAN olabilir.
     expect(getGoogleSignInRedirects()).toEqual({
@@ -35,12 +40,12 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
     })
   })
 
-  it('native kabukta Google girişi köprü route\'una yönlenir (deep link buradan üretilir)', () => {
-    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
-    expect(getGoogleSignInRedirects()).toEqual({
-      callbackURL: '/api/auth/native/callback',
-      errorCallbackURL: '/api/auth/native/callback',
+  it("native kabukta Google girişini sistem tarayıcısındaki başlangıç route'una taşır", () => {
+    vi.stubGlobal('window', {
+      __TAURI_INTERNALS__: {},
+      location: { origin: 'http://localhost:3000' },
     })
+    expect(getNativeGoogleSignInURL()).toBe('http://localhost:3000/api/auth/native/google')
   })
 
   // GitHub issue #53 / Prompt 9.3, GÖREV 4 — `saveFileNatively`'nin

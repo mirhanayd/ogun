@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
-import { getGoogleSignInRedirects } from '@/lib/native-shell'
+import {
+  getGoogleSignInRedirects,
+  getNativeGoogleSignInURL,
+  isNativeShell,
+} from '@/lib/native-shell'
 
 // GitHub issue #52 / Prompt 9.2, GÖREV 1 — "Native kimlik doğrulama akışı".
 //
@@ -16,16 +20,12 @@ import { getGoogleSignInRedirects } from '@/lib/native-shell'
 // — giris/page.tsx ve kayit/page.tsx'e sadece BU bileşenin import+kullanım
 // satırları eklendi, mevcut e-posta+şifre formlarının kod/mantığı DEĞİŞMEDİ.
 //
-// Web'de ve native kabukta AYNI kod çalışır, farklılık SADECE callbackURL
-// seçiminde (bkz. native-shell.ts getGoogleSignInRedirects) — geri kalan
-// her şey (sistem tarayıcısında açılma) apps/desktop/src-tauri/src/
-// navigation.rs'teki MEVCUT #51 on_navigation engelleyicisinden BEDAVA gelir:
-// better-auth istemcisi `signIn.social()` başarılı olduğunda
-// `window.location.href = <google-yetkilendirme-url'i>` atar (bkz.
-// node_modules/better-auth/dist/client/fetch-plugins.mjs redirectPlugin) —
-// bu, kendi origin'imiz DIŞINDA bir https navigasyonu olduğundan
-// on_navigation tarafından YAKALANIP sistem tarayıcısına yönlendirilir ve
-// pencere içi navigasyon İPTAL edilir. Burada EK bir şey yapmaya gerek YOK.
+// Web'de Better Auth'un standart istemci akışı kullanılır. Native kabukta ise
+// OAuth en baştan sistem tarayıcısında açılır: state çerezi webview'de
+// oluşturulup callback sistem tarayıcısına gelirse iki ayrı cookie jar yüzünden
+// Better Auth `state_mismatch` ile akışı reddeder. `/api/auth/native/google`
+// state çerezini sistem tarayıcısında üretir, Google dönüşünden sonra mevcut
+// one-time-token + deep-link köprüsü uygulamaya oturumu güvenle aktarır.
 //
 // Kod incelemesi (PR #56) notu: "veya" ayırıcısı (divider) giris/page.tsx
 // ve kayit/page.tsx'te AYNI şekilde tekrarlanıyordu — buraya, bileşenin
@@ -38,6 +38,21 @@ export function GoogleSignInButton() {
   async function handleClick() {
     setError(null)
     setPending(true)
+
+    if (isNativeShell()) {
+      try {
+        const { openUrl } = await import('@tauri-apps/plugin-opener')
+        await openUrl(getNativeGoogleSignInURL())
+      } catch {
+        setError('Google giriş sayfası sistem tarayıcısında açılamadı, lütfen tekrar deneyin.')
+      } finally {
+        // The webview stays on this page while OAuth runs in the browser. Let
+        // the user retry if they close or cancel the browser flow.
+        setPending(false)
+      }
+      return
+    }
+
     const { callbackURL, errorCallbackURL } = getGoogleSignInRedirects()
     const { error } = await authClient.signIn.social({
       provider: 'google',

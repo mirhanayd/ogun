@@ -28,26 +28,27 @@ export function isNativeShell(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
-// GitHub issue #52 / Prompt 9.2, GÖREV 1 — Google girişi başlatıldığında
-// hangi callbackURL/errorCallbackURL kullanılacağı. Web'de mevcut davranış
-// AYNEN korunur (bkz. giris/page.tsx'in e-posta+şifre akışındaki /kurulum
-// yönlendirmesiyle PARALEL). Native'de Better Auth'un OAuth callback'i
-// KENDİ origin'imizdeki köprü route'una (apps/web/src/app/api/auth/native/
-// callback/route.ts) yönlenir; o route oturumu kısa ömürlü bir "ott"ye
-// çevirip ogun://auth/callback deep link'ine yönlendirir (bkz. o dosyanın
-// başındaki yorum). Bu fonksiyon SAF'tır (Tauri çalışma zamanı gerektirmez),
-// bu yüzden ayrıca birim testi var (native-shell.test.ts).
+// Web tarayıcısındaki standart Google akışının dönüş hedefleri. Native akış
+// bunu çağırmaz; state çerezinin sistem tarayıcısında oluşturulması için
+// getNativeGoogleSignInURL() ile ayrı başlangıç route'una gider.
 export function getGoogleSignInRedirects(): { callbackURL: string; errorCallbackURL: string } {
-  if (isNativeShell()) {
-    return {
-      callbackURL: '/api/auth/native/callback',
-      errorCallbackURL: '/api/auth/native/callback',
-    }
-  }
   // GitHub issue #67 — e-posta+şifre girişiyle AYNI hedef: /panel. Google ile
   // giren kullanıcının da kliniği çoktan olabilir; (app)/layout.tsx zaten
   // kliniksiz kullanıcıyı /kurulum'a yönlendiriyor.
   return { callbackURL: '/panel', errorCallbackURL: '/giris' }
+}
+
+/**
+ * Native OAuth must start in the system browser. Starting it in the webview
+ * stores Better Auth's state cookie in a different cookie jar, so the callback
+ * arriving in the browser cannot validate the state.
+ */
+export function getNativeGoogleSignInURL(): string {
+  const configuredBaseURL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.trim()
+  const baseURL =
+    configuredBaseURL ||
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+  return new URL('/api/auth/native/google', baseURL).toString()
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +87,7 @@ export async function loadNativeSessionToken(): Promise<string | undefined> {
     // Depolama henüz hiç yazılmamış olabilir (ilk kurulum) — bu bir hata
     // DEĞİL, sadece "kayıtlı oturum yok" anlamına gelir. Token'ı hiç
     // KONSOLA YAZMIYORUZ (güvenlik kuralı) — sadece hatayı.
-    console.warn('[native-shell] saklanan oturum token\'ı okunamadı', err)
+    console.warn("[native-shell] saklanan oturum token'ı okunamadı", err)
     cachedSessionToken = undefined
   }
   return cachedSessionToken
@@ -111,7 +112,7 @@ export async function persistNativeSessionToken(token: string): Promise<void> {
   try {
     await invoke('store_session_token', { token })
   } catch (err) {
-    console.warn('[native-shell] oturum token\'ı güvenli depolamaya yazılamadı', err)
+    console.warn("[native-shell] oturum token'ı güvenli depolamaya yazılamadı", err)
   }
 }
 
@@ -125,7 +126,7 @@ export async function clearNativeSessionToken(): Promise<void> {
   try {
     await invoke('clear_session_token')
   } catch (err) {
-    console.warn('[native-shell] oturum token\'ı güvenli depolamadan silinemedi', err)
+    console.warn("[native-shell] oturum token'ı güvenli depolamadan silinemedi", err)
   }
 }
 
