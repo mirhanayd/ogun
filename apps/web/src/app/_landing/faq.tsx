@@ -1,38 +1,43 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, MessageCircleQuestion } from 'lucide-react'
 import { FAQ_ITEMS } from './content'
 
-// GitHub issue #60 / Faz 10, Prompt 10.2, GÖREV 1 — SSS.
-//
-// NATIVE <details>/<summary>, shadcn Accordion DEĞİL: Accordion bir Radix
-// istemci bileşenidir (JS demeti + hidrasyon). Native öğe aynı davranışı
-// SIFIR JavaScript ile verir, klavye ve ekran okuyucu desteği tarayıcıdan
-// gelir (Lighthouse erişilebilirlik 100 hedefi), JS kapalıyken bile açılır
-// ve tarayıcının sayfa içi arama özelliği kapalı içerikte de bulur. Bir
-// pazarlama sayfası için doğru takas — uygulama içindeki etkileşimli
-// yüzeylerde Accordion tercihi DEĞİŞMEDİ.
 export function Faq() {
   return (
-    <section id="sss" aria-labelledby="sss-baslik" className="border-b border-border/70">
-      <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 sm:py-20">
-        <h2 id="sss-baslik" className="text-title">
-          Sık sorulan sorular
-        </h2>
+    <section id="sss" aria-labelledby="sss-baslik" className="bg-background">
+      <div className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-[minmax(16rem,0.34fr)_minmax(0,0.66fr)] lg:gap-20 lg:px-8">
+        <div>
+          <span className="grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <MessageCircleQuestion aria-hidden="true" className="size-5" strokeWidth={1.8} />
+          </span>
+          <p className="mt-7 text-xs font-semibold tracking-[0.16em] text-primary uppercase">
+            Merak edilenler
+          </p>
+          <h2
+            id="sss-baslik"
+            className="mt-3 text-[clamp(2rem,3.3vw,3.2rem)] leading-[1.06] font-semibold tracking-[-0.045em]"
+          >
+            Kısa ve açık cevaplar.
+          </h2>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
+            Hesap yapısı, veri kaynakları ve danışanla paylaşım hakkında en sık gelen sorular.
+          </p>
+        </div>
 
-        <div className="mt-6 flex flex-col gap-3">
+        <div className="border-t border-border">
           {FAQ_ITEMS.map((item) => (
-            <details
-              key={item.question}
-              name="sss"
-              className="group rounded-xl border border-border bg-card px-5 open:bg-card"
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-section marker:content-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-                {item.question}
-                <ChevronDown
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-                />
+            <details key={item.question} name="sss" className="group border-b border-border">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 text-base font-semibold marker:content-none sm:py-6 sm:text-lg">
+                <span>{item.question}</span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-muted-foreground transition-colors group-open:border-primary/20 group-open:bg-primary/10 group-open:text-primary">
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="size-4 transition-transform duration-200 group-open:rotate-180"
+                  />
+                </span>
               </summary>
-              <p className="pb-5 text-body text-muted-foreground">{item.answer}</p>
+              <p className="max-w-2xl pb-6 pr-10 text-sm leading-7 text-muted-foreground sm:text-base">
+                {item.answer}
+              </p>
             </details>
           ))}
         </div>

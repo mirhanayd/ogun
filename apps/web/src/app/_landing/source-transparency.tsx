@@ -1,106 +1,125 @@
-import { ExternalLink, Info } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { ArrowUpRight, CircleCheck, Info } from 'lucide-react'
 import { DATA_SOURCES, NUTRIENT_FIELD_COUNT, SOURCE_CAVEATS, TOTAL_FOOD_COUNT } from './content'
 
-// GitHub issue #60 / Faz 10, Prompt 10.2, GÖREV 1 — "Kaynak şeffaflığı
-// bölümü: BLS 4.0 + USDA FDC, atıf ve lisans bilgisiyle. Bu bölüm
-// rakiplerin veremediği güveni verir, ÖNE ÇIKAR."
-//
-// "Öne çıkar" burada düz bir vurgu sınıfı değil, YERLEŞİM kararı: bölüm
-// sayfanın tam genişliğini kullanan, kendi zemin rengi olan tek bölüm ve
-// üç değer bölümünün HEMEN ARDINDAN geliyor — yani ürün iddiası
-// kurulduktan sonra, fiyatlandırma sorulmadan ÖNCE. Atıf metinleri
-// küçük punto bir dipnot DEĞİL, kartın içinde tam olarak yazılı: bir
-// diyetisyen değerin nereden geldiğini kopyalayıp yayınına koyabilmeli.
 export function SourceTransparency() {
   return (
-    <section id="kaynaklar" aria-labelledby="kaynaklar-baslik" className="border-b border-border/70 bg-muted/40">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-        <div className="max-w-3xl">
-          <p className="text-helper font-medium tracking-wide text-primary uppercase">Kaynak şeffaflığı</p>
-          <h2 id="kaynaklar-baslik" className="mt-2 text-title text-balance">
-            Hangi sayının nereden geldiğini söyleyebiliyoruz
-          </h2>
-          <p className="mt-3 text-lead text-muted-foreground">
-            Bir diyet listesinin arkasındaki besin öğesi değerleri bir yerden gelmek zorundadır. Öğün bunu
-            gizlemez: her besin kaydı bir kaynağa, atıfa ve lisansa bağlıdır. Kaynağını söyleyemeyen bir
-            hesaplama, klinik bir karara dayanak olamaz.
+    <section
+      id="kaynaklar"
+      aria-labelledby="kaynaklar-baslik"
+      className="relative overflow-hidden bg-[#10261f] text-white dark:bg-[#0a1d17]"
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-50 [background-image:radial-gradient(circle_at_85%_5%,rgba(79,169,127,.2),transparent_34%)]"
+      />
+      <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.7fr)_minmax(24rem,0.3fr)] lg:items-end">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold tracking-[0.16em] text-emerald-300 uppercase">
+              Kaynak şeffaflığı
+            </p>
+            <h2
+              id="kaynaklar-baslik"
+              className="mt-4 text-[clamp(2rem,4.6vw,4.3rem)] leading-[1.02] font-semibold tracking-[-0.05em] text-balance"
+            >
+              Bir sayı klinik karara dönüşüyorsa, kaynağı görünür olmalı.
+            </h2>
+          </div>
+          <p className="text-base leading-7 text-emerald-50/65">
+            Öğün her besin kaydını kaynağına, atfına ve lisansına bağlar. Hesaplamanın arkasındaki
+            veri bir dipnot değil, ürünün denetlenebilir parçasıdır.
           </p>
         </div>
 
-        <dl className="mt-8 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card p-5">
-            <dt className="text-helper text-muted-foreground">Besin kaydı</dt>
-            <dd className="text-data-lg mt-1">{TOTAL_FOOD_COUNT.toLocaleString('tr-TR')}</dd>
+        <dl className="mt-14 grid border-y border-white/15 sm:grid-cols-3">
+          <div className="py-6 sm:pr-8">
+            <dt className="text-xs font-medium tracking-[0.12em] text-emerald-50/50 uppercase">
+              Türkçeleştirilmiş besin
+            </dt>
+            <dd className="mt-2 text-4xl font-semibold tracking-[-0.04em] tabular-nums">
+              {TOTAL_FOOD_COUNT.toLocaleString('tr-TR')}
+            </dd>
           </div>
-          <div className="rounded-xl border border-border bg-card p-5">
-            <dt className="text-helper text-muted-foreground">Besin öğesi alanı</dt>
-            <dd className="text-data-lg mt-1">{NUTRIENT_FIELD_COUNT}</dd>
+          <div className="border-t border-white/15 py-6 sm:border-t-0 sm:border-l sm:px-8">
+            <dt className="text-xs font-medium tracking-[0.12em] text-emerald-50/50 uppercase">
+              Besin öğesi alanı
+            </dt>
+            <dd className="mt-2 text-4xl font-semibold tracking-[-0.04em] tabular-nums">
+              {NUTRIENT_FIELD_COUNT}
+            </dd>
           </div>
-          <div className="rounded-xl border border-border bg-card p-5">
-            <dt className="text-helper text-muted-foreground">Birincil veri tabanı</dt>
-            <dd className="text-data-lg mt-1">{DATA_SOURCES.length}</dd>
+          <div className="border-t border-white/15 py-6 sm:border-t-0 sm:border-l sm:pl-8">
+            <dt className="text-xs font-medium tracking-[0.12em] text-emerald-50/50 uppercase">
+              Bilimsel veri tabanı
+            </dt>
+            <dd className="mt-2 text-4xl font-semibold tracking-[-0.04em] tabular-nums">
+              {DATA_SOURCES.length}
+            </dd>
           </div>
         </dl>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-white/15 bg-white/15 lg:grid-cols-2">
           {DATA_SOURCES.map((source) => (
-            <article key={source.code} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-section">{source.code}</h3>
-                <Badge variant="secondary">{source.license}</Badge>
+            <article
+              key={source.code}
+              className="flex flex-col bg-[#10261f]/95 p-6 sm:p-8 dark:bg-[#0a1d17]/95"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs font-semibold tracking-[0.16em] text-emerald-300 uppercase">
+                  {source.code}
+                </p>
+                <span className="rounded-full border border-white/15 px-2.5 py-1 text-[0.625rem] font-medium text-emerald-50/65">
+                  {source.license}
+                </span>
               </div>
-
-              <div>
-                <p className="text-body font-medium">{source.name}</p>
-                <p className="text-body text-muted-foreground">{source.scope}</p>
-              </div>
-
-              <p className="text-body">
-                <span className="text-data font-medium">{source.foodCount.toLocaleString('tr-TR')}</span>{' '}
-                <span className="text-muted-foreground">besin kaydı bu kaynaktan geliyor.</span>
+              <h3 className="mt-6 text-xl font-semibold tracking-[-0.025em]">{source.name}</h3>
+              <p className="mt-2 text-sm leading-6 text-emerald-50/60">{source.scope}</p>
+              <p className="mt-7 text-sm text-emerald-50/75">
+                <strong className="text-2xl font-semibold text-white tabular-nums">
+                  {source.foodCount.toLocaleString('tr-TR')}
+                </strong>{' '}
+                kayıt
               </p>
-
-              <div className="rounded-lg bg-muted/70 p-4">
-                <p className="text-helper font-medium tracking-wide text-muted-foreground uppercase">Atıf</p>
-                <p className="mt-1.5 text-body">{source.citation}</p>
-              </div>
-
-              <div className="mt-auto flex flex-wrap gap-4">
+              <blockquote className="mt-6 border-l border-emerald-300/30 pl-4 text-xs leading-5 text-emerald-50/50">
+                {source.citation}
+              </blockquote>
+              <div className="mt-7 flex flex-wrap gap-5">
                 <a
                   href={source.homepageUrl}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1.5 rounded-md text-body text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="inline-flex items-center gap-1.5 rounded text-sm font-medium text-emerald-200 underline-offset-4 hover:underline"
                 >
-                  Kaynağın sitesi
-                  <ExternalLink aria-hidden="true" className="size-3.5" />
+                  Kaynağı incele <ArrowUpRight aria-hidden="true" className="size-3.5" />
                 </a>
-                {source.licenseUrl && (
+                {source.licenseUrl ? (
                   <a
                     href={source.licenseUrl}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="inline-flex items-center gap-1.5 rounded-md text-body text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    className="inline-flex items-center gap-1.5 rounded text-sm font-medium text-emerald-200 underline-offset-4 hover:underline"
                   >
-                    {source.license} lisans metni
-                    <ExternalLink aria-hidden="true" className="size-3.5" />
+                    Lisans metni <ArrowUpRight aria-hidden="true" className="size-3.5" />
                   </a>
-                )}
+                ) : null}
               </div>
             </article>
           ))}
         </div>
 
-        <div className="mt-6 rounded-xl border border-border bg-card p-6">
-          <div className="flex items-center gap-2">
-            <Info aria-hidden="true" className="size-4 text-primary" />
-            <h3 className="text-section">Henüz tamamlanmamış olanlar</h3>
+        <div className="mt-8 grid gap-5 rounded-2xl border border-white/15 bg-white/[0.05] p-6 sm:p-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+          <div>
+            <Info aria-hidden="true" className="size-5 text-emerald-300" />
+            <h3 className="mt-3 font-semibold">Açık çalışma notları</h3>
+            <p className="mt-2 text-xs leading-5 text-emerald-50/50">
+              Tamamlanan ve değerlendirmeye açık kalan veri işleri.
+            </p>
           </div>
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="grid gap-3">
             {SOURCE_CAVEATS.map((caveat) => (
-              <li key={caveat} className="text-body text-muted-foreground before:mr-2 before:content-['—']">
-                {caveat}
+              <li key={caveat} className="flex gap-3 text-sm leading-6 text-emerald-50/70">
+                <CircleCheck aria-hidden="true" className="mt-1 size-4 shrink-0 text-emerald-300" />
+                <span>{caveat}</span>
               </li>
             ))}
           </ul>
