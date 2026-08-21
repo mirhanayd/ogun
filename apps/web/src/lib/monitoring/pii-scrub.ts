@@ -136,9 +136,14 @@ const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
 const PHONE_PATTERN = /(?:\+?90[\s.-]?)?0?\s?5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}\b/g
 // TC Kimlik No: 11 haneli, ilk hane 0 olamaz.
 const TC_KIMLIK_PATTERN = /\b[1-9]\d{10}\b/g
+// Klinik davet token'ı path segmentinde taşınır. request.url hassas bir
+// anahtar adı olmadığı için token desenini serbest metin katmanında ayrıca
+// kırpmak gerekir; query/fragment başlamadan segmentin tamamı gizlenir.
+const CLINIC_INVITATION_PATH_PATTERN = /\/davet\/[^/?#\s]+/g
 
 export function scrubPiiFromText(text: string): string {
   return text
+    .replace(CLINIC_INVITATION_PATH_PATTERN, '/davet/[REDACTED]')
     .replace(EMAIL_PATTERN, '[REDACTED_EMAIL]')
     .replace(PHONE_PATTERN, '[REDACTED_PHONE]')
     .replace(TC_KIMLIK_PATTERN, '[REDACTED_ID]')

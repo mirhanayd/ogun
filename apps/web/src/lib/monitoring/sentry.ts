@@ -66,11 +66,15 @@ export interface MinimalSentryEvent {
 
 const SENSITIVE_HEADER_NAMES = new Set(['cookie', 'authorization', 'x-auth-token', 'set-cookie'])
 
-function scrubHeaders(headers: Record<string, string> | undefined): Record<string, string> | undefined {
+function scrubHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
   if (!headers) return headers
   const result: Record<string, string> = {}
   for (const [key, value] of Object.entries(headers)) {
-    result[key] = SENSITIVE_HEADER_NAMES.has(key.toLowerCase()) ? REDACTED_VALUE : scrubPiiFromText(value)
+    result[key] = SENSITIVE_HEADER_NAMES.has(key.toLowerCase())
+      ? REDACTED_VALUE
+      : scrubPiiFromText(value)
   }
   return result
 }
@@ -105,9 +109,13 @@ export function scrubSentryEvent<T extends MinimalSentryEvent>(event: T): T {
   if (scrubbed.request) {
     scrubbed.request = {
       ...scrubbed.request,
+      url: scrubbed.request.url ? scrubPiiFromText(scrubbed.request.url) : scrubbed.request.url,
       headers: scrubHeaders(scrubbed.request.headers),
       cookies: undefined, // cookie DEĞERLERİ hiçbir koşulda tutulmaz.
-      data: scrubbed.request.data === undefined ? undefined : scrubValue(scrubbed.request.data, undefined),
+      data:
+        scrubbed.request.data === undefined
+          ? undefined
+          : scrubValue(scrubbed.request.data, undefined),
     }
   }
 
@@ -123,7 +131,9 @@ export function scrubSentryEvent<T extends MinimalSentryEvent>(event: T): T {
     scrubbed.breadcrumbs = scrubbed.breadcrumbs.map((crumb) => ({
       ...crumb,
       message: crumb.message ? scrubPiiFromText(crumb.message) : crumb.message,
-      data: crumb.data ? (scrubValue(crumb.data, undefined) as Record<string, unknown>) : crumb.data,
+      data: crumb.data
+        ? (scrubValue(crumb.data, undefined) as Record<string, unknown>)
+        : crumb.data,
     }))
   }
 

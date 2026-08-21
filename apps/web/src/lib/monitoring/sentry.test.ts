@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getSentryEnvironment, isSentryEnabled, scrubSentryEvent, type MinimalSentryEvent } from './sentry'
+import {
+  getSentryEnvironment,
+  isSentryEnabled,
+  scrubSentryEvent,
+  type MinimalSentryEvent,
+} from './sentry'
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 1 — @sentry/nextjs'in gerçek Event
 // tipi/SDK'sı BİLEREK import EDİLMİYOR (bkz. sentry.ts dosya başı notu):
@@ -8,7 +13,7 @@ import { getSentryEnvironment, isSentryEnabled, scrubSentryEvent, type MinimalSe
 // sağlık verisini kırptığını doğruluyor — DSN/ağ/gerçek SDK'ya bağımlı değil.
 
 describe('scrubSentryEvent', () => {
-  it('örnek bir hata event\'indeki danışan/sağlık verisi şekilli alanları kırpar', () => {
+  it("örnek bir hata event'indeki danışan/sağlık verisi şekilli alanları kırpar", () => {
     const event: MinimalSentryEvent = {
       message: 'Plan kaydı sırasında hata: ayse.yilmaz@example.com için hesaplama başarısız',
       user: {
@@ -93,8 +98,18 @@ describe('scrubSentryEvent', () => {
     expect(scrubbed.tags).toEqual({ environment: 'production' })
   })
 
-  it('alanı olmayan minimal bir event\'te hata vermez', () => {
+  it("alanı olmayan minimal bir event'te hata vermez", () => {
     expect(() => scrubSentryEvent({})).not.toThrow()
+  })
+
+  it('request URL içindeki tek kullanımlık klinik davet tokenını kırpar', () => {
+    const token = 'secret-invitation-token_123'
+    const scrubbed = scrubSentryEvent({
+      request: { url: `https://app.ogun.co/davet/${token}?source=email` },
+    })
+
+    expect(scrubbed.request?.url).toBe('https://app.ogun.co/davet/[REDACTED]?source=email')
+    expect(scrubbed.request?.url).not.toContain(token)
   })
 })
 

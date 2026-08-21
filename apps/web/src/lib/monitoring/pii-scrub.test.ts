@@ -33,6 +33,13 @@ describe('scrubPiiFromText', () => {
     const text = 'Plan hesaplama sırasında beklenmeyen bir hata oluştu (kod: 500).'
     expect(scrubPiiFromText(text)).toBe(text)
   })
+
+  it('davet URL path segmentindeki tek kullanımlık tokenı kırpar', () => {
+    const token = 's3cr3t-token_ABC123'
+    const result = scrubPiiFromText(`https://app.ogun.test/davet/${token}?utm_source=email`)
+    expect(result).not.toContain(token)
+    expect(result).toBe('https://app.ogun.test/davet/[REDACTED]?utm_source=email')
+  })
 })
 
 describe('scrubValue — anahtar tabanlı kırpma', () => {
