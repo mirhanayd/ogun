@@ -2,6 +2,21 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import createBundleAnalyzer from '@next/bundle-analyzer'
 
+// Next.js normalde yalnızca apps/web altındaki .env* dosyalarını yükler;
+// monorepo'nun kanonik yerel ayarları ise kök .env'dedir. Özellikle
+// apps/web/.env.local içindeki boş Google alanları, kökteki gerçek OAuth
+// değerlerini gölgeleyebiliyordu. Platform tarafından verilen dolu değerleri
+// asla ezmeden, yalnızca eksik/boş Google ayarlarında kök .env'e düş.
+for (const key of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const) {
+  if (!process.env[key]?.trim()) delete process.env[key]
+}
+
+try {
+  process.loadEnvFile(new URL('../../.env', import.meta.url))
+} catch {
+  // CI/production ortamında kök .env bulunmayabilir; değerler platformdan gelir.
+}
+
 // GitHub issue #46 / Prompt 8.2, GÖREV 3 — "Dockerfile için standalone
 // Next.js çıktısı." `output: 'standalone'`, Next.js'in derlenmiş uygulamayı
 // + sadece GERÇEKTEN kullanılan node_modules dosyalarını (bağımlılık ağacı
