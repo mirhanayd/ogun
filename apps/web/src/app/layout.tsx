@@ -4,6 +4,7 @@ import './globals.css'
 import { Providers } from './providers'
 import { Toaster } from '@/components/ui/sonner'
 import { NativeAuthBridge } from '@/components/native-auth-bridge'
+import { PublicDesktopTitlebar } from '@/components/public-desktop-titlebar'
 import { getSiteUrl } from '@/lib/site-url'
 
 const inter = Inter({
@@ -68,6 +69,7 @@ export default function RootLayout({
             (bkz. native-auth-bridge.tsx dosya başı notu). */}
         <NativeAuthBridge>
           <Providers>
+            <PublicDesktopTitlebar />
             {children}
             <Toaster />
           </Providers>

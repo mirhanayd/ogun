@@ -377,3 +377,7 @@
 html[data-native-shell] .desktop-titlebar {
   display: flex;
 }
+
+html[data-native-shell] .public-desktop-titlebar ~ * {
+  min-height: calc(100svh - 3rem);
+}
