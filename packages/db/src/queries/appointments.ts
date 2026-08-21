@@ -8,6 +8,15 @@ import { clients } from '../schema/clients'
 import { users } from '../schema/tenancy'
 import type { Database } from '../client'
 
+async function assertAppointmentClientInClinic(db: Database, clinicId: string, clientId: string): Promise<void> {
+  const [client] = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.clinicId, clinicId)))
+    .limit(1)
+  if (!client) throw new Error('Danışan bulunamadı veya bu kliniğe ait değil.')
+}
+
 export interface AppointmentListRow {
   id: string
   clientId: string
@@ -48,7 +57,7 @@ const appointmentListSelection = {
 export async function listAppointmentsInRange(
   db: Database,
   clinicId: string,
-  range: { from: Date; to: Date; dietitianIds?: string[] },
+  range: { from: Date; to: Date; dietitianIds?: string[]; visibleToDietitianId?: string },
 ): Promise<AppointmentListRow[]> {
   const conditions = [
     eq(appointments.clinicId, clinicId),
@@ -57,6 +66,9 @@ export async function listAppointmentsInRange(
   ]
   if (range.dietitianIds && range.dietitianIds.length > 0) {
     conditions.push(inArray(appointments.dietitianId, range.dietitianIds))
+  }
+  if (range.visibleToDietitianId) {
+    conditions.push(eq(clients.assignedDietitianId, range.visibleToDietitianId))
   }
   return db
     .select(appointmentListSelection)
@@ -153,6 +165,7 @@ export interface CreateAppointmentInput {
 }
 
 export async function createAppointment(db: Database, clinicId: string, input: CreateAppointmentInput) {
+  await assertAppointmentClientInClinic(db, clinicId, input.clientId)
   const [row] = await db
     .insert(appointments)
     .values({ clinicId, ...input })
@@ -178,6 +191,7 @@ export async function updateAppointment(
   appointmentId: string,
   patch: UpdateAppointmentInput,
 ) {
+  if (patch.clientId) await assertAppointmentClientInClinic(db, clinicId, patch.clientId)
   const [row] = await db
     .update(appointments)
     .set(patch)

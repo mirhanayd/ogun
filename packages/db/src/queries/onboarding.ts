@@ -122,6 +122,7 @@ export async function createSampleClientAndPlan(
   db: Database,
   clinicId: string,
   createdBy: string,
+  assignedDietitianId: string | null = null,
 ): Promise<SampleClientAndPlan> {
   return db.transaction(async (tx) => {
     const now = new Date()
@@ -137,6 +138,7 @@ export async function createSampleClientAndPlan(
         kvkkConsentAt: now,
         kvkkConsentVersion: 'ornek-kayit',
         explicitConsentAt: now,
+        assignedDietitianId,
       })
       .returning()
     if (!client) throw new Error('Örnek danışan oluşturulamadı.')

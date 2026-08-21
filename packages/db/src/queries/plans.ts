@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
   dietPlans,
   planDays,
@@ -13,7 +13,17 @@ import {
   type PlanType,
 } from '../schema/plans'
 import { planShares, planShareSends } from '../schema/plan-shares'
+import { clients } from '../schema/clients'
 import type { Database } from '../client'
+
+async function assertPlanClientInClinic(db: Database, clinicId: string, clientId: string): Promise<void> {
+  const [client] = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.id, clientId), eq(clients.clinicId, clinicId)))
+    .limit(1)
+  if (!client) throw new Error('Danışan bulunamadı veya bu kliniğe ait değil.')
+}
 
 // GitHub issue #23 / Prompt 5.1 — plan şeması sorgu katmanı. Bu dosya
 // packages/db/src/queries/measurements.ts / clients.ts'teki AYNI desenle
@@ -100,6 +110,7 @@ export async function createPlan(
   createdBy: string,
   input: PlanInput,
 ) {
+  if (input.clientId) await assertPlanClientInClinic(db, clinicId, input.clientId)
   const [plan] = await db
     .insert(dietPlans)
     .values({
@@ -138,6 +149,9 @@ export interface ListPlansInput {
   status?: PlanStatus
   isTemplate?: boolean
   templateCategory?: PlanTemplateCategory
+  // Davetli diyetisyen görünürlüğü: klinik şablonları + yalnızca kendisine
+  // atanmış danışanların planları. Owner çağrıları bu alanı göndermez.
+  visibleToDietitianId?: string
 }
 
 // Liste ekranları computedTotals'ı YENİDEN HESAPLAMADAN doğrudan okur
@@ -156,6 +170,25 @@ export async function listPlans(db: Database, clinicId: string, filter: ListPlan
   if (filter.isTemplate !== undefined) conditions.push(eq(dietPlans.isTemplate, filter.isTemplate))
   if (filter.templateCategory)
     conditions.push(eq(dietPlans.templateCategory, filter.templateCategory))
+  if (filter.visibleToDietitianId) {
+    conditions.push(
+      or(
+        isNull(dietPlans.clientId),
+        exists(
+          db
+            .select({ id: clients.id })
+            .from(clients)
+            .where(
+              and(
+                eq(clients.id, dietPlans.clientId),
+                eq(clients.clinicId, clinicId),
+                eq(clients.assignedDietitianId, filter.visibleToDietitianId),
+              ),
+            ),
+        ),
+      )!,
+    )
+  }
 
   return db
     .select()
@@ -170,6 +203,7 @@ export async function updatePlan(
   planId: string,
   input: Partial<PlanInput>,
 ) {
+  if (input.clientId) await assertPlanClientInClinic(db, clinicId, input.clientId)
   const [plan] = await db
     .update(dietPlans)
     .set({
@@ -852,6 +886,7 @@ export async function createPlanSkeleton(
   createdBy: string,
   input: PlanSkeletonInput,
 ) {
+  await assertPlanClientInClinic(db, clinicId, input.clientId)
   return db.transaction(async (tx) => {
     const [plan] = await tx
       .insert(dietPlans)

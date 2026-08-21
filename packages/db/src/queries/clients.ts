@@ -166,6 +166,7 @@ export interface CreateClientInput {
   kvkkConsentVersion: string
   explicitConsentAt: Date
   marketingConsentAt?: Date | null
+  assignedDietitianId?: string | null
 }
 
 export async function createClient(db: Database, clinicId: string, input: CreateClientInput) {
@@ -182,6 +183,7 @@ export async function createClient(db: Database, clinicId: string, input: Create
       kvkkConsentVersion: input.kvkkConsentVersion,
       explicitConsentAt: input.explicitConsentAt,
       marketingConsentAt: input.marketingConsentAt ?? null,
+      assignedDietitianId: input.assignedDietitianId ?? null,
     })
     .returning()
   if (!client) throw new Error('Danışan oluşturulamadı.')
@@ -230,6 +232,7 @@ export async function bulkImportClients(
   clinicId: string,
   recordedBy: string,
   rows: BulkImportClientInput[],
+  assignedDietitianId: string | null = null,
 ): Promise<BulkImportResult[]> {
   if (rows.length === 0) return []
 
@@ -247,6 +250,7 @@ export async function bulkImportClients(
           kvkkConsentAt: row.consentAt,
           kvkkConsentVersion: row.consentVersion,
           explicitConsentAt: row.consentAt,
+          assignedDietitianId,
         })),
       )
       .returning({ id: clients.id, firstName: clients.firstName, lastName: clients.lastName })

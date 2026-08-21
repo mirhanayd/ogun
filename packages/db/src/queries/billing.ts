@@ -152,6 +152,13 @@ export async function purchaseClientPackage(db: Database, clinicId: string, inpu
   const pkg = await getBillingPackageById(db, clinicId, input.packageId)
   if (!pkg) throw new Error('Paket bulunamadı.')
 
+  const [client] = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.id, input.clientId), eq(clients.clinicId, clinicId)))
+    .limit(1)
+  if (!client) throw new Error('Danışan bulunamadı veya bu kliniğe ait değil.')
+
   const purchasedAt = input.purchasedAt ?? new Date()
   const expiresAt =
     pkg.validityDays !== null ? new Date(purchasedAt.getTime() + pkg.validityDays * 24 * 60 * 60 * 1000) : null
@@ -309,6 +316,29 @@ export interface CreatePaymentInput {
 }
 
 export async function createPayment(db: Database, clinicId: string, input: CreatePaymentInput) {
+  const [client] = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(and(eq(clients.id, input.clientId), eq(clients.clinicId, clinicId)))
+    .limit(1)
+  if (!client) throw new Error('Danışan bulunamadı.')
+
+  if (input.clientPackageId) {
+    const [clientPackage] = await db
+      .select({ id: clientPackages.id })
+      .from(clientPackages)
+      .innerJoin(billingPackages, eq(billingPackages.id, clientPackages.packageId))
+      .where(
+        and(
+          eq(clientPackages.id, input.clientPackageId),
+          eq(clientPackages.clientId, input.clientId),
+          eq(billingPackages.clinicId, clinicId),
+        ),
+      )
+      .limit(1)
+    if (!clientPackage) throw new Error('Seçilen paket bu danışana ait değil.')
+  }
+
   const [row] = await db
     .insert(payments)
     .values({ clinicId, ...input })

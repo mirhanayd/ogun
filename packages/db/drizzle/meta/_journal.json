@@ -141,6 +141,13 @@
       "when": 1786985925989,
       "tag": "0019_small_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787313234247,
+      "tag": "0020_magical_luke_cage",
+      "breakpoints": true
     }
   ]
 }

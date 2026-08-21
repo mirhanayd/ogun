@@ -36,7 +36,17 @@ export async function listRecentNoShowAppointments(
   db: Database,
   clinicId: string,
   since: Date,
+  options: { assignedDietitianId?: string } = {},
 ): Promise<NoShowAppointmentRow[]> {
+  const conditions = [
+    eq(appointments.clinicId, clinicId),
+    eq(appointments.status, 'gelmedi'),
+    gte(appointments.startsAt, since),
+  ]
+  if (options.assignedDietitianId) {
+    conditions.push(eq(clients.assignedDietitianId, options.assignedDietitianId))
+  }
+
   return db
     .select({
       appointmentId: appointments.id,
@@ -47,7 +57,7 @@ export async function listRecentNoShowAppointments(
     })
     .from(appointments)
     .innerJoin(clients, eq(clients.id, appointments.clientId))
-    .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status, 'gelmedi'), gte(appointments.startsAt, since)))
+    .where(and(...conditions))
     .orderBy(desc(appointments.startsAt))
 }
 
@@ -70,6 +80,7 @@ export interface ClientMeasurementRecencyRow {
 export async function listActiveClientsWithLastMeasurement(
   db: Database,
   clinicId: string,
+  options: { assignedDietitianId?: string } = {},
 ): Promise<ClientMeasurementRecencyRow[]> {
   const lastMeasurements = db
     .select({
@@ -79,6 +90,11 @@ export async function listActiveClientsWithLastMeasurement(
     .from(measurements)
     .groupBy(measurements.clientId)
     .as('last_measurements')
+
+  const conditions = [eq(clients.clinicId, clinicId), isNull(clients.deletedAt), eq(clients.status, 'aktif')]
+  if (options.assignedDietitianId) {
+    conditions.push(eq(clients.assignedDietitianId, options.assignedDietitianId))
+  }
 
   return db
     .select({
@@ -90,7 +106,7 @@ export async function listActiveClientsWithLastMeasurement(
     })
     .from(clients)
     .leftJoin(lastMeasurements, eq(lastMeasurements.clientId, clients.id))
-    .where(and(eq(clients.clinicId, clinicId), isNull(clients.deletedAt), eq(clients.status, 'aktif')))
+    .where(and(...conditions))
 }
 
 // --- Süresi yaklaşan/dolan paketler ------------------------------------------
@@ -114,7 +130,17 @@ export async function listExpiringClientPackages(
   db: Database,
   clinicId: string,
   until: Date,
+  options: { assignedDietitianId?: string } = {},
 ): Promise<ExpiringPackageRow[]> {
+  const conditions = [
+    eq(billingPackages.clinicId, clinicId),
+    eq(clientPackages.status, 'aktif'),
+    lte(clientPackages.expiresAt, until),
+  ]
+  if (options.assignedDietitianId) {
+    conditions.push(eq(clients.assignedDietitianId, options.assignedDietitianId))
+  }
+
   return db
     .select({
       clientPackageId: clientPackages.id,
@@ -128,13 +154,7 @@ export async function listExpiringClientPackages(
     .from(clientPackages)
     .innerJoin(billingPackages, eq(billingPackages.id, clientPackages.packageId))
     .innerJoin(clients, eq(clients.id, clientPackages.clientId))
-    .where(
-      and(
-        eq(billingPackages.clinicId, clinicId),
-        eq(clientPackages.status, 'aktif'),
-        lte(clientPackages.expiresAt, until),
-      ),
-    )
+    .where(and(...conditions))
     .orderBy(clientPackages.expiresAt)
     // clientPackages.expiresAt nullable — lte() bir NULL değere karşı hiçbir
     // zaman true dönmez (SQL üç değerli mantık), bu yüzden süresiz paketler
