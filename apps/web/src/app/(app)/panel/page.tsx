@@ -115,7 +115,7 @@ export default async function PanelPage() {
           detail={
             feed.expiringPackageCount > 0 ? 'Yenileme görüşmesi gerekebilir' : 'Yaklaşan bitiş yok'
           }
-          href="/finans"
+          href={feed.canManageFinance ? '/finans' : '/danisanlar'}
           tone={feed.expiringPackageCount > 0 ? 'warning' : 'calm'}
         />
       </section>

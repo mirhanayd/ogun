@@ -1,13 +1,13 @@
 import 'server-only'
 import { db } from '@ogun/db'
 import { listBillingPackages, listClientPackagesForClient, listPaymentsForClient } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 
 // GitHub issue #40 / Prompt 7.2, GÖREV 2 — "danışan cari hesabı" okuması.
 // measurements/queries.ts (GitHub issue #18) ile AYNI desen: server action
 // DEĞİL, withAuth(withAudit(...)) ile sarılmış normal sunucu fonksiyonları.
-export const getClientBillingData = withAuth(
+export const getClientBillingData = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'client_billing', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => {

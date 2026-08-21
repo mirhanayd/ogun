@@ -5,7 +5,7 @@ import { db } from '@ogun/db'
 import { createDocument, getPlanById } from '@ogun/db/queries'
 import { renderPlanPdfBuffer } from '@ogun/pdf/server'
 import type { PdfPlanData } from '@ogun/pdf'
-import { withAuth } from '@/lib/authz'
+import { assertPlanAccess, withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { buildPlanPdfStorageKey, createPresignedDownloadUrl, uploadStorageObject } from '@/lib/storage'
 import { resolvePlanPdfData } from '@/lib/pdf/resolve-plan-pdf-data'
@@ -34,8 +34,10 @@ const getPlanPdfDataForClinic = withAuth(
       entityType: 'diet_plan',
       entityId: ([planId]: [string, PdfGenerationOptionsInput]) => planId,
     },
-    async (ctx, planId: string, options: PdfGenerationOptionsInput) =>
-      resolvePlanPdfData(db, ctx.scope.clinicId, planId, options),
+    async (ctx, planId: string, options: PdfGenerationOptionsInput) => {
+      await assertPlanAccess(ctx, planId)
+      return resolvePlanPdfData(db, ctx.scope.clinicId, planId, options)
+    },
   ),
 )
 
@@ -65,6 +67,7 @@ const generateAndSavePlanPdfForClinic = withAuth(
       metadata: ([planId]: [string, PdfGenerationOptionsInput]) => ({ planId, category: 'diyet_listesi' }),
     },
     async (ctx, planId: string, options: PdfGenerationOptionsInput) => {
+      await assertPlanAccess(ctx, planId)
       // resolvePlanPdfData zaten şablon (clientId=null) planları reddediyor
       // (bkz. o dosyanın notu) — burada documents.clientId FK'sı için AYRICA
       // planı (hafif bir satır, tree DEĞİL) çekiyoruz; PdfPlanData'ya BİLEREK

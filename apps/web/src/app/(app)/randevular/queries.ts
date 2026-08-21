@@ -13,7 +13,7 @@ import {
   listPlans,
   getWorkingHoursForClinic,
 } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { assertClientAccess, withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { isLowSessionWarning, lowSessionWarningMessage } from '@/lib/billing/client-package'
 
@@ -34,14 +34,22 @@ export const getCalendarAppointments = withAuth(
       }),
     },
     async (ctx, range: { from: Date; to: Date; dietitianIds?: string[] }) =>
-      listAppointmentsInRange(db, ctx.scope.clinicId, range),
+      listAppointmentsInRange(db, ctx.scope.clinicId, {
+        ...range,
+        ...(ctx.role === 'dietitian' ? { visibleToDietitianId: ctx.user.id } : {}),
+      }),
   ),
 )
 
 export const getDietitianOptions = withAuth(
   withAudit(
     { action: 'read', entityType: 'clinic_member' },
-    async (ctx) => listClinicDietitians(db, ctx.scope.clinicId),
+    async (ctx) => {
+      const dietitians = await listClinicDietitians(db, ctx.scope.clinicId)
+      return ctx.role === 'dietitian'
+        ? dietitians.filter((dietitian) => dietitian.id === ctx.user.id)
+        : dietitians
+    },
   ),
 )
 
@@ -82,6 +90,7 @@ export const getAppointmentDetail = withAuth(
     async (ctx, appointmentId: string) => {
       const appointment = await getAppointmentById(db, ctx.scope.clinicId, appointmentId)
       if (!appointment) return null
+      await assertClientAccess(ctx, appointment.clientId)
 
       const [latestMeasurement, activePlan, history] = await Promise.all([
         getLatestMeasurement(db, ctx.scope.clinicId, appointment.clientId),
@@ -107,7 +116,7 @@ export const getAppointmentDetail = withAuth(
 
 // En yakın gelecek randevu — danisanlar/[id]/page.tsx üst bardaki "Sonraki
 // randevu" özeti (bkz. o dosyanın üstündeki eski "Son görüşme hâlâ '—'" notu).
-export const getClientNextAppointment = withAuth(
+export const getClientNextAppointment = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'appointment', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => getClientNextAppointmentQuery(db, ctx.scope.clinicId, clientId),
@@ -115,7 +124,7 @@ export const getClientNextAppointment = withAuth(
 )
 
 // Danışan detay sayfası "Randevular" sekmesi (GÖREV 3).
-export const getClientAppointments = withAuth(
+export const getClientAppointments = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'appointment', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => listAppointmentsForClient(db, ctx.scope.clinicId, clientId),
@@ -128,7 +137,7 @@ export const getClientAppointments = withAuth(
 // DOĞRUDAN import edemez). Uyarı ENGELLEYİCİ değil — checkAvailability'nin
 // çakışma/çalışma saati uyarısından FARKLI olarak sadece bilgilendirir,
 // kaydı durdurmaz.
-export const getClientPackageWarning = withAuth(
+export const getClientPackageWarning = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'client_package', entityId: ([clientId]: [string, string]) => clientId },
     async (ctx, clientId: string, clientName: string) => {

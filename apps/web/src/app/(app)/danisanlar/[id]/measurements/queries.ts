@@ -7,7 +7,7 @@ import {
   listMeasurementsForClient,
 } from '@ogun/db/queries'
 import type { GoalType } from '@ogun/db/schema'
-import { withAuth } from '@/lib/authz'
+import { withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 
 // Ölçüm/hedef okumaları (GitHub issue #18 / Prompt 4.2) — danisanlar/queries.ts
@@ -16,7 +16,7 @@ import { withAudit } from '@/lib/audit'
 // fonksiyonları. Sağlık verisi olduğu için (BİA çıktıları, vücut ölçüleri)
 // okuma da denetleniyor (bkz. lib/audit.ts dosya başı notu).
 
-export const listClientMeasurements = withAuth(
+export const listClientMeasurements = withClientAuth(
   withAudit(
     {
       action: 'read',
@@ -31,14 +31,14 @@ export const listClientMeasurements = withAuth(
   ),
 )
 
-export const getClientLatestMeasurement = withAuth(
+export const getClientLatestMeasurement = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'measurement', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => getLatestMeasurement(db, ctx.scope.clinicId, clientId),
   ),
 )
 
-export const getClientActiveGoal = withAuth(
+export const getClientActiveGoal = withClientAuth(
   withAudit(
     {
       action: 'read',
@@ -50,7 +50,7 @@ export const getClientActiveGoal = withAuth(
   ),
 )
 
-export const listClientGoals = withAuth(
+export const listClientGoals = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'client_goal', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => listGoalsForClient(db, ctx.scope.clinicId, clientId),

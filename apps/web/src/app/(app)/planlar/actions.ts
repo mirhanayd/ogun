@@ -34,8 +34,18 @@ import {
   calculateMacroTargets,
   type MacroPercentages,
 } from '@ogun/nutrition-core'
-import { withAuth } from '@/lib/authz'
+import {
+  assertClientAccess,
+  assertPlanAccess,
+  assertPlanAlternativeAccess,
+  assertPlanDayAccess,
+  assertPlanItemAccess,
+  assertPlanMealAccess,
+  InsufficientRoleError,
+  withAuth,
+} from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
+import { containsPlanVisibilityMutation } from '@/lib/client-access'
 import {
   PLAN_MEAL_TYPE_OPTIONS,
   createSavedMealSchema,
@@ -118,8 +128,9 @@ const createPlanForClinic = withAuth(
       entityId: (_args: [PlanInputValues], result: { id: string } | undefined) =>
         result?.id ?? null,
     },
-    async (ctx, input: PlanInputValues) =>
-      createPlan(db, ctx.scope.clinicId, ctx.user.id, {
+    async (ctx, input: PlanInputValues) => {
+      if (input.clientId) await assertClientAccess(ctx, input.clientId)
+      return createPlan(db, ctx.scope.clinicId, ctx.user.id, {
         clientId: input.clientId ?? null,
         name: input.name,
         startDate: input.startDate ?? null,
@@ -133,7 +144,8 @@ const createPlanForClinic = withAuth(
         notes: input.notes ?? null,
         generalInstructions: input.generalInstructions ?? null,
         outputFormat: input.outputFormat,
-      }),
+      })
+    },
   ),
 )
 
@@ -155,8 +167,15 @@ const updatePlanForClinic = withAuth(
       entityType: 'diet_plan',
       entityId: ([planId]: [string, PlanUpdateValues]) => planId,
     },
-    async (ctx, planId: string, input: PlanUpdateValues) =>
-      updatePlan(db, ctx.scope.clinicId, planId, {
+    async (ctx, planId: string, input: PlanUpdateValues) => {
+      await assertPlanAccess(ctx, planId)
+      if (ctx.role === 'dietitian' && containsPlanVisibilityMutation(input)) {
+        throw new InsufficientRoleError(
+          'Diyetisyenler planın danışan veya klinik şablonu kapsamını değiştiremez.',
+        )
+      }
+      if (input.clientId) await assertClientAccess(ctx, input.clientId)
+      return updatePlan(db, ctx.scope.clinicId, planId, {
         ...(input.clientId !== undefined && { clientId: input.clientId }),
         ...(input.name !== undefined && { name: input.name }),
         ...(input.startDate !== undefined && { startDate: input.startDate }),
@@ -172,7 +191,8 @@ const updatePlanForClinic = withAuth(
           generalInstructions: input.generalInstructions,
         }),
         ...(input.outputFormat !== undefined && { outputFormat: input.outputFormat }),
-      }),
+      })
+    },
   ),
 )
 
@@ -195,7 +215,10 @@ export async function updatePlanAction(
 const deletePlanForClinic = withAuth(
   withAudit(
     { action: 'delete', entityType: 'diet_plan', entityId: ([planId]: [string]) => planId },
-    async (ctx, planId: string) => deletePlan(db, ctx.scope.clinicId, planId),
+    async (ctx, planId: string) => {
+      await assertPlanAccess(ctx, planId)
+      return deletePlan(db, ctx.scope.clinicId, planId)
+    },
   ),
   ['owner', 'dietitian'],
 )
@@ -220,8 +243,10 @@ const duplicatePlanForClinic = withAuth(
       entityId: (_args: [string], result: { id: string } | undefined) => result?.id ?? null,
       metadata: ([sourcePlanId]: [string]) => ({ operation: 'duplicate', sourcePlanId }),
     },
-    async (ctx, sourcePlanId: string) =>
-      duplicatePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId),
+    async (ctx, sourcePlanId: string) => {
+      await assertPlanAccess(ctx, sourcePlanId)
+      return duplicatePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId)
+    },
   ),
 )
 
@@ -257,7 +282,17 @@ const saveAsTemplateForClinic = withAuth(
       sourcePlanId: string,
       templateCategory: PlanTemplateCategory,
       name: string | undefined,
-    ) => saveAsTemplate(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId, templateCategory, name),
+    ) => {
+      await assertPlanAccess(ctx, sourcePlanId)
+      return saveAsTemplate(
+        db,
+        ctx.scope.clinicId,
+        ctx.user.id,
+        sourcePlanId,
+        templateCategory,
+        name,
+      )
+    },
   ),
 )
 
@@ -287,12 +322,14 @@ const addDayForClinic = withAuth(
       entityId: (_args: [string, DayInputValues], result: { id: string } | undefined) =>
         result?.id ?? null,
     },
-    async (ctx, planId: string, input: DayInputValues) =>
-      addDay(db, ctx.scope.clinicId, planId, {
+    async (ctx, planId: string, input: DayInputValues) => {
+      await assertPlanAccess(ctx, planId)
+      return addDay(db, ctx.scope.clinicId, planId, {
         dayNumber: input.dayNumber,
         dayLabel: input.dayLabel ?? null,
         notes: input.notes ?? null,
-      }),
+      })
+    },
   ),
 )
 
@@ -337,14 +374,16 @@ const addMealForClinic = withAuth(
       entityId: (_args: [string, MealInputValues], result: { id: string } | undefined) =>
         result?.id ?? null,
     },
-    async (ctx, dayId: string, input: MealInputValues) =>
-      addMeal(db, ctx.scope.clinicId, dayId, {
+    async (ctx, dayId: string, input: MealInputValues) => {
+      await assertPlanDayAccess(ctx, dayId)
+      return addMeal(db, ctx.scope.clinicId, dayId, {
         mealType: input.mealType,
         time: input.time || null,
         name: input.name,
         sortOrder: input.sortOrder,
         notes: input.notes ?? null,
-      }),
+      })
+    },
   ),
 )
 
@@ -365,13 +404,15 @@ const updateMealForClinic = withAuth(
       entityType: 'plan_meal',
       entityId: ([mealId]: [string, MealUpdateValues]) => mealId,
     },
-    async (ctx, mealId: string, input: MealUpdateValues) =>
-      updateMeal(db, ctx.scope.clinicId, mealId, {
+    async (ctx, mealId: string, input: MealUpdateValues) => {
+      await assertPlanMealAccess(ctx, mealId)
+      return updateMeal(db, ctx.scope.clinicId, mealId, {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.time !== undefined && { time: input.time || null }),
         ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
         ...(input.notes !== undefined && { notes: input.notes }),
-      }),
+      })
+    },
   ),
 )
 
@@ -399,8 +440,9 @@ const addItemForClinic = withAuth(
       entityId: (_args: [string, PlanItemInputValues], result: { id: string } | undefined) =>
         result?.id ?? null,
     },
-    async (ctx, mealId: string, input: PlanItemInputValues) =>
-      addItem(db, ctx.scope.clinicId, mealId, {
+    async (ctx, mealId: string, input: PlanItemInputValues) => {
+      await assertPlanMealAccess(ctx, mealId)
+      return addItem(db, ctx.scope.clinicId, mealId, {
         foodId: input.foodId ?? null,
         recipeId: input.recipeId ?? null,
         freeText: input.freeText ?? null,
@@ -409,7 +451,8 @@ const addItemForClinic = withAuth(
         sortOrder: input.sortOrder,
         isOptional: input.isOptional,
         note: input.note ?? null,
-      }),
+      })
+    },
   ),
 )
 
@@ -430,8 +473,9 @@ const updateItemForClinic = withAuth(
       entityType: 'plan_item',
       entityId: ([itemId]: [string, PlanItemUpdateValues]) => itemId,
     },
-    async (ctx, itemId: string, input: PlanItemUpdateValues) =>
-      updateItem(db, ctx.scope.clinicId, itemId, {
+    async (ctx, itemId: string, input: PlanItemUpdateValues) => {
+      await assertPlanItemAccess(ctx, itemId)
+      return updateItem(db, ctx.scope.clinicId, itemId, {
         ...(input.foodId !== undefined && { foodId: input.foodId }),
         ...(input.recipeId !== undefined && { recipeId: input.recipeId }),
         ...(input.freeText !== undefined && { freeText: input.freeText }),
@@ -440,7 +484,8 @@ const updateItemForClinic = withAuth(
         ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
         ...(input.isOptional !== undefined && { isOptional: input.isOptional }),
         ...(input.note !== undefined && { note: input.note }),
-      }),
+      })
+    },
   ),
 )
 
@@ -461,7 +506,10 @@ export async function updateItemAction(
 const removeItemForClinic = withAuth(
   withAudit(
     { action: 'delete', entityType: 'plan_item', entityId: ([itemId]: [string]) => itemId },
-    async (ctx, itemId: string) => removeItem(db, ctx.scope.clinicId, itemId),
+    async (ctx, itemId: string) => {
+      await assertPlanItemAccess(ctx, itemId)
+      return removeItem(db, ctx.scope.clinicId, itemId)
+    },
   ),
 )
 
@@ -484,8 +532,10 @@ const reorderItemsForClinic = withAuth(
         orderedItemIds: input.orderedItemIds,
       }),
     },
-    async (ctx, input: ReorderItemsValues) =>
-      reorderItems(db, ctx.scope.clinicId, input.mealId, input.orderedItemIds),
+    async (ctx, input: ReorderItemsValues) => {
+      await assertPlanMealAccess(ctx, input.mealId)
+      return reorderItems(db, ctx.scope.clinicId, input.mealId, input.orderedItemIds)
+    },
   ),
 )
 
@@ -516,8 +566,13 @@ const moveItemForClinic = withAuth(
         targetMealId: input.targetMealId,
       }),
     },
-    async (ctx, input: MoveItemValues) =>
-      moveItem(db, ctx.scope.clinicId, input.itemId, input.targetMealId, input.sortOrder),
+    async (ctx, input: MoveItemValues) => {
+      await Promise.all([
+        assertPlanItemAccess(ctx, input.itemId),
+        assertPlanMealAccess(ctx, input.targetMealId),
+      ])
+      return moveItem(db, ctx.scope.clinicId, input.itemId, input.targetMealId, input.sortOrder)
+    },
   ),
 )
 
@@ -544,15 +599,17 @@ const addAlternativeForClinic = withAuth(
       entityId: (_args: [string, PlanAlternativeInputValues], result: { id: string } | undefined) =>
         result?.id ?? null,
     },
-    async (ctx, itemId: string, input: PlanAlternativeInputValues) =>
-      addAlternative(db, ctx.scope.clinicId, itemId, {
+    async (ctx, itemId: string, input: PlanAlternativeInputValues) => {
+      await assertPlanItemAccess(ctx, itemId)
+      return addAlternative(db, ctx.scope.clinicId, itemId, {
         foodId: input.foodId ?? null,
         recipeId: input.recipeId ?? null,
         freeText: input.freeText ?? null,
         amount: input.amount,
         portionId: input.portionId ?? null,
         sortOrder: input.sortOrder,
-      }),
+      })
+    },
   ),
 )
 
@@ -572,7 +629,10 @@ const removeAlternativeForClinic = withAuth(
       entityType: 'plan_item_alternative',
       entityId: ([alternativeId]: [string]) => alternativeId,
     },
-    async (ctx, alternativeId: string) => removeAlternative(db, ctx.scope.clinicId, alternativeId),
+    async (ctx, alternativeId: string) => {
+      await assertPlanAlternativeAccess(ctx, alternativeId)
+      return removeAlternative(db, ctx.scope.clinicId, alternativeId)
+    },
   ),
 )
 
@@ -593,7 +653,10 @@ export async function removeAlternativeAction(
 // HESAPLAMADAN doğrudan okur (bkz. queries/plans.ts listPlans üstündeki not).
 const listPlansForClinic = withAuth(
   withAudit({ action: 'read', entityType: 'diet_plan' }, async (ctx, filter: ListPlansInput) =>
-    listPlans(db, ctx.scope.clinicId, filter),
+    listPlans(db, ctx.scope.clinicId, {
+      ...filter,
+      ...(ctx.role === 'dietitian' ? { visibleToDietitianId: ctx.user.id } : {}),
+    }),
   ),
 )
 
@@ -609,7 +672,10 @@ export async function listPlansAction(
 const getPlanTreeForClinic = withAuth(
   withAudit(
     { action: 'read', entityType: 'diet_plan', entityId: ([planId]: [string]) => planId },
-    async (ctx, planId: string) => getPlanTree(db, ctx.scope.clinicId, planId),
+    async (ctx, planId: string) => {
+      await assertPlanAccess(ctx, planId)
+      return getPlanTree(db, ctx.scope.clinicId, planId)
+    },
   ),
 )
 
@@ -636,8 +702,11 @@ const clonePlanForClinic = withAuth(
         targetClientId,
       }),
     },
-    async (ctx, sourcePlanId: string, targetClientId: string | null) =>
-      clonePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId, targetClientId),
+    async (ctx, sourcePlanId: string, targetClientId: string | null) => {
+      await assertPlanAccess(ctx, sourcePlanId)
+      if (targetClientId) await assertClientAccess(ctx, targetClientId)
+      return clonePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId, targetClientId)
+    },
   ),
 )
 
@@ -660,12 +729,14 @@ const createSavedMealForClinic = withAuth(
       entityId: (_args: [CreateSavedMealValues], result: { id: string } | undefined) =>
         result?.id ?? null,
     },
-    async (ctx, input: CreateSavedMealValues) =>
-      createSavedMealFromMeal(db, ctx.scope.clinicId, ctx.user.id, {
+    async (ctx, input: CreateSavedMealValues) => {
+      await assertPlanMealAccess(ctx, input.mealId)
+      return createSavedMealFromMeal(db, ctx.scope.clinicId, ctx.user.id, {
         mealId: input.mealId,
         name: input.name,
         notes: input.notes ?? null,
-      }),
+      })
+    },
   ),
 )
 
@@ -691,7 +762,11 @@ export async function listSavedMealsAction(
 
 const deleteSavedMealForClinic = withAuth(
   withAudit(
-    { action: 'delete', entityType: 'saved_meal', entityId: ([savedMealId]: [string]) => savedMealId },
+    {
+      action: 'delete',
+      entityType: 'saved_meal',
+      entityId: ([savedMealId]: [string]) => savedMealId,
+    },
     async (ctx, savedMealId: string) => deleteSavedMeal(db, ctx.scope.clinicId, savedMealId),
   ),
 )
@@ -720,8 +795,10 @@ const insertSavedMealForClinic = withAuth(
         savedMealId: input.savedMealId,
       }),
     },
-    async (ctx, input: InsertSavedMealValues) =>
-      insertSavedMealIntoMeal(db, ctx.scope.clinicId, input.targetMealId, input.savedMealId),
+    async (ctx, input: InsertSavedMealValues) => {
+      await assertPlanMealAccess(ctx, input.targetMealId)
+      return insertSavedMealIntoMeal(db, ctx.scope.clinicId, input.targetMealId, input.savedMealId)
+    },
   ),
 )
 
@@ -778,6 +855,7 @@ const createPlanSkeletonForClinic = withAuth(
       }),
     },
     async (ctx, input: GoalSkeletonValues) => {
+      await assertClientAccess(ctx, input.clientId)
       const percentages: MacroPercentages =
         input.macroDistribution === 'custom'
           ? (input.customMacros ?? MACRO_DISTRIBUTION_PRESETS.balanced)

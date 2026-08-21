@@ -1,8 +1,9 @@
 import 'server-only'
 import { db } from '@ogun/db'
 import { getClientById, listAuditLogsForEntity, softDeleteClient } from '@ogun/db/queries'
-import { withAuth } from './authz'
+import { withAuth, withClientAuth } from './authz'
 import { withAudit } from './audit'
+import { canAccessAssignedClient } from './client-access'
 
 // Veri sahibi hakları altyapısı (GitHub issue #12 / Prompt 3.3 — GÖREV 4):
 // taşınabilirlik hakkı (dışa aktarma) + silme hakkı (soft delete + 30 günlük
@@ -21,7 +22,13 @@ import { withAudit } from './audit'
 export const viewClientRecord = withAuth(
   withAudit(
     { action: 'read', entityType: 'client', entityId: ([clientId]: [string]) => clientId },
-    async (ctx, clientId: string) => getClientById(db, ctx.scope.clinicId, clientId),
+    async (ctx, clientId: string) => {
+      const client = await getClientById(db, ctx.scope.clinicId, clientId)
+      if (!client) return null
+      return canAccessAssignedClient(client.assignedDietitianId, { role: ctx.role, userId: ctx.user.id })
+        ? client
+        : null
+    },
   ),
 )
 
@@ -47,7 +54,7 @@ export interface ClientDataExport {
 //
 // Dışa aktarma işleminin KENDİSİ de bir erişim kaydı doğurur (action:'export')
 // — yani bu fonksiyon kendi çalışmasını da denetler.
-export const exportClientData = withAuth(
+export const exportClientData = withClientAuth(
   withAudit(
     { action: 'export', entityType: 'client', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string): Promise<ClientDataExport> => {
@@ -67,7 +74,7 @@ export const exportClientData = withAuth(
 // Gerçek kalıcı silme (30 gün sonra) bu fonksiyonda YAPILMAZ, sadece kuyruğa
 // alınır — bkz. @ogun/db/queries findClientsPastDeletionGracePeriod
 // üstündeki not (bunu tüketecek bir cron/worker henüz kurulu değil).
-export const deleteClient = withAuth(
+export const deleteClient = withClientAuth(
   withAudit(
     { action: 'delete', entityType: 'client', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) => softDeleteClient(db, ctx.scope.clinicId, clientId),

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import { createGoal, createMeasurement, markGoalAchieved } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { assertGoalAccess, withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import {
   goalFormSchema,
@@ -23,7 +23,7 @@ function toNullableNumber(value: string | undefined): number | null {
 
 // --- Ölçüm ekleme (GÖREV 2) -------------------------------------------------
 
-const createMeasurementForClinic = withAuth(
+const createMeasurementForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
@@ -84,7 +84,7 @@ export async function createMeasurementAction(
 
 // --- Hedef oluşturma / tamamlama (GÖREV 4) ----------------------------------
 
-const createGoalForClinic = withAuth(
+const createGoalForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
@@ -126,7 +126,10 @@ export async function createGoalAction(
 const achieveGoalForClinic = withAuth(
   withAudit(
     { action: 'update', entityType: 'client_goal', entityId: ([goalId]: [string]) => goalId },
-    async (ctx, goalId: string) => markGoalAchieved(db, ctx.scope.clinicId, goalId),
+    async (ctx, goalId: string) => {
+      await assertGoalAccess(ctx, goalId)
+      return markGoalAchieved(db, ctx.scope.clinicId, goalId)
+    },
   ),
 )
 

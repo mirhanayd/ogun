@@ -2,7 +2,7 @@
 
 import { db } from '@ogun/db'
 import { upsertClientHealth } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import {
   anamnesisFormSchema,
@@ -18,7 +18,7 @@ import type { ClientActionResult } from '../../actions'
 // render etmek her tuş vuruşu grubunda formun kendi state'ini sıfırlar/
 // odağı kaybettirirdi, autosave'in amacı bunun TAM TERSİ (kesintisiz yazma).
 
-const upsertClientHealthForClinic = withAuth(
+const upsertClientHealthForClinic = withClientAuth(
   withAudit(
     { action: 'update', entityType: 'client_health', entityId: ([clientId]: [string, AnamnesisFormValues]) => clientId },
     async (ctx, clientId: string, input: AnamnesisFormValues) =>

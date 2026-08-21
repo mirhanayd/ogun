@@ -2,8 +2,13 @@
 
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
-import { createPayment, purchaseClientPackage, updateClientPackageStatus } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import {
+  clientIdForClientPackage,
+  createPayment,
+  purchaseClientPackage,
+  updateClientPackageStatus,
+} from '@ogun/db/queries'
+import { assertClientPackageAccess, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { getInvoiceProvider } from '@/lib/invoicing'
 import {
@@ -28,15 +33,15 @@ function firstZodMessage(error: { issues: { message: string }[] }): string {
 
 // --- Paket satışı -------------------------------------------------------
 
-const purchaseClientPackageForClinic = withAuth(
+const purchaseClientPackageForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
       entityType: 'client_package',
       entityId: (_args: unknown[], result: { id: string } | undefined) => result?.id ?? null,
     },
-    async (ctx, input: { clientId: string; packageId: string; price: string }) =>
-      purchaseClientPackage(db, ctx.scope.clinicId, input),
+    async (ctx, clientId: string, input: { packageId: string; price: string }) =>
+      purchaseClientPackage(db, ctx.scope.clinicId, { clientId, ...input }),
   ),
 )
 
@@ -49,8 +54,7 @@ export async function purchasePackageAction(
     return { success: false, error: firstZodMessage(parsed.error) }
   }
   try {
-    const created = await purchaseClientPackageForClinic({
-      clientId,
+    const created = await purchaseClientPackageForClinic(clientId, {
       packageId: parsed.data.packageId,
       price: parsed.data.price,
     })
@@ -62,17 +66,20 @@ export async function purchasePackageAction(
   }
 }
 
-const cancelClientPackageForClinic = withAuth(
+const cancelClientPackageForClinic = withClientAuth(
   withAudit(
-    { action: 'update', entityType: 'client_package', entityId: ([id]: [string]) => id },
-    async (ctx, clientPackageId: string) =>
-      updateClientPackageStatus(db, ctx.scope.clinicId, clientPackageId, 'iptal'),
+    { action: 'update', entityType: 'client_package', entityId: ([, id]: [string, string]) => id },
+    async (ctx, clientId: string, clientPackageId: string) => {
+      void clientId // withClientAuth bu argüman üzerinden atama kapsamını doğrular.
+      await assertClientPackageAccess(ctx, clientPackageId)
+      return updateClientPackageStatus(db, ctx.scope.clinicId, clientPackageId, 'iptal')
+    },
   ),
 )
 
 export async function cancelClientPackageAction(clientPackageId: string, clientId: string): Promise<BillingActionResult> {
   try {
-    await cancelClientPackageForClinic(clientPackageId)
+    await cancelClientPackageForClinic(clientId, clientPackageId)
     revalidatePath(`/danisanlar/${clientId}`)
     revalidatePath('/finans')
     return { success: true, clientPackageId }
@@ -83,7 +90,7 @@ export async function cancelClientPackageAction(clientPackageId: string, clientI
 
 // --- Ödeme kaydı ----------------------------------------------------------
 
-const createPaymentForClinic = withAuth(
+const createPaymentForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
@@ -92,8 +99,8 @@ const createPaymentForClinic = withAuth(
     },
     async (
       ctx,
+      clientId: string,
       input: {
-        clientId: string
         clientPackageId: string | null
         amount: string
         method: PaymentFormValues['method']
@@ -103,7 +110,20 @@ const createPaymentForClinic = withAuth(
         receiptSequenceNumber: string | null
         receiptIssuedAt: string | null
       },
-    ) => createPayment(db, ctx.scope.clinicId, input),
+    ) => {
+      if (input.clientPackageId) {
+        await assertClientPackageAccess(ctx, input.clientPackageId)
+        const packageClientId = await clientIdForClientPackage(
+          db,
+          ctx.scope.clinicId,
+          input.clientPackageId,
+        )
+        if (packageClientId !== clientId) {
+          throw new Error('Seçilen paket bu danışana ait değil.')
+        }
+      }
+      return createPayment(db, ctx.scope.clinicId, { clientId, ...input })
+    },
   ),
 )
 
@@ -137,8 +157,7 @@ export async function createPaymentAction(clientId: string, input: PaymentFormVa
   }
 
   try {
-    const created = await createPaymentForClinic({
-      clientId,
+    const created = await createPaymentForClinic(clientId, {
       clientPackageId: parsed.data.clientPackageId || null,
       amount: parsed.data.amount,
       method: parsed.data.method,

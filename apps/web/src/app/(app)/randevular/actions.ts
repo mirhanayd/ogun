@@ -8,15 +8,24 @@ import {
   createClinicHoliday,
   deleteClinicHoliday,
   getActiveClientPackageForClient,
+  getAppointmentById,
   getWorkingHoursForClinic,
   listAppointmentIntervalsInRange,
   listClients,
+  listClinicDietitians,
   listClinicHolidays,
   rescheduleAppointment,
   updateAppointment,
 } from '@ogun/db/queries'
 import type { AppointmentStatus } from '@ogun/db/schema'
-import { withAuth } from '@/lib/authz'
+import {
+  assertAppointmentAccess,
+  assertClientAccess,
+  assertClientPackageAccess,
+  withAuth,
+  withClientAuth,
+  type ClinicContext,
+} from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import {
   checkWorkingHours,
@@ -96,9 +105,22 @@ async function checkAvailability(
   return { conflictError, hoursWarning }
 }
 
+async function resolveAppointmentDietitianId(
+  ctx: ClinicContext,
+  requestedDietitianId: string,
+): Promise<string> {
+  if (ctx.role === 'dietitian') return ctx.user.id
+
+  const dietitians = await listClinicDietitians(db, ctx.scope.clinicId)
+  if (!dietitians.some((dietitian) => dietitian.id === requestedDietitianId)) {
+    throw new Error('Seçilen diyetisyen bu klinikte bulunamadı.')
+  }
+  return requestedDietitianId
+}
+
 // --- Randevu oluşturma / güncelleme (GÖREV 3) -------------------------------
 
-const createAppointmentForClinic = withAuth(
+const createAppointmentForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
@@ -107,8 +129,8 @@ const createAppointmentForClinic = withAuth(
     },
     async (
       ctx,
+      clientId: string,
       input: {
-        clientId: string
         dietitianId: string
         startsAt: Date
         endsAt: Date
@@ -117,17 +139,19 @@ const createAppointmentForClinic = withAuth(
         notes: string | null
         packageSessionId: string | null
       },
-    ) =>
-      createAppointment(db, ctx.scope.clinicId, {
-        clientId: input.clientId,
-        dietitianId: input.dietitianId,
+    ) => {
+      const dietitianId = await resolveAppointmentDietitianId(ctx, input.dietitianId)
+      return createAppointment(db, ctx.scope.clinicId, {
+        clientId,
+        dietitianId,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
         type: input.type,
         location: input.location,
         notes: input.notes,
         packageSessionId: input.packageSessionId,
-      }),
+      })
+    },
   ),
 )
 
@@ -138,7 +162,7 @@ const createAppointmentForClinic = withAuth(
 // yapmak ZORUNDA değil (spec bunu istemedi, "basit tut" ruhuyla otomatik
 // bağlama tercih edildi). Sayaç (sessionsUsed) burada DEĞİL, randevu 'geldi'
 // işaretlendiğinde artırılır (bkz. updateAppointmentStatusAction).
-const resolveActivePackageForClient = withAuth(async (ctx, clientId: string) => {
+const resolveActivePackageForClient = withClientAuth(async (ctx, clientId: string) => {
   const activePackage = await getActiveClientPackageForClient(db, ctx.scope.clinicId, clientId)
   return activePackage?.id ?? null
 })
@@ -157,26 +181,25 @@ export async function createAppointmentAction(
   // ayrı bir yardımcı action üzerinden GERÇEK (doğrulanmış) scope'a erişilir,
   // tıpkı diğer mutasyonlarda olduğu gibi.
   const wrapped = withAuth(async (ctx) => {
+    const dietitianId = await resolveAppointmentDietitianId(ctx, parsed.data.dietitianId)
     const { conflictError, hoursWarning } = await checkAvailability(ctx.scope.clinicId, {
-      dietitianId: parsed.data.dietitianId,
+      dietitianId,
       startsAt,
       endsAt,
     })
     return { conflictError, hoursWarning }
   })
-  const { conflictError, hoursWarning } = await wrapped()
-
-  if (conflictError) {
-    return { success: false, error: conflictError }
-  }
-  if (hoursWarning && !acknowledgeWarning) {
-    return { success: false, warning: hoursWarning }
-  }
-
   try {
+    const { conflictError, hoursWarning } = await wrapped()
+    if (conflictError) {
+      return { success: false, error: conflictError }
+    }
+    if (hoursWarning && !acknowledgeWarning) {
+      return { success: false, warning: hoursWarning }
+    }
+
     const packageSessionId = await resolveActivePackageForClient(parsed.data.clientId)
-    const created = await createAppointmentForClinic({
-      clientId: parsed.data.clientId,
+    const created = await createAppointmentForClinic(parsed.data.clientId, {
       dietitianId: parsed.data.dietitianId,
       startsAt,
       endsAt,
@@ -200,11 +223,17 @@ const updateAppointmentForClinic = withAuth(
       entityType: 'appointment',
       entityId: ([id]: [string, Parameters<typeof updateAppointment>[3]]) => id,
     },
-    async (
-      ctx,
-      appointmentId: string,
-      patch: Parameters<typeof updateAppointment>[3],
-    ) => updateAppointment(db, ctx.scope.clinicId, appointmentId, patch),
+    async (ctx, appointmentId: string, patch: Parameters<typeof updateAppointment>[3]) => {
+      await assertAppointmentAccess(ctx, appointmentId)
+      if (patch.clientId) await assertClientAccess(ctx, patch.clientId)
+      const dietitianId = patch.dietitianId
+        ? await resolveAppointmentDietitianId(ctx, patch.dietitianId)
+        : undefined
+      return updateAppointment(db, ctx.scope.clinicId, appointmentId, {
+        ...patch,
+        ...(dietitianId ? { dietitianId } : {}),
+      })
+    },
   ),
 )
 
@@ -220,19 +249,21 @@ export async function updateAppointmentAction(
   }
   const { startsAt, endsAt } = appointmentFormToDateRange(parsed.data)
 
-  const checkWrapped = withAuth(async (ctx) =>
-    checkAvailability(ctx.scope.clinicId, {
-      dietitianId: parsed.data.dietitianId,
+  const checkWrapped = withAuth(async (ctx) => {
+    await assertAppointmentAccess(ctx, appointmentId)
+    const dietitianId = await resolveAppointmentDietitianId(ctx, parsed.data.dietitianId)
+    return checkAvailability(ctx.scope.clinicId, {
+      dietitianId,
       startsAt,
       endsAt,
       excludeAppointmentId: appointmentId,
-    }),
-  )
-  const { conflictError, hoursWarning } = await checkWrapped()
-  if (conflictError) return { success: false, error: conflictError }
-  if (hoursWarning && !acknowledgeWarning) return { success: false, warning: hoursWarning }
-
+    })
+  })
   try {
+    const { conflictError, hoursWarning } = await checkWrapped()
+    if (conflictError) return { success: false, error: conflictError }
+    if (hoursWarning && !acknowledgeWarning) return { success: false, warning: hoursWarning }
+
     await updateAppointmentForClinic(appointmentId, {
       clientId: parsed.data.clientId,
       dietitianId: parsed.data.dietitianId,
@@ -259,8 +290,10 @@ const rescheduleAppointmentForClinic = withAuth(
       entityType: 'appointment',
       entityId: ([id]: [string, { startsAt: Date; endsAt: Date }]) => id,
     },
-    async (ctx, appointmentId: string, times: { startsAt: Date; endsAt: Date }) =>
-      rescheduleAppointment(db, ctx.scope.clinicId, appointmentId, times),
+    async (ctx, appointmentId: string, times: { startsAt: Date; endsAt: Date }) => {
+      await assertAppointmentAccess(ctx, appointmentId)
+      return rescheduleAppointment(db, ctx.scope.clinicId, appointmentId, times)
+    },
   ),
 )
 
@@ -272,14 +305,25 @@ export async function rescheduleAppointmentAction(
   endsAt: Date,
   acknowledgeWarning = false,
 ): Promise<AppointmentActionResult> {
-  const checkWrapped = withAuth(async (ctx) =>
-    checkAvailability(ctx.scope.clinicId, { dietitianId, startsAt, endsAt, excludeAppointmentId: appointmentId }),
-  )
-  const { conflictError, hoursWarning } = await checkWrapped()
-  if (conflictError) return { success: false, error: conflictError }
-  if (hoursWarning && !acknowledgeWarning) return { success: false, warning: hoursWarning }
-
+  // İstemciden gelen eski imza uyumluluğu korunur; çakışma kontrolünde
+  // güvenilir kaynak olarak DB'deki mevcut randevu-diyetisyen ilişkisi kullanılır.
+  void dietitianId
+  const checkWrapped = withAuth(async (ctx) => {
+    await assertAppointmentAccess(ctx, appointmentId)
+    const appointment = await getAppointmentById(db, ctx.scope.clinicId, appointmentId)
+    if (!appointment) throw new Error('Randevu bulunamadı.')
+    return checkAvailability(ctx.scope.clinicId, {
+      dietitianId: appointment.dietitianId,
+      startsAt,
+      endsAt,
+      excludeAppointmentId: appointmentId,
+    })
+  })
   try {
+    const { conflictError, hoursWarning } = await checkWrapped()
+    if (conflictError) return { success: false, error: conflictError }
+    if (hoursWarning && !acknowledgeWarning) return { success: false, warning: hoursWarning }
+
     await rescheduleAppointmentForClinic(appointmentId, { startsAt, endsAt })
     revalidatePath('/randevular')
     revalidatePath(`/danisanlar/${clientId}`)
@@ -298,8 +342,10 @@ const updateAppointmentStatusForClinic = withAuth(
       entityType: 'appointment',
       entityId: ([id]: [string, AppointmentStatus]) => id,
     },
-    async (ctx, appointmentId: string, status: AppointmentStatus) =>
-      updateAppointment(db, ctx.scope.clinicId, appointmentId, { status }),
+    async (ctx, appointmentId: string, status: AppointmentStatus) => {
+      await assertAppointmentAccess(ctx, appointmentId)
+      return updateAppointment(db, ctx.scope.clinicId, appointmentId, { status })
+    },
   ),
 )
 
@@ -310,7 +356,10 @@ const updateAppointmentStatusForClinic = withAuth(
 const consumeSessionForClinic = withAuth(
   withAudit(
     { action: 'update', entityType: 'client_package', entityId: ([id]: [string]) => id },
-    async (ctx, clientPackageId: string) => consumeClientPackageSession(db, ctx.scope.clinicId, clientPackageId),
+    async (ctx, clientPackageId: string) => {
+      await assertClientPackageAccess(ctx, clientPackageId)
+      return consumeClientPackageSession(db, ctx.scope.clinicId, clientPackageId)
+    },
   ),
 )
 
@@ -341,6 +390,7 @@ const createHolidayForClinic = withAuth(
     async (ctx, input: { date: string; description: string | null }) =>
       createClinicHoliday(db, ctx.scope.clinicId, input),
   ),
+  ['owner'],
 )
 
 export async function createHolidayAction(date: string, description: string): Promise<AppointmentActionResult> {
@@ -361,6 +411,7 @@ const deleteHolidayForClinic = withAuth(
     { action: 'delete', entityType: 'clinic_holiday', entityId: ([id]: [string]) => id },
     async (ctx, holidayId: string) => deleteClinicHoliday(db, ctx.scope.clinicId, holidayId),
   ),
+  ['owner'],
 )
 
 export async function deleteHolidayAction(holidayId: string): Promise<AppointmentActionResult> {
@@ -389,6 +440,7 @@ const searchClientsForClinic = withAuth(
         search: query,
         status: 'aktif',
         pageSize: 8,
+        ...(ctx.role === 'dietitian' ? { assignedDietitianId: ctx.user.id } : {}),
       })
       return result.rows
     },

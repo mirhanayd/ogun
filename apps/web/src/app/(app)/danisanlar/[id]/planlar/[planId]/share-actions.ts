@@ -13,7 +13,7 @@ import {
 } from '@ogun/db/queries'
 import type { PlanShareSendChannel } from '@ogun/db/schema'
 import { renderPlanPdfBuffer } from '@ogun/pdf/server'
-import { withAuth } from '@/lib/authz'
+import { assertPlanAccess, assertPlanShareAccess, withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { resolvePlanPdfData } from '@/lib/pdf/resolve-plan-pdf-data'
 import { getEmailSender } from '@/lib/email'
@@ -75,7 +75,10 @@ const getOrCreateShareLinkForClinic = withAuth(
       entityId: (_args: [string], result: { id: string } | undefined) => result?.id ?? null,
       metadata: ([planId]: [string]) => ({ planId }),
     },
-    async (ctx, planId: string) => createOrReuseShare(db, ctx.scope.clinicId, planId, ctx.user.id),
+    async (ctx, planId: string) => {
+      await assertPlanAccess(ctx, planId)
+      return createOrReuseShare(db, ctx.scope.clinicId, planId, ctx.user.id)
+    },
   ),
 )
 
@@ -95,7 +98,10 @@ const getShareLinkForClinic = withAuth(
       entityType: 'plan_share',
       entityId: ([planId]: [string]) => planId,
     },
-    async (ctx, planId: string) => getLatestShareForPlan(db, ctx.scope.clinicId, planId),
+    async (ctx, planId: string) => {
+      await assertPlanAccess(ctx, planId)
+      return getLatestShareForPlan(db, ctx.scope.clinicId, planId)
+    },
   ),
 )
 
@@ -124,6 +130,7 @@ const revokeShareLinkForClinic = withAuth(
     // Args tuple'ını korumak için burada tutuluyor.
     async (ctx, shareId: string, planId: string) => {
       void planId
+      await assertPlanShareAccess(ctx, shareId)
       return revokeShare(db, ctx.scope.clinicId, shareId)
     },
   ),
@@ -153,8 +160,10 @@ const recordShareSendForClinic = withAuth(
         result?.id ?? null,
       metadata: ([shareId, channel]: [string, PlanShareSendChannel, string | null]) => ({ shareId, channel }),
     },
-    async (ctx, shareId: string, channel: PlanShareSendChannel, recipient: string | null) =>
-      recordShareSend(db, ctx.scope.clinicId, shareId, { channel, recipient, sentBy: ctx.user.id }),
+    async (ctx, shareId: string, channel: PlanShareSendChannel, recipient: string | null) => {
+      await assertPlanShareAccess(ctx, shareId)
+      return recordShareSend(db, ctx.scope.clinicId, shareId, { channel, recipient, sentBy: ctx.user.id })
+    },
   ),
 )
 
@@ -191,6 +200,7 @@ const sendPlanShareEmailForClinic = withAuth(
       metadata: ([planId, , recipient]: [string, string, string]) => ({ planId, recipient, channel: 'email' }),
     },
     async (ctx, planId: string, shareId: string, recipientEmail: string) => {
+      await Promise.all([assertPlanAccess(ctx, planId), assertPlanShareAccess(ctx, shareId)])
       const [plan, clinic] = await Promise.all([
         getPlanById(db, ctx.scope.clinicId, planId),
         getClinicById(db, ctx.scope.clinicId),

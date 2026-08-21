@@ -52,6 +52,7 @@ export function CalendarView({
   appointments,
   workingHours,
   holidays,
+  canManageHolidays,
 }: {
   view: CalendarViewMode
   currentDate: Date
@@ -60,6 +61,7 @@ export function CalendarView({
   appointments: AppointmentListRow[]
   workingHours: WorkingHourRow[]
   holidays: HolidayRow[]
+  canManageHolidays: boolean
 }) {
   const router = useRouter()
   const [createDialog, setCreateDialog] = useState<{ startsAt: Date } | null>(null)
@@ -202,10 +204,12 @@ export function CalendarView({
               <TabsTrigger value="month">Ay</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)} className="gap-1.5">
-            <PartyPopper className="size-4" />
-            Tatiller
-          </Button>
+          {canManageHolidays && (
+            <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)} className="gap-1.5">
+              <PartyPopper className="size-4" />
+              Tatiller
+            </Button>
+          )}
           <Button size="sm" onClick={() => setCreateDialog({ startsAt: currentDate })} className="gap-1.5">
             <CalendarPlus className="size-4" />
             Yeni randevu
@@ -305,11 +309,13 @@ export function CalendarView({
         }}
       />
 
-      <HolidayManagerDialog
-        open={holidayDialogOpen}
-        onOpenChange={setHolidayDialogOpen}
-        holidays={holidays as HolidayManagerRow[]}
-      />
+      {canManageHolidays && (
+        <HolidayManagerDialog
+          open={holidayDialogOpen}
+          onOpenChange={setHolidayDialogOpen}
+          holidays={holidays as HolidayManagerRow[]}
+        />
+      )}
     </div>
   )
 }

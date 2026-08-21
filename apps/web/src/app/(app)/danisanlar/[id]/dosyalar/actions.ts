@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import { createDocument, deleteDocument, getDocumentById } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { assertDocumentAccess, withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { buildDocumentStorageKey, createPresignedDownloadUrl, createPresignedUploadUrl, deleteStorageObject } from '@/lib/storage'
 import {
@@ -26,7 +26,7 @@ function firstZodMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? 'Geçersiz veri gönderildi.'
 }
 
-const presignUploadForClinic = withAuth(
+const presignUploadForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
@@ -60,22 +60,26 @@ export async function presignDocumentUploadAction(
   }
 }
 
-const confirmDocumentUploadForClinic = withAuth(
+const confirmDocumentUploadForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
       entityType: 'document',
       entityId: (_args: [string, ConfirmUploadInput], result: { id: string } | undefined) => result?.id ?? null,
     },
-    async (ctx, clientId: string, input: ConfirmUploadInput) =>
-      createDocument(db, ctx.scope.clinicId, clientId, {
+    async (ctx, clientId: string, input: ConfirmUploadInput) => {
+      if (!input.storageKey.startsWith(`clients/${clientId}/documents/`)) {
+        throw new Error('Yükleme anahtarı bu danışanla eşleşmiyor.')
+      }
+      return createDocument(db, ctx.scope.clinicId, clientId, {
         fileName: input.fileName,
         mimeType: input.mimeType,
         sizeBytes: input.sizeBytes,
         storageKey: input.storageKey,
         category: input.category,
         uploadedBy: ctx.user.id,
-      }),
+      })
+    },
   ),
 )
 
@@ -103,6 +107,7 @@ const getDocumentDownloadUrlForClinic = withAuth(
   withAudit(
     { action: 'read', entityType: 'document', entityId: ([documentId]: [string]) => documentId },
     async (ctx, documentId: string) => {
+      await assertDocumentAccess(ctx, documentId)
       const document = await getDocumentById(db, ctx.scope.clinicId, documentId)
       if (!document) throw new Error('Belge bulunamadı.')
       return { url: await createPresignedDownloadUrl(document.storageKey), mimeType: document.mimeType }
@@ -124,7 +129,10 @@ export async function getDocumentDownloadUrlAction(
 const deleteDocumentForClinic = withAuth(
   withAudit(
     { action: 'delete', entityType: 'document', entityId: ([documentId]: [string]) => documentId },
-    async (ctx, documentId: string) => deleteDocument(db, ctx.scope.clinicId, documentId),
+    async (ctx, documentId: string) => {
+      await assertDocumentAccess(ctx, documentId)
+      return deleteDocument(db, ctx.scope.clinicId, documentId)
+    },
   ),
 )
 

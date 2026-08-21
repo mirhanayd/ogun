@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import { bulkImportClients, confirmClientConsent, type BulkImportClientInput } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { CURRENT_KVKK_CONSENT_VERSION } from '@/lib/validation/client-schemas'
 import type { ImportRowValidationOk } from '@/lib/validation/client-import'
@@ -59,7 +59,13 @@ const importClientsForClinic = withAuth(
         })),
       }))
 
-      return bulkImportClients(db, ctx.scope.clinicId, ctx.user.id, input)
+      return bulkImportClients(
+        db,
+        ctx.scope.clinicId,
+        ctx.user.id,
+        input,
+        ctx.role === 'dietitian' ? ctx.user.id : null,
+      )
     },
   ),
   ['owner', 'dietitian'],
@@ -103,7 +109,7 @@ export async function importClientsAction(
 // sonradan (ör. danışan kliniğe geldiğinde kağıt formu imzaladığında)
 // tamamlanması — bkz. packages/db/src/queries/clients.ts confirmClientConsent
 // dosya başı notu.
-const confirmClientConsentForClinic = withAuth(
+const confirmClientConsentForClinic = withClientAuth(
   withAudit(
     { action: 'update', entityType: 'client', entityId: ([clientId]: [string]) => clientId },
     async (ctx, clientId: string) =>

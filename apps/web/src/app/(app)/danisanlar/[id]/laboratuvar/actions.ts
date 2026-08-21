@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import { createLabResult, deleteLabResult } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { assertLabResultAccess, withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { labResultFormSchema, type LabResultFormValues } from '@/lib/validation/lab-schemas'
 import type { ClientActionResult } from '../../actions'
@@ -16,7 +16,7 @@ function toNullableNumber(value: string | undefined): number | null {
   return value === undefined || value === '' ? null : Number(value)
 }
 
-const createLabResultForClinic = withAuth(
+const createLabResultForClinic = withClientAuth(
   withAudit(
     {
       action: 'create',
@@ -63,7 +63,10 @@ export async function createLabResultAction(
 const deleteLabResultForClinic = withAuth(
   withAudit(
     { action: 'delete', entityType: 'lab_result', entityId: ([labResultId]: [string]) => labResultId },
-    async (ctx, labResultId: string) => deleteLabResult(db, ctx.scope.clinicId, labResultId),
+    async (ctx, labResultId: string) => {
+      await assertLabResultAccess(ctx, labResultId)
+      return deleteLabResult(db, ctx.scope.clinicId, labResultId)
+    },
   ),
 )
 

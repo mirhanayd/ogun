@@ -36,18 +36,24 @@ function initials(firstName: string, lastName: string): string {
 // issue'nun onları dolduracağı her birinde ayrıca not edildi.
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { scope } = await requireClinic()
+  const { scope, role, user } = await requireClinic()
+
+  // Atama kapsamını diğer sağlık verisi sorgularından önce doğrula. Böylece
+  // başka bir danışanın URL'si, paralel alt sorguların hata üretmesine veya
+  // gereksiz veri okumasına yol açmadan 404 ile kapanır.
+  const client = await viewClientRecord(id)
+  if (!client || client.deletedAt) {
+    notFound()
+  }
 
   const [
-    client,
-    dietitians,
+    allDietitians,
     latestMeasurement,
     weightGoal,
     healthRecord,
     abnormalLabResults,
     nextAppointment,
   ] = await Promise.all([
-    viewClientRecord(id),
     listClinicDietitians(db, scope.clinicId),
     getClientLatestMeasurement(id),
     getClientActiveGoal(id, 'kilo'),
@@ -55,13 +61,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     listClientAbnormalLabResults(id),
     getClientNextAppointment(id),
   ])
-
-  // Soft-delete edilmiş (bkz. schema/clients.ts deletedAt) bir kayıt normal
-  // uygulama akışında GÖRÜNTÜLENMEZ — veri sahibi hakları akışı (dışa
-  // aktarma/silme onayı) ayrı bir yüzeyde, bu sayfada değil.
-  if (!client || client.deletedAt) {
-    notFound()
-  }
+  const dietitians = role === 'dietitian'
+    ? allDietitians.filter((dietitian) => dietitian.id === user.id)
+    : allDietitians
 
   const age = calculateAge(client.birthDate)
 

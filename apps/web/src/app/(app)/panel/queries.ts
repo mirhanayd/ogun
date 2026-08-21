@@ -10,6 +10,10 @@ import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { buildNotificationFeed, NO_SHOW_LOOKBACK_DAYS, PACKAGE_EXPIRY_WARNING_DAYS, type NotificationFeed } from '@/lib/notifications/summary'
 
+export interface PanelNotificationFeed extends NotificationFeed {
+  canManageFinance: boolean
+}
+
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
 }
@@ -24,25 +28,44 @@ function endOfDay(d: Date): Date {
 // buildNotificationFeed (apps/web/src/lib/notifications/summary.ts) ile
 // şekillendiriyor — aynı finance-aggregation.ts iş bölümü.
 export const getPanelNotificationFeed = withAuth(
-  withAudit({ action: 'read', entityType: 'notification_feed' }, async (ctx): Promise<NotificationFeed> => {
+  withAudit({ action: 'read', entityType: 'notification_feed' }, async (ctx): Promise<PanelNotificationFeed> => {
     const clinicId = ctx.scope.clinicId
     const now = new Date()
+    const assignedDietitianId = ctx.role === 'dietitian' ? ctx.user.id : undefined
+    const visibility = { assignedDietitianId }
 
     const [todayAppointments, noShowClients, clientsWithLastMeasurement, expiringPackages] = await Promise.all([
-      listAppointmentsInRange(db, clinicId, { from: startOfDay(now), to: endOfDay(now) }),
-      listRecentNoShowAppointments(db, clinicId, new Date(now.getTime() - NO_SHOW_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)),
-      listActiveClientsWithLastMeasurement(db, clinicId),
-      listExpiringClientPackages(db, clinicId, new Date(now.getTime() + PACKAGE_EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000)),
+      listAppointmentsInRange(db, clinicId, {
+        from: startOfDay(now),
+        to: endOfDay(now),
+        visibleToDietitianId: assignedDietitianId,
+      }),
+      listRecentNoShowAppointments(
+        db,
+        clinicId,
+        new Date(now.getTime() - NO_SHOW_LOOKBACK_DAYS * 24 * 60 * 60 * 1000),
+        visibility,
+      ),
+      listActiveClientsWithLastMeasurement(db, clinicId, visibility),
+      listExpiringClientPackages(
+        db,
+        clinicId,
+        new Date(now.getTime() + PACKAGE_EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000),
+        visibility,
+      ),
     ])
 
-    return buildNotificationFeed(
-      {
-        todayAppointmentsCount: todayAppointments.length,
-        noShowClients,
-        clientsWithLastMeasurement,
-        expiringPackages,
-      },
-      now,
-    )
+    return {
+      ...buildNotificationFeed(
+        {
+          todayAppointmentsCount: todayAppointments.length,
+          noShowClients,
+          clientsWithLastMeasurement,
+          expiringPackages,
+        },
+        now,
+      ),
+      canManageFinance: ctx.role === 'owner',
+    }
   }),
 )

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import { createSampleClientAndPlan, createSamplePlanForClient, type SampleClientAndPlan } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 
 // GitHub issue #47 / Prompt 8.3, GÖREV 1 — "boş durumlarda 'örnek plan
@@ -19,7 +19,13 @@ const createSampleClientAndPlanForClinic = withAuth(
       entityType: 'client',
       entityId: (_args: [], result: SampleClientAndPlan | undefined) => result?.clientId ?? null,
     },
-    async (ctx) => createSampleClientAndPlan(db, ctx.scope.clinicId, ctx.user.id),
+    async (ctx) =>
+      createSampleClientAndPlan(
+        db,
+        ctx.scope.clinicId,
+        ctx.user.id,
+        ctx.role === 'dietitian' ? ctx.user.id : null,
+      ),
   ),
 )
 
@@ -37,7 +43,7 @@ export async function createSampleClientAndPlanAction(): Promise<
 
 type SamplePlan = Awaited<ReturnType<typeof createSamplePlanForClient>>
 
-const createSamplePlanForClientInClinic = withAuth(
+const createSamplePlanForClientInClinic = withClientAuth(
   withAudit(
     {
       action: 'create',

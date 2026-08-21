@@ -66,6 +66,7 @@ export default async function RandevularPage({
   const selectedDietitianIds = dietitianParam ? dietitianParam.split(',').filter(Boolean) : []
 
   const range = rangeForView(view, currentDate)
+  const { role } = await requireClinic()
 
   const [appointments, dietitians, { workingHours, holidays }] = await Promise.all([
     getCalendarAppointments({
@@ -86,6 +87,8 @@ export default async function RandevularPage({
       appointments={appointments}
       workingHours={workingHours}
       holidays={holidays}
+      canManageHolidays={role === 'owner'}
     />
   )
 }
+import { requireClinic } from '@/lib/authz'

@@ -17,9 +17,13 @@ import { PlanEditor } from './plan-editor'
 // gece) gerekiyor. Bu sayfa, plan İLK AÇILDIĞINDA (days.length === 0 ise)
 // bunu TEK SEFERLİK, sunucu tarafında bootstrap eder — #23'ün addDay/addMeal
 // action'larını ÇAĞIRIR, raw sorguyla bypass ETMEZ.
-async function ensurePlanBootstrapped(planId: string) {
+async function ensurePlanBootstrapped(planId: string, expectedClientId: string) {
   const result = await getPlanTreeAction(planId)
   if (!result.success || !result.data) return null
+  // URL'deki danışan-plan eşleşmesini herhangi bir bootstrap YAZIMINDAN önce
+  // doğrula. Aksi halde başka bir danışanın boş planı, sayfa sonunda 404 olsa
+  // bile bu noktada öğünlerle doldurulabilirdi.
+  if (result.data.plan.clientId !== expectedClientId) return null
   if (result.data.days.length > 0) return result.data
 
   // GitHub issue #45 / Prompt 8.1 — addDayAction DEĞİL, addDayDuringRender:
@@ -57,9 +61,13 @@ export default async function PlanEditorPage({
   // OLMALI").
   const { scope } = await requireClinic()
 
-  const [client, tree, health, clinic] = await Promise.all([
-    viewClientRecord(id),
-    ensurePlanBootstrapped(planId),
+  // Önce danışan atama kapsamını doğrula; yetkisiz bir URL hiçbir plan okuma
+  // veya bootstrap yan etkisini başlatmasın.
+  const client = await viewClientRecord(id)
+  if (!client || client.deletedAt) notFound()
+
+  const [tree, health, clinic] = await Promise.all([
+    ensurePlanBootstrapped(planId, id),
     // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi panelinin hem
     // referans karşılaştırması (yaş/cinsiyet) hem alerji/intolerans
     // çakışması (GÖREV 3) için danışanın sağlık profiline ihtiyacı var.
@@ -69,7 +77,7 @@ export default async function PlanEditorPage({
     getClinicById(db, scope.clinicId),
   ])
 
-  if (!client || client.deletedAt || !tree) {
+  if (!tree) {
     notFound()
   }
   // Bu rota bir DANIŞANIN planı için — şablon (clientId=null) veya başka bir

@@ -3,6 +3,7 @@ import { db } from '@ogun/db'
 import { listClients, type ListClientsInput, type ListClientsResult } from '@ogun/db/queries'
 import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
+import { scopeClientListInput } from '@/lib/client-access'
 
 // Danışan listesi okuması (GitHub issue #17 / Prompt 4.1, GÖREV 2) — bir
 // server action DEĞİL (mutasyon değil, 'use server' pragma'sı yok), sadece
@@ -27,6 +28,14 @@ export const listClientsForClinic = withAuth(
         resultCount: result?.rows.length,
       }),
     },
-    async (ctx, input: ListClientsInput) => listClients(db, ctx.scope.clinicId, input),
+    async (ctx, input: ListClientsInput) =>
+      listClients(
+        db,
+        ctx.scope.clinicId,
+        // Klinik yöneticisi bütün danışanları görür. Davetli diyetisyen için
+        // URL'den gelen ?dietitian= filtresi dikkate alınmaz; görünürlük her
+        // zaman oturumdaki kullanıcının kendi atamasıyla zorlanır.
+        scopeClientListInput(input, { role: ctx.role, userId: ctx.user.id }),
+      ),
   ),
 )

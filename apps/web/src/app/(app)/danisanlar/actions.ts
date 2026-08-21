@@ -10,7 +10,7 @@ import {
   listClinicDietitians,
   updateClientGeneralInfo,
 } from '@ogun/db/queries'
-import { withAuth } from '@/lib/authz'
+import { withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import {
   ClientConsentIncompleteError,
@@ -67,6 +67,7 @@ const createClientForClinic = withAuth(
         kvkkConsentAt: consent.kvkkConsentAt,
         kvkkConsentVersion: CURRENT_KVKK_CONSENT_VERSION,
         explicitConsentAt: consent.explicitConsentAt,
+        assignedDietitianId: ctx.role === 'dietitian' ? ctx.user.id : null,
       })
     },
   ),
@@ -94,7 +95,7 @@ export async function createClientAction(
 
 // --- "Genel" sekmesi düzenleme (GÖREV 4) ------------------------------------
 
-const updateClientGeneralInfoForClinic = withAuth(
+const updateClientGeneralInfoForClinic = withClientAuth(
   withAudit(
     { action: 'update', entityType: 'client', entityId: ([clientId]: [string, ClientGeneralInfoFormValues]) => clientId },
     async (ctx, clientId: string, input: ClientGeneralInfoFormValues) => {
@@ -157,7 +158,7 @@ const archiveClientsForClinic = withAuth(
     },
     async (ctx, clientIds: string[]) => archiveClients(db, ctx.scope.clinicId, clientIds),
   ),
-  ['owner', 'dietitian'],
+  ['owner'],
 )
 
 export async function archiveClientsAction(clientIds: string[]): Promise<ClientActionResult> {
@@ -191,7 +192,7 @@ const assignDietitianForClinic = withAuth(
       return assignDietitianToClients(db, ctx.scope.clinicId, clientIds, dietitianId)
     },
   ),
-  ['owner', 'dietitian'],
+  ['owner'],
 )
 
 export async function assignDietitianAction(clientIds: string[], dietitianId: string): Promise<ClientActionResult> {
