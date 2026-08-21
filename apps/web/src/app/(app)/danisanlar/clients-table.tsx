@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState, useTransition, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { SearchX } from 'lucide-react'
+import { ArrowRight, Search, SearchX, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { toastActionError } from '@/lib/action-toast'
 import {
@@ -26,8 +27,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { EmptyState } from '@/components/empty-state'
 import { calculateAge } from '@/lib/client-age'
 import { STATUS_LABELS_TR, STATUS_OPTIONS } from '@/lib/validation/client-schemas'
@@ -85,7 +99,7 @@ export function ClientsTable({
   // burada tekrarlanması bir güvenlik sınırı DEĞİL (nav-items.ts'teki
   // "gizleme tek başına güvenlik sınırı değildir" notuyla aynı gerekçe),
   // sadece assistant'a hiç kullanamayacağı bir seçim arayüzü göstermemek için.
-  const canBulkManage = role !== 'assistant'
+  const canBulkManage = role === 'owner'
 
   const columnHelper = useMemo(() => createColumnHelper<ClientListRow>(), [])
 
@@ -101,7 +115,9 @@ export function ClientsTable({
                   aria-label="Tümünü seç"
                   checked={table.getIsAllRowsSelected()}
                   ref={(el) => {
-                    if (el) el.indeterminate = table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()
+                    if (el)
+                      el.indeterminate =
+                        table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()
                   }}
                   onChange={table.getToggleAllRowsSelectedHandler()}
                 />
@@ -109,10 +125,9 @@ export function ClientsTable({
               cell: ({ row }) => (
                 <input
                   type="checkbox"
-                  aria-label="Danışanı seç"
+                  aria-label={`${row.original.firstName} ${row.original.lastName} adlı danışanı seç`}
                   checked={row.getIsSelected()}
                   onChange={row.getToggleSelectedHandler()}
-                  onClick={(event) => event.stopPropagation()}
                 />
               ),
             }),
@@ -122,9 +137,18 @@ export function ClientsTable({
         id: 'name',
         header: 'Ad Soyad',
         cell: ({ row }) => (
-          <span className="font-medium">
-            {row.original.firstName} {row.original.lastName}
-          </span>
+          <Link
+            href={`/danisanlar/${row.original.id}`}
+            className="group/name flex min-w-44 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/8 text-xs font-semibold text-primary ring-1 ring-primary/10">
+              {row.original.firstName.slice(0, 1)}
+              {row.original.lastName.slice(0, 1)}
+            </span>
+            <span className="font-medium group-hover/name:text-primary">
+              {row.original.firstName} {row.original.lastName}
+            </span>
+          </Link>
         ),
       }),
       columnHelper.display({
@@ -156,6 +180,19 @@ export function ClientsTable({
           const status = getValue()
           return <Badge variant={STATUS_BADGE_VARIANT[status]}>{STATUS_LABELS_TR[status]}</Badge>
         },
+      }),
+      columnHelper.display({
+        id: 'open',
+        header: '',
+        cell: ({ row }) => (
+          <Link
+            href={`/danisanlar/${row.original.id}`}
+            aria-label={`${row.original.firstName} ${row.original.lastName} danışan kaydını aç`}
+            className="ml-auto grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <ArrowRight className="size-4" />
+          </Link>
+        ),
       }),
     ],
     [canBulkManage, columnHelper],
@@ -195,7 +232,10 @@ export function ClientsTable({
   async function handleArchive() {
     const result = await archiveClientsAction(selectedIds)
     if (!result.success) {
-      toastActionError(result.error ?? 'Arşivleme başarısız oldu.', 'Seçimi daraltıp tekrar deneyin; arşivlenmiş danışanlar durum filtresinden geri getirilebilir.')
+      toastActionError(
+        result.error ?? 'Arşivleme başarısız oldu.',
+        'Seçimi daraltıp tekrar deneyin; arşivlenmiş danışanlar durum filtresinden geri getirilebilir.',
+      )
       return
     }
     toast.success(`${selectedIds.length} danışan arşivlendi.`)
@@ -207,7 +247,10 @@ export function ClientsTable({
     if (!assignDietitianId) return
     const result = await assignDietitianAction(selectedIds, assignDietitianId)
     if (!result.success) {
-      toastActionError(result.error ?? 'Atama başarısız oldu.', 'Diyetisyenin bu klinikte hâlâ üye olduğundan emin olup tekrar deneyin.')
+      toastActionError(
+        result.error ?? 'Atama başarısız oldu.',
+        'Diyetisyenin bu klinikte hâlâ üye olduğundan emin olup tekrar deneyin.',
+      )
       return
     }
     toast.success(`${selectedIds.length} danışana diyetisyen atandı.`)
@@ -220,117 +263,194 @@ export function ClientsTable({
   const totalPages = Math.max(Math.ceil(result.total / result.pageSize), 1)
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-sm gap-2">
-          <Input
-            placeholder="Ad, soyad, telefon veya e-posta ara…"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
-          <Button type="submit" size="sm" variant="outline" disabled={isPending}>
-            Ara
-          </Button>
-        </form>
-        <div className="flex gap-2">
-          <Select value={filters.status || ALL_FILTER_VALUE} onValueChange={handleStatusChange}>
-            <SelectTrigger size="sm" className="w-32">
-              <SelectValue placeholder="Durum" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>Tüm durumlar</SelectItem>
-              {STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.assignedDietitianId || ALL_FILTER_VALUE} onValueChange={handleDietitianFilterChange}>
-            <SelectTrigger size="sm" className="w-44">
-              <SelectValue placeholder="Diyetisyen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>Tüm diyetisyenler</SelectItem>
-              {dietitians.map((dietitian) => (
-                <SelectItem key={dietitian.id} value={dietitian.id}>
-                  {dietitian.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="flex flex-col gap-4">
+      <div className="rounded-2xl border border-border/70 bg-card/90 p-3 shadow-sm shadow-foreground/[0.025] sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <form onSubmit={handleSearchSubmit} className="flex w-full gap-2 lg:max-w-md">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Danışan ara"
+                placeholder="Ad, soyad, telefon veya e-posta ara…"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                className="h-10 rounded-xl bg-background pl-9"
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={isPending}
+              className="h-10 rounded-xl px-4"
+            >
+              Ara
+            </Button>
+          </form>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground sm:hidden">
+              <SlidersHorizontal className="size-3.5" />
+              Filtreler
+            </div>
+            <Select value={filters.status || ALL_FILTER_VALUE} onValueChange={handleStatusChange}>
+              <SelectTrigger className="h-10 w-full rounded-xl bg-background sm:w-40">
+                <SelectValue placeholder="Durum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_FILTER_VALUE}>Tüm durumlar</SelectItem>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {role === 'owner' && (
+              <Select
+                value={filters.assignedDietitianId || ALL_FILTER_VALUE}
+                onValueChange={handleDietitianFilterChange}
+              >
+                <SelectTrigger className="h-10 w-full rounded-xl bg-background sm:w-48">
+                  <SelectValue placeholder="Diyetisyen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>Tüm diyetisyenler</SelectItem>
+                  {dietitians.map((dietitian) => (
+                    <SelectItem key={dietitian.id} value={dietitian.id}>
+                      {dietitian.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
       </div>
 
       {canBulkManage && selectedIds.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.045] px-4 py-3 text-sm shadow-sm shadow-primary/5">
           <span className="font-medium">{selectionSummaryLabel(selectedIds.length)}</span>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="outline" onClick={handleArchive}>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-lg bg-background/75"
+              onClick={handleArchive}
+            >
               Arşivle
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setAssignDialogOpen(true)} disabled={dietitians.length === 0}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-lg bg-background/75"
+              onClick={() => setAssignDialogOpen(true)}
+              disabled={dietitians.length === 0}
+            >
               Diyetisyen ata
             </Button>
           </div>
         </div>
       )}
 
-      <div className="rounded-xl border border-border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
+      {table.getRowModel().rows.length === 0 ? (
+        <div className="rounded-2xl border border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.025]">
+          <EmptyState
+            variant="inline"
+            icon={SearchX}
+            title="Bu filtrelerle danışan bulunamadı"
+            description="Arama metnini kısaltmayı ya da durum/diyetisyen filtrelerini temizlemeyi deneyin."
+            action={{
+              label: 'Filtreleri temizle',
+              onClick: () => {
+                setSearchInput('')
+                navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
+              },
+            }}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.025] md:block">
+            <Table className="min-w-[880px]">
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                {/* GitHub issue #62 / Prompt 10.4, GÖREV 1 — bu satır bir
-                    FİLTRE/ARAMA sonucu boş kaldığında görünür (klinikte hiç
-                    danışan yoksa page.tsx zaten tam boyutlu EmptyState
-                    gösteriyor). Düz "Kayıt bulunamadı." metni ne olduğunu
-                    da ne yapılacağını da söylemiyordu. */}
-                <TableCell colSpan={columns.length} className="p-0">
-                  <EmptyState
-                    variant="inline"
-                    icon={SearchX}
-                    title="Bu filtrelerle danışan bulunamadı"
-                    description="Arama metnini kısaltmayı ya da durum/diyetisyen filtrelerini temizlemeyi deneyin."
-                    action={{
-                      label: 'Filtreleri temizle',
-                      onClick: () => {
-                        setSearchInput('')
-                        navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
-                      },
-                    }}
-                  />
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="cursor-pointer"
-                  onClick={() => router.push(`/danisanlar/${row.original.id}`)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} className="transition-colors hover:bg-muted/35">
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="grid gap-3 md:hidden">
+            {table.getRowModel().rows.map((row) => {
+              const client = row.original
+              const age = calculateAge(client.birthDate)
+              return (
+                <div
+                  key={row.id}
+                  className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm shadow-foreground/[0.025]"
+                >
+                  <div className="flex items-start gap-3">
+                    {canBulkManage && (
+                      <input
+                        type="checkbox"
+                        aria-label={`${client.firstName} ${client.lastName} adlı danışanı seç`}
+                        checked={row.getIsSelected()}
+                        onChange={row.getToggleSelectedHandler()}
+                        className="mt-3"
+                      />
+                    )}
+                    <Link
+                      href={`/danisanlar/${client.id}`}
+                      className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/8 text-sm font-semibold text-primary ring-1 ring-primary/10">
+                        {client.firstName.slice(0, 1)}
+                        {client.lastName.slice(0, 1)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold group-hover:text-primary">
+                          {client.firstName} {client.lastName}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                          {age === null ? 'Yaş bilgisi yok' : `${age} yaş`}
+                          {client.assignedDietitianName ? ` · ${client.assignedDietitianName}` : ''}
+                        </span>
+                      </span>
+                      <ArrowRight className="size-4 shrink-0 text-muted-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </Link>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
+                    <Badge variant={STATUS_BADGE_VARIANT[client.status]}>
+                      {STATUS_LABELS_TR[client.status]}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">Danışan kaydını aç</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
           Sayfa {result.page} / {totalPages} — toplam {result.total} danışan
         </span>

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ClipboardList, Upload, UserPlus } from 'lucide-react'
+import { ClipboardList, Upload, UserPlus, UsersRound } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import type { ClientStatus } from '@ogun/db/schema'
@@ -18,7 +18,9 @@ function readParam(value: string | string[] | undefined): string | undefined {
 }
 
 function parseStatus(value: string | undefined): ClientStatus | undefined {
-  return STATUS_OPTIONS.some((option) => option.value === value) ? (value as ClientStatus) : undefined
+  return STATUS_OPTIONS.some((option) => option.value === value)
+    ? (value as ClientStatus)
+    : undefined
 }
 
 // Danışan listesi (GitHub issue #17 / Prompt 4.1, GÖREV 2). Sayfalama/arama/
@@ -36,37 +38,46 @@ export default async function DanisanlarPage({
   const page = Math.max(Number(readParam(params.page)) || 1, 1)
   const search = readParam(params.q)
   const status = parseStatus(readParam(params.status))
-  const assignedDietitianId = readParam(params.dietitian)
+  const requestedDietitianId = readParam(params.dietitian)
 
   const { scope, role } = await requireClinic()
+  const assignedDietitianId = role === 'owner' ? requestedDietitianId : undefined
 
   const [result, dietitians] = await Promise.all([
     listClientsForClinic({ page, pageSize: PAGE_SIZE, search, status, assignedDietitianId }),
-    listClinicDietitians(db, scope.clinicId),
+    role === 'owner' ? listClinicDietitians(db, scope.clinicId) : Promise.resolve([]),
   ])
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold">Danışanlar</h1>
-          <p className="text-sm text-muted-foreground">Kliniğinizdeki tüm danışanlar.</p>
+    <div className="flex flex-col gap-6 pb-8">
+      <header className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+            <UsersRound className="size-3.5" />
+            Danışan operasyonu
+          </div>
+          <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Danışanlar</h1>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+            {role === 'dietitian'
+              ? 'Size atanan danışanların takip, ölçüm ve beslenme planlarına ulaşın.'
+              : 'Kliniğinizdeki tüm danışanları, atamaları ve bakım akışlarını yönetin.'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button asChild variant="outline" size="lg" className="rounded-xl bg-background/80 px-4">
             <Link href="/danisanlar/ice-aktar">
-              <Upload />
+              <Upload data-icon="inline-start" />
               CSV içe aktar
             </Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild size="lg" className="rounded-xl px-4 shadow-sm shadow-primary/15">
             <Link href="/danisanlar/yeni">
-              <UserPlus />
+              <UserPlus data-icon="inline-start" />
               Yeni danışan
             </Link>
           </Button>
         </div>
-      </div>
+      </header>
       {/* GitHub issue #47 / Prompt 8.3, GÖREV 1 — klinikte HİÇ danışan yoksa
           (herhangi bir filtre uygulanmamışken) EmptyState + "örnek danışan ve
           plan oluştur" kısayolu (bkz. create-sample-plan-button.tsx). Bir
