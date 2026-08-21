@@ -1,7 +1,7 @@
 import { db } from '@ogun/db'
 import { getClinicById } from '@ogun/db/queries'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { requireRole } from '@/lib/authz'
+import { requireClinic } from '@/lib/authz'
 import { DEFAULT_WHATSAPP_TEMPLATE } from '@/lib/share/message-template'
 import { WhatsappTemplateForm } from './whatsapp-template-form'
 
@@ -11,7 +11,8 @@ import { WhatsappTemplateForm } from './whatsapp-template-form'
 // sayfasından bağlanan, rol kısıtını (owner, dietitian) sunucu tarafında da
 // tekrar uygulayan bir nested route.
 export default async function PaylasimAyarlariPage() {
-  const { scope } = await requireRole('owner', 'dietitian')
+  const { scope, role } = await requireClinic()
+  if (role !== 'owner') redirect('/ayarlar')
   const clinic = await getClinicById(db, scope.clinicId)
 
   return (
@@ -34,3 +35,4 @@ export default async function PaylasimAyarlariPage() {
     </div>
   )
 }
+import { redirect } from 'next/navigation'

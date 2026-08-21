@@ -4,7 +4,7 @@ import type { AuditAction } from '@ogun/db/schema'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { requireRole } from '@/lib/authz'
+import { requireClinic } from '@/lib/authz'
 import { DataRetentionForm } from './data-retention-form'
 
 const ACTION_LABELS_TR: Record<AuditAction, string> = {
@@ -22,7 +22,8 @@ const RECENT_LOGS_LIMIT = 50
 // öğesinin rol kısıtını (owner, dietitian) tekrar sunucu tarafında da uygular
 // — nav gizleme tek başına bir güvenlik sınırı değildir.
 export default async function VeriGuvenligiPage() {
-  const { scope } = await requireRole('owner', 'dietitian')
+  const { scope, role } = await requireClinic()
+  if (role !== 'owner') redirect('/ayarlar')
 
   // NOT: bu sayfanın kendi audit_logs okuması withAudit() ile denetlenMİYOR —
   // audit_logs klinik-yönetimi meta verisidir, danışan sağlık verisi değil
@@ -97,3 +98,4 @@ export default async function VeriGuvenligiPage() {
     </div>
   )
 }
+import { redirect } from 'next/navigation'

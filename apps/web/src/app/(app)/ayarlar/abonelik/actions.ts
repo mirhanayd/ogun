@@ -123,10 +123,10 @@ export async function updateSmsTemplateAction(
     return { success: false, error: firstZodMessage(parsed.error) }
   }
 
-  const { scope } = await requireRole('owner', 'dietitian')
+  const { scope } = await requireRole('owner')
   const trimmed = parsed.data.smsReminderTemplate.trim()
   await updateClinicSmsTemplate(db, scope.clinicId, trimmed.length > 0 ? trimmed : null)
-  revalidatePath('/ayarlar/abonelik')
+  revalidatePath('/ayarlar/hatirlatmalar')
   return { success: true }
 }
 
@@ -142,8 +142,8 @@ export async function updateSmsTemplateAction(
 export const runSmsReminderSweepAction = async (): Promise<
   SubscriptionActionResult & { result?: ReminderSweepResult }
 > => {
-  const ctx = await requireRole('owner', 'dietitian')
+  const ctx = await requireRole('owner')
   const result = await runSmsReminderSweepForClinic(ctx.scope.clinicId)
-  revalidatePath('/ayarlar/abonelik')
+  revalidatePath('/ayarlar/hatirlatmalar')
   return { success: true, result }
 }

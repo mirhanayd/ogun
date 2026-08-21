@@ -22,8 +22,7 @@ function firstZodMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? 'Geçersiz veri gönderildi.'
 }
 
-// Sadece owner/dietitian değiştirebilir — /ayarlar nav öğesiyle aynı rol
-// kısıtı (bkz. _components/nav-items.ts).
+// Klinik-geneli saklama politikası yalnız yönetici tarafından değiştirilebilir.
 export async function updateDataRetentionAction(
   input: DataRetentionSettingFormValues,
 ): Promise<DataRetentionActionResult> {
@@ -32,7 +31,7 @@ export async function updateDataRetentionAction(
     return { success: false, error: firstZodMessage(parsed.error) }
   }
 
-  const { scope } = await requireRole('owner', 'dietitian')
+  const { scope } = await requireRole('owner')
   await updateClinicDataRetention(db, scope.clinicId, parsed.data.dataRetentionDays)
   revalidatePath('/ayarlar/veri-guvenligi')
   return { success: true }

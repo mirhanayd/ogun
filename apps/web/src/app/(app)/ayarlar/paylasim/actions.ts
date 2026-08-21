@@ -21,8 +21,7 @@ function firstZodMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? 'Geçersiz veri gönderildi.'
 }
 
-// Sadece owner/dietitian değiştirebilir — /ayarlar nav öğesiyle AYNI rol
-// kısıtı (veri-guvenligi/actions.ts ile tutarlı).
+// Klinik-geneli paylaşım şablonu yalnız yönetici tarafından değiştirilebilir.
 export async function updateWhatsappTemplateAction(
   input: WhatsappTemplateSettingFormValues,
 ): Promise<ShareSettingsActionResult> {
@@ -31,7 +30,7 @@ export async function updateWhatsappTemplateAction(
     return { success: false, error: firstZodMessage(parsed.error) }
   }
 
-  const { scope } = await requireRole('owner', 'dietitian')
+  const { scope } = await requireRole('owner')
   // Boş metin -> NULL (varsayılana dön), bkz. schema/tenancy.ts
   // whatsappMessageTemplate notu.
   const trimmed = parsed.data.whatsappMessageTemplate.trim()

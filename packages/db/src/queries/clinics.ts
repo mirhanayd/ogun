@@ -63,8 +63,8 @@ export async function getClinicById(db: Database, clinicId: string) {
   return clinic ?? null
 }
 
-// Onboarding adım 1: taslak klinik satırını oluşturur. trialEndsAt burada
-// (klinik "doğduğu" anda) 14 günlük deneme süresiyle set ediliyor.
+// Onboarding adım 1: taslak klinik satırını oluşturur. Abonelik ürünü şimdilik
+// devre dışı olduğundan yeni kliniklere deneme süresi başlatılmaz.
 export async function createDraftClinic(db: Database, userId: string, input: ClinicInfoInput) {
   const [clinic] = await db
     .insert(clinics)
@@ -75,7 +75,6 @@ export async function createDraftClinic(db: Database, userId: string, input: Cli
       address: input.address ?? null,
       createdBy: userId,
       onboardingStep: 2,
-      trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     })
     .returning()
   if (!clinic) throw new Error('Klinik oluşturulamadı.')
