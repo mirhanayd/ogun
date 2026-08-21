@@ -45,7 +45,7 @@ import {
   withAuth,
 } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
-import { containsPlanVisibilityMutation } from '@/lib/client-access'
+import { canClonePlanToTarget, containsPlanVisibilityMutation } from '@/lib/client-access'
 import {
   PLAN_MEAL_TYPE_OPTIONS,
   createSavedMealSchema,
@@ -704,6 +704,11 @@ const clonePlanForClinic = withAuth(
     },
     async (ctx, sourcePlanId: string, targetClientId: string | null) => {
       await assertPlanAccess(ctx, sourcePlanId)
+      if (!canClonePlanToTarget(targetClientId, { role: ctx.role, userId: ctx.user.id })) {
+        throw new InsufficientRoleError(
+          'Diyetisyenler plan klonunu klinik-geneli bir kayda dönüştüremez.',
+        )
+      }
       if (targetClientId) await assertClientAccess(ctx, targetClientId)
       return clonePlan(db, ctx.scope.clinicId, ctx.user.id, sourcePlanId, targetClientId)
     },

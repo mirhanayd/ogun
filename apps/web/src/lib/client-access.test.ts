@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canAccessAssignedClient,
   canAccessClientRecord,
+  canClonePlanToTarget,
   containsPlanVisibilityMutation,
   scopeClientListInput,
 } from './client-access'
@@ -44,5 +45,12 @@ describe('danışan rol kapsamı', () => {
     expect(containsPlanVisibilityMutation({ clientId: null })).toBe(true)
     expect(containsPlanVisibilityMutation({ isTemplate: true })).toBe(true)
     expect(containsPlanVisibilityMutation({ templateCategory: null })).toBe(true)
+  })
+
+  it('dietitian plan klonunu klinik-geneli null hedefe taşıyamaz', () => {
+    const dietitian = { role: 'dietitian' as const, userId: 'dietitian-1' }
+    expect(canClonePlanToTarget(null, dietitian)).toBe(false)
+    expect(canClonePlanToTarget('client-1', dietitian)).toBe(true)
+    expect(canClonePlanToTarget(null, { role: 'owner', userId: 'owner-1' })).toBe(true)
   })
 })

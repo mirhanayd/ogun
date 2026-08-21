@@ -44,3 +44,10 @@ export function containsPlanVisibilityMutation(input: PlanVisibilityPatch): bool
     input.templateCategory !== undefined
   )
 }
+
+export function canClonePlanToTarget(
+  targetClientId: string | null,
+  actor: ClientAccessActor,
+): boolean {
+  return actor.role !== 'dietitian' || targetClientId !== null
+}
