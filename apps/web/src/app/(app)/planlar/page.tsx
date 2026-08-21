@@ -1,151 +1,382 @@
 import Link from 'next/link'
 import {
+  AlertCircle,
   ArrowRight,
-  BookOpenText,
-  Check,
+  CalendarClock,
+  CheckCircle2,
   ClipboardList,
+  Clock3,
+  FileClock,
   Layers3,
-  Sparkles,
   UserRoundSearch,
+  type LucideIcon,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/empty-state'
+import { viewClientRecord } from '@/lib/data-subject-rights'
+import { PLAN_STATUS_LABELS_TR } from '@/lib/validation/plan-schemas'
+import { listPlansAction } from './actions'
 
-const workflow = [
-  {
-    step: '01',
-    title: 'Danışanı seçin',
-    description: 'Profil, anamnez ve güncel ölçümleri birlikte değerlendirin.',
-  },
-  {
-    step: '02',
-    title: 'Planı oluşturun',
-    description: 'Boş başlayın, önceki planı kopyalayın veya şablondan ilerleyin.',
-  },
-  {
-    step: '03',
-    title: 'Paylaşın',
-    description: 'Planı PDF olarak indirin ya da danışana güvenli bağlantıyla iletin.',
-  },
-]
+type PlanList = NonNullable<Awaited<ReturnType<typeof listPlansAction>>['data']>
+type PlanRow = PlanList[number]
 
-export default function PlanlarPage() {
+const MAX_QUEUE_ITEMS = 6
+const MAX_RECENT_ITEMS = 5
+const ENDING_SOON_DAYS = 14
+const DAY_IN_MS = 24 * 60 * 60 * 1000
+
+const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Europe/Istanbul',
+})
+
+export default async function PlanlarPage() {
+  const [plansResult, templatesResult] = await Promise.all([
+    listPlansAction({ isTemplate: false }),
+    listPlansAction({ clientId: null, isTemplate: true }),
+  ])
+
+  if (!plansResult.success) {
+    return (
+      <PageFrame>
+        <PlanPageHeader />
+        <Card className="border-destructive/25 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-5 sm:p-6" role="alert">
+            <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" />
+            <div>
+              <p className="font-medium">Planlar yüklenemedi</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {plansResult.error ?? 'Plan listenizi açarken beklenmeyen bir sorun oluştu.'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </PageFrame>
+    )
+  }
+
+  const now = new Date()
+  const deadline = new Date(now.getTime() + ENDING_SOON_DAYS * DAY_IN_MS)
+  const plans = (plansResult.data ?? []).filter(
+    (plan): plan is PlanRow & { clientId: string } => !plan.isTemplate && plan.clientId !== null,
+  )
+  const templates = templatesResult.success ? (templatesResult.data ?? []) : null
+
+  const activeCount = plans.filter((plan) => plan.status === 'aktif').length
+  const draftCount = plans.filter((plan) => plan.status === 'taslak').length
+  const endingSoonCount = plans.filter(
+    (plan) => plan.status === 'aktif' && plan.endDate !== null && plan.endDate <= deadline,
+  ).length
+
+  const attentionCandidates = plans
+    .filter(
+      (plan) =>
+        plan.status === 'taslak' ||
+        (plan.status === 'aktif' && plan.endDate !== null && plan.endDate <= deadline),
+    )
+    .sort((left, right) => {
+      const priorityDifference = attentionPriority(left, now) - attentionPriority(right, now)
+      return priorityDifference || right.updatedAt.getTime() - left.updatedAt.getTime()
+    })
+    .slice(0, MAX_QUEUE_ITEMS)
+
+  const attentionIds = new Set(attentionCandidates.map((plan) => plan.id))
+  const recentCandidates = [...plans]
+    .filter((plan) => plan.status !== 'arşiv' && !attentionIds.has(plan.id))
+    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+    .slice(0, MAX_RECENT_ITEMS)
+
+  const clientIds = [
+    ...new Set([...attentionCandidates, ...recentCandidates].map((plan) => plan.clientId)),
+  ]
+  const resolvedClients = await Promise.all(
+    clientIds.map(async (clientId) => ({ clientId, client: await viewClientRecord(clientId) })),
+  )
+  const clientNames = new Map<string, string>()
+  for (const { clientId, client } of resolvedClients) {
+    if (client && !client.deletedAt) {
+      clientNames.set(clientId, `${client.firstName} ${client.lastName}`)
+    }
+  }
+
+  const attentionPlans = attentionCandidates.filter((plan) => clientNames.has(plan.clientId))
+  const recentPlans = recentCandidates.filter((plan) => clientNames.has(plan.clientId))
+
   return (
-    <div className="flex flex-col gap-7 pb-8">
-      <section className="flex flex-col gap-5 border-b border-border/70 pb-7 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-            <ClipboardList className="size-3.5" />
-            Beslenme programları
-          </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Plan merkezi</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            Kliniğinizin plan üretme standardını koruyun; danışan verilerinden başlayıp
-            paylaşılabilir bir programa ilerleyin.
-          </p>
+    <PageFrame>
+      <PlanPageHeader />
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Plan özeti">
+        <MetricCard icon={CheckCircle2} label="Aktif plan" value={activeCount} />
+        <MetricCard icon={FileClock} label="Tamamlanacak taslak" value={draftCount} />
+        <MetricCard
+          icon={CalendarClock}
+          label="Bitişi yaklaşan veya geçen"
+          value={endingSoonCount}
+        />
+        <MetricCard
+          icon={Layers3}
+          label="Klinik şablonu"
+          value={templates === null ? '—' : templates.length}
+        />
+      </section>
+
+      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <Card className="min-w-0 overflow-hidden border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
+          <CardHeader className="border-b border-border/60 px-5 py-5 sm:px-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base tracking-tight">Çalışma kuyruğu</CardTitle>
+                <CardDescription className="mt-1">
+                  Tamamlanacak taslaklar ve bitiş tarihi yaklaşan aktif programlar
+                </CardDescription>
+              </div>
+              {attentionCandidates.length > MAX_QUEUE_ITEMS && (
+                <Badge variant="secondary">İlk {MAX_QUEUE_ITEMS} kayıt</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {attentionPlans.length === 0 ? (
+              <EmptyState
+                variant="inline"
+                icon={ClipboardList}
+                title="Bekleyen plan işi yok"
+                description="Yeni bir taslak oluşturduğunuzda veya aktif bir planın bitiş tarihi yaklaştığında burada görünür."
+              />
+            ) : (
+              <div className="divide-y divide-border/60">
+                {attentionPlans.map((plan) => (
+                  <PlanRowLink
+                    key={plan.id}
+                    plan={plan}
+                    clientName={clientNames.get(plan.clientId)!}
+                    now={now}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid min-w-0 content-start gap-4">
+          <Card className="border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base tracking-tight">Son güncellenenler</CardTitle>
+              <CardDescription>Devam etmek için en son çalıştığınız planlar</CardDescription>
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              {recentPlans.length === 0 ? (
+                <p className="px-3 py-5 text-sm leading-6 text-muted-foreground">
+                  Kuyruk dışındaki güncel bir planınız henüz yok.
+                </p>
+              ) : (
+                <div className="flex flex-col">
+                  {recentPlans.map((plan) => (
+                    <Link
+                      key={plan.id}
+                      href={`/danisanlar/${plan.clientId}/planlar/${plan.id}`}
+                      className="group flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-muted/55"
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/8 text-primary ring-1 ring-primary/10">
+                        <ClipboardList className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{plan.name}</span>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          {clientNames.get(plan.clientId)} · {dateFormatter.format(plan.updatedAt)}
+                        </span>
+                      </span>
+                      <ArrowRight className="size-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/15 bg-primary/[0.045] shadow-sm shadow-primary/5">
+            <CardContent className="flex items-center gap-4 p-5">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                <Layers3 className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Şablon kütüphanesi</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {templates === null
+                    ? 'Klinik şablonlarını görüntüleyin.'
+                    : `${templates.length} klinik şablonundan yeni bir danışan planı başlatın.`}
+                </p>
+              </div>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="shrink-0 rounded-xl bg-background/80"
+              >
+                <Link href="/planlar/sablonlar">
+                  Aç
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-        <Button asChild size="lg" className="w-fit rounded-xl px-4 shadow-sm shadow-primary/15">
+      </section>
+    </PageFrame>
+  )
+}
+
+function PageFrame({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-col gap-6 pb-8">{children}</div>
+}
+
+function PlanPageHeader() {
+  return (
+    <header className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+          <ClipboardList className="size-3.5" />
+          Klinik plan operasyonu
+        </div>
+        <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Planlar</h1>
+        <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+          Taslakları tamamlayın, süresi yaklaşan programları gözden geçirin ve kaldığınız yerden
+          devam edin.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="lg" className="rounded-xl bg-background/80 px-4">
+          <Link href="/planlar/sablonlar">
+            <Layers3 data-icon="inline-start" />
+            Şablonlar
+          </Link>
+        </Button>
+        <Button asChild size="lg" className="rounded-xl px-4 shadow-sm shadow-primary/15">
           <Link href="/danisanlar">
             <UserRoundSearch data-icon="inline-start" />
             Danışan seçerek başla
           </Link>
         </Button>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <Link
-          href="/planlar/sablonlar"
-          className="group rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <Card className="relative h-full min-h-80 overflow-hidden border-primary/20 bg-primary text-primary-foreground shadow-xl shadow-primary/10 transition-transform duration-200 group-hover:-translate-y-0.5">
-            <CardContent className="relative flex h-full flex-col p-7 sm:p-8">
-              <div className="pointer-events-none absolute -top-28 -right-24 size-72 rounded-full bg-primary-foreground/8 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-32 -left-20 size-64 rounded-full bg-black/8 blur-3xl" />
-              <div className="relative flex items-center justify-between">
-                <span className="flex size-11 items-center justify-center rounded-2xl bg-primary-foreground/12 ring-1 ring-primary-foreground/15">
-                  <Layers3 className="size-5" />
-                </span>
-                <Badge className="border-primary-foreground/15 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/10">
-                  Klinik kütüphanesi
-                </Badge>
-              </div>
-              <div className="relative mt-auto max-w-xl pt-16">
-                <p className="text-xs font-semibold tracking-[0.14em] text-primary-foreground/60 uppercase">
-                  Hızlı ve tutarlı
-                </p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
-                  Plan şablonları
-                </h2>
-                <p className="mt-3 max-w-lg text-sm leading-6 text-primary-foreground/70 sm:text-base">
-                  Sık kullandığınız yaklaşımları yeniden kurmak yerine kategorilere ayrılmış klinik
-                  şablonlarından güvenle başlayın.
-                </p>
-                <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold">
-                  Kütüphaneyi aç
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Card className="h-full border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
-          <CardContent className="flex h-full flex-col p-6 sm:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <span className="flex size-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground ring-1 ring-primary/10">
-                <BookOpenText className="size-5" />
-              </span>
-              <Sparkles className="size-4 text-primary/60" />
-            </div>
-            <h2 className="mt-7 text-xl font-semibold tracking-[-0.02em]">Danışana özel plan</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Her plan bir danışan profiline bağlıdır; böylece hedefler, anamnez ve ölçümler aynı
-              klinik bağlamında kalır.
-            </p>
-            <ul className="mt-6 space-y-3 text-sm">
-              {[
-                'Önceki planı tek adımda kopyalama',
-                'Öğün ve değişim bazlı düzenleme',
-                'Besin öğelerini anlık karşılaştırma',
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2.5">
-                  <span className="grid size-5 place-items-center rounded-full bg-primary/10 text-primary">
-                    <Check className="size-3" strokeWidth={2.5} />
-                  </span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <Button asChild variant="outline" className="mt-auto w-full rounded-xl py-5">
-              <Link href="/danisanlar">
-                Danışanlara git
-                <ArrowRight data-icon="inline-end" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="rounded-2xl border border-border/70 bg-background/55 p-5 sm:p-6">
-        <div className="mb-5">
-          <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            Standart iş akışı
-          </p>
-          <h2 className="mt-1.5 text-lg font-semibold tracking-tight">Üç adımda danışana hazır</h2>
-        </div>
-        <ol className="grid gap-3 md:grid-cols-3">
-          {workflow.map((item) => (
-            <li key={item.step} className="rounded-xl border border-border/65 bg-card/75 p-4">
-              <span className="text-xs font-semibold tracking-[0.1em] text-primary">
-                {item.step}
-              </span>
-              <h3 className="mt-5 text-sm font-semibold">{item.title}</h3>
-              <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{item.description}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-    </div>
+      </div>
+    </header>
   )
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon
+  label: string
+  value: number | string
+}) {
+  return (
+    <Card className="border-border/70 bg-card/85 shadow-sm shadow-foreground/[0.025]">
+      <CardContent className="flex min-h-28 flex-col justify-between gap-4 p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="max-w-36 text-xs font-medium leading-4 text-muted-foreground">{label}</p>
+          <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/8 text-primary ring-1 ring-primary/10">
+            <Icon className="size-4" />
+          </span>
+        </div>
+        <p className="text-2xl font-semibold tracking-[-0.045em] tabular-nums">{value}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PlanRowLink({
+  plan,
+  clientName,
+  now,
+}: {
+  plan: PlanRow & { clientId: string }
+  clientName: string
+  now: Date
+}) {
+  const status = planAttentionStatus(plan, now)
+
+  return (
+    <Link
+      href={`/danisanlar/${plan.clientId}/planlar/${plan.id}`}
+      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 px-5 py-4 transition-colors hover:bg-muted/45 sm:flex sm:items-center sm:px-6"
+    >
+      <span
+        className={`grid size-10 shrink-0 place-items-center rounded-xl ring-1 ${status.iconClass}`}
+      >
+        <status.icon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold">{plan.name}</span>
+          <Badge variant={plan.status === 'aktif' ? 'default' : 'secondary'}>
+            {PLAN_STATUS_LABELS_TR[plan.status]}
+          </Badge>
+        </span>
+        <span className="mt-1 block truncate text-sm text-muted-foreground">{clientName}</span>
+      </span>
+      <span className="col-span-2 flex shrink-0 items-center justify-between gap-4 sm:col-auto sm:ml-auto sm:justify-end">
+        <span className="text-right">
+          <span className={`block text-xs font-medium ${status.textClass}`}>{status.label}</span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            {plan.targetKcal !== null
+              ? `${plan.targetKcal.toLocaleString('tr-TR')} kcal`
+              : `Güncellendi ${dateFormatter.format(plan.updatedAt)}`}
+          </span>
+        </span>
+        <ArrowRight className="size-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+      </span>
+    </Link>
+  )
+}
+
+function attentionPriority(plan: PlanRow, now: Date): number {
+  if (plan.status === 'aktif' && plan.endDate && plan.endDate < now) return 0
+  if (plan.status === 'taslak') return 1
+  return 2
+}
+
+function planAttentionStatus(
+  plan: PlanRow,
+  now: Date,
+): { icon: LucideIcon; iconClass: string; label: string; textClass: string } {
+  if (plan.status === 'taslak') {
+    return {
+      icon: FileClock,
+      iconClass: 'bg-amber-500/10 text-amber-700 ring-amber-500/15 dark:text-amber-300',
+      label: 'Taslak tamamlanacak',
+      textClass: 'text-amber-700 dark:text-amber-300',
+    }
+  }
+
+  if (plan.endDate) {
+    const daysRemaining = Math.ceil((plan.endDate.getTime() - now.getTime()) / DAY_IN_MS)
+    if (daysRemaining < 0) {
+      return {
+        icon: AlertCircle,
+        iconClass: 'bg-destructive/10 text-destructive ring-destructive/15',
+        label: 'Bitiş tarihi geçti',
+        textClass: 'text-destructive',
+      }
+    }
+    return {
+      icon: CalendarClock,
+      iconClass: 'bg-primary/10 text-primary ring-primary/15',
+      label: daysRemaining === 0 ? 'Bugün bitiyor' : `${daysRemaining} gün kaldı`,
+      textClass: 'text-primary',
+    }
+  }
+
+  return {
+    icon: Clock3,
+    iconClass: 'bg-muted text-muted-foreground ring-border',
+    label: 'Gözden geçirilecek',
+    textClass: 'text-muted-foreground',
+  }
 }
