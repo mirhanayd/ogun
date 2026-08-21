@@ -1,9 +1,27 @@
 import 'server-only'
 import { headers } from 'next/headers'
 import { db } from '@ogun/db'
-import { listClinicMembershipsForUser, updateSessionActiveClinic } from '@ogun/db/queries'
+import {
+  clientIdForAppointment,
+  clientIdForClientPackage,
+  clientIdForDocument,
+  clientIdForGoal,
+  clientIdForLabResult,
+  clientIdForPlan,
+  clientIdForPlanAlternative,
+  clientIdForPlanDay,
+  clientIdForPlanItem,
+  clientIdForPlanMeal,
+  clientIdForPlanShare,
+  getClinicMembership,
+  getClientById,
+  listClinicMembershipsForUser,
+  updateSessionActiveClinic,
+} from '@ogun/db/queries'
 import { auth } from './auth'
 import type { ClinicMemberRole } from '@ogun/db/schema'
+import { canAccessClientRecord } from './client-access'
+import { reconcileActiveClinicSession } from './auth-session-fields'
 
 // ---------------------------------------------------------------------------
 // Hata tipleri
@@ -130,9 +148,7 @@ export async function requireClinic(): Promise<ClinicContext> {
   if (!session) {
     throw new UnauthenticatedError()
   }
-  const clinicId = session.session.activeClinicId
-  const role = session.session.role
-  if (!clinicId || !role) {
+  const activateSoleMembership = async (): Promise<ClinicContext> => {
     // GitHub issue #67 — GERÇEK VE BLOKLAYAN BİR HATA DÜZELTMESİ.
     // sessions.activeClinicId'yi bugüne kadar SADECE iki yer yazıyordu
     // (onboarding sihirbazının son adımı ve üst bardaki klinik seçici, bkz.
@@ -168,11 +184,36 @@ export async function requireClinic(): Promise<ClinicContext> {
       role: only.role,
     }
   }
+
+  const activeClinicId = session.session.activeClinicId
+  if (!activeClinicId) return activateSoleMembership()
+
+  // Session alanları yalnızca bir seçim önbelleğidir, yetki kaynağı değildir.
+  // Her yetkili istekte activeClinicId'nin kullanıcıya ait gerçek üyeliğini
+  // ve rolünü DB'den yeniden doğrularız. Böylece eski/manipüle edilmiş bir
+  // session rolü owner yetkisi veremez ve bilinen bir başka clinicId ile
+  // cross-tenant erişim kurulamaz.
+  const membership = await getClinicMembership(db, activeClinicId, session.user.id)
+  const reconciled = reconcileActiveClinicSession(
+    { activeClinicId, role: session.session.role },
+    membership,
+  )
+  if (!reconciled) return activateSoleMembership()
+
+  if (reconciled.needsSync) {
+    await updateSessionActiveClinic(
+      db,
+      session.session.id,
+      reconciled.clinicId,
+      reconciled.role,
+    )
+  }
+
   return {
     user: { id: session.user.id, email: session.user.email, name: session.user.name },
     sessionId: session.session.id,
-    scope: toClinicScope(clinicId),
-    role: role as ClinicMemberRole,
+    scope: toClinicScope(reconciled.clinicId),
+    role: reconciled.role,
   }
 }
 
@@ -191,20 +232,24 @@ export async function requireRole(...allowedRoles: ClinicMemberRole[]): Promise<
 //  2. Üst bar klinik seçici (bkz. app/(app)/actions.ts switchClinicAction) —
 //     birden fazla klinikte üye olan kullanıcı aktif kliniği değiştirdiğinde.
 //
-// ÖNEMLİ: çağıran taraf, clinicId'nin kullanıcının GERÇEKTEN üyesi olduğu bir
-// klinik olduğunu (clinic_members'tan) doğrulamış olmalı — bu fonksiyon sadece
-// session satırını günceller, yetki kontrolü yapmaz.
+// Savunma derinliği: çağıran ekran üyeliği önceden kontrol etse bile bu
+// merkezi fonksiyon hedef clinicId'yi yeniden clinic_members üzerinden
+// doğrular ve rolü istemci/çağıran argümanından değil DB kaydından alır.
 //
 // lib/auth.ts'te cookie cache AÇIK DEĞİL — yani her getSession() çağrısı
 // veritabanına gidiyor. Bu yüzden sessions satırını doğrudan güncellemek
 // yeterli; ayrı bir "session refresh" API'sine ihtiyaç yok, bir sonraki
 // getSession() zaten güncel activeClinicId/role'ü görecek.
-export async function setActiveClinic(clinicId: string, role: ClinicMemberRole): Promise<void> {
+export async function setActiveClinic(clinicId: string): Promise<void> {
   const session = await getSession()
   if (!session) {
     throw new UnauthenticatedError()
   }
-  await updateSessionActiveClinic(db, session.session.id, clinicId, role)
+  const membership = await getClinicMembership(db, clinicId, session.user.id)
+  if (!membership) {
+    throw new InsufficientRoleError('Bu kliniğe erişiminiz yok.')
+  }
+  await updateSessionActiveClinic(db, session.session.id, clinicId, membership.role)
 }
 
 // ---------------------------------------------------------------------------
@@ -229,3 +274,76 @@ export function withAuth<Args extends unknown[], Result>(
     return action(ctx, ...args)
   }
 }
+
+// Davetli diyetisyenler yalnızca kendilerine atanmış danışanlara erişebilir.
+// Liste sorgusu ayrıca filtrelense de doğrudan detay/action çağrılarının URL
+// tahminiyle bu sınırı aşmaması için clientId alan sunucu işlemleri bu yardımcıyı
+// kullanır. Owner ve assistant'ın mevcut klinik kapsamı davranışı korunur.
+export async function assertClientAccess(ctx: ClinicContext, clientId: string): Promise<void> {
+  const client = await getClientById(db, ctx.scope.clinicId, clientId)
+  // Her rol için önce tenant sahipliği doğrulanır. Owner/assistant'ın atama
+  // kısıtı yoktur ama başka kliniğin clientId'siyle ilişkili kayıt yaratması
+  // veya mutasyon yapması yine de kesinlikle engellenmelidir.
+  if (!client) {
+    throw new InsufficientRoleError('Danışan bulunamadı veya bu kliniğe ait değil.')
+  }
+  if (!canAccessClientRecord(client, { role: ctx.role, userId: ctx.user.id })) {
+    throw new InsufficientRoleError('Bu danışan size atanmadı.')
+  }
+}
+
+export function withClientAuth<Rest extends unknown[], Result>(
+  action: (ctx: ClinicContext, clientId: string, ...args: Rest) => Promise<Result>,
+  roles?: ClinicMemberRole[],
+) {
+  return async (clientId: string, ...args: Rest): Promise<Result> => {
+    const ctx = roles && roles.length > 0 ? await requireRole(...roles) : await requireClinic()
+    await assertClientAccess(ctx, clientId)
+    return action(ctx, clientId, ...args)
+  }
+}
+
+async function assertResolvedClientAccess(
+  ctx: ClinicContext,
+  resolve: () => Promise<string | null | undefined>,
+): Promise<void> {
+  const clientId = await resolve()
+  if (clientId === undefined) throw new InsufficientRoleError('Kayıt bulunamadı veya erişiminiz yok.')
+  // clientId=null klinik şablonudur; danışan sağlık verisi taşımaz ve tüm
+  // klinik diyetisyenleri tarafından kullanılabilir.
+  if (clientId === null) return
+  await assertClientAccess(ctx, clientId)
+}
+
+export const assertPlanAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForPlan(db, ctx.scope.clinicId, id))
+
+export const assertPlanDayAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForPlanDay(db, ctx.scope.clinicId, id))
+
+export const assertPlanMealAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForPlanMeal(db, ctx.scope.clinicId, id))
+
+export const assertPlanItemAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForPlanItem(db, ctx.scope.clinicId, id))
+
+export const assertPlanAlternativeAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForPlanAlternative(db, ctx.scope.clinicId, id))
+
+export const assertDocumentAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForDocument(db, ctx.scope.clinicId, id))
+
+export const assertLabResultAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForLabResult(db, ctx.scope.clinicId, id))
+
+export const assertGoalAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForGoal(db, ctx.scope.clinicId, id))
+
+export const assertPlanShareAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForPlanShare(db, ctx.scope.clinicId, id))
+
+export const assertClientPackageAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForClientPackage(db, ctx.scope.clinicId, id))
+
+export const assertAppointmentAccess = (ctx: ClinicContext, id: string) =>
+  assertResolvedClientAccess(ctx, () => clientIdForAppointment(db, ctx.scope.clinicId, id))

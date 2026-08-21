@@ -4,6 +4,7 @@ import { nextCookies } from 'better-auth/next-js'
 import { bearer, oneTimeToken } from 'better-auth/plugins'
 import { db } from '@ogun/db'
 import * as schema from '@ogun/db/schema'
+import { AUTH_SESSION_ADDITIONAL_FIELDS } from './auth-session-fields'
 
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
 // üzerinde (Next.js App Router route handler'ı üzerinden) çalışır, bkz.
@@ -51,16 +52,7 @@ export const auth = betterAuth({
   // üzerinden giriş/klinik değişimi sırasında set edilir (bkz. authz.ts
   // requireClinic / setActiveClinic).
   session: {
-    additionalFields: {
-      activeClinicId: {
-        type: 'string',
-        required: false,
-      },
-      role: {
-        type: 'string',
-        required: false,
-      },
-    },
+    additionalFields: AUTH_SESSION_ADDITIONAL_FIELDS,
   },
   // GitHub issue #52 / Prompt 9.2, GÖREV 1 ve GÖREV 3 — masaüstü (Tauri)
   // native kimlik doğrulama akışı için eklenenler:

@@ -119,7 +119,7 @@ export async function saveWorkingHoursAction(input: WorkingHoursFormValues): Pro
   await upsertWorkingHours(db, draft.id, parsed.data.hours)
   await completeClinicOnboarding(db, draft.id)
   await addClinicOwner(db, draft.id, user.id)
-  await setActiveClinic(draft.id, 'owner')
+  await setActiveClinic(draft.id)
 
   revalidatePath('/', 'layout')
   return { success: true, clinicId: draft.id }

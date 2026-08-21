@@ -19,6 +19,6 @@ export async function selectClinicAction(
   if (!membership) {
     return { success: false, error: 'Bu kliniğe erişiminiz yok. Klinik yöneticinizden davet isteyin.' }
   }
-  await setActiveClinic(clinicId, membership.role)
+  await setActiveClinic(clinicId)
   return { success: true }
 }

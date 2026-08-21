@@ -7,15 +7,15 @@ import { requireAuth, setActiveClinic } from '@/lib/authz'
 
 // Üst bar klinik seçiciden (bkz. _components/clinic-switcher-menu.tsx)
 // çağrılır. clinicId'nin kullanıcının gerçekten üyesi olduğu bir klinik
-// olduğunu BURADA doğruluyoruz — setActiveClinic() kendisi bunu yapmaz
-// (bkz. authz.ts üzerindeki not).
+// olduğunu BURADA kullanıcıya anlaşılır hata döndürmek için doğruluyoruz;
+// setActiveClinic() savunma derinliği olarak aynı üyeliği yeniden doğrular.
 export async function switchClinicAction(clinicId: string): Promise<{ success: boolean; error?: string }> {
   const { user } = await requireAuth()
   const membership = await getClinicMembership(db, clinicId, user.id)
   if (!membership) {
     return { success: false, error: 'Bu kliniğe erişiminiz yok.' }
   }
-  await setActiveClinic(clinicId, membership.role)
+  await setActiveClinic(clinicId)
   revalidatePath('/', 'layout')
   return { success: true }
 }
