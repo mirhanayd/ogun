@@ -19,7 +19,15 @@ export const auth = betterAuth({
     schema,
   }),
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL,
+  // Web deployments keep the configured canonical URL. The packaged desktop
+  // app, however, runs on a random loopback port; resolving that request host
+  // dynamically is essential so Google receives a callback URL that points
+  // back to the same running sidecar instead of localhost:3000.
+  baseURL: {
+    allowedHosts: ['127.0.0.1:*', 'localhost:*'],
+    fallback: process.env.BETTER_AUTH_URL,
+    protocol: 'auto',
+  },
   // GitHub issue #52 / Prompt 9.2 — masaüstü (Tauri) uygulaması "şifremi
   // unuttum" e-postasındaki linki ogun://auth/reset-password gibi ÖZEL bir
   // URL şemasına yönlendirebilsin diye bu origin'i güvenilir listeye ekliyoruz.
