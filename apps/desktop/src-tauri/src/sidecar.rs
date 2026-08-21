@@ -107,6 +107,9 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
                         eprintln!("[ogun-desktop] app-server sonlandı: {payload:?}");
                         break;
                     }
+                    // CommandEvent is non-exhaustive; future plugin versions may
+                    // add events that do not require handling here.
+                    _ => {}
                 }
             }
         });
