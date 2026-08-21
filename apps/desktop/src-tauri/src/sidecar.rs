@@ -19,6 +19,7 @@
 //! imzalama ve dağıtım") kapsamı — burada spawn/port-poll/yönlendirme
 //! MEKANİZMASININ KENDİSİ tam olarak çalışır durumda.
 
+use std::net::TcpListener;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindow};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 use tokio::net::TcpStream;
@@ -31,9 +32,13 @@ use crate::navigation::AppOrigin;
 /// — masaüstü uygulaması için doğru varsayılan, bkz. Dockerfile'daki
 /// `HOSTNAME=0.0.0.0`'ın AKSİNE burada bilinçli olarak 127.0.0.1).
 const SIDECAR_HOST: &str = "127.0.0.1";
-const SIDECAR_PORT: u16 = 3000;
 const READY_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+fn available_port() -> std::io::Result<u16> {
+    let listener = TcpListener::bind((SIDECAR_HOST, 0))?;
+    Ok(listener.local_addr()?.port())
+}
 
 /// Node sidecar sürecini başlatır; TCP portu yanıt verir vermez ana
 /// pencereyi (hâlâ splash sayfasını gösteren) o adrese yönlendirir.
@@ -61,7 +66,15 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
                 return;
             }
         };
-        let server_js = resource_dir.join("resources/web-server/apps/web/server.js");
+        let web_server_dir = resource_dir.join("resources/web-server");
+        let server_js = web_server_dir.join("apps/web/server.js");
+        let sidecar_port = match available_port() {
+            Ok(port) => port,
+            Err(err) => {
+                eprintln!("[ogun-desktop] app-server için boş port bulunamadı: {err}");
+                return;
+            }
+        };
 
         let shell = app.shell();
         let command = match shell.sidecar("app-server") {
@@ -74,7 +87,11 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
 
         let command = command
             .args([server_js.to_string_lossy().to_string()])
-            .env("PORT", SIDECAR_PORT.to_string())
+            // Next standalone, derleme sırasında kopyalanan `.env` dosyasını
+            // process çalışma dizininden yükler. Exe dizininden başlatılırsa
+            // veritabanı/auth ayarlarını göremez ve her route 500 döndürür.
+            .current_dir(&web_server_dir)
+            .env("PORT", sidecar_port.to_string())
             .env("HOSTNAME", SIDECAR_HOST)
             .env("NODE_ENV", "production");
 
@@ -114,7 +131,7 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
             }
         });
 
-        let address = format!("{SIDECAR_HOST}:{SIDECAR_PORT}");
+        let address = format!("{SIDECAR_HOST}:{sidecar_port}");
         let became_ready = timeout(READY_TIMEOUT, async {
             loop {
                 if TcpStream::connect(&address).await.is_ok() {
