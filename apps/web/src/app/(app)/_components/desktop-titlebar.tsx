@@ -18,13 +18,10 @@ export function DesktopTitlebar({
   userName: string
   userEmail: string
 }) {
-  const [native, setNative] = useState(false)
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
-    const detected = isNativeShell()
-    setNative(detected)
-    if (!detected) return
+    if (!isNativeShell()) return
 
     document.documentElement.dataset.nativeShell = 'true'
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
@@ -35,8 +32,6 @@ export function DesktopTitlebar({
       delete document.documentElement.dataset.nativeShell
     }
   }, [])
-
-  if (!native) return null
 
   async function withWindow(action: 'minimize' | 'toggleMaximize' | 'close') {
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
@@ -52,7 +47,11 @@ export function DesktopTitlebar({
   return (
     <header
       data-tauri-drag-region
-      onDoubleClick={() => void withWindow('toggleMaximize')}
+      onDoubleClick={(event) => {
+        const target = event.target as HTMLElement
+        if (target.closest('button, a, input, [role="button"], [role="menuitem"]')) return
+        void withWindow('toggleMaximize')
+      }}
       className="desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b border-white/10 bg-desktop-chrome text-white shadow-[0_1px_0_rgba(0,0,0,0.22)]"
     >
       <div data-tauri-drag-region className="flex w-60 shrink-0 items-center gap-2.5 px-4">

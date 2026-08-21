@@ -64,54 +64,60 @@ export function MonthGrid({
           const inMonth = day.getMonth() === monthDate.getMonth()
           const isToday = day.toDateString() === today
           return (
-            <button
+            <div
               key={day.toISOString()}
-              type="button"
-              onClick={() => onDayClick(day)}
               className={cn(
-                'flex min-h-24 flex-col gap-0.5 border-b border-r border-border p-1 text-left align-top transition-colors hover:bg-accent/50',
+                'relative min-h-24 border-r border-b border-border text-left align-top',
                 !inMonth && 'bg-muted/20 text-muted-foreground',
               )}
             >
-              <span
-                className={cn(
-                  'flex size-5 items-center justify-center rounded-full text-[11px]',
-                  isToday && 'bg-primary text-primary-foreground',
-                )}
-              >
-                {day.getDate()}
-              </span>
-              <div className="flex flex-col gap-0.5">
-                {dayAppointments.slice(0, MAX_VISIBLE_PER_DAY).map((appointment) => {
-                  const color = dietitianColor(appointment.dietitianId, dietitianOrder)
-                  return (
-                    <span
-                      key={appointment.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onAppointmentClick(appointment)
-                      }}
-                      className={cn(
-                        'truncate rounded border px-1 py-px text-[10px]',
-                        color.bg,
-                        color.border,
-                        color.text,
-                      )}
-                    >
-                      {appointment.startsAt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}{' '}
-                      {appointment.clientFirstName}
+              <button
+                type="button"
+                aria-label={`${day.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} gününü aç`}
+                onClick={() => onDayClick(day)}
+                className="absolute inset-0 z-0 transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none"
+              />
+              <div className="pointer-events-none relative z-10 flex min-h-24 flex-col gap-0.5 p-1">
+                <span
+                  className={cn(
+                    'flex size-5 items-center justify-center rounded-full text-[11px]',
+                    isToday && 'bg-primary text-primary-foreground',
+                  )}
+                >
+                  {day.getDate()}
+                </span>
+                <div className="flex flex-col gap-0.5">
+                  {dayAppointments.slice(0, MAX_VISIBLE_PER_DAY).map((appointment) => {
+                    const color = dietitianColor(appointment.dietitianId, dietitianOrder)
+                    const appointmentTime = appointment.startsAt.toLocaleTimeString('tr-TR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                    return (
+                      <button
+                        key={appointment.id}
+                        type="button"
+                        aria-label={`${appointmentTime}, ${appointment.clientFirstName} randevusunu aç`}
+                        onClick={() => onAppointmentClick(appointment)}
+                        className={cn(
+                          'pointer-events-auto relative z-10 truncate rounded border px-1 py-px text-left text-[10px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                          color.bg,
+                          color.border,
+                          color.text,
+                        )}
+                      >
+                        {appointmentTime} {appointment.clientFirstName}
+                      </button>
+                    )
+                  })}
+                  {dayAppointments.length > MAX_VISIBLE_PER_DAY && (
+                    <span className="text-[10px] text-muted-foreground">
+                      +{dayAppointments.length - MAX_VISIBLE_PER_DAY} daha
                     </span>
-                  )
-                })}
-                {dayAppointments.length > MAX_VISIBLE_PER_DAY && (
-                  <span className="text-[10px] text-muted-foreground">
-                    +{dayAppointments.length - MAX_VISIBLE_PER_DAY} daha
-                  </span>
-                )}
+                  )}
+                </div>
               </div>
-            </button>
+            </div>
           )
         })}
       </div>

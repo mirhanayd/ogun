@@ -11,6 +11,12 @@ const inter = Inter({
   subsets: ['latin', 'latin-ext'],
 })
 
+// Tauri pencere dekorasyonunu Rust tarafında kapatıyor. Bu küçük, sabit script
+// React hydration'ından önce native ortamı işaretleyerek özel titlebar için
+// boş bir ilk kare ve 48 px'lik yerleşim sıçramasını önler. Web'de no-op'tur.
+const nativeShellBootstrap =
+  "try{if('__TAURI_INTERNALS__' in window)document.documentElement.dataset.nativeShell='true'}catch{}"
+
 // GitHub issue #60 / Faz 10, Prompt 10.2, GÖREV 3 — `metadataBase`, Next.js'in
 // göreli metadata URL'lerini (canonical, opengraph-image) MUTLAK hâle
 // getirebilmesi için gerekir; tanımlı olmadan build sırasında uyarı basar ve
@@ -53,6 +59,9 @@ export default function RootLayout({
     // <html>'e taşımak tek satırlık ve davranışı bozmayan düzeltme;
     // `antialiased` <body>'de kalıyor.
     <html lang="tr" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: nativeShellBootstrap }} />
+      </head>
       <body className="antialiased">
         {/* GitHub issue #52 / Prompt 9.2 — native (Tauri) kabukta oturum
             kalıcılığı + OAuth deep link köprüsü; web tarayıcısında NO-OP

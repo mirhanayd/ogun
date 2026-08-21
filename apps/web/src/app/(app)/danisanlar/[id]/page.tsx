@@ -38,16 +38,23 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { scope } = await requireClinic()
 
-  const [client, dietitians, latestMeasurement, weightGoal, healthRecord, abnormalLabResults, nextAppointment] =
-    await Promise.all([
-      viewClientRecord(id),
-      listClinicDietitians(db, scope.clinicId),
-      getClientLatestMeasurement(id),
-      getClientActiveGoal(id, 'kilo'),
-      getClientHealthRecord(id),
-      listClientAbnormalLabResults(id),
-      getClientNextAppointment(id),
-    ])
+  const [
+    client,
+    dietitians,
+    latestMeasurement,
+    weightGoal,
+    healthRecord,
+    abnormalLabResults,
+    nextAppointment,
+  ] = await Promise.all([
+    viewClientRecord(id),
+    listClinicDietitians(db, scope.clinicId),
+    getClientLatestMeasurement(id),
+    getClientActiveGoal(id, 'kilo'),
+    getClientHealthRecord(id),
+    listClientAbnormalLabResults(id),
+    getClientNextAppointment(id),
+  ])
 
   // Soft-delete edilmiş (bkz. schema/clients.ts deletedAt) bir kayıt normal
   // uygulama akışında GÖRÜNTÜLENMEZ — veri sahibi hakları akışı (dışa
@@ -88,8 +95,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <Avatar size="lg">
             <AvatarFallback>{initials(client.firstName, client.lastName)}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 sm:flex-none">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold">
                 {client.firstName} {client.lastName}
               </h1>
@@ -116,7 +123,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </div>
           {/* Son görüşme artık GERÇEK veri — GitHub issue #39 / Prompt 7.1
               randevu modülünün getClientNextAppointment sorgusundan. */}
-          <div className="ml-auto grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
+          <div className="grid w-full grid-cols-2 gap-x-6 gap-y-3 border-t border-border/60 pt-4 text-sm sm:ml-auto sm:w-auto sm:grid-cols-4 sm:border-0 sm:pt-0">
             <SummaryStat
               label="Güncel kilo"
               value={currentWeightKg !== null ? `${currentWeightKg} kg` : '—'}
@@ -130,7 +137,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               label="Sonraki randevu"
               value={
                 nextAppointment
-                  ? nextAppointment.startsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+                  ? nextAppointment.startsAt.toLocaleDateString('tr-TR', {
+                      day: '2-digit',
+                      month: 'short',
+                    })
                   : '—'
               }
             />
@@ -139,17 +149,35 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_240px]">
-        <Tabs defaultValue="genel">
-          <TabsList>
-            <TabsTrigger value="genel">Genel</TabsTrigger>
-            <TabsTrigger value="olcumler">Ölçümler</TabsTrigger>
-            <TabsTrigger value="planlar">Planlar</TabsTrigger>
-            <TabsTrigger value="anamnez">Anamnez</TabsTrigger>
-            <TabsTrigger value="laboratuvar">Laboratuvar</TabsTrigger>
-            <TabsTrigger value="dosyalar">Dosyalar</TabsTrigger>
-            <TabsTrigger value="randevular">Randevular</TabsTrigger>
-            <TabsTrigger value="odemeler">Ödemeler</TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue="genel" className="min-w-0">
+          <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+            <TabsList className="min-w-max justify-start">
+              <TabsTrigger value="genel" className="flex-none">
+                Genel
+              </TabsTrigger>
+              <TabsTrigger value="olcumler" className="flex-none">
+                Ölçümler
+              </TabsTrigger>
+              <TabsTrigger value="planlar" className="flex-none">
+                Planlar
+              </TabsTrigger>
+              <TabsTrigger value="anamnez" className="flex-none">
+                Anamnez
+              </TabsTrigger>
+              <TabsTrigger value="laboratuvar" className="flex-none">
+                Laboratuvar
+              </TabsTrigger>
+              <TabsTrigger value="dosyalar" className="flex-none">
+                Dosyalar
+              </TabsTrigger>
+              <TabsTrigger value="randevular" className="flex-none">
+                Randevular
+              </TabsTrigger>
+              <TabsTrigger value="odemeler" className="flex-none">
+                Ödemeler
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="genel" className="mt-4">
             <GeneralTabForm client={client} dietitians={dietitians} />
@@ -217,4 +245,3 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-

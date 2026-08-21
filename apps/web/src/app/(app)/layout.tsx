@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const showProductTour = !(await hasCompletedProductTour(db, ctx.user.id))
 
   return (
-    <div className="flex min-h-svh flex-col bg-background" data-app-shell>
+    <div className="flex h-svh min-h-0 flex-col overflow-hidden bg-background" data-app-shell>
       <DesktopTitlebar role={ctx.role} userName={ctx.user.name} userEmail={ctx.user.email} />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">

@@ -370,3 +370,15 @@
 ::selection {
   background: color-mix(in oklch, var(--primary) 22%, transparent);
 }
+
+/* SSR çıktısında titlebar her zaman bulunur; web'de görünmez, Tauri işareti
+   erken bootstrap edildiğinde ise ilk boyamadan itibaren yerini alır. Bu
+   kurallar cascade layer dışında olduğundan Tailwind'in display utility'lerini
+   bilinçli olarak ezer. */
+.desktop-titlebar {
+  display: none;
+}
+
+html[data-native-shell] .desktop-titlebar {
+  display: flex;
+}
