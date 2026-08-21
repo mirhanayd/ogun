@@ -53,7 +53,16 @@
 // ÇALIŞTIRILAMADI) — evrensel macOS birleştirme adımı bu yüzden SADECE
 // kaynak kodu okunarak (doğru `lipo -create -output ... a b` çağrısı)
 // yazıldı, gerçek bir macOS'ta CANLI test EDİLEMEDİ.
-import { existsSync, mkdirSync, rmSync, cpSync, copyFileSync, chmodSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  cpSync,
+  copyFileSync,
+  chmodSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -79,13 +88,18 @@ function run(command, args, opts = {}) {
     ...opts,
   })
   if (result.status !== 0) {
-    console.error(`[prepare-sidecar] Komut başarısız oldu (exit ${result.status}): ${command} ${args.join(' ')}`)
+    console.error(
+      `[prepare-sidecar] Komut başarısız oldu (exit ${result.status}): ${command} ${args.join(' ')}`,
+    )
     process.exit(result.status ?? 1)
   }
 }
 
 function rustTargetTriple() {
-  const result = spawnSync('rustc', ['-vV'], { encoding: 'utf8', shell: process.platform === 'win32' })
+  const result = spawnSync('rustc', ['-vV'], {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  })
   if (result.status === 0) {
     const match = /host:\s*(\S+)/.exec(result.stdout)
     if (match) return match[1]
@@ -93,7 +107,11 @@ function rustTargetTriple() {
   // rustc yoksa (Rust kurulu değilse) platforma göre makul bir varsayılana
   // düş — sadece `resources/binaries` hazırlığı için, gerçek derleme zaten
   // rustc gerektirir.
-  const fallback = { win32: 'x86_64-pc-windows-msvc', darwin: 'aarch64-apple-darwin', linux: 'x86_64-unknown-linux-gnu' }
+  const fallback = {
+    win32: 'x86_64-pc-windows-msvc',
+    darwin: 'aarch64-apple-darwin',
+    linux: 'x86_64-unknown-linux-gnu',
+  }
   console.warn(
     `[prepare-sidecar] rustc bulunamadı, hedef üçlü için platform varsayılanı kullanılıyor: ${fallback[process.platform]}`,
   )
@@ -113,13 +131,17 @@ const sidecarSource = readArg('source', 'OGUN_SIDECAR_SOURCE') || 'host'
 const sidecarTarget = readArg('target', 'OGUN_SIDECAR_TARGET') || rustTargetTriple()
 
 if (!['host', 'download'].includes(sidecarSource)) {
-  console.error(`[prepare-sidecar] Bilinmeyen --source değeri: ${sidecarSource} (beklenen: host | download)`)
+  console.error(
+    `[prepare-sidecar] Bilinmeyen --source değeri: ${sidecarSource} (beklenen: host | download)`,
+  )
   process.exit(1)
 }
 
 // --- 1) apps/web'i standalone modda derle ---------------------------------
 
-console.log('[prepare-sidecar] apps/web STANDALONE_BUILD=1 ile derleniyor (next build, turbopack YOK)...')
+console.log(
+  '[prepare-sidecar] apps/web STANDALONE_BUILD=1 ile derleniyor (next build, turbopack YOK)...',
+)
 run('pnpm', ['--filter', 'web', 'exec', 'next', 'build'], {
   cwd: repoRoot,
   env: { ...process.env, STANDALONE_BUILD: '1' },
@@ -138,8 +160,19 @@ console.log(`[prepare-sidecar] Kaynaklar kopyalanıyor -> ${resourcesDir}`)
 rmSync(resourcesDir, { recursive: true, force: true })
 mkdirSync(resourcesDir, { recursive: true })
 cpSync(standaloneDir, resourcesDir, { recursive: true })
-cpSync(resolve(webRoot, '.next/static'), resolve(resourcesDir, 'apps/web/.next/static'), { recursive: true })
+cpSync(resolve(webRoot, '.next/static'), resolve(resourcesDir, 'apps/web/.next/static'), {
+  recursive: true,
+})
 cpSync(resolve(webRoot, 'public'), resolve(resourcesDir, 'apps/web/public'), { recursive: true })
+
+// Monorepo standalone çıktısında server.js `apps/web` altında yer alır ve
+// başlarken çalışma dizinini kendi klasörüne çevirir. Next'in standalone
+// köküne kopyaladığı .env bu nedenle otomatik bulunmaz; runtime doğrulaması
+// tüm zorunlu değişkenleri eksik sanıp her isteği 500 ile sonuçlandırır.
+const standaloneEnv = resolve(standaloneDir, '.env')
+if (existsSync(standaloneEnv)) {
+  copyFileSync(standaloneEnv, resolve(resourcesDir, 'apps/web/.env'))
+}
 
 // --- 3) Node sidecar ikili dosyasını hazırla ------------------------------
 
@@ -245,7 +278,12 @@ async function downloadNodeBinaryForTriple(triple, destPath) {
   // için).
   run('tar', ['--force-local', '-xzf', archivePath, '-C', extractDir])
 
-  const extractedBinary = join(extractDir, `node-v${NODE_VERSION}-${distPlatform}-${distArch}`, 'bin', 'node')
+  const extractedBinary = join(
+    extractDir,
+    `node-v${NODE_VERSION}-${distPlatform}-${distArch}`,
+    'bin',
+    'node',
+  )
   if (!existsSync(extractedBinary)) {
     throw new Error(`Arşivden beklenen ikili bulunamadı: ${extractedBinary}`)
   }
@@ -273,7 +311,7 @@ async function prepareUniversalMacosBinary(destPath) {
     // sidecar HAZIRLANAMAZ.
     throw new Error(
       "'universal-apple-darwin' hedefi için Node ikilileri indirildi (aarch64 + x86_64) ama `lipo` ile " +
-        'birleştirme SADECE macOS üzerinde yapılabilir. Bu adımı bir macOS CI runner\'ında (ör. macos-latest) ' +
+        "birleştirme SADECE macOS üzerinde yapılabilir. Bu adımı bir macOS CI runner'ında (ör. macos-latest) " +
         'çalıştırın.',
     )
   }
@@ -293,13 +331,17 @@ if (sidecarSource === 'host') {
   // KENDİ üçlüsü olacağından bu, çoğu geliştirme senaryosunda `download`
   // moduyla AYNI dosya adını üretir — ama İÇERİĞİ farklıdır (imzasız/yerel
   // kopya vs. resmi indirilmiş dağıtım).
-  console.log(`[prepare-sidecar] [host modu] Node sidecar ikili dosyası kopyalanıyor -> ${sidecarPath}`)
+  console.log(
+    `[prepare-sidecar] [host modu] Node sidecar ikili dosyası kopyalanıyor -> ${sidecarPath}`,
+  )
   copyFileSync(process.execPath, sidecarPath)
   if (process.platform !== 'win32') {
     chmodSync(sidecarPath, 0o755)
   }
 } else {
-  console.log(`[prepare-sidecar] [download modu] hedef: ${sidecarTarget}, Node sürümü: v${NODE_VERSION}`)
+  console.log(
+    `[prepare-sidecar] [download modu] hedef: ${sidecarTarget}, Node sürümü: v${NODE_VERSION}`,
+  )
   if (sidecarTarget === 'universal-apple-darwin') {
     await prepareUniversalMacosBinary(sidecarPath)
   } else {
