@@ -165,15 +165,6 @@ cpSync(resolve(webRoot, '.next/static'), resolve(resourcesDir, 'apps/web/.next/s
 })
 cpSync(resolve(webRoot, 'public'), resolve(resourcesDir, 'apps/web/public'), { recursive: true })
 
-// Monorepo standalone çıktısında server.js `apps/web` altında yer alır ve
-// başlarken çalışma dizinini kendi klasörüne çevirir. Next'in standalone
-// köküne kopyaladığı .env bu nedenle otomatik bulunmaz; runtime doğrulaması
-// tüm zorunlu değişkenleri eksik sanıp her isteği 500 ile sonuçlandırır.
-const standaloneEnv = resolve(standaloneDir, '.env')
-if (existsSync(standaloneEnv)) {
-  copyFileSync(standaloneEnv, resolve(resourcesDir, 'apps/web/.env'))
-}
-
 // --- 3) Node sidecar ikili dosyasını hazırla ------------------------------
 
 const binariesDir = resolve(desktopRoot, 'src-tauri/binaries')

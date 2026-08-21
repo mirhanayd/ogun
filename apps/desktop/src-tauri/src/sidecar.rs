@@ -68,6 +68,7 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
         };
         let web_server_dir = resource_dir.join("resources/web-server");
         let server_js = web_server_dir.join("apps/web/server.js");
+        let env_file = web_server_dir.join(".env");
         let sidecar_port = match available_port() {
             Ok(port) => port,
             Err(err) => {
@@ -85,11 +86,14 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
             }
         };
 
+        let mut server_args = Vec::with_capacity(2);
+        if env_file.exists() {
+            server_args.push(format!("--env-file={}", env_file.to_string_lossy()));
+        }
+        server_args.push(server_js.to_string_lossy().to_string());
+
         let command = command
-            .args([server_js.to_string_lossy().to_string()])
-            // Next standalone, derleme sırasında kopyalanan `.env` dosyasını
-            // process çalışma dizininden yükler. Exe dizininden başlatılırsa
-            // veritabanı/auth ayarlarını göremez ve her route 500 döndürür.
+            .args(server_args)
             .current_dir(&web_server_dir)
             .env("PORT", sidecar_port.to_string())
             .env("HOSTNAME", SIDECAR_HOST)
