@@ -29,7 +29,9 @@ export const auth = betterAuth({
   // "ogun://auth/" öneki YETERLİ ve doğru (resmi Better Auth deseni, bkz.
   // mobil/Expo istemcileri için trustedOrigins: ["myapp://"] dokümantasyonu).
   // baseURL zaten örtük olarak güvenilir olduğundan web akışı ETKİLENMEZ.
-  trustedOrigins: ['ogun://auth/'],
+  // The packaged sidecar binds to a random free loopback port. Trust only
+  // loopback origins, never LAN or arbitrary HTTP origins.
+  trustedOrigins: ['ogun://auth/', 'http://127.0.0.1:*', 'http://localhost:*'],
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

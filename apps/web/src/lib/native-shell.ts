@@ -46,8 +46,9 @@ export function getGoogleSignInRedirects(): { callbackURL: string; errorCallback
 export function getNativeGoogleSignInURL(): string {
   const configuredBaseURL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.trim()
   const baseURL =
-    configuredBaseURL ||
-    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+    isNativeShell() && typeof window !== 'undefined'
+      ? window.location.origin
+      : configuredBaseURL || 'http://localhost'
   return new URL('/api/auth/native/google', baseURL).toString()
 }
 

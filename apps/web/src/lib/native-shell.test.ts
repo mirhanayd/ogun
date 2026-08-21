@@ -43,9 +43,9 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
   it("native kabukta Google girişini sistem tarayıcısındaki başlangıç route'una taşır", () => {
     vi.stubGlobal('window', {
       __TAURI_INTERNALS__: {},
-      location: { origin: 'http://localhost:3000' },
+      location: { origin: 'http://127.0.0.1:51374' },
     })
-    expect(getNativeGoogleSignInURL()).toBe('http://localhost:3000/api/auth/native/google')
+    expect(getNativeGoogleSignInURL()).toBe('http://127.0.0.1:51374/api/auth/native/google')
   })
 
   // GitHub issue #53 / Prompt 9.3, GÖREV 4 — `saveFileNatively`'nin

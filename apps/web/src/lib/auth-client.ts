@@ -1,7 +1,11 @@
 import { createAuthClient } from 'better-auth/react'
 import { inferAdditionalFields, oneTimeTokenClient } from 'better-auth/client/plugins'
 import type { Auth } from './auth'
-import { getCachedNativeSessionToken, isNativeShell, persistNativeSessionToken } from './native-shell'
+import {
+  getCachedNativeSessionToken,
+  isNativeShell,
+  persistNativeSessionToken,
+} from './native-shell'
 
 // İstemci tarafı Better Auth istemcisi. inferAdditionalFields<Auth>() sayesinde
 // session.activeClinicId ve session.role alanları da tip güvenli olarak gelir.
@@ -19,7 +23,12 @@ import { getCachedNativeSessionToken, isNativeShell, persistNativeSessionToken }
 //   TARAYICISINDA bu iki kanca da NO-OP'tur (isNativeShell() false) —
 //   çerez tabanlı oturum AYNEN mevcut haliyle çalışmaya devam eder.
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+  // The packaged desktop server listens on a free loopback port, not the
+  // build-time web URL (usually localhost:3000).
+  baseURL:
+    isNativeShell() && typeof window !== 'undefined'
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   plugins: [inferAdditionalFields<Auth>(), oneTimeTokenClient()],
   fetchOptions: {
     auth: {
