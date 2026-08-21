@@ -3,23 +3,18 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { ArrowRight, LockKeyhole, Mail } from 'lucide-react'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { AuthCard, AuthError } from '../_components/auth-card'
+import { GoogleSignInButton } from '@/components/google-sign-in-button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { GoogleSignInButton } from '@/components/google-sign-in-button'
 import { authClient } from '@/lib/auth-client'
 import { loginSchema, type LoginFormValues } from '@/lib/validation/auth-schemas'
 
-// GitHub issue #52 / Prompt 9.2, kod incelemesi (PR #56) — native Google
-// girişi başarısız olursa (bkz. native-auth-bridge.tsx) kullanıcı buraya
-// `?hata=<kod>` ile geri döner. `window.location.search`'ten (useSearchParams
-// DEĞİL — bu, sayfayı bir Suspense sınırına ayırma ZORUNLULUĞU getirirdi,
-// bkz. sifre-sifirla/page.tsx; burada tek seferlik, mount-anı bir okuma
-// yeterli) okuyup anlaşılır bir Türkçe bildirim (toast) gösteriyoruz.
 const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   'google-girisi-basarisiz': 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.',
   no_session: 'Google girişi tamamlanamadı (oturum bulunamadı), lütfen tekrar deneyin.',
@@ -33,9 +28,9 @@ export default function GirisPage() {
   useEffect(() => {
     const hata = new URLSearchParams(window.location.search).get('hata')
     if (!hata) return
-    toast.error(GOOGLE_ERROR_MESSAGES[hata] ?? 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.')
-    // URL'deki ?hata= parametresini temizle — sayfa yenilendiğinde/geri
-    // gidildiğinde bildirim TEKRAR gösterilmesin.
+    toast.error(
+      GOOGLE_ERROR_MESSAGES[hata] ?? 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.',
+    )
     router.replace('/giris')
   }, [router])
 
@@ -43,9 +38,7 @@ export default function GirisPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-  })
+  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) })
 
   async function onSubmit(values: LoginFormValues) {
     setFormError(null)
@@ -61,76 +54,107 @@ export default function GirisPage() {
       )
       return
     }
-    // GitHub issue #67 — GİRİŞ sonrası hedef /kurulum DEĞİL /panel. Buraya
-    // gelen kullanıcının kliniği ÇOKTAN olabilir (yeni cihaz, çerez temizliği,
-    // oturum süresi dolması) ve onu kurulum sihirbazına atmak yanlıştı.
-    // /panel (app) segmentinde: layout.tsx'teki requireClinic() üç durumu da
-    // doğru ele alıyor — tek üyelik varsa otomatik seçip devam ediyor, birden
-    // fazlaysa /klinik-sec'e, hiç yoksa /kurulum'a yönlendiriyor. Yeni KAYIT
-    // akışı (kayit/page.tsx) /kurulum'a gitmeye devam ediyor; orada kullanıcının
-    // gerçekten kliniği yok.
     router.push('/panel')
     router.refresh()
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Giriş yap</CardTitle>
-        <CardDescription>Öğün hesabınıza giriş yapın.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {/* method="post" GÜVENLİK amaçlı: React hydrate OLMADAN (JS event
-            listener'ları bağlanmadan) kullanıcı gönder'e tıklarsa tarayıcı
-            native form davranışına düşer — method belirtilmemişse varsayılan
-            GET'tir ve şifre alanı (name="password") URL'e/tarayıcı geçmişine
-            YAZILIR. POST'ta bu olmaz; onSubmit zaten hydration sonrası devreye
-            girip gerçek isteği authClient.signIn.email() ile YAPIYOR, bu form
-            action'ı hiç TETİKLENMİYOR — sadece hydration-öncesi güvenli bir
-            geri düşüş (fallback). */}
-        <form
-          className="flex flex-col gap-4"
-          method="post"
-          onSubmit={handleSubmit(onSubmit)}
-          noValidate
-        >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">E-posta</Label>
-            <Input id="email" type="email" autoComplete="email" aria-invalid={!!errors.email} {...register('email')} />
-            {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+    <AuthCard
+      eyebrow="Tekrar hoş geldiniz"
+      title="Kliniğinize kaldığınız yerden devam edin."
+      description="Öğün hesabınıza giriş yapın. Danışanlarınız, planlarınız ve ekip çalışma alanınız sizi bekliyor."
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          Kliniğiniz için ilk hesabı mı açıyorsunuz?{' '}
+          <Link
+            href="/kayit"
+            className="font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            Yönetici hesabı oluşturun
+          </Link>
+        </p>
+      }
+    >
+      <form
+        className="flex flex-col gap-5"
+        method="post"
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="email" className="text-sm font-medium">
+            E-posta
+          </Label>
+          <div className="relative">
+            <Mail
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="ad@klinik.com"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'login-email-error' : undefined}
+              className="h-11 rounded-xl bg-card pr-3 pl-10"
+              {...register('email')}
+            />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Şifre</Label>
-              <Link href="/sifremi-unuttum" className="text-sm text-muted-foreground hover:underline">
-                Şifremi unuttum
-              </Link>
-            </div>
+          {errors.email ? (
+            <p id="login-email-error" className="text-xs text-destructive">
+              {errors.email.message}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="password" className="text-sm font-medium">
+              Şifre
+            </Label>
+            <Link
+              href="/sifremi-unuttum"
+              className="rounded text-xs font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Şifremi unuttum
+            </Link>
+          </div>
+          <div className="relative">
+            <LockKeyhole
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               id="password"
               type="password"
               autoComplete="current-password"
+              placeholder="Şifreniz"
               aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'login-password-error' : undefined}
+              className="h-11 rounded-xl bg-card pr-3 pl-10"
               {...register('password')}
             />
-            {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
           </div>
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}
-          </Button>
-        </form>
-        {/* GitHub issue #52 / Prompt 9.2 — bkz. google-sign-in-button.tsx
-            dosya başı notu: bu düğme YENİ eklendi, yukarıdaki e-posta+şifre
-            formu DEĞİŞMEDİ. */}
-        <GoogleSignInButton />
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          Hesabınız yok mu?{' '}
-          <Link href="/kayit" className="text-primary hover:underline">
-            Kayıt olun
-          </Link>
-        </p>
-      </CardContent>
-    </Card>
+          {errors.password ? (
+            <p id="login-password-error" className="text-xs text-destructive">
+              {errors.password.message}
+            </p>
+          ) : null}
+        </div>
+
+        {formError ? <AuthError>{formError}</AuthError> : null}
+
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="mt-1 h-11 w-full rounded-xl shadow-sm shadow-primary/20"
+        >
+          {isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}
+          {!isSubmitting ? <ArrowRight aria-hidden="true" /> : null}
+        </Button>
+      </form>
+      <GoogleSignInButton />
+    </AuthCard>
   )
 }
