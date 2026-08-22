@@ -3,12 +3,15 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ClinicMemberRole } from '@ogun/db/schema'
+import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import { cn } from '@/lib/utils'
 import { visibleNavItems } from './nav-items'
 
 export function SidebarNav({ role }: { role: ClinicMemberRole }) {
   const pathname = usePathname()
   const items = visibleNavItems(role)
+  const connectivity = useConnectivityStatus()
+  const isOnline = connectivity === 'online'
 
   return (
     <nav className="flex min-h-0 flex-1 flex-col px-3 pb-4" aria-label="Ana gezinme">
@@ -47,11 +50,28 @@ export function SidebarNav({ role }: { role: ClinicMemberRole }) {
       </div>
       <div className="mt-auto rounded-xl border border-sidebar-border bg-background/45 p-3">
         <div className="mb-1 flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
-          <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]" />
-          Sistem çevrimiçi
+          <span
+            className={cn(
+              'size-1.5 rounded-full',
+              isOnline
+                ? 'bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]'
+                : connectivity === 'offline'
+                  ? 'bg-destructive shadow-[0_0_0_3px_color-mix(in_oklch,var(--destructive)_12%,transparent)]'
+                  : 'animate-pulse bg-amber-500',
+            )}
+          />
+          {isOnline
+            ? 'Sistem aktif'
+            : connectivity === 'offline'
+              ? 'Bağlantı yok'
+              : 'Bağlantı kontrol ediliyor'}
         </div>
         <p className="text-[10px] leading-4 text-muted-foreground">
-          Verileriniz güvenli klinik alanına kaydediliyor.
+          {isOnline
+            ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
+            : connectivity === 'offline'
+              ? 'Değişiklikleriniz şu anda sunucuya kaydedilemez.'
+              : 'Güvenli klinik alanına erişim doğrulanıyor.'}
         </p>
       </div>
     </nav>

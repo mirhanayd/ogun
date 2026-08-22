@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { CloudOff } from 'lucide-react'
+import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 
 // GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 2 — "Çevrimdışı göstergesi:
 // plan editöründe var, uygulama geneline yay."
@@ -14,33 +14,14 @@ import { CloudOff } from 'lucide-react'
 // çevrimdışı kuyruğu YOK, yani şu anda yapılan bir kayıt/güncelleme
 // kaybolur. Bu yüzden metin "yerel kayıt" DEMİYOR, ne yapılacağını söylüyor.
 //
-// Neden `navigator.onLine`: tarayıcının bu bayrağı "ağ arayüzü var mı"
-// sorusunu yanıtlar, "sunucuya ulaşılıyor mu" sorusunu DEĞİL — yani yanlış
-// pozitif verebilir (bağlı ama internet yok). Buna karşılık YANLIŞ NEGATİF
-// vermez: false ise gerçekten bağlantı yoktur. Gösterge bu yüzden yalnızca
-// `false` durumunda görünür; "çevrimiçi" olduğunu iddia eden bir rozet YOK.
+// Bağlantı durumu uygulama kabuğundaki tek ConnectivityStatusProvider'dan
+// gelir. Provider hem tarayıcı ağ olaylarını dinler hem de `/api/connectivity`
+// üzerinden Neon'a gerçek bir gidiş-dönüş yapar; yerel masaüstü sunucusunun
+// çalışıyor olması bu yüzden yanlış bir "çevrimiçi" sonucu üretmez.
 export function OfflineIndicator() {
-  const [offline, setOffline] = useState(false)
+  const status = useConnectivityStatus()
 
-  useEffect(() => {
-    function handleOnline() {
-      setOffline(false)
-    }
-    function handleOffline() {
-      setOffline(true)
-    }
-    // İlk okuma effect İÇİNDE — sunucu render'ında `navigator` yok ve
-    // useState başlangıç değerinde okumak hidrasyon uyumsuzluğu üretirdi.
-    setOffline(!navigator.onLine)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
-
-  if (!offline) return null
+  if (status !== 'offline') return null
 
   return (
     <div

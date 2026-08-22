@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
 import { getClinicById, hasCompletedProductTour } from '@ogun/db/queries'
 import { NativeNotificationBridge } from '@/components/native-notification-bridge'
+import { ConnectivityStatusProvider } from '@/components/connectivity-status-provider'
 import {
   ClinicSelectionRequiredError,
   NoActiveClinicError,
@@ -55,64 +56,66 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .toLocaleUpperCase('tr-TR')
 
   return (
-    <div className="flex h-svh min-h-0 flex-col overflow-hidden bg-background" data-app-shell>
-      <DesktopTitlebar role={ctx.role} userName={ctx.user.name} userEmail={ctx.user.email} />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-          <div className="flex h-[4.5rem] items-center gap-3 px-4">
-            <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
-              {clinic?.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- Klinik logosu data URI olabilir.
-                <img src={clinic.logoUrl} alt="" className="size-full object-contain" />
-              ) : (
-                <span className="text-sm font-semibold">{clinicInitials}</span>
-              )}
-            </span>
-            <div className="min-w-0">
-              <p
-                className="truncate text-sm font-semibold tracking-[-0.025em] text-sidebar-foreground"
-                title={clinicName}
-              >
-                {clinicName}
-              </p>
-              <p
-                className="truncate text-[10px] font-medium tracking-[0.08em] text-muted-foreground"
-                title={ctx.user.name}
-              >
-                {ctx.user.name}
-              </p>
+    <ConnectivityStatusProvider>
+      <div className="flex h-svh min-h-0 flex-col overflow-hidden bg-background" data-app-shell>
+        <DesktopTitlebar role={ctx.role} userName={ctx.user.name} userEmail={ctx.user.email} />
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+            <div className="flex h-[4.5rem] items-center gap-3 px-4">
+              <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
+                {clinic?.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Klinik logosu data URI olabilir.
+                  <img src={clinic.logoUrl} alt="" className="size-full object-contain" />
+                ) : (
+                  <span className="text-sm font-semibold">{clinicInitials}</span>
+                )}
+              </span>
+              <div className="min-w-0">
+                <p
+                  className="truncate text-sm font-semibold tracking-[-0.025em] text-sidebar-foreground"
+                  title={clinicName}
+                >
+                  {clinicName}
+                </p>
+                <p
+                  className="truncate text-[10px] font-medium tracking-[0.08em] text-muted-foreground"
+                  title={ctx.user.name}
+                >
+                  {ctx.user.name}
+                </p>
+              </div>
             </div>
+            <SidebarNav role={ctx.role} />
+          </aside>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <TopBar
+              activeClinicId={ctx.scope.clinicId}
+              role={ctx.role}
+              userName={ctx.user.name}
+              userEmail={ctx.user.email}
+            />
+            <main className="app-main flex-1 overflow-y-auto px-4 py-5 pb-20 sm:px-6 md:pb-7 lg:px-8">
+              <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+            </main>
           </div>
-          <SidebarNav role={ctx.role} />
-        </aside>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar
-            activeClinicId={ctx.scope.clinicId}
-            role={ctx.role}
-            userName={ctx.user.name}
-            userEmail={ctx.user.email}
-          />
-          <main className="app-main flex-1 overflow-y-auto px-4 py-5 pb-20 sm:px-6 md:pb-7 lg:px-8">
-            <div className="mx-auto w-full max-w-[1500px]">{children}</div>
-          </main>
         </div>
-      </div>
-      <BottomNav role={ctx.role} />
-      {/* GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 2 — "Çevrimdışı
+        <BottomNav role={ctx.role} />
+        {/* GitHub issue #62 / Faz 10, Prompt 10.4, GÖREV 2 — "Çevrimdışı
           göstergesi: plan editöründe var, uygulama geneline yay." Plan
           editörünün kendi kaydetme durumu rozeti (bkz. plan-editor.tsx
           SaveStatusIndicator) KALDIRILMADI; bu gösterge ondan FARKLI bir
           şeyi söylüyor — bağlantının kendisi yok, yani hiçbir ekranda
           kaydetme/yenileme çalışmaz. */}
-      <OfflineIndicator />
-      <ScreenTimeTracker />
-      {showProductTour && <ProductTour />}
-      {/* GitHub issue #53 / Prompt 9.3, GÖREV 3 — kimlik doğrulaması VE aktif
+        <OfflineIndicator />
+        <ScreenTimeTracker />
+        {showProductTour && <ProductTour />}
+        {/* GitHub issue #53 / Prompt 9.3, GÖREV 3 — kimlik doğrulaması VE aktif
           klinik ZATEN garanti (bkz. yukarıdaki getAppShellContext) burada
           monte ediliyor; kök layout.tsx'e KOYMADIK çünkü /giris, /p/[token]
           gibi genel sayfalarda klinik bağlamı yok, bildirim özeti anlamsız
           olurdu. Web tarayıcısında (isNativeShell() false) bu bileşen NO-OP. */}
-      <NativeNotificationBridge />
-    </div>
+        <NativeNotificationBridge />
+      </div>
+    </ConnectivityStatusProvider>
   )
 }
