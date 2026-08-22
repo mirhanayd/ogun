@@ -32,12 +32,17 @@ use crate::navigation::AppOrigin;
 /// — masaüstü uygulaması için doğru varsayılan, bkz. Dockerfile'daki
 /// `HOSTNAME=0.0.0.0`'ın AKSİNE burada bilinçli olarak 127.0.0.1).
 const SIDECAR_HOST: &str = "127.0.0.1";
+const SIDECAR_PUBLIC_HOST: &str = "localhost";
+const SIDECAR_PORT: u16 = 3000;
 const READY_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 
-fn available_port() -> std::io::Result<u16> {
-    let listener = TcpListener::bind((SIDECAR_HOST, 0))?;
-    Ok(listener.local_addr()?.port())
+fn ensure_sidecar_port_is_available() -> std::io::Result<()> {
+    // Google OAuth redirect URI'leri birebir eşleşmek zorunda. Rastgele bir
+    // port seçmek her açılışta farklı `/api/auth/callback/google` üretir ve
+    // Google bunu `redirect_uri_mismatch` ile reddeder. Geliştirme ortamıyla
+    // aynı sabit localhost:3000 adresini kullan; yalnızca loopback'e bağlan.
+    TcpListener::bind((SIDECAR_HOST, SIDECAR_PORT)).map(drop)
 }
 
 /// Node sidecar sürecini başlatır; TCP portu yanıt verir vermez ana
@@ -69,13 +74,14 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
         let web_server_dir = resource_dir.join("resources/web-server");
         let server_js = web_server_dir.join("apps/web/server.js");
         let env_file = web_server_dir.join(".env");
-        let sidecar_port = match available_port() {
-            Ok(port) => port,
-            Err(err) => {
-                eprintln!("[ogun-desktop] app-server için boş port bulunamadı: {err}");
-                return;
-            }
-        };
+        if let Err(err) = ensure_sidecar_port_is_available() {
+            eprintln!(
+                "[ogun-desktop] app-server için localhost:{SIDECAR_PORT} kullanılamıyor: {err}"
+            );
+            let _ = app.emit("ogun://sidecar-port-busy", SIDECAR_PORT);
+            return;
+        }
+        let sidecar_port = SIDECAR_PORT;
 
         let shell = app.shell();
         let command = match shell.sidecar("app-server") {
@@ -156,7 +162,7 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
             return;
         }
 
-        let sidecar_origin = format!("http://{address}");
+        let sidecar_origin = format!("http://{SIDECAR_PUBLIC_HOST}:{SIDECAR_PORT}");
         app.state::<AppOrigin>().set(sidecar_origin.clone());
 
         // GitHub issue #52 / Prompt 9.2 (genişletildi #53 / Prompt 9.3) —
