@@ -31,13 +31,25 @@ export interface DesktopRelease {
   downloads: DesktopDownloadAsset[]
 }
 
-// GERÇEK bir sürüm HENÜZ yayınlanmadı (bkz. docs/desktop-deployment.md
-// "Yayın kontrol listesi" — ilk `desktop-v*` etiketi push edilip GitHub
-// Release'i elle yayınlandığında burası GERÇEK indirme linkleriyle
-// doldurulmalı). Dizi boşken `/indir` sayfası "ilk sürüm hazırlanıyor"
-// durumunu gösterir (bkz. o sayfanın dosya başı notu) — tamamen boş/kırık
-// bir sayfa DEĞİL.
-export const DESKTOP_RELEASES: DesktopRelease[] = []
+export const DESKTOP_RELEASES: DesktopRelease[] = [
+  {
+    version: '0.1.9',
+    publishedAt: '2026-08-23',
+    notes: [
+      'Web ve masaüstü uygulaması aynı klinik hesabıyla çalışır.',
+      'Google oturum aktarımı ve kalıcı oturum akışı iyileştirildi.',
+      'Masaüstü uygulaması kapandığında yerel sunucu artık arkada kalmaz.',
+      'Windows pencere başlığı, taşıma ve pencere kontrolleri yenilendi.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.1.9/Ogun_0.1.9_x64-setup.exe',
+      },
+    ],
+  },
+]
 
 export function getLatestDesktopRelease(): DesktopRelease | null {
   return DESKTOP_RELEASES[0] ?? null

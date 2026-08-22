@@ -1,114 +1,276 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
+import Link from 'next/link'
+import {
+  AppWindow,
+  ArrowRight,
+  Check,
+  Cloud,
+  Download,
+  Laptop,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react'
+import { SiteFooter } from '../_landing/site-footer'
+import { SiteHeader } from '../_landing/site-header'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import {
   DESKTOP_INSTALL_STEPS,
-  DESKTOP_PLATFORM_LABELS,
   DESKTOP_SYSTEM_REQUIREMENTS,
   getLatestDesktopRelease,
-  type DesktopPlatform,
 } from '@/lib/desktop-releases'
+import { absoluteUrl } from '@/lib/site-url'
 import { DesktopDownloadCta } from './desktop-download-cta'
 
-// GitHub issue #54 / Prompt 9.4, GÖREV 4 — "web'de kalan tek şey" (bkz.
-// faz-9-masaustu-kabugu.md tepesindeki KARAR notu): hesap oluşturma,
-// abonelik VE uygulamayı indirme sayfası. Asıl ürün bu masaüstü uygulaması
-// (Tauri) — bkz. o dosyanın "MİMARİ" notu.
-//
-// ROTA KARARI (bkz. docs/desktop-deployment.md bölüm 5, ayrıntılı gerekçe):
-// Faz 10 (UI cilası, landing sayfası dahil) bu repoda henüz PLANLANMADI —
-// bu yüzden GERÇEK, minimal, işlevsel bir `/indir` route'u ŞİMDİ inşa
-// edildi (kök `/` hâlâ "Yakında" placeholder'ı, bkz. app/page.tsx). Faz 10
-// geldiğinde bu sayfa yeniden tasarlanabilir/taşınabilir; route'un KENDİSİ
-// zaten doğru yerde.
+const TITLE = 'Öğün Masaüstü — Windows için indir'
+const DESCRIPTION =
+  'Öğün masaüstü uygulamasını Windows 10 ve 11 için indirin. Web hesabınızla kaldığınız yerden devam edin.'
+
 export const metadata: Metadata = {
-  title: 'Öğün — Masaüstü Uygulamasını İndir',
-  description:
-    'Öğün masaüstü uygulamasını Windows veya macOS için indirin. Klinik verileriniz merkezi sunucuda güvenle saklanır, uygulama sadece native bir istemci penceresidir.',
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: absoluteUrl('/indir') },
+  openGraph: {
+    type: 'website',
+    locale: 'tr_TR',
+    siteName: 'Öğün',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: absoluteUrl('/indir'),
+  },
 }
 
-const PLATFORMS: DesktopPlatform[] = ['windows', 'macos']
+const BENEFITS = [
+  {
+    icon: AppWindow,
+    title: 'Kendi çalışma pencereniz',
+    description: 'Tarayıcı sekmeleri arasında kaybolmadan kliniğinize odaklanın.',
+  },
+  {
+    icon: Cloud,
+    title: 'Web ile aynı hesap',
+    description: 'Danışanlarınız ve planlarınız Neon’da tutulur; cihazlarınızda aynı kalır.',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Kaldığınız yerden',
+    description: 'Oturumunuz güvenle korunur, uygulamayı yeniden açtığınızda devam edersiniz.',
+  },
+]
 
 export default function IndirPage() {
   const release = getLatestDesktopRelease()
 
   return (
-    <main className="mx-auto flex min-h-svh max-w-3xl flex-col gap-10 px-4 py-16">
-      <header className="flex flex-col items-center gap-3 text-center">
-        <span className="text-3xl font-semibold text-primary">Öğün</span>
-        <h1 className="font-heading text-2xl font-medium">Masaüstü uygulamasını indirin</h1>
-        <p className="max-w-xl text-balance text-muted-foreground">
-          Öğün, kendi penceresi, görev çubuğu simgesi ve native bildirimleri olan bir masaüstü uygulamasıdır. Klinik
-          verileriniz (danışanlar, planlar, ödemeler) her zaman merkezi sunucuda güvenle saklanır — uygulama sadece
-          hızlı, native bir istemci penceresidir; internet bağlantısı gerektirir.
-        </p>
-      </header>
+    <div className="flex min-h-svh flex-col bg-background">
+      <a
+        href="#icerik"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+      >
+        İçeriğe geç
+      </a>
+      <SiteHeader />
 
-      {release ? (
-        <section className="flex flex-col items-center gap-4 text-center">
-          <Badge variant="secondary">Sürüm {release.version}</Badge>
-          <DesktopDownloadCta release={release} />
+      <main id="icerik" className="flex-1">
+        <section className="relative isolate overflow-hidden bg-[#0d2a20] text-white dark:bg-[#091d17]">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 opacity-80 [background-image:radial-gradient(circle_at_12%_18%,rgba(86,197,151,0.25),transparent_32%),radial-gradient(circle_at_88%_72%,rgba(159,225,203,0.14),transparent_28%)]"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,.55)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.55)_1px,transparent_1px)] [background-size:72px_72px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]"
+          />
+
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[0.86fr_1.14fr] lg:gap-16 lg:px-8 lg:py-28">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold tracking-[0.14em] text-emerald-100 uppercase backdrop-blur-sm">
+                <Sparkles aria-hidden="true" className="size-3.5 text-emerald-300" />
+                Masaüstü deneyimi
+              </div>
+
+              <h1 className="mt-7 max-w-[11ch] text-[clamp(2.75rem,5vw,4.9rem)] leading-[0.98] font-semibold tracking-[-0.055em] text-balance">
+                Kliniğiniz, kendi penceresinde.
+              </h1>
+              <p className="mt-7 max-w-xl text-[1.0625rem] leading-7 text-emerald-50/75 sm:text-lg sm:leading-8">
+                Öğün’ün planlama ve danışan yönetimi deneyimini Windows’a taşıyın.
+                Web hesabınızla giriş yapın, verilerinize kaldığınız yerden ulaşın.
+              </p>
+
+              <div className="mt-9">
+                {release ? (
+                  <DesktopDownloadCta release={release} />
+                ) : (
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.07] px-4 py-3 text-sm text-emerald-50/75">
+                    İlk masaüstü sürümü hazırlanıyor.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-emerald-50/65">
+                <span className="inline-flex items-center gap-1.5">
+                  <Check aria-hidden="true" className="size-3.5 text-emerald-300" />
+                  Windows 10 ve 11
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Check aria-hidden="true" className="size-3.5 text-emerald-300" />
+                  64-bit
+                </span>
+                {release ? <span>Sürüm {release.version}</span> : null}
+              </div>
+            </div>
+
+            <div className="relative min-w-0 lg:-mr-32 xl:-mr-48">
+              <div aria-hidden="true" className="absolute -inset-8 rounded-full bg-emerald-300/10 blur-3xl" />
+              <figure className="relative overflow-hidden rounded-[1.6rem] border border-white/15 bg-white/[0.08] p-2 shadow-[0_35px_90px_rgba(0,0,0,.4)] backdrop-blur-sm sm:p-3">
+                <div className="flex h-10 items-center gap-2 px-3" aria-hidden="true">
+                  <span className="size-2 rounded-full bg-white/25" />
+                  <span className="size-2 rounded-full bg-white/15" />
+                  <span className="size-2 rounded-full bg-emerald-300/60" />
+                  <span className="ml-3 h-4 w-36 rounded-full bg-white/[0.08]" />
+                </div>
+                <div className="relative aspect-[1.38/1] overflow-hidden rounded-[1.15rem] bg-[#f8fbf9] sm:aspect-[1.58/1] lg:aspect-[1.32/1]">
+                  <Image
+                    src="/marketing/plan-editor.png"
+                    alt="Öğün masaüstü uygulamasında beslenme planı editörü"
+                    width={1440}
+                    height={900}
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 800px"
+                    className="absolute inset-y-0 left-0 h-full w-auto max-w-none object-cover object-left-top"
+                  />
+                </div>
+              </figure>
+            </div>
+          </div>
         </section>
-      ) : (
-        <section className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-8 text-center ring-1 ring-foreground/10">
-          <Badge variant="outline">Yakında</Badge>
-          <p className="max-w-md text-sm text-muted-foreground">
-            İlk masaüstü sürümü hazırlanıyor. Bu sayfa, sürüm yayınlanır yayınlanmaz Windows ve macOS için doğru
-            indirme bağlantılarını otomatik olarak burada gösterecek.
-          </p>
+
+        <section className="border-b border-border bg-muted/25">
+          <div className="mx-auto grid max-w-7xl gap-px px-4 sm:grid-cols-3 sm:px-6 lg:px-8">
+            {BENEFITS.map(({ icon: Icon, title, description }, index) => (
+              <article
+                key={title}
+                className={`py-8 sm:px-8 sm:py-10 ${index > 0 ? 'border-t border-border sm:border-t-0 sm:border-l' : ''}`}
+              >
+                <Icon aria-hidden="true" className="size-5 text-primary" />
+                <h2 className="mt-4 text-base font-semibold">{title}</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+              </article>
+            ))}
+          </div>
         </section>
-      )}
 
-      {release && release.notes.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sürüm notları — {release.version}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {release.notes.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+            <div>
+              <Badge variant="secondary" className="rounded-full px-3 py-1">
+                {release ? `Sürüm ${release.version}` : 'Hazırlanıyor'}
+              </Badge>
+              <h2 className="mt-5 text-3xl font-semibold tracking-[-0.035em] text-balance sm:text-4xl">
+                Hızlı kurulum, aynı Öğün.
+              </h2>
+              <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
+                Masaüstü uygulaması ayrı bir veri kopyası oluşturmaz. Aynı güvenli klinik
+                alanına bağlanır; web ve masaüstü arasında geçiş yapabilirsiniz.
+              </p>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        {PLATFORMS.map((platform) => (
-          <Card key={platform}>
-            <CardHeader>
-              <CardTitle>{DESKTOP_PLATFORM_LABELS[platform]}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground uppercase">Sistem gereksinimleri</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm">
-                  {DESKTOP_SYSTEM_REQUIREMENTS[platform].map((requirement) => (
-                    <li key={requirement}>{requirement}</li>
+              <div className="mt-8 rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100">
+                <div className="flex gap-3">
+                  <ShieldCheck aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+                  <p>
+                    <strong>Beta notu:</strong> Windows kod imzalama sertifikası henüz eklenmediği için
+                    ilk kurulumda yayıncı doğrulama uyarısı görebilirsiniz. Kurulum dosyası bu
+                    projenin GitHub release alanından sunulur.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <article className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-7">
+                <Laptop aria-hidden="true" className="size-6 text-primary" />
+                <h3 className="mt-5 text-lg font-semibold">Sistem gereksinimleri</h3>
+                <ul className="mt-5 space-y-3 text-sm leading-6 text-muted-foreground">
+                  {DESKTOP_SYSTEM_REQUIREMENTS.windows.map((requirement) => (
+                    <li key={requirement} className="flex gap-2.5">
+                      <Check aria-hidden="true" className="mt-1 size-4 shrink-0 text-primary" />
+                      <span>{requirement}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6 border-t border-border pt-5 text-sm text-muted-foreground">
+                  macOS sürümü hazırlanıyor.
+                </div>
+              </article>
+
+              <article className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-7">
+                <Download aria-hidden="true" className="size-6 text-primary" />
+                <h3 className="mt-5 text-lg font-semibold">3 adımda başlayın</h3>
+                <ol className="mt-5 space-y-4">
+                  {DESKTOP_INSTALL_STEPS.windows.slice(0, 3).map((step, index) => (
+                    <li key={step} className="grid grid-cols-[1.75rem_1fr] gap-3 text-sm leading-6">
+                      <span className="grid size-7 place-items-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                        {index + 1}
+                      </span>
+                      <span className="text-muted-foreground">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </article>
+            </div>
+          </div>
+
+          {release && release.notes.length > 0 ? (
+            <div className="mt-16 rounded-3xl border border-border bg-muted/30 p-6 sm:p-8">
+              <div className="grid gap-8 md:grid-cols-[0.55fr_1.45fr]">
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+                    Son sürüm
+                  </p>
+                  <h2 className="mt-3 text-2xl font-semibold tracking-[-0.025em]">
+                    Öğün Desktop {release.version}
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">23 Ağustos 2026</p>
+                </div>
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {release.notes.map((note) => (
+                    <li key={note} className="flex gap-2.5 text-sm leading-6">
+                      <Check aria-hidden="true" className="mt-1 size-4 shrink-0 text-primary" />
+                      <span>{note}</span>
+                    </li>
                   ))}
                 </ul>
               </div>
-              <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground uppercase">Kurulum adımları</p>
-                <ol className="list-decimal space-y-1 pl-5 text-sm">
-                  {DESKTOP_INSTALL_STEPS[platform].map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
+          ) : null}
+        </section>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Zaten bir hesabınız var mı?{' '}
-        <a href="/giris" className="text-primary underline-offset-4 hover:underline">
-          Giriş yapın
-        </a>{' '}
-        ya da kurulumdan sonra masaüstü uygulaması içinden devam edin.
-      </p>
-    </main>
+        <section className="border-t border-border bg-muted/25">
+          <div className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center sm:px-6 sm:py-20">
+            <h2 className="text-3xl font-semibold tracking-[-0.035em] text-balance">
+              Hesabınız her yerde sizinle.
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+              Masaüstünü kurmadan önce web’de hesap oluşturabilir veya mevcut klinik hesabınızla
+              doğrudan devam edebilirsiniz.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Button asChild size="lg" className="h-12 rounded-xl px-5">
+                <Link href="/kayit">
+                  Klinik hesabı oluştur <ArrowRight aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="h-12 rounded-xl px-5">
+                <Link href="/giris">Giriş yap</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </div>
   )
 }

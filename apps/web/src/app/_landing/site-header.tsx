@@ -4,10 +4,11 @@ import { ArrowUpRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const NAV_LINKS = [
-  { href: '#urun', label: 'Ürün' },
-  { href: '#neden-ogun', label: 'Neden Öğün' },
-  { href: '#kaynaklar', label: 'Veri kaynakları' },
-  { href: '#sss', label: 'SSS' },
+  { href: '/#urun', label: 'Ürün' },
+  { href: '/#neden-ogun', label: 'Neden Öğün' },
+  { href: '/#kaynaklar', label: 'Veri kaynakları' },
+  { href: '/indir', label: 'Masaüstü' },
+  { href: '/#sss', label: 'SSS' },
 ]
 
 export function SiteHeader() {
