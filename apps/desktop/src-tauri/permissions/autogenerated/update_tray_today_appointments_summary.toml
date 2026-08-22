@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-tray-today-appointments-summary"
+description = "Enables the update_tray_today_appointments_summary command without any pre-configured scope."
+commands.allow = ["update_tray_today_appointments_summary"]
+
+[[permission]]
+identifier = "deny-update-tray-today-appointments-summary"
+description = "Denies the update_tray_today_appointments_summary command without any pre-configured scope."
+commands.deny = ["update_tray_today_appointments_summary"]

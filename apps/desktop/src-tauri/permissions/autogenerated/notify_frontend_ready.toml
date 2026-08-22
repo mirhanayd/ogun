@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notify-frontend-ready"
+description = "Enables the notify_frontend_ready command without any pre-configured scope."
+commands.allow = ["notify_frontend_ready"]
+
+[[permission]]
+identifier = "deny-notify-frontend-ready"
+description = "Denies the notify_frontend_ready command without any pre-configured scope."
+commands.deny = ["notify_frontend_ready"]
