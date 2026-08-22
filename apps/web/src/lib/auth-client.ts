@@ -23,8 +23,8 @@ import {
 //   TARAYICISINDA bu iki kanca da NO-OP'tur (isNativeShell() false) —
 //   çerez tabanlı oturum AYNEN mevcut haliyle çalışmaya devam eder.
 export const authClient = createAuthClient({
-  // The packaged desktop server listens on a free loopback port, not the
-  // build-time web URL (usually localhost:3000).
+  // Masaüstü kabuğunda çalışma zamanındaki loopback origin'i kullan;
+  // derleme zamanındaki web adresine güvenme.
   baseURL:
     isNativeShell() && typeof window !== 'undefined'
       ? window.location.origin
@@ -35,11 +35,11 @@ export const authClient = createAuthClient({
       type: 'Bearer',
       token: () => (isNativeShell() ? getCachedNativeSessionToken() : undefined),
     },
-    onSuccess: (ctx) => {
+    onSuccess: async (ctx) => {
       if (!isNativeShell()) return
       const authToken = ctx.response.headers.get('set-auth-token')
       if (authToken) {
-        void persistNativeSessionToken(authToken)
+        await persistNativeSessionToken(authToken)
       }
     },
   },

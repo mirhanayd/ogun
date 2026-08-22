@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { authClient } from '@/lib/auth-client'
-import { isNativeShell, loadNativeSessionToken } from '@/lib/native-shell'
+import {
+  exchangeNativeOneTimeToken,
+  isNativeShell,
+  loadNativeSessionToken,
+} from '@/lib/native-shell'
 
 // GitHub issue #52 / Prompt 9.2 — bu bileşen app/layout.tsx'e (kök layout,
 // TÜM sayfaları sarar) eklendi ve iki şeyi yapar:
@@ -22,10 +25,10 @@ import { isNativeShell, loadNativeSessionToken } from '@/lib/native-shell'
 // GÖREV 1 (OAuth deep link köprüsü): apps/desktop/src-tauri/src/deep_link.rs
 // ogun://auth/callback?ott=... (başarı) YA DA ?error=... (başarısızlık) deep
 // link'ini yakalayıp `ogun-oauth-callback` Tauri olayını (event) YAYINLAR
-// (emit). Burada o olay dinlenir: başarılıysa token authClient.oneTimeToken.
-// verify() ile GERÇEK bir oturuma çevrilir (bu çağrı hem oturum çerezini bu
-// webview'e YAZAR hem de auth-client.ts'teki onSuccess kancasını tetikleyerek
-// bearer token'ı stronghold'a KALICI olarak yazar) ve kullanıcı /kurulum'a
+// (emit). Burada o olay dinlenir: başarılıysa token
+// exchangeNativeOneTimeToken() ile GERÇEK bir oturuma çevrilir (bu çağrı hem
+// oturum çerezini webview'e YAZAR hem de bearer token'ı sayfa değişmeden
+// önce stronghold'a KALICI olarak yazar) ve kullanıcı /panel'e
 // yönlendirilir — e-posta+şifre girişindeki (giris/page.tsx) BAŞARI
 // hedefiyle AYNI. Başarısızsa (Rust'tan gelen ?error=... YA DA verify()'ın
 // kendisi başarısız olursa) kullanıcı /giris?hata=...'ya yönlendirilir —
@@ -78,9 +81,7 @@ export function NativeAuthBridge({ children }: { children: React.ReactNode }) {
           window.location.href = `/giris?hata=${encodeURIComponent(event.payload.message)}`
           return
         }
-        const { error } = await authClient.oneTimeToken.verify({
-          token: event.payload.oneTimeToken,
-        })
+        const result = await exchangeNativeOneTimeToken(event.payload.oneTimeToken)
         // Token tek kullanımlıktır ve zaten tüketildi (başarılı ya da
         // değil) — ott'yi ASLA konsola/hata mesajına YAZMIYORUZ (güvenlik
         // kuralı). Sonuca göre kullanıcıyı ilgili sayfaya yönlendiriyoruz;
@@ -90,7 +91,7 @@ export function NativeAuthBridge({ children }: { children: React.ReactNode }) {
         // GitHub issue #67 — başarıda /kurulum DEĞİL /panel (bkz. giris/page.tsx
         // ve native-shell.ts'teki aynı düzeltme): kliniği olan kullanıcı
         // sihirbaza düşmemeli, kliniksiz olan zaten layout'ta yönlendiriliyor.
-        window.location.href = error ? '/giris?hata=google-girisi-basarisiz' : '/panel'
+        window.location.href = result.ok ? '/panel' : `/giris?hata=${result.reason}`
       })()
     })
 

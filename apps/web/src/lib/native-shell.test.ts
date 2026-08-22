@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  exchangeNativeOneTimeToken,
   getGoogleSignInRedirects,
   getNativeGoogleSignInURL,
   isNativeShell,
   saveFileNatively,
 } from './native-shell'
+
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }))
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 
 // GitHub issue #52 / Prompt 9.2 — bu modülün SAF (Tauri çalışma zamanı
 // gerektirmeyen) kısmının birim testi. vitest.config.ts'te
@@ -15,6 +20,8 @@ import {
 describe('isNativeShell / getGoogleSignInRedirects', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    invoke.mockReset()
   })
 
   it('window tanımsızken (SSR / test ortamı) native SAYILMAZ', () => {
@@ -46,6 +53,43 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
       location: { origin: 'http://127.0.0.1:51374' },
     })
     expect(getNativeGoogleSignInURL()).toBe('http://127.0.0.1:51374/api/auth/native/google')
+  })
+
+  it('OAuth token değişiminde eski bearer göndermeden yeni oturumu kalıcılaştırır', async () => {
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
+    invoke.mockResolvedValue(undefined)
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json(
+        { session: {}, user: {} },
+        { headers: { 'set-auth-token': 'new-signed-session' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(exchangeNativeOneTimeToken('short-lived-ott')).resolves.toEqual({ ok: true })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/one-time-token/verify',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Authorization')
+    expect(invoke).toHaveBeenCalledWith('store_session_token', {
+      token: 'new-signed-session',
+    })
+  })
+
+  it('geçersiz veya süresi dolmuş OAuth tokenını ayırt eder', async () => {
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 400 })))
+
+    await expect(exchangeNativeOneTimeToken('expired-ott')).resolves.toEqual({
+      ok: false,
+      reason: 'invalid-or-expired-token',
+    })
+    expect(invoke).not.toHaveBeenCalled()
   })
 
   // GitHub issue #53 / Prompt 9.3, GÖREV 4 — `saveFileNatively`'nin

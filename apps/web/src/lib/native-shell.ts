@@ -117,6 +117,53 @@ export async function persistNativeSessionToken(token: string): Promise<void> {
   }
 }
 
+export type NativeSessionExchangeResult =
+  | { ok: true }
+  | {
+      ok: false
+      reason: 'invalid-or-expired-token' | 'missing-session-token' | 'network-error'
+    }
+
+/**
+ * Sistem tarayıcısından deep link ile gelen tek kullanımlık token'ı,
+ * webview'in kendi oturumuna dönüştürür.
+ *
+ * Bu istek bilerek `authClient` üzerinden gitmez: authClient native kabukta
+ * bellekteki mevcut bearer token'ı her isteğe ekler. Eski ya da süresi dolmuş
+ * bir token'ın OAuth devir teslim isteğine karışmasını istemiyoruz. Ham,
+ * aynı-origin fetch hem yeni oturum çerezini webview'e yazar hem de bearer
+ * eklentisinin `set-auth-token` başlığını doğrudan okumamızı sağlar.
+ * Kalıcı depolama tamamlanmadan başarı dönülmez; böylece hemen yapılan
+ * sayfa navigasyonu Stronghold yazımını yarıda kesemez.
+ */
+export async function exchangeNativeOneTimeToken(
+  oneTimeToken: string,
+): Promise<NativeSessionExchangeResult> {
+  try {
+    const response = await fetch('/api/auth/one-time-token/verify', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: oneTimeToken }),
+    })
+
+    if (!response.ok) {
+      return { ok: false, reason: 'invalid-or-expired-token' }
+    }
+
+    const sessionToken = response.headers.get('set-auth-token')
+    if (!sessionToken) {
+      return { ok: false, reason: 'missing-session-token' }
+    }
+
+    await persistNativeSessionToken(sessionToken)
+    return { ok: true }
+  } catch {
+    return { ok: false, reason: 'network-error' }
+  }
+}
+
 /**
  * Çıkış yapıldığında (bkz. gelecekteki "çıkış yap" akışı) saklanan token'ı
  * temizler. Native kabuk DIŞINDA no-op.
