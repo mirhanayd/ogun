@@ -356,6 +356,11 @@
   html[data-native-shell] .app-sidebar {
     box-shadow: inset -1px 0 color-mix(in oklch, var(--sidebar-border) 65%, transparent);
   }
+
+  [data-app-shell] :is(h1, h2, h3, h4, h5, h6) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 ::selection {
