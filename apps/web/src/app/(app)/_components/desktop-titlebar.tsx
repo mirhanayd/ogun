@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Maximize2, Minus, Square, X } from 'lucide-react'
 import type { ClinicMemberRole } from '@ogun/db/schema'
+import { invoke } from '@tauri-apps/api/core'
 import { isNativeShell } from '@/lib/native-shell'
 import { CommandPalette } from './command-palette'
 import { FeedbackButton } from './feedback-button'
@@ -25,29 +26,35 @@ export function DesktopTitlebar({
     if (!isNativeShell()) return
 
     document.documentElement.dataset.nativeShell = 'true'
-    void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-      setMaximized(await getCurrentWindow().isMaximized())
-    })
-
-    return () => {
-      delete document.documentElement.dataset.nativeShell
-    }
+    void invoke<boolean>('control_main_window', { action: 'isMaximized' })
+      .then(setMaximized)
+      .catch((error) => console.error('[desktop-titlebar] pencere durumu okunamadı', error))
   }, [])
 
   async function withWindow(action: 'minimize' | 'toggleMaximize' | 'close') {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    const window = getCurrentWindow()
-    if (action === 'minimize') await window.minimize()
-    if (action === 'close') await window.close()
-    if (action === 'toggleMaximize') {
-      await window.toggleMaximize()
-      setMaximized(await window.isMaximized())
+    try {
+      setMaximized(await invoke<boolean>('control_main_window', { action }))
+    } catch (error) {
+      console.error(`[desktop-titlebar] ${action} işlemi başarısız`, error)
+    }
+  }
+
+  async function startDragging() {
+    try {
+      await invoke('control_main_window', { action: 'startDragging' })
+    } catch (error) {
+      console.error('[desktop-titlebar] pencere sürüklenemedi', error)
     }
   }
 
   return (
     <header
-      data-tauri-drag-region
+      onMouseDown={(event) => {
+        if (event.button !== 0) return
+        const target = event.target as HTMLElement
+        if (target.closest('button, a, input, [role="button"], [role="menuitem"]')) return
+        void startDragging()
+      }}
       onDoubleClick={(event) => {
         const target = event.target as HTMLElement
         if (target.closest('button, a, input, [role="button"], [role="menuitem"]')) return
@@ -55,7 +62,7 @@ export function DesktopTitlebar({
       }}
       className="desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b border-white/10 bg-desktop-chrome text-white shadow-[0_1px_0_rgba(0,0,0,0.22)]"
     >
-      <div data-tauri-drag-region className="flex w-60 shrink-0 items-center gap-2.5 px-4">
+      <div className="flex w-60 shrink-0 items-center gap-2.5 px-4">
         {/* src-tauri/icons içindeki native uygulama ikonunun vektör karşılığı. */}
         <Image
           src="/brand/ogun-uygulama-ikonu.svg"
@@ -70,7 +77,7 @@ export function DesktopTitlebar({
         </span>
       </div>
 
-      <div data-tauri-drag-region className="flex min-w-0 flex-1 justify-center px-4">
+      <div className="flex min-w-0 flex-1 justify-center px-4">
         <div className="w-full max-w-xl [&_button]:h-8 [&_button]:max-w-none [&_button]:border-white/15 [&_button]:bg-white/10 [&_button]:text-emerald-50 [&_button:hover]:bg-white/15 [&_kbd]:border-white/15 [&_kbd]:bg-black/15 [&_kbd]:text-emerald-100">
           <CommandPalette role={role} />
         </div>

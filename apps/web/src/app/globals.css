@@ -353,10 +353,6 @@
     overflow: hidden;
   }
 
-  html[data-native-shell] .app-topbar {
-    display: none;
-  }
-
   html[data-native-shell] .app-sidebar {
     box-shadow: inset -1px 0 color-mix(in oklch, var(--sidebar-border) 65%, transparent);
   }
@@ -376,6 +372,12 @@
 
 html[data-native-shell] .desktop-titlebar {
   display: flex;
+}
+
+/* Keep this outside cascade layers just like .desktop-titlebar. Tailwind's
+   utility layer otherwise wins with the TopBar's `flex` class. */
+html[data-native-shell] .app-topbar {
+  display: none;
 }
 
 html[data-native-shell] .public-desktop-titlebar ~ * {

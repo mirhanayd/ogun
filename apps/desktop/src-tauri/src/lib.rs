@@ -25,6 +25,7 @@ mod settings;
 mod sidecar;
 mod tray;
 mod updater;
+mod window_controls;
 mod window_ops;
 
 use deep_link::{FrontendReady, PendingDeepLink};
@@ -106,6 +107,7 @@ pub fn run() {
             // GERÇEKTEN gereken kadar IPC yüzeyi aç, secure_storage.rs'teki
             // ile AYNI disiplin).
             notifications::show_native_notification,
+            window_controls::control_main_window,
             window_ops::focus_main_window_command,
             settings::get_minimize_to_tray_setting,
             settings::set_minimize_to_tray_setting,
