@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
-import { hasCompletedProductTour } from '@ogun/db/queries'
+import { getClinicById, hasCompletedProductTour } from '@ogun/db/queries'
 import { NativeNotificationBridge } from '@/components/native-notification-bridge'
 import {
   ClinicSelectionRequiredError,
@@ -41,23 +41,45 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // turu". users.productTourCompletedAt NULL'sa (bkz. schema/tenancy.ts)
   // tur gösterilir — bu kontrol layout'ta (her sayfa yüklemesinde) YAPILIR,
   // ama tur SADECE bir kez (tamamlanana/atlanana kadar) render edilir.
-  const showProductTour = !(await hasCompletedProductTour(db, ctx.user.id))
+  const [hasCompletedTour, clinic] = await Promise.all([
+    hasCompletedProductTour(db, ctx.user.id),
+    getClinicById(db, ctx.scope.clinicId),
+  ])
+  const showProductTour = !hasCompletedTour
+  const clinicName = clinic?.name ?? 'Klinik'
+  const clinicInitials = clinicName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toLocaleUpperCase('tr-TR')
 
   return (
     <div className="flex h-svh min-h-0 flex-col overflow-hidden bg-background" data-app-shell>
       <DesktopTitlebar role={ctx.role} userName={ctx.user.name} userEmail={ctx.user.email} />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-          <div className="flex h-[4.5rem] items-center gap-3 px-5">
-            <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_-10px_var(--primary)]">
-              <span className="text-base font-semibold">ö</span>
+          <div className="flex h-[4.5rem] items-center gap-3 px-4">
+            <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
+              {clinic?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Klinik logosu data URI olabilir.
+                <img src={clinic.logoUrl} alt="" className="size-full object-contain" />
+              ) : (
+                <span className="text-sm font-semibold">{clinicInitials}</span>
+              )}
             </span>
             <div className="min-w-0">
-              <p className="text-base font-semibold tracking-[-0.025em] text-sidebar-foreground">
-                öğün
+              <p
+                className="truncate text-sm font-semibold tracking-[-0.025em] text-sidebar-foreground"
+                title={clinicName}
+              >
+                {clinicName}
               </p>
-              <p className="text-[10px] font-medium tracking-[0.13em] text-muted-foreground uppercase">
-                Klinik OS
+              <p
+                className="truncate text-[10px] font-medium tracking-[0.08em] text-muted-foreground"
+                title={ctx.user.name}
+              >
+                {ctx.user.name}
               </p>
             </div>
           </div>
