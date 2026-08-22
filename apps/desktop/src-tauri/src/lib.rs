@@ -30,7 +30,7 @@ mod window_ops;
 
 use deep_link::{FrontendReady, PendingDeepLink};
 use navigation::AppOrigin;
-use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Listener, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 
 /// apps/web'in `next dev` sunucusunun varsayılan adresi.
@@ -137,6 +137,10 @@ pub fn run() {
             // `notify_frontend_ready` çağrısı) işaretler; bundan ÖNCE
             // yayınlanan bir OAuth olayı dinleyicisiz kalıp KAYBOLABİLİRDİ.
             app.manage(FrontendReady::default());
+            // Paketli Next.js sunucusunu gerçek uygulama çıkışında sonlandırmak
+            // için alt-süreç tanıtıcısını saklar. Pencere tray'e gizlendiğinde
+            // uygulama çıkmadığından sidecar çalışmaya devam eder.
+            app.manage(sidecar::SidecarProcess::default());
 
             // GitHub issue #53 / Prompt 9.3 — GÖREV 1 (Görünüm > Yakınlaştır/
             // Uzaklaştır zoom seviyesi) ve GÖREV 2 (tray'e küçültme tercihi,
@@ -308,6 +312,11 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("Öğün masaüstü uygulaması başlatılırken hata oluştu");
+        .build(tauri::generate_context!())
+        .expect("Öğün masaüstü uygulaması oluşturulurken hata oluştu")
+        .run(|app, event| {
+            if matches!(event, RunEvent::Exit) {
+                app.state::<sidecar::SidecarProcess>().terminate();
+            }
+        });
 }

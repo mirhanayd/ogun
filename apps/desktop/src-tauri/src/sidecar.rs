@@ -19,9 +19,12 @@
 //! imzalama ve dağıtım") kapsamı — burada spawn/port-poll/yönlendirme
 //! MEKANİZMASININ KENDİSİ tam olarak çalışır durumda.
 
-use std::net::TcpListener;
+use std::{net::TcpListener, sync::Mutex};
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindow};
-use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+use tauri_plugin_shell::{
+    process::{CommandChild, CommandEvent},
+    ShellExt,
+};
 use tokio::net::TcpStream;
 use tokio::time::{sleep, timeout, Duration};
 
@@ -36,6 +39,44 @@ const SIDECAR_PUBLIC_HOST: &str = "localhost";
 const SIDECAR_PORT: u16 = 3000;
 const READY_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+/// Paketli web sunucusunun alt-süreç tanıtıcısını uygulama yaşam
+/// döngüsü boyunca tutar. `CommandChild` düşürüldüğünde süreç otomatik
+/// sonlanmadığı için bu state olmadan masaüstü kapandıktan sonra port 3000'de
+/// yetim bir app-server kalabilir.
+#[derive(Default)]
+pub struct SidecarProcess {
+    child: Mutex<Option<CommandChild>>,
+}
+
+impl SidecarProcess {
+    fn set(&self, child: CommandChild) {
+        let mut slot = self.child.lock().unwrap_or_else(|err| err.into_inner());
+        if let Some(previous) = slot.replace(child) {
+            let _ = previous.kill();
+        }
+    }
+
+    fn clear_if_pid(&self, pid: u32) {
+        let mut slot = self.child.lock().unwrap_or_else(|err| err.into_inner());
+        if slot.as_ref().is_some_and(|child| child.pid() == pid) {
+            slot.take();
+        }
+    }
+
+    pub fn terminate(&self) {
+        let child = self
+            .child
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .take();
+        if let Some(child) = child {
+            if let Err(err) = child.kill() {
+                eprintln!("[ogun-desktop] app-server sonlandırılamadı: {err}");
+            }
+        }
+    }
+}
 
 fn ensure_sidecar_port_is_available() -> std::io::Result<()> {
     // Google OAuth redirect URI'leri birebir eşleşmek zorunda. Rastgele bir
@@ -105,7 +146,7 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
             .env("HOSTNAME", SIDECAR_HOST)
             .env("NODE_ENV", "production");
 
-        let (mut rx, _child) = match command.spawn() {
+        let (mut rx, child) = match command.spawn() {
             Ok(pair) => pair,
             Err(err) => {
                 eprintln!("[ogun-desktop] app-server sidecar başlatılamadı: {err}");
@@ -113,11 +154,15 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
             }
         };
 
+        let child_pid = child.pid();
+        app.state::<SidecarProcess>().set(child);
+
         // Sidecar'ın stdout/stderr'ını tüketmeye devam et (Rust tarafında
         // kanal doluymuş gibi tıkanmasın diye ŞART) ve teşhis için terminale
         // yazdır — Node standalone server.js "Ready" satırını stdout'a
         // basar, ama biz hazır olma kontrolünü DAHA GÜVENİLİR olan TCP
         // port yoklamasıyla ayrıca yapıyoruz (aşağıda).
+        let event_app = app.clone();
         tauri::async_runtime::spawn(async move {
             while let Some(event) = rx.recv().await {
                 match event {
@@ -132,6 +177,7 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
                     }
                     CommandEvent::Terminated(payload) => {
                         eprintln!("[ogun-desktop] app-server sonlandı: {payload:?}");
+                        event_app.state::<SidecarProcess>().clear_if_pid(child_pid);
                         break;
                     }
                     // CommandEvent is non-exhaustive; future plugin versions may
@@ -159,6 +205,7 @@ pub fn spawn_and_redirect(app: AppHandle, window: WebviewWindow) {
                  yanıt vermedi — splash sayfasında kalınıyor."
             );
             let _ = app.emit("ogun://sidecar-timeout", ());
+            app.state::<SidecarProcess>().terminate();
             return;
         }
 
