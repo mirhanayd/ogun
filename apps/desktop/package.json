@@ -1,6 +1,6 @@
 {
   "name": "desktop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere (GitHub issue #51).",
   "scripts": {
