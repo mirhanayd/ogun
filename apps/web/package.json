@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node ../../scripts/sync-web-env.mjs",
     "dev": "next dev --turbopack",
+    "prebuild": "node ../../scripts/sync-web-env.mjs",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",

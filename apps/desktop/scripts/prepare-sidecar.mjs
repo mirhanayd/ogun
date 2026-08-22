@@ -139,6 +139,12 @@ if (!['host', 'download'].includes(sidecarSource)) {
 
 // --- 1) apps/web'i standalone modda derle ---------------------------------
 
+// Next.js apps/web/.env.local'ı kök .env'den önce okur. Web ve desktop
+// farklı DATABASE_URL/BETTER_AUTH_SECRET ile derlenirse aynı kullanıcı
+// hesabı iki tarafta paylaşılamaz. Yerel .env varsa build'den hemen önce
+// tek doğruluk kaynağını senkronla; CI'da dosya yoksa script no-op'tur.
+run(process.execPath, [resolve(repoRoot, 'scripts/sync-web-env.mjs')], { cwd: repoRoot })
+
 console.log(
   '[prepare-sidecar] apps/web STANDALONE_BUILD=1 ile derleniyor (next build, turbopack YOK)...',
 )
