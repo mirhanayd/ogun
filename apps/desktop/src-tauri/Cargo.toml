@@ -1,6 +1,6 @@
 [package]
 name = "ogun-desktop"
-version = "0.1.3"
+version = "0.1.4"
 description = "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere."
 authors = ["Öğün"]
 edition = "2021"
