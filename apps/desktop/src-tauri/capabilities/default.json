@@ -2,6 +2,9 @@
   "identifier": "default",
   "description": "Öğün masaüstü kabuğu — ana pencere için varsayılan izinler (GitHub issue #51, #52, #53).",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*", "http://localhost:*"]
+  },
   "permissions": [
     "core:default",
     "core:window:allow-close",
