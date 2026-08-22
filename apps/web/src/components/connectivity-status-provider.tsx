@@ -32,9 +32,11 @@ export function ConnectivityStatusProvider({ children }: { children: React.React
           cache: 'no-store',
           signal: controller.signal,
         })
-        if (!disposed) setStatus(response.ok ? 'online' : 'offline')
+        if (!disposed && activeController === controller) {
+          setStatus(response.ok ? 'online' : 'offline')
+        }
       } catch {
-        if (!disposed) setStatus('offline')
+        if (!disposed && activeController === controller) setStatus('offline')
       } finally {
         window.clearTimeout(timeout)
         if (activeController === controller) activeController = null
