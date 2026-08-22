@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Maximize2, Minus, Square, X } from 'lucide-react'
 import type { ClinicMemberRole } from '@ogun/db/schema'
-import { invoke } from '@tauri-apps/api/core'
-import { isNativeShell } from '@/lib/native-shell'
+import { useDesktopWindowControls } from '@/components/use-desktop-window-controls'
 import { CommandPalette } from './command-palette'
 import { FeedbackButton } from './feedback-button'
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help'
@@ -20,46 +18,11 @@ export function DesktopTitlebar({
   userName: string
   userEmail: string
 }) {
-  const [maximized, setMaximized] = useState(false)
-
-  useEffect(() => {
-    if (!isNativeShell()) return
-
-    document.documentElement.dataset.nativeShell = 'true'
-    void invoke<boolean>('control_main_window', { action: 'isMaximized' })
-      .then(setMaximized)
-      .catch((error) => console.error('[desktop-titlebar] pencere durumu okunamadı', error))
-  }, [])
-
-  async function withWindow(action: 'minimize' | 'toggleMaximize' | 'close') {
-    try {
-      setMaximized(await invoke<boolean>('control_main_window', { action }))
-    } catch (error) {
-      console.error(`[desktop-titlebar] ${action} işlemi başarısız`, error)
-    }
-  }
-
-  async function startDragging() {
-    try {
-      await invoke('control_main_window', { action: 'startDragging' })
-    } catch (error) {
-      console.error('[desktop-titlebar] pencere sürüklenemedi', error)
-    }
-  }
+  const { maximized, titlebarHandlers, withWindow } = useDesktopWindowControls()
 
   return (
     <header
-      onMouseDown={(event) => {
-        if (event.button !== 0) return
-        const target = event.target as HTMLElement
-        if (target.closest('button, a, input, [role="button"], [role="menuitem"]')) return
-        void startDragging()
-      }}
-      onDoubleClick={(event) => {
-        const target = event.target as HTMLElement
-        if (target.closest('button, a, input, [role="button"], [role="menuitem"]')) return
-        void withWindow('toggleMaximize')
-      }}
+      {...titlebarHandlers}
       className="desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b border-white/10 bg-desktop-chrome text-white shadow-[0_1px_0_rgba(0,0,0,0.22)]"
     >
       <div className="flex w-60 shrink-0 items-center gap-2.5 px-4">
