@@ -1,15 +1,13 @@
 {
   "name": "desktop",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere (GitHub issue #51).",
   "scripts": {
     "tauri": "tauri",
-    "dev": "node scripts/prepare-dev.mjs && wait-on tcp:3000 && tauri dev",
-    "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
-    "prepare:sidecar:release": "node scripts/prepare-sidecar.mjs --source=download",
+    "dev": "wait-on tcp:3000 && tauri dev",
     "icons": "node scripts/generate-icons.mjs",
-    "build": "node scripts/prepare-sidecar.mjs && tauri build",
+    "build": "tauri build",
     "signer:generate": "tauri signer generate -w ~/.tauri/ogun-updater.key",
     "typecheck": "echo 'apps/desktop: Rust tarafı `cargo check` ile doğrulanır, JS tarafında derlenecek TypeScript yok' && exit 0",
     "lint": "echo 'apps/desktop: JS tarafında lint edilecek uygulama kodu yok (yalnızca build script\\'leri)' && exit 0",

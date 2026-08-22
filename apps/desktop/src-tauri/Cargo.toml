@@ -1,6 +1,6 @@
 [package]
 name = "ogun-desktop"
-version = "0.1.8"
+version = "0.1.9"
 description = "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere."
 authors = ["Öğün"]
 edition = "2021"
@@ -17,9 +17,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Pencere durumu (boyut/konum/maximize) kalıcılığı — GÖREV 2.
 tauri-plugin-window-state = "2"
-# Üretimde Node sidecar sürecini başlatmak (Command::sidecar) için —
-# GÖREV 1, bkz. sidecar.rs.
-tauri-plugin-shell = "2"
 # Dış http(s) linkleri sistem tarayıcısında açmak için — GÖREV 3, bkz.
 # navigation.rs / lib.rs. NOT: issue metni "tauri-plugin-shell'in open()"
 # diyor; o fonksiyon tauri-plugin-shell 2.1.0'dan beri KULLANIMDAN
@@ -28,10 +25,6 @@ tauri-plugin-shell = "2"
 # resmi halefi tercih edildi — bkz. PR açıklamasındaki not.
 tauri-plugin-opener = "2"
 url = "2"
-# Sidecar TCP hazır-olma yoklaması (sidecar.rs) için — Tauri'nin
-# async_runtime'ı zaten tokio üzerine kurulu, aynı sürümü doğrudan
-# bağımlılık olarak eklemek ayrı bir runtime YARATMAZ.
-tokio = { version = "1", features = ["net", "time"] }
 # GitHub issue #52 / Prompt 9.2, GÖREV 1 — ogun:// özel URL şemasını
 # kaydeder ve yakalar (bkz. deep_link.rs). Sürüm 2.4.9 olarak çözüldü
 # (bkz. Cargo.lock) — bu sandbox'ta gerçek network erişimiyle `cargo add`

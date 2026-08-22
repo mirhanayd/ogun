@@ -6,7 +6,7 @@
 //! scope) periyodik olarak randevu/paket verisi ÇEKMESİ yerine — ki bu,
 //! apps/web'in packages/db/src/queries/notifications.ts + apps/web/src/lib/
 //! notifications/summary.ts + withAuth/withAudit yığınını Rust'ta TEKRAR
-//! yazmak demek olurdu — apps/web'in KENDİSİ (zaten sidecar'da ÇALIŞAN,
+//! yazmak demek olurdu — apps/web'in KENDİSİ (production sunucusunda ÇALIŞAN,
 //! panel sayfasının kullandığı AYNI `getPanelNotificationFeed` server
 //! action'ını çağıran bir istemci köprüsü, bkz. apps/web/src/components/
 //! native-notification-bridge.tsx) periyodik olarak bu veriyi okur, DAHA

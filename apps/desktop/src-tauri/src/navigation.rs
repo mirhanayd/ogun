@@ -23,13 +23,8 @@ use tauri::Url;
 ///
 /// - Geliştirmede sabittir: "http://localhost:3000" (apps/web'in `next dev`
 ///   sunucusu, bkz. lib.rs).
-/// - Üretimde başlangıçta BOŞTUR — sidecar.rs, Node sidecar süreci hazır
-///   olup pencere ona yönlendirildiğinde bunu bir KEZ ayarlar.
-///
-/// Boşken (üretimde sidecar henüz hazır değilken) hiçbir http(s) adresi
-/// "kendi origin'imiz" sayılmaz; ama bu durumda zaten pencerede sadece
-/// paketlenmiş splash sayfası (tauri:// / http://tauri.localhost) yüklü
-/// olduğundan pratikte bir http(s) navigasyon denemesiyle karşılaşılmaz.
+/// - Üretimde sabittir: "https://ogun-web.vercel.app". Sunucu secret'ları
+///   installer'a paketlenmez; Tauri doğrudan bu origin'i açar (bkz. lib.rs).
 pub struct AppOrigin(Mutex<Option<String>>);
 
 impl AppOrigin {
@@ -37,16 +32,8 @@ impl AppOrigin {
         Self(Mutex::new(initial))
     }
 
-    pub fn set(&self, origin: String) {
-        *self.0.lock().expect("AppOrigin mutex zehirlendi") = Some(origin);
-    }
-
-    /// GitHub issue #52 / Prompt 9.2 — deep_link.rs, üretimde sidecar henüz
-    /// hazır değilken (origin BOŞKEN) gelen bir şifre sıfırlama deep
-    /// link'ini hemen mi işleyeceğine yoksa `PendingDeepLink`'e mi
-    /// koyacağına karar vermek için origin'in şu anki değerine ihtiyaç
-    /// duyar. `is_own_origin` (yukarıda) sadece bir KARŞILAŞTIRMA yapar,
-    /// değeri DIŞARI vermez — bu yüzden ayrı bir okuma metodu gerekiyor.
+    /// Deep link navigasyonlarını uygulamanın kendi origin'inde kurmak için
+    /// güncel değeri verir. Testler boş origin davranışını da kapsar.
     pub fn current(&self) -> Option<String> {
         self.0.lock().expect("AppOrigin mutex zehirlendi").clone()
     }

@@ -8,9 +8,9 @@
 //!   `next dev` sunucusu — kök `pnpm dev`, turbo aracılığıyla bunu apps/web
 //!   ile PARALEL başlatır) işaret eder. Hot reload apps/web'in kendi dev
 //!   sunucusundan geldiği için burada YAPACAK bir şey yok.
-//! - Üretimde pencere önce paketlenmiş bir splash sayfası (bkz. ../splash/)
-//!   gösterir, sidecar.rs Node sidecar sürecini (apps/web'in standalone
-//!   çıktısı) başlatıp hazır olduğunda pencereyi ona yönlendirir.
+//! - Üretimde pencere doğrudan `https://ogun-web.vercel.app` adresini açar.
+//!   Sunucu secret'ları ve veritabanı bağlantı bilgileri installer'a konmaz;
+//!   masaüstü paketi yalnızca güvenli bir native istemci kabuğudur.
 //! - GitHub issue #52 — `ogun://` deep link'leri (bkz. deep_link.rs) ve
 //!   native oturum kalıcılığı (bkz. secure_storage.rs) burada bir araya
 //!   getirilir.
@@ -22,7 +22,6 @@ mod navigation;
 mod notifications;
 mod secure_storage;
 mod settings;
-mod sidecar;
 mod tray;
 mod updater;
 mod window_controls;
@@ -30,12 +29,13 @@ mod window_ops;
 
 use deep_link::{FrontendReady, PendingDeepLink};
 use navigation::AppOrigin;
-use tauri::{Listener, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 
 /// apps/web'in `next dev` sunucusunun varsayılan adresi.
 const DEV_ORIGIN: &str = "http://localhost:3000";
 const DEV_ENTRY_URL: &str = "http://localhost:3000/giris";
+const PRODUCTION_ORIGIN: &str = "https://ogun-web.vercel.app";
 
 pub fn run() {
     tauri::Builder::default()
@@ -60,8 +60,6 @@ pub fn run() {
         // eklenti pencere oluşturulduğunda otomatik geri yükler, kapanışta
         // otomatik kaydeder (bkz. tauri-plugin-window-state dokümantasyonu).
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        // GÖREV 1 — üretimde Node sidecar sürecini başlatmak için.
-        .plugin(tauri_plugin_shell::init())
         // GÖREV 3 — dış http(s) linkleri sistem tarayıcısında açmak için.
         .plugin(tauri_plugin_opener::init())
         // GitHub issue #53 / Prompt 9.3, GÖREV 3 — native OS bildirimleri
@@ -117,16 +115,17 @@ pub fn run() {
             let is_dev = tauri::is_dev();
 
             // GÖREV 3'ün karar mantığı (navigation.rs) kendi origin'imizi
-            // bilmeye ihtiyaç duyar: dev'de sabit, üretimde sidecar hazır
-            // olunca BİR KEZ ayarlanır (bkz. sidecar.rs). Pencereyi
+            // bilmeye ihtiyaç duyar: dev'de localhost, üretimde sabit ve
+            // güvenilir web origin'i kullanılır. Pencereyi
             // oluşturmadan ÖNCE yönetime alınmalı — ilk navigasyon olayı
             // (splash/dev sayfasının kendisi) daha pencere `build()`
             // dönmeden tetiklenebilir.
-            app.manage(AppOrigin::new(if is_dev {
-                Some(DEV_ORIGIN.to_string())
+            let app_origin = if is_dev {
+                DEV_ORIGIN
             } else {
-                None
-            }));
+                PRODUCTION_ORIGIN
+            };
+            app.manage(AppOrigin::new(Some(app_origin.to_string())));
 
             // GitHub issue #52 / Prompt 9.2 — henüz işlenemeyen (origin ya
             // da frontend hazır değilken gelen) TEK bir deep link'i bekletir
@@ -137,11 +136,6 @@ pub fn run() {
             // `notify_frontend_ready` çağrısı) işaretler; bundan ÖNCE
             // yayınlanan bir OAuth olayı dinleyicisiz kalıp KAYBOLABİLİRDİ.
             app.manage(FrontendReady::default());
-            // Paketli Next.js sunucusunu gerçek uygulama çıkışında sonlandırmak
-            // için alt-süreç tanıtıcısını saklar. Pencere tray'e gizlendiğinde
-            // uygulama çıkmadığından sidecar çalışmaya devam eder.
-            app.manage(sidecar::SidecarProcess::default());
-
             // GitHub issue #53 / Prompt 9.3 — GÖREV 1 (Görünüm > Yakınlaştır/
             // Uzaklaştır zoom seviyesi) ve GÖREV 2 (tray'e küçültme tercihi,
             // bkz. settings.rs dosya başı "TASARIM KARARI" notu) durumu.
@@ -193,21 +187,15 @@ pub fn run() {
                 }
             }
 
-            let initial_url = if is_dev {
-                WebviewUrl::External(
-                    DEV_ENTRY_URL
-                        .parse()
-                        .expect("DEV_ENTRY_URL geçerli bir URL olmalı"),
-                )
-            } else {
-                // apps/desktop/splash/index.html (bkz. tauri.conf.json
-                // build.frontendDist) — sidecar hazır olana kadar gösterilen
-                // basit "başlatılıyor" ekranı. GERÇEK uygulama içeriği bu
-                // DEĞİL; sidecar.rs, Node sidecar süreci hazır olur olmaz
-                // pencereyi onun adresine yönlendirir (statik export YOK,
-                // bkz. sidecar.rs'teki modül dokümantasyonu).
-                WebviewUrl::App("index.html".into())
-            };
+            let initial_url = WebviewUrl::External(
+                if is_dev {
+                    DEV_ENTRY_URL.to_string()
+                } else {
+                    format!("{PRODUCTION_ORIGIN}/giris")
+                }
+                .parse()
+                .expect("uygulama giriş adresi geçerli bir URL olmalı"),
+            );
 
             let setup_handle = app.handle().clone();
             let window = WebviewWindowBuilder::new(app, "main", initial_url)
@@ -301,22 +289,16 @@ pub fn run() {
             }
 
             if !is_dev {
-                sidecar::spawn_and_redirect(app.handle().clone(), window);
                 // GitHub issue #54 / Prompt 9.4, GÖREV 3 — sadece üretimde
                 // (dev'de zaten gerçek bir sürüm/manifest YOK) ve pencere
                 // ARTIK var (mandatory/optional diyaloğun bir ebeveyni
-                // olabilsin diye, sidecar spawn'ıyla AYNI sıralama
+                // olabilsin diye, pencere oluşturmayla AYNI sıralama
                 // gerekçesi). SESSİZCE çalışır — bkz. updater.rs.
                 updater::check_for_updates_on_startup(app.handle().clone());
             }
 
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("Öğün masaüstü uygulaması oluşturulurken hata oluştu")
-        .run(|app, event| {
-            if matches!(event, RunEvent::Exit) {
-                app.state::<sidecar::SidecarProcess>().terminate();
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("Öğün masaüstü uygulaması başlatılırken hata oluştu");
 }

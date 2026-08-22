@@ -10,9 +10,8 @@
 # GitHub Actions çalıştırması ile test EDİLEMEDİ (izole bir agent ortamında
 # workflow tetiklemek/izlemek mümkün değil) — sadece dikkatli kod incelemesi
 # ve resmi `tauri-apps/tauri-action` dokümantasyonu (bkz. PR açıklamasındaki
-# kaynak) ile yazıldı. `apps/desktop/scripts/prepare-sidecar.mjs`'in
-# `--source=download` mekanizması İSE bu PR'ın hazırlanması sırasında GERÇEK
-# nodejs.org indirmeleriyle canlı doğrulandı (bkz. o betiğin dosya başı notu).
+# kaynak) ile yazıldı. Desktop ince istemcidir; sunucu runtime'ı veya
+# ortam sırları release paketine dahil edilmez.
 #
 # CREDENTIAL-PENDING (bkz. issue metni: "ben halledeceğim, sen yapılandırmayı
 # hazırla") — aşağıdaki secret/variable'lar bu repoda HENÜZ TANIMLI DEĞİL.
@@ -78,17 +77,8 @@ jobs:
       - name: Bağımlılıkları kur
         run: pnpm install --frozen-lockfile
 
-      # GitHub issue #54, GÖREV 1 — GERÇEK, imzalı, platforma özgü Node
-      # dağıtımını indirir (bkz. apps/desktop/scripts/prepare-sidecar.mjs
-      # dosya başı notu — bu betiğin `--source=download` mekanizması bu PR'ın
-      # hazırlanması sırasında canlı doğrulandı). macOS job'ı için hedef
-      # `universal-apple-darwin` — betik İKİ mimariyi AYRI indirip `lipo`
-      # ile birleştirir (SADECE macOS runner'ında ÇALIŞIR, bkz. betiğin
-      # `prepareUniversalMacosBinary` notu).
-      - name: Sidecar Node ikilisini indir
-        working-directory: apps/desktop
-        run: node scripts/prepare-sidecar.mjs --source=download --target=${{ matrix.platform == 'macos-latest' && 'universal-apple-darwin' || (matrix.platform == 'windows-latest' && 'x86_64-pc-windows-msvc' || '') }}
-
+      # Desktop ince istemcidir: production web uygulamasına bağlanır.
+      # Node sidecar veya sunucu `.env` dosyası installer'a paketlenmez.
       # GitHub issue #54, GÖREV 3 — `createUpdaterArtifacts`/`plugins.updater.
       # pubkey` BİLEREK statik tauri.conf.json'da DEĞİL (bkz. updater.rs
       # dosya başı notu: bunlar orada olsaydı, pubkey secret'ı henüz YOKKEN

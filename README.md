@@ -63,19 +63,13 @@ EK bir şey gerekmez.
 
 ```bash
 cd apps/desktop
-pnpm build   # apps/web'i standalone modda derler + Node sidecar hazırlar + tauri build çalıştırır
+pnpm build   # Tauri uygulamasını ve platform installer'larını derler
 ```
 
-Üretimde Next.js API route'ları ve server action'lar GERÇEK bir sunucu
-gerektirdiğinden (statik export YETERSİZ), Tauri apps/web'in standalone
-çıktısını yerelde başlatan küçük bir Node sidecar süreci paketler (bkz.
-`apps/desktop/src-tauri/src/sidecar.rs` ve `apps/desktop/scripts/prepare-sidecar.mjs`).
-
-NOT (Windows): standalone çıktısı (`STANDALONE_BUILD=1`) pnpm'in
-node_modules'teki symlink'lerini kopyalamaya çalışır — Windows
-Geliştirici Modu ya da yönetici izni yoksa `EPERM: symlink` hatası
-verir (bkz. #46, docs/deployment.md "Bilinen sınırlamalar" — bu YENİ bir
-sorun değil, Docker/Linux'ta karşılaşılmaz).
+Üretim paketi ince istemcidir ve doğrudan `https://ogun-web.vercel.app`
+adresine bağlanır. Neon bağlantı bilgisi, Better Auth secret'ı veya başka
+bir sunucu `.env` değeri installer'a konmaz. API route'ları ve server action'lar
+Vercel'deki web sunucusunda çalışır.
 
 ### Native kimlik doğrulama (OAuth + deep link) — GitHub issue #52
 
@@ -148,17 +142,5 @@ olmadı. JS/TS tarafı (apps/web) TAM olarak doğrulandı: `pnpm typecheck`,
 `pnpm --filter web build` (turbopack'siz) hepsi geçti. Ayrıntılar için
 ilgili PR açıklamalarına bakın.
 
-Issue #54'ün YENİ bağımlılığı `tauri-plugin-updater` de AYNI şekilde
-(`cargo add` gerçek ağ erişimiyle 2.10.1'e ÇÖZÜLDÜ, `cargo check` AYNI
-linker hatasıyla başarısız oldu) sadece docs.rs üzerinden doğrulanan Rust
-API'leriyle (`UpdaterExt`, `UpdaterBuilder`, `MessageDialogBuilder`) yazıldı
-— derleyiciyle DOĞRULANAMADI. Buna KARŞILIK,
-`apps/desktop/scripts/prepare-sidecar.mjs`'in yeni `--source=download`
-mekanizması (platforma özgü resmi Node dağıtımını indirme + SHA-256
-doğrulama + tar.gz çıkarma) bu PR'ın hazırlanması sırasında canlı
-nodejs.org'a karşı GERÇEKTEN test edildi (bkz.
-`docs/desktop-deployment.md` bölüm 2 — bir Windows'a özgü `tar` tuzağı
-GERÇEKTEN yakalanıp `--force-local` ile düzeltildi). `lipo` (evrensel macOS
-birleştirme) VE `.github/workflows/desktop-release.yml` (gerçek bir GitHub
-Actions çalıştırması) bu sandbox'ta doğrulanamadı — ayrıntılar için
-`docs/desktop-deployment.md`nin "Bilinen sınırlamalar" bölümüne bakın.
+Release, kod imzalama ve otomatik güncelleme akışının ayrıntıları için
+`docs/desktop-deployment.md` dosyasına bakın.

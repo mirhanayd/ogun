@@ -38,13 +38,13 @@
 //!     var) olay SESSİZCE kaybolur (Tauri geç abonelere olay TAMPONLAMAZ).
 //!   - Şifre sıfırlama ise pencereyi DOĞRUDAN navigate eder — bunun için
 //!     React'in hazır olması GEREKMEZ, sadece hedef origin'in (bkz.
-//!     navigation.rs AppOrigin — dev'de sabit, üretimde sidecar hazır
-//!     olunca ayarlanır) bilinmesi yeterli.
+//!     navigation.rs AppOrigin — dev ve üretimde pencere kurulmadan önce
+//!     ayarlanır) bilinmesi yeterli.
 //! Bu yüzden TEK bir `PendingDeepLink` kuyruğu (aşağıda) her iki türü de
 //! taşıyabilir, ama her türün "artık işlenebilir" koşulu kendi mantığında
 //! (`try_process`) AYRI AYRI kontrol edilir: OAuth → `FrontendReady`
 //! (yeni `notify_frontend_ready` komutuyla JS'ten sinyallenir, bkz. lib.rs),
-//! ResetPassword → `AppOrigin` (bkz. sidecar.rs'teki drenaj çağrısı).
+//! ResetPassword → `AppOrigin`.
 //!
 //! GitHub issue #53 / Prompt 9.3 — ÜÇÜNCÜ bir kullanım senaryosu eklendi:
 //! `AppDeepLink` (genel uygulama-içi navigasyon, ör. bildirim tıklaması ya
@@ -67,9 +67,9 @@
 //! Rust'ın KENDİSİ bir navigasyon istediğinde (native menü/tray tıklaması,
 //! bkz. `request_navigation` — menu_actions.rs'in TEK çağırdığı fonksiyon)
 //! AYNI yoldan (`dispatch`/`try_process`) geçer — böylece "pencere henüz
-//! sidecar'a yönlendirilmeden ÖNCE bir menü tıklaması gelirse ne olur"
+//! pencere hazır olmadan ÖNCE bir menü tıklaması gelirse ne olur"
 //! sorusunun cevabı otomatik olarak DOĞRU: kuyruğa girer, origin bilinir
-//! bilinmez drenaj edilir (bkz. sidecar.rs). NOT: bildirim TIKLAMASI bu
+//! bilinmez drenaj edilir. NOT: bildirim TIKLAMASI bu
 //! mekanizmayı KULLANMAZ — bkz. notifications.rs dosya başı notu: tauri-
 //! plugin-notification'ın JS `onAction` API'si tıklamayı DOĞRUDAN frontend'e
 //! teslim ediyor, Rust'ın bir URL inşa/ayrıştırma round-trip'ine hiç gerek
@@ -271,17 +271,15 @@ pub fn request_navigation(app: &AppHandle, path: impl Into<String>) {
 }
 
 /// GitHub PR #56 kod incelemesi — hem `notify_frontend_ready` komutundan
-/// (frontend artık dinliyor) hem de sidecar.rs'ten (origin artık biliniyor)
-/// çağrılır: BEKLEYEN deep link'i alır ve TEKRAR işlemeyi dener. `dispatch`
+/// (frontend artık dinliyor) çağrılır: BEKLEYEN deep link'i alır ve
+/// TEKRAR işlemeyi dener. `dispatch`
 /// ile PAYLAŞILAN `try_process` sayesinde iki koşuldan HANGİSİ SONRA
 /// gerçekleşirse gerçekleşsin (frontend önce hazır olabilir ya da origin
 /// önce bilinebilir) doğru şekilde drenaj yapılır.
 ///
 /// `true` DÖNERSE: bekleyen deep link pencereyi DOĞRUDAN bir sayfaya
 /// yönlendiren türdendi (ŞİFRE SIFIRLAMA YA DA GitHub issue #53'ün genel
-/// `AppDeepLink::Navigate`'i) VE bu navigasyon ZATEN yapıldı — sidecar.rs
-/// bu durumda pencereyi AYRICA kök sayfaya yönlendirMEMELİ (aksi halde iki
-/// navigasyon YARIŞA girer, bkz. sidecar.rs'teki çağrı noktası). OAuth geri
+/// `AppDeepLink::Navigate`'i) VE bu navigasyon ZATEN yapıldı. OAuth geri
 /// dönüşü bu dönüş değerini hiç ETKİLEMEZ (kök navigasyon kararıyla
 /// İLGİSİZ — o ayrı bir Tauri olayı üzerinden işlenir).
 pub fn process_pending(app: &AppHandle) -> bool {
@@ -351,8 +349,7 @@ fn build_reset_password_url(origin: &str, token: &str) -> Result<Url, url::Parse
     Ok(url)
 }
 
-/// sidecar.rs'in de (origin hazır olduğunda) çağırdığı, gerçek pencere
-/// navigasyonunu yapan ortak fonksiyon.
+/// Gerçek pencere navigasyonunu yapan ortak fonksiyon.
 pub fn navigate_to_reset_password(app: &AppHandle, origin: &str, token: &str) {
     let Some(window) = app.get_webview_window("main") else {
         eprintln!("[ogun-desktop] ana pencere bulunamadı, şifre sıfırlama deep link'i işlenemedi");
@@ -364,7 +361,7 @@ pub fn navigate_to_reset_password(app: &AppHandle, origin: &str, token: &str) {
                 eprintln!("[ogun-desktop] şifre sıfırlama sayfasına yönlendirilemedi: {err}");
             }
         }
-        Err(err) => eprintln!("[ogun-desktop] sidecar origin'i geçersiz URL: {err}"),
+        Err(err) => eprintln!("[ogun-desktop] uygulama origin'i geçersiz URL: {err}"),
     }
 }
 
@@ -378,10 +375,8 @@ fn build_app_navigate_url(origin: &str, path: &str) -> Result<Url, url::ParseErr
     base.join(path)
 }
 
-/// sidecar.rs'in (origin hazır olduğunda) de dolaylı olarak (process_pending
-/// üzerinden) tetikleyebileceği, genel uygulama-içi navigasyon için gerçek
-/// pencere navigasyonunu yapan fonksiyon — `navigate_to_reset_password`
-/// ile AYNI yapı.
+/// Genel uygulama-içi navigasyon için gerçek pencere navigasyonunu yapan
+/// fonksiyon — `navigate_to_reset_password` ile AYNI yapı.
 pub fn navigate_to_app_path(app: &AppHandle, origin: &str, path: &str) {
     let Some(window) = app.get_webview_window("main") else {
         eprintln!("[ogun-desktop] ana pencere bulunamadı, uygulama-içi navigasyon işlenemedi");
@@ -393,7 +388,7 @@ pub fn navigate_to_app_path(app: &AppHandle, origin: &str, path: &str) {
                 eprintln!("[ogun-desktop] '{path}' sayfasına yönlendirilemedi: {err}");
             }
         }
-        Err(err) => eprintln!("[ogun-desktop] sidecar origin'i geçersiz URL: {err}"),
+        Err(err) => eprintln!("[ogun-desktop] uygulama origin'i geçersiz URL: {err}"),
     }
 }
 

@@ -37,7 +37,7 @@
 //! değildir). `release_ordinal` bu yüzden SADECE major.minor'ı bir SIRA
 //! numarasına indirger — bkz. `is_mandatory_update` testleri.
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
 

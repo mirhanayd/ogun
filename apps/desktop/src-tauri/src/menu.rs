@@ -89,12 +89,10 @@ pub fn build_and_set(app: &App) -> tauri::Result<()> {
         .item(&MenuItemBuilder::with_id(ACTION_VERSION_INFO, "Sürüm Bilgisi").build(app)?)
         .build()?;
 
-    let mut builder = MenuBuilder::new(app);
+    let builder = MenuBuilder::new(app);
 
     #[cfg(target_os = "macos")]
-    {
-        builder = builder.item(&build_macos_app_menu(app)?);
-    }
+    let builder = builder.item(&build_macos_app_menu(app)?);
 
     let menu = builder.item(&dosya).item(&duzen).item(&gorunum).item(&yardim).build()?;
 
