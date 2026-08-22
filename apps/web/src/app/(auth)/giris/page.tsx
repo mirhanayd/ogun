@@ -19,6 +19,20 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   'google-girisi-basarisiz': 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.',
   no_session: 'Google girişi tamamlanamadı (oturum bulunamadı), lütfen tekrar deneyin.',
   token_generation_failed: 'Google girişi tamamlanamadı, lütfen tekrar deneyin.',
+  'invalid-or-expired-token':
+    'Google giriş bağlantısının süresi doldu. Lütfen yeniden deneyin.',
+  'missing-session-token':
+    'Google oturumu masaüstü uygulamasına aktarılamadı. Lütfen yeniden deneyin.',
+  'network-error':
+    'Google oturumu aktarılırken yerel sunucuya ulaşılamadı. Lütfen yeniden deneyin.',
+  access_denied: 'Google hesabına erişim izni verilmedi.',
+  account_not_linked:
+    'Bu e-posta başka bir oturum yöntemine bağlı. Lütfen yeniden deneyin.',
+  invalid_code: 'Google giriş kodu geçersiz veya süresi dolmuş. Lütfen yeniden deneyin.',
+  state_mismatch: 'Google giriş isteği doğrulanamadı. Lütfen yeniden deneyin.',
+  unable_to_create_user: 'Google hesabı için kullanıcı oluşturulamadı.',
+  unable_to_create_session: 'Google hesabı için oturum oluşturulamadı.',
+  google_oauth_failed: 'Google ile giriş tamamlanamadı. Lütfen yeniden deneyin.',
 }
 
 export default function GirisPage() {

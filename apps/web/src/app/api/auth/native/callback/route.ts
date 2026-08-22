@@ -35,6 +35,17 @@ import { auth } from '@/lib/auth'
 // GERÇEK oturumu (hem çerez hem de auth.ts'teki bearer() eklentisiyle
 // üretilen, stronghold'a yazılacak bearer token'ı) alır.
 export async function GET(request: Request) {
+  // Better Auth, OAuth sağlayıcısından veya hesap bağlama adımından
+  // gelen hatayı errorCallbackURL'e `?error=...` olarak taşır. Bunu önce
+  // ele almazsak aşağıdaki getSession doğal olarak boş döner ve gerçek
+  // neden yanlış biçimde `no_session` diye gizlenir.
+  const upstreamError = new URL(request.url).searchParams.get('error')
+  if (upstreamError) {
+    return deepLinkRedirect('ogun://auth/callback', {
+      error: normalizeOAuthError(upstreamError),
+    })
+  }
+
   const session = await auth.api.getSession({ headers: request.headers })
 
   if (!session) {
@@ -51,6 +62,23 @@ export async function GET(request: Request) {
     // hassas) URL'e KOYMUYORUZ, sadece jenerik bir hata kodu.
     return deepLinkRedirect('ogun://auth/callback', { error: 'token_generation_failed' })
   }
+}
+
+function normalizeOAuthError(error: string): string {
+  const normalized = error.trim().toLowerCase().replaceAll(' ', '_')
+  // Deep link URL'ine sağlayıcının serbest biçimli hata metnini
+  // taşımıyoruz. Yalnızca arayüzün güvenle gösterebildiği kodlar
+  // korunur; bilinmeyen ayrıntılar jenerik koda indirgenir.
+  return [
+    'access_denied',
+    'account_not_linked',
+    'invalid_code',
+    'state_mismatch',
+    'unable_to_create_user',
+    'unable_to_create_session',
+  ].includes(normalized)
+    ? normalized
+    : 'google_oauth_failed'
 }
 
 // NextResponse.redirect(url) yerine düz bir Response kullanıyoruz: o

@@ -6,6 +6,9 @@ import { db } from '@ogun/db'
 import * as schema from '@ogun/db/schema'
 import { AUTH_SESSION_ADDITIONAL_FIELDS } from './auth-session-fields'
 
+const TEN_YEARS_IN_SECONDS = 60 * 60 * 24 * 365 * 10
+const ONE_DAY_IN_SECONDS = 60 * 60 * 24
+
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
 // üzerinde (Next.js App Router route handler'ı üzerinden) çalışır, bkz.
 // apps/web/src/app/api/auth/[...all]/route.ts.
@@ -19,10 +22,9 @@ export const auth = betterAuth({
     schema,
   }),
   secret: process.env.BETTER_AUTH_SECRET,
-  // Web deployments keep the configured canonical URL. The packaged desktop
-  // app, however, runs on a random loopback port; resolving that request host
-  // dynamically is essential so Google receives a callback URL that points
-  // back to the same running sidecar instead of localhost:3000.
+  // Web dağıtımı yapılandırılmış ana URL'i kullanır. Masaüstü sidecar'ı
+  // ise loopback isteğinin host'unu dinamik çözer; Google callback'i aynı
+  // yerel sunucuya döner.
   baseURL: {
     allowedHosts: ['127.0.0.1:*', 'localhost:*'],
     fallback: process.env.BETTER_AUTH_URL,
@@ -37,8 +39,8 @@ export const auth = betterAuth({
   // "ogun://auth/" öneki YETERLİ ve doğru (resmi Better Auth deseni, bkz.
   // mobil/Expo istemcileri için trustedOrigins: ["myapp://"] dokümantasyonu).
   // baseURL zaten örtük olarak güvenilir olduğundan web akışı ETKİLENMEZ.
-  // The packaged sidecar binds to a random free loopback port. Trust only
-  // loopback origins, never LAN or arbitrary HTTP origins.
+  // Yalnızca loopback origin'lerine güven; LAN veya keyfî HTTP origin'lerine
+  // izin verme.
   trustedOrigins: ['ogun://auth/', 'http://127.0.0.1:*', 'http://localhost:*'],
   emailAndPassword: {
     enabled: true,
@@ -56,12 +58,32 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
     },
   },
+  account: {
+    accountLinking: {
+      // Uygulamada e-posta doğrulama servisi henüz etkin olmadığı için
+      // e-posta+şifreyle açılan mevcut hesaplar emailVerified=false
+      // durumunda. Google ise e-posta sahipliğini doğruladığından, AYNI
+      // e-posta adresiyle gelen Google kimliğini o hesaba güvenle bağlayabilir.
+      // allowDifferentEmails varsayılan false kalır: farklı iki e-posta
+      // hesabı hiçbir zaman örtük biçimde birleştirilmez.
+      enabled: true,
+      trustedProviders: ['google'],
+      requireLocalEmailVerified: false,
+    },
+  },
   // KURAL (bkz. src/lib/authz.ts): bir kullanıcı birden fazla klinikte üye
   // olabildiği için "şu an hangi klinikte çalışıyor" bilgisi oturuma
   // (session'a) bağlıdır, kullanıcıya değil. Bu iki alan clinic_members
   // üzerinden giriş/klinik değişimi sırasında set edilir (bkz. authz.ts
   // requireClinic / setActiveClinic).
   session: {
+    // Kullanıcı açıkça çıkış yapmadığı sürece masaüstü
+    // oturumunun kendiliğinden sona ermemesi gerekir. Better Auth mutlak
+    // olarak sonsuz oturum kullanmadığından uzun bir süre + günlük kayan
+    // yenileme kullanıyoruz. Her aktif kullanım expiresAt'i tekrar ileri
+    // taşır; mevcut 7 günlük oturumlar da ilk başarılı istekte yenilenir.
+    expiresIn: TEN_YEARS_IN_SECONDS,
+    updateAge: ONE_DAY_IN_SECONDS,
     additionalFields: AUTH_SESSION_ADDITIONAL_FIELDS,
   },
   // GitHub issue #52 / Prompt 9.2, GÖREV 1 ve GÖREV 3 — masaüstü (Tauri)
@@ -90,7 +112,7 @@ export const auth = betterAuth({
   // nextCookies() eklentisi, Better Auth eklenti listesinde SON sırada olmalı
   // (üst kütüphanenin kendi kuralı) — server action'lardan set-cookie
   // başlıklarını otomatik uygulamayı sağlar.
-  plugins: [bearer(), oneTimeToken(), nextCookies()],
+  plugins: [bearer(), oneTimeToken({ expiresIn: 10 }), nextCookies()],
 })
 
 export type Auth = typeof auth
