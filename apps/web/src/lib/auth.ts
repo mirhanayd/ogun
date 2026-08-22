@@ -4,10 +4,11 @@ import { nextCookies } from 'better-auth/next-js'
 import { bearer, oneTimeToken } from 'better-auth/plugins'
 import { db } from '@ogun/db'
 import * as schema from '@ogun/db/schema'
-import { AUTH_SESSION_ADDITIONAL_FIELDS } from './auth-session-fields'
-
-const TEN_YEARS_IN_SECONDS = 60 * 60 * 24 * 365 * 10
-const ONE_DAY_IN_SECONDS = 60 * 60 * 24
+import {
+  AUTH_SESSION_ADDITIONAL_FIELDS,
+  AUTH_SESSION_EXPIRES_IN_SECONDS,
+  AUTH_SESSION_UPDATE_AGE_SECONDS,
+} from './auth-session-fields'
 
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
 // üzerinde (Next.js App Router route handler'ı üzerinden) çalışır, bkz.
@@ -79,11 +80,13 @@ export const auth = betterAuth({
   session: {
     // Kullanıcı açıkça çıkış yapmadığı sürece masaüstü
     // oturumunun kendiliğinden sona ermemesi gerekir. Better Auth mutlak
-    // olarak sonsuz oturum kullanmadığından uzun bir süre + günlük kayan
-    // yenileme kullanıyoruz. Her aktif kullanım expiresAt'i tekrar ileri
-    // taşır; mevcut 7 günlük oturumlar da ilk başarılı istekte yenilenir.
-    expiresIn: TEN_YEARS_IN_SECONDS,
-    updateAge: ONE_DAY_IN_SECONDS,
+    // olarak sonsuz oturum kullanmadığından tarayıcının izin verdiği en
+    // uzun süre + günlük kayan yenileme kullanıyoruz. Her aktif kullanım
+    // expiresAt'i tekrar ileri taşır; mevcut oturumlar da ilk başarılı
+    // istekte yenilenir. 400 gün sınırının gerekçesi ve regresyon testi
+    // auth-session-fields.ts dosyasındadır.
+    expiresIn: AUTH_SESSION_EXPIRES_IN_SECONDS,
+    updateAge: AUTH_SESSION_UPDATE_AGE_SECONDS,
     additionalFields: AUTH_SESSION_ADDITIONAL_FIELDS,
   },
   // GitHub issue #52 / Prompt 9.2, GÖREV 1 ve GÖREV 3 — masaüstü (Tauri)
