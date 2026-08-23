@@ -6,10 +6,19 @@ import {
   addItem,
   createAppointment,
   createClient,
+  createGoal,
+  createLabResult,
+  createMeasurement,
+  createPayment,
   createPlan,
   getClientById,
+  getDesktopClinicalWorkspace,
+  getGoalClientId,
   getClinicById,
   getAppointmentById,
+  getLabResultClientId,
+  getMeasurementClientId,
+  getPaymentClientId,
   getPlanById,
   getPlanTree,
   listAppointmentsInRange,
@@ -20,9 +29,11 @@ import {
   removeAlternative,
   removeItem,
   reorderItems,
+  updateClientGeneralInfo,
   updateItem,
   updateMeal,
   updatePlan,
+  upsertClientHealth,
 } from '@ogun/db/queries'
 import { requireClinic, UnauthenticatedError } from '@/lib/authz'
 import { canAccessClientRecord } from '@/lib/client-access'
@@ -32,7 +43,18 @@ export const dynamic = 'force-dynamic'
 
 const mutationEnvelopeSchema = z.object({
   id: z.string().min(1).max(160),
-  kind: z.enum(['client.create', 'plan.create', 'appointment.create', 'plan.draft.replace']),
+  kind: z.enum([
+    'client.create',
+    'client.update',
+    'anamnesis.upsert',
+    'measurement.create',
+    'goal.create',
+    'labResult.create',
+    'payment.create',
+    'plan.create',
+    'appointment.create',
+    'plan.draft.replace',
+  ]),
   payload: z.record(z.unknown()),
   createdAt: z.string().datetime(),
 })
@@ -47,8 +69,112 @@ const clientCreateSchema = z.object({
   lastName: z.string().trim().min(1).max(80),
   phone: z.string().trim().max(30).nullable().optional(),
   birthDate: z.string().date().nullable().optional(),
+  sex: z.enum(['male', 'female']).nullable().optional(),
+  email: z.string().trim().email().max(254).nullable().optional(),
+  occupation: z.string().trim().max(120).nullable().optional(),
+  referralSource: z.string().trim().max(120).nullable().optional(),
+  notes: z.string().max(4_000).nullable().optional(),
   kvkkConsentChecked: z.literal(true),
   explicitConsentChecked: z.literal(true),
+})
+
+const clientUpdateSchema = z.object({
+  clientId: z.string().min(1),
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  birthDate: z.string().date().nullable().optional(),
+  sex: z.enum(['male', 'female']).nullable().optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
+  email: z.string().trim().email().max(254).nullable().optional(),
+  occupation: z.string().trim().max(120).nullable().optional(),
+  referralSource: z.string().trim().max(120).nullable().optional(),
+  notes: z.string().max(4_000).nullable().optional(),
+  status: z.enum(['aktif', 'pasif', 'arşiv']),
+  smsConsentChecked: z.boolean().optional(),
+})
+
+const allergenSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().trim().min(1).max(120),
+  severity: z.enum(['hafif', 'orta', 'şiddetli']).nullable(),
+  note: z.string().trim().max(500).nullable(),
+})
+
+const anamnesisSchema = z.object({
+  clientId: z.string().min(1),
+  conditions: z.array(z.string().trim().min(1).max(500)).max(100),
+  medications: z.array(z.string().trim().min(1).max(500)).max(100),
+  allergies: z.array(allergenSchema).max(50),
+  intolerances: z.array(allergenSchema).max(50),
+  surgeries: z.string().max(2_000).nullable(),
+  familyHistory: z.string().max(2_000).nullable(),
+  smokingStatus: z.string().max(200).nullable(),
+  alcoholUse: z.string().max(200).nullable(),
+  mealsPerDay: z.number().int().min(1).max(15).nullable(),
+  eatingOutFrequency: z.string().max(200).nullable(),
+  waterIntakeMl: z.number().int().min(0).max(10_000).nullable(),
+  activityLevel: z.enum(['sedentary', 'light', 'moderate', 'active', 'very_active']).nullable(),
+  activityNotes: z.string().max(2_000).nullable(),
+  sleepHours: z.number().int().min(0).max(24).nullable(),
+  sleepQuality: z.string().max(200).nullable(),
+  bowelHabits: z.string().max(1_000).nullable(),
+})
+
+const optionalPositiveNumber = z.number().positive().nullable().optional()
+const measurementCreateSchema = z.object({
+  id: z.string().min(1),
+  clientId: z.string().min(1),
+  measuredAt: z.string().datetime(),
+  source: z.enum(['manuel', 'inbody', 'tanita', 'accuniq']),
+  weightKg: z.number().positive().max(500),
+  heightCm: optionalPositiveNumber,
+  waistCm: optionalPositiveNumber,
+  hipCm: optionalPositiveNumber,
+  neckCm: optionalPositiveNumber,
+  armCm: optionalPositiveNumber,
+  thighCm: optionalPositiveNumber,
+  chestCm: optionalPositiveNumber,
+  bodyFatPct: optionalPositiveNumber,
+  bodyFatKg: optionalPositiveNumber,
+  leanMassKg: optionalPositiveNumber,
+  muscleMassKg: optionalPositiveNumber,
+  totalBodyWaterL: optionalPositiveNumber,
+  visceralFatLevel: z.number().int().positive().nullable().optional(),
+  bmrKcal: z.number().int().positive().nullable().optional(),
+  phaseAngle: optionalPositiveNumber,
+  notes: z.string().max(2_000).nullable().optional(),
+})
+
+const goalCreateSchema = z.object({
+  id: z.string().min(1),
+  clientId: z.string().min(1),
+  type: z.enum(['kilo', 'yağ_oranı', 'çevre']),
+  targetValue: z.number().positive(),
+  targetDate: z.string().date().nullable().optional(),
+  startValue: z.number().positive(),
+  startedAt: z.string().datetime(),
+})
+
+const labResultCreateSchema = z.object({
+  id: z.string().min(1),
+  clientId: z.string().min(1),
+  testedAt: z.string().datetime(),
+  analyte: z.string().trim().min(1).max(120),
+  value: z.number().finite(),
+  unit: z.string().trim().min(1).max(30),
+  refMin: z.number().finite().nullable().optional(),
+  refMax: z.number().finite().nullable().optional(),
+  labName: z.string().trim().max(200).nullable().optional(),
+  notes: z.string().max(2_000).nullable().optional(),
+})
+
+const paymentCreateSchema = z.object({
+  id: z.string().min(1),
+  clientId: z.string().min(1),
+  amount: z.number().positive().max(1_000_000),
+  method: z.enum(['nakit', 'kart', 'havale', 'online']),
+  paidAt: z.string().datetime(),
+  notes: z.string().max(500).nullable().optional(),
 })
 
 const planCreateSchema = z.object({
@@ -265,11 +391,18 @@ export async function GET() {
       }),
     ])
 
+    const clinicalWorkspace = await getDesktopClinicalWorkspace(
+      db,
+      ctx.scope.clinicId,
+      clientRows.map((client) => client.id),
+    )
+
     return NextResponse.json({
-      version: 1,
+      version: 2,
       capturedAt: new Date().toISOString(),
       clinic: { id: clinic.id, name: clinic.name },
       clients: clientRows,
+      ...clinicalWorkspace,
       plans: planRows,
       appointments: appointmentRows,
     })
@@ -293,6 +426,14 @@ export async function POST(request: Request) {
     const appliedIds: string[] = []
     const idMap: Record<string, string> = {}
 
+    const requireAccessibleClient = async (clientId: string, operation: string) => {
+      const client = await getClientById(db, ctx.scope.clinicId, clientId)
+      if (!canAccessClientRecord(client, { role: ctx.role, userId: ctx.user.id })) {
+        throw new Error(`${operation} için danışana erişim izniniz yok.`)
+      }
+      return client
+    }
+
     for (const mutation of parsed.data.mutations) {
       try {
         if (mutation.kind === 'client.create') {
@@ -306,12 +447,119 @@ export async function POST(request: Request) {
               lastName: payload.lastName,
               phone: payload.phone ?? null,
               birthDate: payload.birthDate ?? null,
+              sex: payload.sex ?? null,
+              email: payload.email ?? null,
+              occupation: payload.occupation ?? null,
+              referralSource: payload.referralSource ?? null,
+              notes: payload.notes ?? null,
               kvkkConsentAt: new Date(mutation.createdAt),
               kvkkConsentVersion: CURRENT_KVKK_CONSENT_VERSION,
               explicitConsentAt: new Date(mutation.createdAt),
               assignedDietitianId: ctx.role === 'dietitian' ? ctx.user.id : null,
             }))
           idMap[payload.id] = created.id
+        }
+
+        if (mutation.kind === 'client.update') {
+          const payload = clientUpdateSchema.parse(mutation.payload)
+          const clientId = idMap[payload.clientId] ?? payload.clientId
+          await requireAccessibleClient(clientId, 'Danışan güncellemesi')
+          await updateClientGeneralInfo(db, ctx.scope.clinicId, clientId, {
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            birthDate: payload.birthDate ?? null,
+            sex: payload.sex ?? null,
+            phone: payload.phone ?? null,
+            email: payload.email ?? null,
+            occupation: payload.occupation ?? null,
+            referralSource: payload.referralSource ?? null,
+            notes: payload.notes ?? null,
+            status: payload.status,
+            ...(payload.smsConsentChecked !== undefined
+              ? { smsConsentAt: payload.smsConsentChecked ? new Date(mutation.createdAt) : null }
+              : {}),
+          })
+        }
+
+        if (mutation.kind === 'anamnesis.upsert') {
+          const payload = anamnesisSchema.parse(mutation.payload)
+          const clientId = idMap[payload.clientId] ?? payload.clientId
+          await requireAccessibleClient(clientId, 'Anamnez kaydı')
+          await upsertClientHealth(db, ctx.scope.clinicId, clientId, payload)
+        }
+
+        if (mutation.kind === 'measurement.create') {
+          const payload = measurementCreateSchema.parse(mutation.payload)
+          const clientId = idMap[payload.clientId] ?? payload.clientId
+          await requireAccessibleClient(clientId, 'Ölçüm kaydı')
+          const existingClientId = await getMeasurementClientId(db, payload.id)
+          if (existingClientId && existingClientId !== clientId) {
+            throw new Error('Ölçüm kimliği çakışıyor.')
+          }
+          if (!existingClientId) {
+            await createMeasurement(db, ctx.scope.clinicId, clientId, {
+              ...payload,
+              measuredAt: new Date(payload.measuredAt),
+              recordedBy: ctx.user.id,
+            })
+          }
+          idMap[payload.id] = payload.id
+        }
+
+        if (mutation.kind === 'goal.create') {
+          const payload = goalCreateSchema.parse(mutation.payload)
+          const clientId = idMap[payload.clientId] ?? payload.clientId
+          await requireAccessibleClient(clientId, 'Hedef kaydı')
+          const existingClientId = await getGoalClientId(db, payload.id)
+          if (existingClientId && existingClientId !== clientId) {
+            throw new Error('Hedef kimliği çakışıyor.')
+          }
+          if (!existingClientId) {
+            await createGoal(db, ctx.scope.clinicId, clientId, {
+              ...payload,
+              startedAt: new Date(payload.startedAt),
+            })
+          }
+          idMap[payload.id] = payload.id
+        }
+
+        if (mutation.kind === 'labResult.create') {
+          const payload = labResultCreateSchema.parse(mutation.payload)
+          const clientId = idMap[payload.clientId] ?? payload.clientId
+          await requireAccessibleClient(clientId, 'Laboratuvar kaydı')
+          const existingClientId = await getLabResultClientId(db, payload.id)
+          if (existingClientId && existingClientId !== clientId) {
+            throw new Error('Laboratuvar sonucu kimliği çakışıyor.')
+          }
+          if (!existingClientId) {
+            await createLabResult(db, ctx.scope.clinicId, clientId, {
+              ...payload,
+              testedAt: new Date(payload.testedAt),
+              recordedBy: ctx.user.id,
+            })
+          }
+          idMap[payload.id] = payload.id
+        }
+
+        if (mutation.kind === 'payment.create') {
+          const payload = paymentCreateSchema.parse(mutation.payload)
+          const clientId = idMap[payload.clientId] ?? payload.clientId
+          await requireAccessibleClient(clientId, 'Ödeme kaydı')
+          const existingClientId = await getPaymentClientId(db, payload.id)
+          if (existingClientId && existingClientId !== clientId) {
+            throw new Error('Ödeme kimliği çakışıyor.')
+          }
+          if (!existingClientId) {
+            await createPayment(db, ctx.scope.clinicId, {
+              id: payload.id,
+              clientId,
+              amount: payload.amount.toFixed(2),
+              method: payload.method,
+              paidAt: new Date(payload.paidAt),
+              notes: payload.notes ?? null,
+            })
+          }
+          idMap[payload.id] = payload.id
         }
 
         if (mutation.kind === 'plan.create') {

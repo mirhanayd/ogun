@@ -167,6 +167,10 @@ export interface CreateClientInput {
   phone?: string | null
   birthDate?: string | null // 'YYYY-MM-DD'
   sex?: ClientSex | null
+  email?: string | null
+  occupation?: string | null
+  referralSource?: string | null
+  notes?: string | null
   // Rıza alanları — çağıran taraf (apps/web/src/app/(app)/danisanlar/actions.ts
   // createClientAction) assertClientConsentComplete()'i ÇAĞIRDIKTAN SONRA
   // buraya geçirir (bkz. apps/web/src/lib/validation/client-schemas.ts).
@@ -190,6 +194,10 @@ export async function createClient(db: Database, clinicId: string, input: Create
       phone: input.phone ?? null,
       birthDate: input.birthDate ?? null,
       sex: input.sex ?? null,
+      email: input.email ?? null,
+      occupation: input.occupation ?? null,
+      referralSource: input.referralSource ?? null,
+      notes: input.notes ?? null,
       kvkkConsentAt: input.kvkkConsentAt,
       kvkkConsentVersion: input.kvkkConsentVersion,
       explicitConsentAt: input.explicitConsentAt,

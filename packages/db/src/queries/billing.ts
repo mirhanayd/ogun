@@ -303,6 +303,7 @@ export async function listPaymentsForClinicInRange(
 }
 
 export interface CreatePaymentInput {
+  id?: string
   clientId: string
   clientPackageId?: string | null
   amount: string

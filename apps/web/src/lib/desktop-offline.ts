@@ -11,7 +11,17 @@ export interface DesktopOfflineProfile {
 
 export interface DesktopOfflineMutation {
   id: string
-  kind: 'client.create' | 'plan.create' | 'appointment.create' | 'plan.draft.replace'
+  kind:
+    | 'client.create'
+    | 'client.update'
+    | 'anamnesis.upsert'
+    | 'measurement.create'
+    | 'goal.create'
+    | 'labResult.create'
+    | 'payment.create'
+    | 'plan.create'
+    | 'appointment.create'
+    | 'plan.draft.replace'
   payload: Record<string, unknown>
   createdAt: string
 }
@@ -28,7 +38,16 @@ export function remapOfflineMutation(
   idMap: Record<string, string>,
 ): DesktopOfflineMutation {
   const payload = { ...mutation.payload }
-  for (const key of ['id', 'clientId', 'planId', 'appointmentId']) {
+  for (const key of [
+    'id',
+    'clientId',
+    'planId',
+    'appointmentId',
+    'measurementId',
+    'goalId',
+    'labResultId',
+    'paymentId',
+  ]) {
     const value = payload[key]
     if (typeof value === 'string' && idMap[value]) payload[key] = idMap[value]
   }

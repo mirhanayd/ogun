@@ -24,6 +24,7 @@ async function assertClientInClinic(db: Database, clinicId: string, clientId: st
 }
 
 export interface LabResultInput {
+  id?: string
   testedAt: Date
   analyte: string
   value: number
@@ -45,6 +46,7 @@ export async function createLabResult(
   const [row] = await db
     .insert(labResults)
     .values({
+      ...(input.id !== undefined && { id: input.id }),
       clientId,
       testedAt: input.testedAt,
       analyte: input.analyte,

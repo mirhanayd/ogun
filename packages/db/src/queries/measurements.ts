@@ -18,6 +18,7 @@ import type { Database } from '../client'
 // --- Ölçümler ----------------------------------------------------------------
 
 export interface MeasurementInput {
+  id?: string
   measuredAt: Date
   source: MeasurementSource
   weightKg?: number | null
@@ -99,7 +100,7 @@ export async function createMeasurement(
   await assertClientInClinic(db, clinicId, clientId)
   const [measurement] = await db
     .insert(measurements)
-    .values({ clientId, ...toMeasurementValues(input) })
+    .values({ ...(input.id !== undefined && { id: input.id }), clientId, ...toMeasurementValues(input) })
     .returning()
   if (!measurement) throw new Error('Ölçüm kaydedilemedi.')
   return measurement
@@ -191,6 +192,7 @@ export async function getLatestMeasurement(db: Database, clinicId: string, clien
 // --- Hedefler ------------------------------------------------------------
 
 export interface GoalInput {
+  id?: string
   type: GoalType
   targetValue: number
   targetDate?: string | null // 'YYYY-MM-DD'
@@ -208,6 +210,7 @@ export async function createGoal(
   const [goal] = await db
     .insert(clientGoals)
     .values({
+      ...(input.id !== undefined && { id: input.id }),
       clientId,
       type: input.type,
       targetValue: input.targetValue.toString(),
