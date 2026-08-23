@@ -3,8 +3,9 @@
 ## Hedef
 
 Öğün masaüstü uygulaması ağ kesildiğinde açık ekranda kalmakla yetinmez.
-Uygulama yeniden başlatıldığında da cihazdaki hesap seçilebilir, yerel PIN ile
-açılabilir ve klinik çalışması sürdürülebilir. Sunucuya ulaşamayan yazımlar
+Uygulama yeniden başlatıldığında da cihazdaki hesap seçilebilir, hızlı giriş PIN’iyle
+açılabilir ve klinik çalışması sürdürülebilir. PIN bir çalışma modu seçmez; bağlantı
+durumu uygulama tarafından ayrıca belirlenir. Sunucuya ulaşamayan yazımlar
 uygulama sürecinde değil, diskteki şifreli işlem günlüğünde bekler.
 
 ## Veri akışı
@@ -16,8 +17,9 @@ uygulama sürecinde değil, diskteki şifreli işlem günlüğünde bekler.
    günceller.
 3. İlk girişte 4-8 rakamlı cihaz PIN'i istenir. PIN'in kendisi saklanmaz;
    Argon2id özeti Stronghold kasasına yazılır.
-4. Ağ yoksa paketlenmiş çalışma alanı profil + PIN seçimini gösterir. Başarılı
-   doğrulama yalnızca o uygulama süreci için kasayı açar.
+4. PIN doğrulaması yalnızca o uygulama süreci için cihaz kasasını açar. Ağ varsa
+   normal uygulama doğrudan `/panel` ekranına gider; ağ yoksa aynı bilgi mimarisinin
+   çevrimdışı durumu açılır ve sunucu gerektiren eylemler pasif kalır.
 5. Yerel yazımlar önce tekrar oynatılabilir mutasyon günlüğüne, ardından
    ekranda kullanılan snapshot'a yazılır. Böylece ikinci yazım kesilse bile
    sunucuya aktarılması gereken işlem kaybolmaz. Her iki yazım da tamamlanmadan

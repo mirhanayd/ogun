@@ -5,7 +5,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { ChevronRight, KeyRound, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
+import { authClient } from '@/lib/auth-client'
+import { desktopPinDestination, type DesktopOfflineProfile } from '@/lib/desktop-offline'
 import { isNativeShell } from '@/lib/native-shell'
 
 export function DesktopSavedAccounts() {
@@ -30,6 +31,21 @@ export function DesktopSavedAccounts() {
     setError(null)
     try {
       await invoke('unlock_offline_profile', { userId: selected.userId, pin })
+      const online = await invoke<boolean>('desktop_network_available')
+      if (desktopPinDestination(online) === 'online-app') {
+        // PIN bir çalışma modu seçmez; yalnızca cihazdaki hesabın kilidini açar.
+        // Ağ varsa saklanan Better Auth oturumunu doğrulayıp her zamanki ortak
+        // uygulama kabuğuna geç. Yerel çalışma alanına yalnızca gerçekten ağ
+        // yoksa düşülür.
+        const { data: session, error: sessionError } = await authClient.getSession()
+        if (!session || sessionError) {
+          throw new Error(
+            'Sunucu oturumunuzun süresi dolmuş. Lütfen hesabınızla yeniden giriş yapın.',
+          )
+        }
+        window.location.assign('/panel')
+        return
+      }
       await invoke('show_offline_workspace')
     } catch (unlockError) {
       setError(String(unlockError))
@@ -84,7 +100,7 @@ export function DesktopSavedAccounts() {
             type="password"
             inputMode="numeric"
             autoComplete="off"
-            placeholder="Yerel PIN"
+            placeholder="Hızlı giriş PIN’i"
             className="mt-3 h-10 rounded-xl text-center tracking-[0.3em]"
           />
           {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
@@ -101,13 +117,13 @@ export function DesktopSavedAccounts() {
               Geri
             </Button>
             <Button type="button" className="rounded-xl" disabled={busy} onClick={unlock}>
-              {busy ? 'Açılıyor…' : 'PIN ile aç'}
+              {busy ? 'Açılıyor…' : 'PIN ile hızlı giriş'}
             </Button>
           </div>
         </div>
       )}
       <p className="px-1 pt-2 text-[11px] leading-4 text-muted-foreground">
-        Yerel PIN sunucu parolanız değildir; yalnızca bu cihazdaki şifreli çalışma alanını açar.
+        Hızlı giriş PIN’i bir çalışma modu değildir; bu cihazdaki kayıtlı hesabın kilidini açar.
       </p>
     </section>
   )

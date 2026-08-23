@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { isNativeShell } from '@/lib/native-shell'
+import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
 
 // GitHub issue #53 / Prompt 9.3, GÖREV 2 — "Pencere kapatılınca uygulama
 // tamamen kapanmasın, tray'de kalsın ... Bunu ayarlarda kapatılabilir yap."
@@ -30,6 +31,7 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
   const [newPin, setNewPin] = useState('')
   const [newPinAgain, setNewPinAgain] = useState('')
   const [savingPin, setSavingPin] = useState(false)
+  const [pinConfigured, setPinConfigured] = useState(false)
 
   useEffect(() => {
     if (!isNativeShell()) return
@@ -43,7 +45,14 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
         console.warn('[desktop-settings-card] ayar okunamadı', err)
         setLoaded(true)
       })
-  }, [])
+    void invoke<DesktopOfflineProfile[]>('list_offline_profiles')
+      .then((profiles) => {
+        setPinConfigured(
+          profiles.find((profile) => profile.userId === userId)?.pinConfigured ?? false,
+        )
+      })
+      .catch((err) => console.warn('[desktop-settings-card] hızlı giriş profili okunamadı', err))
+  }, [userId])
 
   if (!isNative) return null
 
@@ -75,7 +84,10 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
       setCurrentPin('')
       setNewPin('')
       setNewPinAgain('')
-      toast.success('Yerel giriş PIN’i güncellendi.')
+      setPinConfigured(true)
+      toast.success(
+        pinConfigured ? 'Hızlı giriş PIN’i güncellendi.' : 'Hızlı giriş PIN’i ayarlandı.',
+      )
     } catch (error) {
       toast.error('PIN güncellenemedi.', { description: String(error) })
     } finally {
@@ -110,20 +122,29 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
         <div className="mt-5 border-t border-border/70 pt-5">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <KeyRound className="size-4 text-primary" />
-            Çevrimdışı giriş PIN’i
+            Hızlı giriş PIN’i
           </div>
           <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-            İnternet yokken bu bilgisayardaki hesabınızı açmak için kullanılır.
+            Kayıtlı hesabınızı parola yazmadan hızlıca açar. PIN çevrimiçi veya çevrimdışı mod
+            seçmez; bağlantı durumu uygulama tarafından ayrıca belirlenir.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <Input
-              type="password"
-              inputMode="numeric"
-              value={currentPin}
-              onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="Mevcut PIN"
-              className="rounded-xl"
-            />
+            {pinConfigured ? (
+              <Input
+                type="password"
+                inputMode="numeric"
+                value={currentPin}
+                onChange={(event) =>
+                  setCurrentPin(event.target.value.replace(/\D/g, '').slice(0, 8))
+                }
+                placeholder="Mevcut PIN"
+                className="rounded-xl"
+              />
+            ) : (
+              <div className="flex items-center rounded-xl border border-dashed border-border px-3 text-xs text-muted-foreground">
+                Henüz PIN ayarlanmadı
+              </div>
+            )}
             <Input
               type="password"
               inputMode="numeric"
@@ -150,7 +171,7 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
             disabled={savingPin}
             onClick={handlePinChange}
           >
-            PIN’i değiştir
+            {pinConfigured ? 'PIN’i değiştir' : 'PIN oluştur'}
           </Button>
         </div>
       </CardContent>

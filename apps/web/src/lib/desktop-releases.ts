@@ -36,7 +36,7 @@ export const DESKTOP_RELEASES: DesktopRelease[] = [
     version: '0.2.0',
     publishedAt: '2026-08-23',
     notes: [
-      'İnternet yokken kayıtlı cihaz hesabı ve yerel PIN ile giriş yapılabilir.',
+      'Kayıtlı cihaz hesabı hızlı giriş PIN’iyle açılabilir; çalışma modu bağlantı durumuna göre belirlenir.',
       'Danışan, plan ve randevu kayıtları şifreli cihaz kasasında kalıcı olarak bekler.',
       'Bağlantı geri geldiğinde bekleyen değişiklikler otomatik olarak bulutla eşitlenir.',
       'Plan editörü taslakları uygulama kapatılsa bile kaybolmaz.',

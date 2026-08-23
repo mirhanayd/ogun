@@ -1,11 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { KeyRound, Loader2, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   remainingOfflineMutations,
   type DesktopOfflineMutation,
@@ -29,12 +26,6 @@ function authHeaders(): HeadersInit {
 }
 
 export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
-  const [needsPin, setNeedsPin] = useState(false)
-  const [pin, setPin] = useState('')
-  const [pinAgain, setPinAgain] = useState('')
-  const [savingPin, setSavingPin] = useState(false)
-  const [pinError, setPinError] = useState<string | null>(null)
-
   const refreshSnapshot = useCallback(async () => {
     const response = await fetch('/api/desktop/workspace', {
       cache: 'no-store',
@@ -115,7 +106,20 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
       })
       const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
       const deviceProfile = profiles.find((profile) => profile.userId === props.userId)
-      if (!cancelled) setNeedsPin(deviceProfile?.pinConfigured === false)
+      if (!cancelled && deviceProfile?.pinConfigured === false) {
+        // PIN hızlı giriş için isteğe bağlıdır; normal uygulamayı örten zorunlu
+        // bir "offline moda geçiş" ekranı değildir. Kullanıcı aynı arayüzde
+        // çalışmaya devam eder, dilerse Ayarlar'dan PIN oluşturur.
+        toast.info('Bu cihaz için hızlı giriş PIN’i ayarlayabilirsiniz.', {
+          id: 'desktop-quick-login-pin',
+          description: 'PIN isteğe bağlıdır ve yalnızca kayıtlı hesabın kilidini açar.',
+          duration: 12_000,
+          action: {
+            label: 'Ayarlara git',
+            onClick: () => window.location.assign('/ayarlar'),
+          },
+        })
+      }
       await synchronize()
     })().catch((error) => {
       console.warn('[desktop-offline] cihaz çalışma alanı hazırlanamadı', error)
@@ -148,82 +152,5 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
     synchronize,
   ])
 
-  if (!needsPin) return null
-
-  async function savePin() {
-    setPinError(null)
-    if (!/^\d{4,8}$/.test(pin)) {
-      setPinError('PIN 4-8 rakamdan oluşmalıdır.')
-      return
-    }
-    if (pin !== pinAgain) {
-      setPinError('Girdiğiniz PIN’ler eşleşmiyor.')
-      return
-    }
-    setSavingPin(true)
-    try {
-      await invoke('configure_offline_pin', {
-        userId: props.userId,
-        newPin: pin,
-        currentPin: null,
-      })
-      setNeedsPin(false)
-      toast.success('Çevrimdışı giriş PIN’i hazır.')
-    } catch (error) {
-      setPinError(String(error))
-    } finally {
-      setSavingPin(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-foreground/45 p-5 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-3xl border border-border/80 bg-card p-6 shadow-2xl sm:p-8">
-        <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-          <ShieldCheck className="size-5" />
-        </span>
-        <p className="mt-5 text-xs font-bold tracking-[0.14em] text-primary uppercase">
-          Cihaz güvenliği
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">
-          İnternet olmadan giriş için PIN belirleyin
-        </h2>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Bu PIN yalnızca bu bilgisayarda çalışır. Klinik veriniz ve bekleyen değişiklikler şifreli
-          cihaz kasasında tutulur.
-        </p>
-        <div className="mt-6 grid gap-3">
-          <div className="relative">
-            <KeyRound className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={pin}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 8))}
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              placeholder="4-8 rakamlı PIN"
-              className="h-11 rounded-xl pl-10"
-            />
-          </div>
-          <Input
-            value={pinAgain}
-            onChange={(event) => setPinAgain(event.target.value.replace(/\D/g, '').slice(0, 8))}
-            type="password"
-            inputMode="numeric"
-            autoComplete="new-password"
-            placeholder="PIN’i tekrar girin"
-            className="h-11 rounded-xl"
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void savePin()
-            }}
-          />
-        </div>
-        {pinError ? <p className="mt-3 text-sm text-destructive">{pinError}</p> : null}
-        <Button className="mt-5 h-11 w-full rounded-xl" disabled={savingPin} onClick={savePin}>
-          {savingPin ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
-          {savingPin ? 'PIN kaydediliyor…' : 'PIN’i kaydet ve devam et'}
-        </Button>
-      </div>
-    </div>
-  )
+  return null
 }

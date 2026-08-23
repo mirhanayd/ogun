@@ -11,11 +11,11 @@ let mutations = []
 
 const $ = (id) => document.getElementById(id)
 const esc = (value = '') =>
-  String(value).replace(/[&<>'"]/g, (char) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char],
+  String(value).replace(
+    /[&<>'"]/g,
+    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char],
   )
-const localId = (prefix) =>
-  `local-${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+const localId = (prefix) => `local-${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 const iso = () => new Date().toISOString()
 const nullable = (value) => (String(value ?? '').trim() ? String(value).trim() : null)
 const numberOrNull = (value) => {
@@ -62,11 +62,13 @@ function normalizeWorkspace(value) {
   return normalized
 }
 
-document.querySelectorAll('[data-window]').forEach((button) =>
-  button.addEventListener('click', () =>
-    invoke('control_main_window', { action: button.dataset.window }),
-  ),
-)
+document
+  .querySelectorAll('[data-window]')
+  .forEach((button) =>
+    button.addEventListener('click', () =>
+      invoke('control_main_window', { action: button.dataset.window }),
+    ),
+  )
 $('drag').addEventListener('mousedown', (event) => {
   if (event.button === 0) invoke('control_main_window', { action: 'startDragging' })
 })
@@ -87,12 +89,6 @@ function goOnline() {
 }
 
 async function boot() {
-  const unlocked = await invoke('get_unlocked_offline_workspace').catch(() => null)
-  if (unlocked) {
-    openWorkspace(unlocked)
-    return
-  }
-  profiles = await invoke('list_offline_profiles').catch(() => [])
   const online = await networkAvailable()
   const status = $('network-status')
   status.classList.toggle('online', online)
@@ -103,12 +99,20 @@ async function boot() {
     setTimeout(goOnline, 350)
     return
   }
+  // Açılmış bir PIN profili ağ geri geldiğinde kullanıcıyı yerel arayüzde
+  // tutmamalı. Bağlantı kontrolü bu nedenle kasadaki kilit durumundan ÖNCE.
+  const unlocked = await invoke('get_unlocked_offline_workspace').catch(() => null)
+  if (unlocked) {
+    openWorkspace(unlocked)
+    return
+  }
+  profiles = await invoke('list_offline_profiles').catch(() => [])
   $('boot-title').textContent = profiles.length
     ? 'Bu cihazda kim çalışıyor?'
     : 'İlk giriş için bağlantı gerekiyor'
   $('boot-copy').textContent = profiles.length
-    ? 'Kayıtlı hesabınızı seçip yerel PIN’inizle devam edin.'
-    : 'Bu cihazda henüz çevrimdışı profil yok. İnternet geldiğinde bir kez giriş yapıp PIN belirleyin.'
+    ? 'Kayıtlı hesabınızı seçip hızlı giriş PIN’inizle devam edin.'
+    : 'Bu cihazda henüz kayıtlı profil yok. İnternet geldiğinde bir kez giriş yapıp hızlı giriş PIN’i belirleyin.'
   $('online-login').classList.remove('hidden')
   renderProfiles()
 }
@@ -131,7 +135,8 @@ function selectProfile(userId) {
   $('profiles').classList.add('hidden')
   $('pin-panel').classList.remove('hidden')
   $('boot-title').textContent = `Hoş geldiniz, ${selectedProfile.displayName.split(' ')[0]}`
-  $('boot-copy').textContent = `${selectedProfile.clinicName} çalışma alanını açmak için cihaz PIN’inizi girin.`
+  $('boot-copy').textContent =
+    `${selectedProfile.clinicName} hesabının kilidini açmak için hızlı giriş PIN’inizi girin.`
   $('pin-input').focus()
 }
 
@@ -177,12 +182,12 @@ $('online-login').onclick = async () => {
 }
 
 function showPage(name) {
-  document.querySelectorAll('nav button').forEach((button) =>
-    button.classList.toggle('active', button.dataset.page === name),
-  )
-  document.querySelectorAll('.page').forEach((page) =>
-    page.classList.toggle('active', page.id === `page-${name}`),
-  )
+  document
+    .querySelectorAll('nav button')
+    .forEach((button) => button.classList.toggle('active', button.dataset.page === name))
+  document
+    .querySelectorAll('.page')
+    .forEach((page) => page.classList.toggle('active', page.id === `page-${name}`))
 }
 
 document.querySelectorAll('nav button').forEach((button) => {
@@ -195,7 +200,8 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) return '—'
   return new Intl.DateTimeFormat('tr-TR', {
     dateStyle: 'medium',
-    timeStyle: String(value).includes('T') && !String(value).includes('T12:00:00') ? 'short' : undefined,
+    timeStyle:
+      String(value).includes('T') && !String(value).includes('T12:00:00') ? 'short' : undefined,
   }).format(date)
 }
 
@@ -282,10 +288,14 @@ function renderClientDetail() {
     return
   }
   $('detail-name').textContent = `${client.firstName} ${client.lastName}`
-  $('detail-summary').textContent = `${client.status || 'aktif'} danışan · ${client.phone || 'Telefon girilmemiş'}`
+  $('detail-summary').textContent =
+    `${client.status || 'aktif'} danışan · ${client.phone || 'Telefon girilmemiş'}`
   $('detail-general').innerHTML = [
     ['Doğum tarihi', formatDate(client.birthDate)],
-    ['Cinsiyet', client.sex === 'female' ? 'Kadın' : client.sex === 'male' ? 'Erkek' : 'Belirtilmedi'],
+    [
+      'Cinsiyet',
+      client.sex === 'female' ? 'Kadın' : client.sex === 'male' ? 'Erkek' : 'Belirtilmedi',
+    ],
     ['E-posta', client.email || '—'],
     ['Meslek', client.occupation || '—'],
     ['Başvuru kaynağı', client.referralSource || '—'],
@@ -312,7 +322,10 @@ function renderClientDetail() {
             item.waistCm ? `Bel ${item.waistCm} cm` : '',
             item.bodyFatPct ? `Yağ %${item.bodyFatPct}` : '',
             item.notes || '',
-          ].filter(Boolean).map(esc).join(' · ')}</p></div>`,
+          ]
+            .filter(Boolean)
+            .map(esc)
+            .join(' · ')}</p></div>`,
       )
       .join('') || emptyRecord('Ölçüm kaydı yok.')
 
@@ -393,7 +406,10 @@ function modalDefinition(type) {
     label: 'Danışan',
     type: 'select',
     required: true,
-    options: [option('', 'Seçin'), ...workspace.clients.map((item) => option(item.id, `${item.firstName} ${item.lastName}`))],
+    options: [
+      option('', 'Seçin'),
+      ...workspace.clients.map((item) => option(item.id, `${item.firstName} ${item.lastName}`)),
+    ],
   }
   const definitions = {
     client: {
@@ -401,8 +417,20 @@ function modalDefinition(type) {
       copy: 'Tam danışan profili ve rıza kaydı şifreli cihaz kasasına kaydedilir.',
       fields: [
         ...clientFields(),
-        { name: 'kvkkConsentChecked', label: 'KVKK aydınlatma metni sunuldu ve onaylandı', type: 'checkbox', required: true, full: true },
-        { name: 'explicitConsentChecked', label: 'Sağlık verilerinin işlenmesi için açık rıza alındı', type: 'checkbox', required: true, full: true },
+        {
+          name: 'kvkkConsentChecked',
+          label: 'KVKK aydınlatma metni sunuldu ve onaylandı',
+          type: 'checkbox',
+          required: true,
+          full: true,
+        },
+        {
+          name: 'explicitConsentChecked',
+          label: 'Sağlık verilerinin işlenmesi için açık rıza alındı',
+          type: 'checkbox',
+          required: true,
+          full: true,
+        },
       ],
     },
     clientUpdate: {
@@ -410,36 +438,130 @@ function modalDefinition(type) {
       copy: 'Değişiklikler bağlantı gelene kadar cihazda saklanır.',
       fields: [
         ...clientFields(client),
-        { name: 'status', label: 'Durum', type: 'select', options: statusOptions, value: client.status || 'aktif' },
-        { name: 'smsConsentChecked', label: 'İşlemsel SMS iletişimi için rıza var', type: 'checkbox', checked: Boolean(client.smsConsentAt), full: true },
+        {
+          name: 'status',
+          label: 'Durum',
+          type: 'select',
+          options: statusOptions,
+          value: client.status || 'aktif',
+        },
+        {
+          name: 'smsConsentChecked',
+          label: 'İşlemsel SMS iletişimi için rıza var',
+          type: 'checkbox',
+          checked: Boolean(client.smsConsentAt),
+          full: true,
+        },
       ],
     },
     anamnesis: {
       title: 'Anamnez düzenle',
       copy: 'Her satıra bir tanı veya ilaç yazabilirsiniz. Alerji ve intoleransları virgülle ayırın.',
       fields: [
-        { name: 'conditions', label: 'Tanılar / sağlık durumları', type: 'textarea', full: true, value: (anamnesis.conditions || []).join('\n') },
-        { name: 'medications', label: 'İlaçlar', type: 'textarea', full: true, value: (anamnesis.medications || []).join('\n') },
-        { name: 'allergies', label: 'Alerjiler', value: (anamnesis.allergies || []).map((item) => item.label).join(', ') },
-        { name: 'intolerances', label: 'İntoleranslar', value: (anamnesis.intolerances || []).map((item) => item.label).join(', ') },
-        { name: 'surgeries', label: 'Ameliyat geçmişi', type: 'textarea', value: anamnesis.surgeries },
-        { name: 'familyHistory', label: 'Aile öyküsü', type: 'textarea', value: anamnesis.familyHistory },
+        {
+          name: 'conditions',
+          label: 'Tanılar / sağlık durumları',
+          type: 'textarea',
+          full: true,
+          value: (anamnesis.conditions || []).join('\n'),
+        },
+        {
+          name: 'medications',
+          label: 'İlaçlar',
+          type: 'textarea',
+          full: true,
+          value: (anamnesis.medications || []).join('\n'),
+        },
+        {
+          name: 'allergies',
+          label: 'Alerjiler',
+          value: (anamnesis.allergies || []).map((item) => item.label).join(', '),
+        },
+        {
+          name: 'intolerances',
+          label: 'İntoleranslar',
+          value: (anamnesis.intolerances || []).map((item) => item.label).join(', '),
+        },
+        {
+          name: 'surgeries',
+          label: 'Ameliyat geçmişi',
+          type: 'textarea',
+          value: anamnesis.surgeries,
+        },
+        {
+          name: 'familyHistory',
+          label: 'Aile öyküsü',
+          type: 'textarea',
+          value: anamnesis.familyHistory,
+        },
         { name: 'smokingStatus', label: 'Sigara kullanımı', value: anamnesis.smokingStatus },
         { name: 'alcoholUse', label: 'Alkol kullanımı', value: anamnesis.alcoholUse },
-        { name: 'mealsPerDay', label: 'Günlük öğün', type: 'number', min: 1, max: 15, value: anamnesis.mealsPerDay },
-        { name: 'waterIntakeMl', label: 'Su (ml/gün)', type: 'number', min: 0, max: 10000, value: anamnesis.waterIntakeMl },
-        { name: 'eatingOutFrequency', label: 'Dışarıda yeme sıklığı', value: anamnesis.eatingOutFrequency },
-        { name: 'activityLevel', label: 'Aktivite düzeyi', type: 'select', options: activityOptions, value: anamnesis.activityLevel },
-        { name: 'activityNotes', label: 'Aktivite notu', type: 'textarea', value: anamnesis.activityNotes },
-        { name: 'sleepHours', label: 'Uyku (saat)', type: 'number', min: 0, max: 24, value: anamnesis.sleepHours },
+        {
+          name: 'mealsPerDay',
+          label: 'Günlük öğün',
+          type: 'number',
+          min: 1,
+          max: 15,
+          value: anamnesis.mealsPerDay,
+        },
+        {
+          name: 'waterIntakeMl',
+          label: 'Su (ml/gün)',
+          type: 'number',
+          min: 0,
+          max: 10000,
+          value: anamnesis.waterIntakeMl,
+        },
+        {
+          name: 'eatingOutFrequency',
+          label: 'Dışarıda yeme sıklığı',
+          value: anamnesis.eatingOutFrequency,
+        },
+        {
+          name: 'activityLevel',
+          label: 'Aktivite düzeyi',
+          type: 'select',
+          options: activityOptions,
+          value: anamnesis.activityLevel,
+        },
+        {
+          name: 'activityNotes',
+          label: 'Aktivite notu',
+          type: 'textarea',
+          value: anamnesis.activityNotes,
+        },
+        {
+          name: 'sleepHours',
+          label: 'Uyku (saat)',
+          type: 'number',
+          min: 0,
+          max: 24,
+          value: anamnesis.sleepHours,
+        },
         { name: 'sleepQuality', label: 'Uyku kalitesi', value: anamnesis.sleepQuality },
-        { name: 'bowelHabits', label: 'Sindirim / bağırsak alışkanlığı', type: 'textarea', full: true, value: anamnesis.bowelHabits },
+        {
+          name: 'bowelHabits',
+          label: 'Sindirim / bağırsak alışkanlığı',
+          type: 'textarea',
+          full: true,
+          value: anamnesis.bowelHabits,
+        },
       ],
     },
     measurement: {
-      title: 'Yeni ölçüm', copy: 'Kilo zorunludur; diğer vücut kompozisyonu alanları isteğe bağlıdır.', fields: [
+      title: 'Yeni ölçüm',
+      copy: 'Kilo zorunludur; diğer vücut kompozisyonu alanları isteğe bağlıdır.',
+      fields: [
         { name: 'measuredAt', label: 'Ölçüm tarihi', type: 'date', required: true, value: today },
-        { name: 'source', label: 'Kaynak', type: 'select', options: ['manuel', 'inbody', 'tanita', 'accuniq'].map((value) => option(value, value === 'manuel' ? 'Manuel' : value)), value: 'manuel' },
+        {
+          name: 'source',
+          label: 'Kaynak',
+          type: 'select',
+          options: ['manuel', 'inbody', 'tanita', 'accuniq'].map((value) =>
+            option(value, value === 'manuel' ? 'Manuel' : value),
+          ),
+          value: 'manuel',
+        },
         { name: 'weightKg', label: 'Kilo (kg)', type: 'number', step: '0.01', required: true },
         { name: 'heightCm', label: 'Boy (cm)', type: 'number', step: '0.1' },
         { name: 'waistCm', label: 'Bel (cm)', type: 'number', step: '0.1' },
@@ -459,30 +581,96 @@ function modalDefinition(type) {
         { name: 'notes', label: 'Not', type: 'textarea', full: true },
       ],
     },
-    goal: { title: 'Yeni hedef', copy: 'Danışanın ölçüm hedefini çevrimdışı kaydedin.', fields: [
-      { name: 'type', label: 'Hedef türü', type: 'select', options: [option('kilo', 'Kilo'), option('yağ_oranı', 'Yağ oranı'), option('çevre', 'Çevre ölçüsü')] },
-      { name: 'targetValue', label: 'Hedef değer', type: 'number', step: '0.01', required: true },
-      { name: 'startValue', label: 'Başlangıç değeri', type: 'number', step: '0.01', required: true },
-      { name: 'targetDate', label: 'Hedef tarihi', type: 'date' },
-    ] },
-    labResult: { title: 'Laboratuvar sonucu ekle', copy: 'Analit ve değer zorunludur.', fields: [
-      { name: 'testedAt', label: 'Tahlil tarihi', type: 'date', required: true, value: today },
-      { name: 'analyte', label: 'Analit', required: true },
-      { name: 'value', label: 'Değer', type: 'number', step: 'any', required: true },
-      { name: 'unit', label: 'Birim', required: true },
-      { name: 'refMin', label: 'Alt referans', type: 'number', step: 'any' },
-      { name: 'refMax', label: 'Üst referans', type: 'number', step: 'any' },
-      { name: 'labName', label: 'Laboratuvar' },
-      { name: 'notes', label: 'Not', type: 'textarea', full: true },
-    ] },
-    payment: { title: 'Ödeme ekle', copy: 'Paket bağlantısı gerektirmeyen tahsilat kaydı oluşturur.', fields: [
-      { name: 'amount', label: 'Tutar (₺)', type: 'number', step: '0.01', required: true },
-      { name: 'method', label: 'Yöntem', type: 'select', options: [option('nakit', 'Nakit'), option('kart', 'Kart'), option('havale', 'Havale/EFT'), option('online', 'Online')] },
-      { name: 'paidAt', label: 'Ödeme tarihi', type: 'date', required: true, value: today },
-      { name: 'notes', label: 'Not', type: 'textarea', full: true },
-    ] },
-    plan: { title: 'Yeni beslenme planı', copy: 'Plan taslağını çevrimdışıyken hazırlayıp sonra eşitleyin.', fields: [clientSelect, { name: 'name', label: 'Plan adı', required: true }, { name: 'targetKcal', label: 'Hedef enerji (kcal)', type: 'number' }, { name: 'notes', label: 'Plan notları / öğün taslağı', type: 'textarea', full: true }] },
-    appointment: { title: 'Yeni randevu', copy: 'Takvim kaydı bağlantı gelince klinik hesabına aktarılır.', fields: [clientSelect, { name: 'startsAt', label: 'Başlangıç', type: 'datetime-local', required: true }, { name: 'endsAt', label: 'Bitiş', type: 'datetime-local', required: true }, { name: 'type', label: 'Tür', type: 'select', options: [option('kontrol', 'Kontrol'), option('ilk_görüşme', 'İlk görüşme'), option('ölçüm', 'Ölçüm'), option('online', 'Online')] }, { name: 'notes', label: 'Not', type: 'textarea', full: true }] },
+    goal: {
+      title: 'Yeni hedef',
+      copy: 'Danışanın ölçüm hedefini çevrimdışı kaydedin.',
+      fields: [
+        {
+          name: 'type',
+          label: 'Hedef türü',
+          type: 'select',
+          options: [
+            option('kilo', 'Kilo'),
+            option('yağ_oranı', 'Yağ oranı'),
+            option('çevre', 'Çevre ölçüsü'),
+          ],
+        },
+        { name: 'targetValue', label: 'Hedef değer', type: 'number', step: '0.01', required: true },
+        {
+          name: 'startValue',
+          label: 'Başlangıç değeri',
+          type: 'number',
+          step: '0.01',
+          required: true,
+        },
+        { name: 'targetDate', label: 'Hedef tarihi', type: 'date' },
+      ],
+    },
+    labResult: {
+      title: 'Laboratuvar sonucu ekle',
+      copy: 'Analit ve değer zorunludur.',
+      fields: [
+        { name: 'testedAt', label: 'Tahlil tarihi', type: 'date', required: true, value: today },
+        { name: 'analyte', label: 'Analit', required: true },
+        { name: 'value', label: 'Değer', type: 'number', step: 'any', required: true },
+        { name: 'unit', label: 'Birim', required: true },
+        { name: 'refMin', label: 'Alt referans', type: 'number', step: 'any' },
+        { name: 'refMax', label: 'Üst referans', type: 'number', step: 'any' },
+        { name: 'labName', label: 'Laboratuvar' },
+        { name: 'notes', label: 'Not', type: 'textarea', full: true },
+      ],
+    },
+    payment: {
+      title: 'Ödeme ekle',
+      copy: 'Paket bağlantısı gerektirmeyen tahsilat kaydı oluşturur.',
+      fields: [
+        { name: 'amount', label: 'Tutar (₺)', type: 'number', step: '0.01', required: true },
+        {
+          name: 'method',
+          label: 'Yöntem',
+          type: 'select',
+          options: [
+            option('nakit', 'Nakit'),
+            option('kart', 'Kart'),
+            option('havale', 'Havale/EFT'),
+            option('online', 'Online'),
+          ],
+        },
+        { name: 'paidAt', label: 'Ödeme tarihi', type: 'date', required: true, value: today },
+        { name: 'notes', label: 'Not', type: 'textarea', full: true },
+      ],
+    },
+    plan: {
+      title: 'Yeni beslenme planı',
+      copy: 'Plan taslağını çevrimdışıyken hazırlayıp sonra eşitleyin.',
+      fields: [
+        clientSelect,
+        { name: 'name', label: 'Plan adı', required: true },
+        { name: 'targetKcal', label: 'Hedef enerji (kcal)', type: 'number' },
+        { name: 'notes', label: 'Plan notları / öğün taslağı', type: 'textarea', full: true },
+      ],
+    },
+    appointment: {
+      title: 'Yeni randevu',
+      copy: 'Takvim kaydı bağlantı gelince klinik hesabına aktarılır.',
+      fields: [
+        clientSelect,
+        { name: 'startsAt', label: 'Başlangıç', type: 'datetime-local', required: true },
+        { name: 'endsAt', label: 'Bitiş', type: 'datetime-local', required: true },
+        {
+          name: 'type',
+          label: 'Tür',
+          type: 'select',
+          options: [
+            option('kontrol', 'Kontrol'),
+            option('ilk_görüşme', 'İlk görüşme'),
+            option('ölçüm', 'Ölçüm'),
+            option('online', 'Online'),
+          ],
+        },
+        { name: 'notes', label: 'Not', type: 'textarea', full: true },
+      ],
+    },
   }
   return definitions[type]
 }
@@ -494,7 +682,9 @@ function renderField(field) {
     field.min !== undefined ? `min="${field.min}"` : '',
     field.max !== undefined ? `max="${field.max}"` : '',
     field.step ? `step="${field.step}"` : '',
-  ].filter(Boolean).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ')
   if (field.type === 'checkbox') {
     return `<label class="field full" style="display:flex;grid-template-columns:auto 1fr;align-items:start"><input ${attrs} type="checkbox" ${field.checked ? 'checked' : ''} style="width:17px;height:17px;margin-top:2px"><span style="font-size:12px;line-height:1.5">${esc(field.label)}</span></label>`
   }
@@ -510,7 +700,11 @@ function renderField(field) {
 }
 
 function openModal(type) {
-  if (['clientUpdate', 'anamnesis', 'measurement', 'goal', 'labResult', 'payment'].includes(type) && !selectedClientId) return
+  if (
+    ['clientUpdate', 'anamnesis', 'measurement', 'goal', 'labResult', 'payment'].includes(type) &&
+    !selectedClientId
+  )
+    return
   modalType = type
   const definition = modalDefinition(type)
   $('modal-title').textContent = definition.title
@@ -529,9 +723,16 @@ $('modal').addEventListener('click', (event) => {
 })
 
 function allergenEntries(value, prefix) {
-  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean).map((label) => ({
-    id: localId(prefix), label, severity: null, note: null,
-  }))
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((label) => ({
+      id: localId(prefix),
+      label,
+      severity: null,
+      note: null,
+    }))
 }
 
 $('modal-form').onsubmit = async (event) => {
@@ -541,11 +742,20 @@ $('modal-form').onsubmit = async (event) => {
   try {
     if (modalType === 'client') {
       const record = {
-        id, firstName: data.firstName.trim(), lastName: data.lastName.trim(), phone: nullable(data.phone),
-        birthDate: nullable(data.birthDate), sex: nullable(data.sex), email: nullable(data.email),
-        occupation: nullable(data.occupation), referralSource: nullable(data.referralSource), notes: nullable(data.notes),
-        kvkkConsentChecked: data.kvkkConsentChecked === 'on', explicitConsentChecked: data.explicitConsentChecked === 'on',
-        status: 'aktif', createdAt: iso(),
+        id,
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
+        phone: nullable(data.phone),
+        birthDate: nullable(data.birthDate),
+        sex: nullable(data.sex),
+        email: nullable(data.email),
+        occupation: nullable(data.occupation),
+        referralSource: nullable(data.referralSource),
+        notes: nullable(data.notes),
+        kvkkConsentChecked: data.kvkkConsentChecked === 'on',
+        explicitConsentChecked: data.explicitConsentChecked === 'on',
+        status: 'aktif',
+        createdAt: iso(),
       }
       workspace.clients.unshift(record)
       await persist('client.create', record)
@@ -553,55 +763,156 @@ $('modal-form').onsubmit = async (event) => {
     } else if (modalType === 'clientUpdate') {
       const client = workspace.clients.find((item) => item.id === selectedClientId)
       const payload = {
-        clientId: selectedClientId, firstName: data.firstName.trim(), lastName: data.lastName.trim(),
-        phone: nullable(data.phone), birthDate: nullable(data.birthDate), sex: nullable(data.sex), email: nullable(data.email),
-        occupation: nullable(data.occupation), referralSource: nullable(data.referralSource), notes: nullable(data.notes),
-        status: data.status, smsConsentChecked: data.smsConsentChecked === 'on',
+        clientId: selectedClientId,
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
+        phone: nullable(data.phone),
+        birthDate: nullable(data.birthDate),
+        sex: nullable(data.sex),
+        email: nullable(data.email),
+        occupation: nullable(data.occupation),
+        referralSource: nullable(data.referralSource),
+        notes: nullable(data.notes),
+        status: data.status,
+        smsConsentChecked: data.smsConsentChecked === 'on',
       }
       Object.assign(client, payload, { smsConsentAt: payload.smsConsentChecked ? iso() : null })
       await persist('client.update', payload)
     } else if (modalType === 'anamnesis') {
       const payload = {
-        clientId: selectedClientId, conditions: listFromText(data.conditions), medications: listFromText(data.medications),
-        allergies: allergenEntries(data.allergies, 'allergy'), intolerances: allergenEntries(data.intolerances, 'intolerance'),
-        surgeries: nullable(data.surgeries), familyHistory: nullable(data.familyHistory), smokingStatus: nullable(data.smokingStatus),
-        alcoholUse: nullable(data.alcoholUse), mealsPerDay: numberOrNull(data.mealsPerDay), eatingOutFrequency: nullable(data.eatingOutFrequency),
-        waterIntakeMl: numberOrNull(data.waterIntakeMl), activityLevel: nullable(data.activityLevel), activityNotes: nullable(data.activityNotes),
-        sleepHours: numberOrNull(data.sleepHours), sleepQuality: nullable(data.sleepQuality), bowelHabits: nullable(data.bowelHabits),
+        clientId: selectedClientId,
+        conditions: listFromText(data.conditions),
+        medications: listFromText(data.medications),
+        allergies: allergenEntries(data.allergies, 'allergy'),
+        intolerances: allergenEntries(data.intolerances, 'intolerance'),
+        surgeries: nullable(data.surgeries),
+        familyHistory: nullable(data.familyHistory),
+        smokingStatus: nullable(data.smokingStatus),
+        alcoholUse: nullable(data.alcoholUse),
+        mealsPerDay: numberOrNull(data.mealsPerDay),
+        eatingOutFrequency: nullable(data.eatingOutFrequency),
+        waterIntakeMl: numberOrNull(data.waterIntakeMl),
+        activityLevel: nullable(data.activityLevel),
+        activityNotes: nullable(data.activityNotes),
+        sleepHours: numberOrNull(data.sleepHours),
+        sleepQuality: nullable(data.sleepQuality),
+        bowelHabits: nullable(data.bowelHabits),
       }
       const index = workspace.anamneses.findIndex((item) => item.clientId === selectedClientId)
-      if (index >= 0) workspace.anamneses[index] = { ...workspace.anamneses[index], ...payload, updatedAt: iso() }
+      if (index >= 0)
+        workspace.anamneses[index] = { ...workspace.anamneses[index], ...payload, updatedAt: iso() }
       else workspace.anamneses.push({ id: localId('anamnesis'), ...payload, updatedAt: iso() })
       await persist('anamnesis.upsert', payload)
     } else if (modalType === 'measurement') {
-      const record = { id, clientId: selectedClientId, measuredAt: localDateIso(data.measuredAt), source: data.source, weightKg: Number(data.weightKg), notes: nullable(data.notes) }
-      for (const key of ['heightCm', 'waistCm', 'hipCm', 'neckCm', 'armCm', 'thighCm', 'chestCm', 'bodyFatPct', 'bodyFatKg', 'leanMassKg', 'muscleMassKg', 'totalBodyWaterL', 'visceralFatLevel', 'bmrKcal', 'phaseAngle']) record[key] = numberOrNull(data[key])
+      const record = {
+        id,
+        clientId: selectedClientId,
+        measuredAt: localDateIso(data.measuredAt),
+        source: data.source,
+        weightKg: Number(data.weightKg),
+        notes: nullable(data.notes),
+      }
+      for (const key of [
+        'heightCm',
+        'waistCm',
+        'hipCm',
+        'neckCm',
+        'armCm',
+        'thighCm',
+        'chestCm',
+        'bodyFatPct',
+        'bodyFatKg',
+        'leanMassKg',
+        'muscleMassKg',
+        'totalBodyWaterL',
+        'visceralFatLevel',
+        'bmrKcal',
+        'phaseAngle',
+      ])
+        record[key] = numberOrNull(data[key])
       workspace.measurements.push(record)
       await persist('measurement.create', record)
     } else if (modalType === 'goal') {
-      const record = { id, clientId: selectedClientId, type: data.type, targetValue: Number(data.targetValue), targetDate: nullable(data.targetDate), startValue: Number(data.startValue), startedAt: iso() }
+      const record = {
+        id,
+        clientId: selectedClientId,
+        type: data.type,
+        targetValue: Number(data.targetValue),
+        targetDate: nullable(data.targetDate),
+        startValue: Number(data.startValue),
+        startedAt: iso(),
+      }
       workspace.goals.push(record)
       await persist('goal.create', record)
     } else if (modalType === 'labResult') {
-      const record = { id, clientId: selectedClientId, testedAt: localDateIso(data.testedAt), analyte: data.analyte.trim(), value: Number(data.value), unit: data.unit.trim(), refMin: numberOrNull(data.refMin), refMax: numberOrNull(data.refMax), labName: nullable(data.labName), notes: nullable(data.notes) }
+      const record = {
+        id,
+        clientId: selectedClientId,
+        testedAt: localDateIso(data.testedAt),
+        analyte: data.analyte.trim(),
+        value: Number(data.value),
+        unit: data.unit.trim(),
+        refMin: numberOrNull(data.refMin),
+        refMax: numberOrNull(data.refMax),
+        labName: nullable(data.labName),
+        notes: nullable(data.notes),
+      }
       workspace.labResults.push(record)
       await persist('labResult.create', record)
     } else if (modalType === 'payment') {
-      const record = { id, clientId: selectedClientId, amount: Number(data.amount), method: data.method, paidAt: localDateIso(data.paidAt), notes: nullable(data.notes) }
+      const record = {
+        id,
+        clientId: selectedClientId,
+        amount: Number(data.amount),
+        method: data.method,
+        paidAt: localDateIso(data.paidAt),
+        notes: nullable(data.notes),
+      }
       workspace.payments.push(record)
       await persist('payment.create', record)
     } else if (modalType === 'plan') {
-      const record = { id, clientId: data.clientId, name: data.name.trim(), targetKcal: numberOrNull(data.targetKcal), notes: nullable(data.notes), status: 'taslak', createdAt: iso(), updatedAt: iso() }
+      const record = {
+        id,
+        clientId: data.clientId,
+        name: data.name.trim(),
+        targetKcal: numberOrNull(data.targetKcal),
+        notes: nullable(data.notes),
+        status: 'taslak',
+        createdAt: iso(),
+        updatedAt: iso(),
+      }
       workspace.plans.unshift(record)
       await persist('plan.create', record)
     } else if (modalType === 'appointment') {
-      const record = { id, clientId: data.clientId, startsAt: new Date(data.startsAt).toISOString(), endsAt: new Date(data.endsAt).toISOString(), type: data.type, notes: nullable(data.notes), status: 'planlandı', createdAt: iso() }
-      if (new Date(record.endsAt) <= new Date(record.startsAt)) throw new Error('Randevu bitişi başlangıçtan sonra olmalıdır.')
+      const record = {
+        id,
+        clientId: data.clientId,
+        startsAt: new Date(data.startsAt).toISOString(),
+        endsAt: new Date(data.endsAt).toISOString(),
+        type: data.type,
+        notes: nullable(data.notes),
+        status: 'planlandı',
+        createdAt: iso(),
+      }
+      if (new Date(record.endsAt) <= new Date(record.startsAt))
+        throw new Error('Randevu bitişi başlangıçtan sonra olmalıdır.')
       workspace.appointments.push(record)
       await persist('appointment.create', record)
     }
     $('modal').classList.add('hidden')
-    if (selectedClientId && ['client', 'clientUpdate', 'anamnesis', 'measurement', 'goal', 'labResult', 'payment'].includes(modalType)) openClient(selectedClientId)
+    if (
+      selectedClientId &&
+      [
+        'client',
+        'clientUpdate',
+        'anamnesis',
+        'measurement',
+        'goal',
+        'labResult',
+        'payment',
+      ].includes(modalType)
+    )
+      openClient(selectedClientId)
   } catch (error) {
     $('modal-error').textContent = String(error)
   }
@@ -619,7 +930,11 @@ $('sync-now').onclick = async () => {
 }
 $('change-pin').onclick = async () => {
   try {
-    await invoke('configure_offline_pin', { userId: current.profile.userId, currentPin: $('current-pin').value, newPin: $('new-pin').value })
+    await invoke('configure_offline_pin', {
+      userId: current.profile.userId,
+      currentPin: $('current-pin').value,
+      newPin: $('new-pin').value,
+    })
     $('settings-error').style.color = '#177e5c'
     $('settings-error').textContent = 'PIN güncellendi.'
     $('current-pin').value = ''
@@ -635,6 +950,6 @@ $('lock-now').onclick = async () => {
 }
 
 boot().catch((error) => {
-  $('boot-title').textContent = 'Yerel çalışma alanı açılamadı'
+  $('boot-title').textContent = 'Çalışma alanı açılamadı'
   $('boot-error').textContent = String(error)
 })

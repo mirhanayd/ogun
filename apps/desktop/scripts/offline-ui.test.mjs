@@ -8,6 +8,10 @@ const scriptUrl = new URL('../splash/offline.js', import.meta.url)
 test('packaged desktop page loads the maintainable offline client', async () => {
   const html = await readFile(htmlUrl, 'utf8')
   assert.match(html, /<script src="offline\.js"><\/script>/)
+  assert.match(html, /ogun-uygulama-ikonu\.svg/)
+  assert.match(html, /Hızlı giriş PIN’i/)
+  assert.match(html, /<button disabled title="Tarifler için internet bağlantısı gerekir">/)
+  assert.match(html, /<button disabled title="Finans ekranı için internet bağlantısı gerekir">/)
   assert.match(html, /id="page-client-detail"/)
   assert.match(html, /data-modal="anamnesis"/)
   assert.match(html, /data-modal="measurement"/)
@@ -17,6 +21,11 @@ test('packaged desktop page loads the maintainable offline client', async () => 
 
 test('offline workspace remains backward compatible and journals every clinical record', async () => {
   const script = await readFile(scriptUrl, 'utf8')
+  assert.ok(
+    script.indexOf('const online = await networkAvailable()') <
+      script.indexOf("invoke('get_unlocked_offline_workspace')"),
+    'network must be checked before deciding which workspace to show',
+  )
   for (const collection of [
     'clients',
     'anamneses',
