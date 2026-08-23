@@ -62,6 +62,15 @@ const BENEFITS = [
 
 export default function IndirPage() {
   const release = getLatestDesktopRelease()
+  const windowsAsset = release?.downloads.find((asset) => asset.platform === 'windows')
+  const releaseDate = release
+    ? new Intl.DateTimeFormat('tr-TR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(`${release.publishedAt}T00:00:00Z`))
+    : null
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -185,9 +194,18 @@ export default function IndirPage() {
                   <p>
                     <strong>Beta notu:</strong> Windows kod imzalama sertifikası henüz eklenmediği
                     için ilk kurulumda yayıncı doğrulama uyarısı görebilirsiniz. Kurulum dosyası bu
-                    projenin GitHub release alanından sunulur.
+                    projenin resmi GitHub release alanından HTTPS ile sunulur. Windows Defender
+                    taramasında tehdit bulunmamıştır.
                   </p>
                 </div>
+                {windowsAsset?.sha256 ? (
+                  <div className="mt-3 border-t border-amber-300/50 pt-3 dark:border-amber-800">
+                    <p className="text-xs font-semibold">Dosya bütünlüğü — SHA-256</p>
+                    <code className="mt-1 block break-all font-mono text-[0.68rem] leading-5">
+                      {windowsAsset.sha256.toUpperCase()}
+                    </code>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -246,7 +264,9 @@ export default function IndirPage() {
                   <h2 className="mt-3 text-2xl font-semibold tracking-[-0.025em]">
                     Öğün Desktop {release.version}
                   </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">23 Ağustos 2026</p>
+                  {releaseDate ? (
+                    <p className="mt-2 text-sm text-muted-foreground">{releaseDate}</p>
+                  ) : null}
                 </div>
                 <ul className="grid gap-3 sm:grid-cols-2">
                   {release.notes.map((note) => (

@@ -20,6 +20,8 @@ export interface DesktopDownloadAsset {
   /** Kullanıcıya gösterilen kısa etiket, ör. ".msi (Windows Installer)". */
   label: string
   url: string
+  /** Yayınlanan dosyanın bütünlük doğrulaması için küçük harfli SHA-256 özeti. */
+  sha256?: string
 }
 
 export interface DesktopRelease {
@@ -32,6 +34,25 @@ export interface DesktopRelease {
 }
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
+  {
+    version: '0.2.1',
+    publishedAt: '2026-08-24',
+    notes: [
+      'Hızlı giriş PIN’i artık çalışma modu seçmez; bağlantı varsa normal panele yönlendirir.',
+      'Çevrimiçi ve çevrimdışı kullanım aynı uygulama düzenini ve gezinme yapısını korur.',
+      'Desteklenen danışan, ölçüm, anamnez, plan ve randevu kayıtları bağlantı gelene kadar cihazda tutulur.',
+      'E-posta daveti, dosya yükleme ve plan paylaşımı gibi sunucu gerektiren işlemler çevrimdışıyken açıkça pasifleştirilir.',
+      'Plan editöründe enerjiyle birlikte mikro besin öğeleri canlı takip edilebilir.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.1/Ogun_0.2.1_x64-setup.exe',
+        sha256: 'cfa26a632d04a10db147f802767795aa9d62f9d6eac8265f2eb516fa6109fa07',
+      },
+    ],
+  },
   {
     version: '0.2.0',
     publishedAt: '2026-08-23',
