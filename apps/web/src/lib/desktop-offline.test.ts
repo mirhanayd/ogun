@@ -34,4 +34,17 @@ describe('desktop offline mutation reconciliation', () => {
       }),
     ])
   })
+
+  it('klinik alt kayıtlarının danışan ilişkisini de yeniden eşler', () => {
+    const measurementMutation = {
+      id: 'mutation-measurement',
+      kind: 'measurement.create' as const,
+      payload: { id: 'local-measurement', clientId: 'local-client', weightKg: 71.4 },
+      createdAt: '2026-08-23T11:00:00.000Z',
+    }
+
+    expect(
+      remapOfflineMutation(measurementMutation, { 'local-client': 'client-server' }).payload,
+    ).toMatchObject({ id: 'local-measurement', clientId: 'client-server' })
+  })
 })

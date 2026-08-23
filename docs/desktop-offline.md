@@ -18,9 +18,10 @@ uygulama sürecinde değil, diskteki şifreli işlem günlüğünde bekler.
    Argon2id özeti Stronghold kasasına yazılır.
 4. Ağ yoksa paketlenmiş çalışma alanı profil + PIN seçimini gösterir. Başarılı
    doğrulama yalnızca o uygulama süreci için kasayı açar.
-5. Yerel yazımlar önce snapshot'a, sonra tekrar oynatılabilir mutasyon
-   günlüğüne yazılır. Her iki yazım da tamamlanmadan arayüz kaydı başarılı
-   kabul etmez.
+5. Yerel yazımlar önce tekrar oynatılabilir mutasyon günlüğüne, ardından
+   ekranda kullanılan snapshot'a yazılır. Böylece ikinci yazım kesilse bile
+   sunucuya aktarılması gereken işlem kaybolmaz. Her iki yazım da tamamlanmadan
+   arayüz kaydı başarılı kabul etmez.
 6. Bağlantı döndüğünde `/api/desktop/workspace` mutasyonları sırayla uygular.
    Başarılı kimlik eşlemeleri kalan ilişkilere işlenir; yalnızca sunucunun
    onayladığı günlük kayıtları silinir.
@@ -41,9 +42,12 @@ uygulama sürecinde değil, diskteki şifreli işlem günlüğünde bekler.
 
 ## Çakışma ve tekrar deneme
 
-- Yeni yerel danışan, plan ve randevu kimlikleri sunucuda da aynı opak metin
-  kimliğiyle kullanılır. Yanıt alınamayıp aynı işlem tekrar gönderilirse yeni
-  bir kopya oluşturulmaz.
+- Yeni yerel danışan, ölçüm, hedef, laboratuvar sonucu, ödeme, plan ve randevu
+  kimlikleri sunucuda da aynı opak metin kimliğiyle kullanılır. Yanıt
+  alınamayıp aynı işlem tekrar gönderilirse yeni bir kopya oluşturulmaz.
+- Anamnez danışan başına tek satırdır ve tam-form upsert olarak yeniden
+  oynatılır. Genel danışan bilgisi güncellemeleri de aynı danışan kimliğini
+  hedefler.
 - Plan editörü tüm son taslağı sabit `plan-draft:<planId>` günlük anahtarıyla
   coalesce eder. Böylece yüzlerce tuş vuruşu yerine yalnızca son tutarlı ağaç
   yeniden oynatılır.
@@ -57,3 +61,15 @@ gönderimi, buluta belge yükleme, Google OAuth ve sunucu tarafından PDF
 paylaşım bağlantısı oluşturma bağlantı gelene kadar çalıştırılmaz. Bunlar
 yerel olarak "gönderildi" gösterilmez. Plan taslağı ve klinik kayıtları ise
 bağlantıdan bağımsız olarak cihazda kalır.
+
+## Paketlenmiş çalışma alanının kapsamı
+
+Bağlantı yokken danışan oluşturma ve genel bilgileri düzenleme; anamnez,
+detaylı vücut ölçümü, hedef, laboratuvar sonucu, paket dışı ödeme, plan taslağı
+ve randevu kaydı oluşturma desteklenir. Çevrimiçi oturum açıldığında bu
+kayıtların tamamı snapshot'a alınır ve bekleyen günlük sırayla eşitlenir.
+
+Dosya yükleme ve paket satışı çevrimdışıyken henüz desteklenmez: ilki gerçek
+dosya içeriği için ayrı bir şifreli blob deposu, ikincisi güncel paket kataloğu
+ve seans çakışma kuralı gerektirir. Arayüz bu işlemleri tamamlanmış gibi
+göstermez.
