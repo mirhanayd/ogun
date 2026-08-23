@@ -172,6 +172,14 @@ export async function clearNativeSessionToken(): Promise<void> {
   cachedSessionToken = undefined
   if (!isNativeShell()) return
   try {
+    // Kullanıcı açıkça çıkış yaptığında yerel PIN erişimi ve bu hesaba ait
+    // klinik snapshot'ı da kaldırılır. Uygulamayı yalnızca kapatmak bu akışı
+    // çağırmaz; kalıcı oturum ve çevrimdışı erişim korunur.
+    await invoke('remove_active_offline_profile')
+  } catch (err) {
+    console.warn('[native-shell] çevrimdışı cihaz profili kaldırılamadı', err)
+  }
+  try {
     await invoke('clear_session_token')
   } catch (err) {
     console.warn("[native-shell] oturum token'ı güvenli depolamadan silinemedi", err)

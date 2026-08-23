@@ -16,7 +16,11 @@ import { planShares, planShareSends } from '../schema/plan-shares'
 import { clients } from '../schema/clients'
 import type { Database } from '../client'
 
-async function assertPlanClientInClinic(db: Database, clinicId: string, clientId: string): Promise<void> {
+async function assertPlanClientInClinic(
+  db: Database,
+  clinicId: string,
+  clientId: string,
+): Promise<void> {
   const [client] = await db
     .select({ id: clients.id })
     .from(clients)
@@ -88,6 +92,7 @@ async function getItemWithClinicCheck(db: Database, clinicId: string, itemId: st
 // --- diet_plans: create/update/delete/list -----------------------------------
 
 export interface PlanInput {
+  id?: string
   clientId?: string | null
   name: string
   startDate?: Date | null
@@ -114,6 +119,7 @@ export async function createPlan(
   const [plan] = await db
     .insert(dietPlans)
     .values({
+      ...(input.id !== undefined && { id: input.id }),
       clinicId,
       clientId: input.clientId ?? null,
       name: input.name,
@@ -257,7 +263,10 @@ export async function deletePlan(db: Database, clinicId: string, planId: string)
     // geçerli, bkz. üstteki not) — bir plan silinmeden ÖNCE paylaşım
     // linkleri/gönderim kayıtları da temizlenmeli, aksi halde FK kısıtı
     // silmeyi reddeder.
-    const shares = await tx.select({ id: planShares.id }).from(planShares).where(eq(planShares.planId, planId))
+    const shares = await tx
+      .select({ id: planShares.id })
+      .from(planShares)
+      .where(eq(planShares.planId, planId))
     const shareIds = shares.map((s) => s.id)
     if (shareIds.length > 0) {
       await tx.delete(planShareSends).where(inArray(planShareSends.shareId, shareIds))
@@ -820,7 +829,7 @@ async function clonePlanInternal(
 
     // GitHub issue #27 / Prompt 5.5 — bkz. schema/plans.ts templateUsageCount
     // üstündeki not: bir ŞABLONdan gerçek (isTemplate=false) bir kopya
-        // üretildiğinde ("bu şablondan plan oluştur" akışı) kaynağın sayacı
+    // üretildiğinde ("bu şablondan plan oluştur" akışı) kaynağın sayacı
     // artar. saveAsTemplate (isTemplate=true override) ve düz duplicatePlan
     // (kaynak zaten şablon DEĞİL) bu koşulu tetiklemez.
     if (source.plan.isTemplate && overrides.isTemplate !== true) {
@@ -904,10 +913,7 @@ export async function createPlanSkeleton(
       .returning()
     if (!plan) throw new Error('Plan oluşturulamadı.')
 
-    const [day] = await tx
-      .insert(planDays)
-      .values({ planId: plan.id, dayNumber: 1 })
-      .returning()
+    const [day] = await tx.insert(planDays).values({ planId: plan.id, dayNumber: 1 }).returning()
     if (!day) throw new Error('Gün oluşturulamadı.')
 
     if (input.meals.length > 0) {

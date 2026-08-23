@@ -3,12 +3,21 @@
 // yazılamaz" kuralı apps/web/src/lib/authz.ts (ClinicScope) tarafında tip
 // seviyesinde zorlanıyor.
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm'
-import { appointments, clinicHolidays, type AppointmentStatus, type AppointmentType } from '../schema/appointments'
+import {
+  appointments,
+  clinicHolidays,
+  type AppointmentStatus,
+  type AppointmentType,
+} from '../schema/appointments'
 import { clients } from '../schema/clients'
 import { users } from '../schema/tenancy'
 import type { Database } from '../client'
 
-async function assertAppointmentClientInClinic(db: Database, clinicId: string, clientId: string): Promise<void> {
+async function assertAppointmentClientInClinic(
+  db: Database,
+  clinicId: string,
+  clientId: string,
+): Promise<void> {
   const [client] = await db
     .select({ id: clients.id })
     .from(clients)
@@ -130,7 +139,12 @@ export async function listAppointmentsForClient(db: Database, clinicId: string, 
 // En yakın GELECEK randevu (üst bardaki "Son görüşme" / hızlı özet için) —
 // danisanlar/[id]/page.tsx üstündeki "Son görüşme hâlâ '—'" notunun kapandığı
 // yer.
-export async function getClientNextAppointment(db: Database, clinicId: string, clientId: string, now: Date = new Date()) {
+export async function getClientNextAppointment(
+  db: Database,
+  clinicId: string,
+  clientId: string,
+  now: Date = new Date(),
+) {
   const [row] = await db
     .select(appointmentListSelection)
     .from(appointments)
@@ -150,6 +164,7 @@ export async function getClientNextAppointment(db: Database, clinicId: string, c
 }
 
 export interface CreateAppointmentInput {
+  id?: string
   clientId: string
   dietitianId: string
   startsAt: Date
@@ -164,7 +179,11 @@ export interface CreateAppointmentInput {
   packageSessionId?: string | null
 }
 
-export async function createAppointment(db: Database, clinicId: string, input: CreateAppointmentInput) {
+export async function createAppointment(
+  db: Database,
+  clinicId: string,
+  input: CreateAppointmentInput,
+) {
   await assertAppointmentClientInClinic(db, clinicId, input.clientId)
   const [row] = await db
     .insert(appointments)
@@ -234,7 +253,11 @@ export interface CreateHolidayInput {
   description?: string | null
 }
 
-export async function createClinicHoliday(db: Database, clinicId: string, input: CreateHolidayInput) {
+export async function createClinicHoliday(
+  db: Database,
+  clinicId: string,
+  input: CreateHolidayInput,
+) {
   const [row] = await db
     .insert(clinicHolidays)
     .values({ clinicId, ...input })

@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { AuthCard, AuthError } from '../_components/auth-card'
 import { GoogleSignInButton } from '@/components/google-sign-in-button'
+import { DesktopSavedAccounts } from '@/components/desktop-saved-accounts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,15 +20,13 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   'google-girisi-basarisiz': 'Google ile giriş tamamlanamadı, lütfen tekrar deneyin.',
   no_session: 'Google girişi tamamlanamadı (oturum bulunamadı), lütfen tekrar deneyin.',
   token_generation_failed: 'Google girişi tamamlanamadı, lütfen tekrar deneyin.',
-  'invalid-or-expired-token':
-    'Google giriş bağlantısının süresi doldu. Lütfen yeniden deneyin.',
+  'invalid-or-expired-token': 'Google giriş bağlantısının süresi doldu. Lütfen yeniden deneyin.',
   'missing-session-token':
     'Google oturumu masaüstü uygulamasına aktarılamadı. Lütfen yeniden deneyin.',
   'network-error':
     'Google oturumu aktarılırken yerel sunucuya ulaşılamadı. Lütfen yeniden deneyin.',
   access_denied: 'Google hesabına erişim izni verilmedi.',
-  account_not_linked:
-    'Bu e-posta başka bir oturum yöntemine bağlı. Lütfen yeniden deneyin.',
+  account_not_linked: 'Bu e-posta başka bir oturum yöntemine bağlı. Lütfen yeniden deneyin.',
   invalid_code: 'Google giriş kodu geçersiz veya süresi dolmuş. Lütfen yeniden deneyin.',
   state_mismatch: 'Google giriş isteği doğrulanamadı. Lütfen yeniden deneyin.',
   unable_to_create_user: 'Google hesabı için kullanıcı oluşturulamadı.',
@@ -89,6 +88,7 @@ export default function GirisPage() {
         </p>
       }
     >
+      <DesktopSavedAccounts />
       <form
         className="auth-login-form flex flex-col gap-5"
         method="post"

@@ -91,7 +91,10 @@ export interface ListClientsResult {
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 100
 
-function buildClientListFilters(clinicId: string, input: ListClientsInput): (SQLWrapper | undefined)[] {
+function buildClientListFilters(
+  clinicId: string,
+  input: ListClientsInput,
+): (SQLWrapper | undefined)[] {
   const search = input.search?.trim()
   return [
     eq(clients.clinicId, clinicId),
@@ -101,7 +104,9 @@ function buildClientListFilters(clinicId: string, input: ListClientsInput): (SQL
     // dönebileceği bir durum; silme, KVKK veri sahibi hakkının sonucu.
     isNull(clients.deletedAt),
     input.status ? eq(clients.status, input.status) : undefined,
-    input.assignedDietitianId ? eq(clients.assignedDietitianId, input.assignedDietitianId) : undefined,
+    input.assignedDietitianId
+      ? eq(clients.assignedDietitianId, input.assignedDietitianId)
+      : undefined,
     search
       ? or(
           ilike(clients.firstName, `%${search}%`),
@@ -120,7 +125,11 @@ function buildClientListFilters(clinicId: string, input: ListClientsInput): (SQL
 // kolonu "—" ile gösterir; bu tablolar gelince buraya birer LEFT JOIN
 // LATERAL (bkz. foods.ts getFoodSummaries'teki aynı desen) eklenip
 // ListClientsResult genişletilecek.
-export async function listClients(db: Database, clinicId: string, input: ListClientsInput = {}): Promise<ListClientsResult> {
+export async function listClients(
+  db: Database,
+  clinicId: string,
+  input: ListClientsInput = {},
+): Promise<ListClientsResult> {
   const page = Math.max(input.page ?? 1, 1)
   const pageSize = Math.min(Math.max(input.pageSize ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE)
   const whereClause = and(...buildClientListFilters(clinicId, input))
@@ -152,6 +161,7 @@ export async function listClients(db: Database, clinicId: string, input: ListCli
 // --- Yeni danışan formu (GÖREV 3) -------------------------------------------
 
 export interface CreateClientInput {
+  id?: string
   firstName: string
   lastName: string
   phone?: string | null
@@ -173,6 +183,7 @@ export async function createClient(db: Database, clinicId: string, input: Create
   const [client] = await db
     .insert(clients)
     .values({
+      ...(input.id !== undefined && { id: input.id }),
       clinicId,
       firstName: input.firstName,
       lastName: input.lastName,
@@ -381,7 +392,9 @@ export async function assignDietitianToClients(
 // üstündeki not.
 export async function softDeleteClient(db: Database, clinicId: string, clientId: string) {
   const now = new Date()
-  const scheduledForDeletionAt = new Date(now.getTime() + HARD_DELETE_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000)
+  const scheduledForDeletionAt = new Date(
+    now.getTime() + HARD_DELETE_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+  )
   const [client] = await db
     .update(clients)
     .set({ deletedAt: now, scheduledForDeletionAt })
@@ -402,7 +415,9 @@ export async function findClientsPastDeletionGracePeriod(db: Database, asOf: Dat
   return db
     .select()
     .from(clients)
-    .where(and(isNotNull(clients.scheduledForDeletionAt), lte(clients.scheduledForDeletionAt, asOf)))
+    .where(
+      and(isNotNull(clients.scheduledForDeletionAt), lte(clients.scheduledForDeletionAt, asOf)),
+    )
 }
 
 // GitHub issue #41 / Prompt 7.3, GÖREV 2 — kullanım limitleri ("danışan

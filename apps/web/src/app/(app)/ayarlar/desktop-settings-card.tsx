@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { Monitor } from 'lucide-react'
+import { KeyRound, Monitor } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { isNativeShell } from '@/lib/native-shell'
 
 // GitHub issue #53 / Prompt 9.3, GÖREV 2 — "Pencere kapatılınca uygulama
@@ -19,10 +22,14 @@ import { isNativeShell } from '@/lib/native-shell'
 // `set_minimize_to_tray_setting` Tauri komutları (bkz. settings.rs)
 // doğrudan yerel bir JSON dosyasını okur/yazar; bu bileşen SADECE bir
 // istemci arayüzü.
-export function DesktopSettingsCard() {
+export function DesktopSettingsCard({ userId }: { userId: string }) {
   const [isNative, setIsNative] = useState(false)
   const [minimizeToTray, setMinimizeToTray] = useState(true)
   const [loaded, setLoaded] = useState(false)
+  const [currentPin, setCurrentPin] = useState('')
+  const [newPin, setNewPin] = useState('')
+  const [newPinAgain, setNewPinAgain] = useState('')
+  const [savingPin, setSavingPin] = useState(false)
 
   useEffect(() => {
     if (!isNativeShell()) return
@@ -49,6 +56,33 @@ export function DesktopSettingsCard() {
     }
   }
 
+  async function handlePinChange() {
+    if (!/^\d{4,8}$/.test(newPin)) {
+      toast.error('Yeni PIN 4-8 rakamdan oluşmalıdır.')
+      return
+    }
+    if (newPin !== newPinAgain) {
+      toast.error('Yeni PIN alanları eşleşmiyor.')
+      return
+    }
+    setSavingPin(true)
+    try {
+      await invoke('configure_offline_pin', {
+        userId,
+        currentPin,
+        newPin,
+      })
+      setCurrentPin('')
+      setNewPin('')
+      setNewPinAgain('')
+      toast.success('Yerel giriş PIN’i güncellendi.')
+    } catch (error) {
+      toast.error('PIN güncellenemedi.', { description: String(error) })
+    } finally {
+      setSavingPin(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -56,17 +90,69 @@ export function DesktopSettingsCard() {
           <Monitor className="size-4 text-primary" />
           Masaüstü uygulaması
         </CardTitle>
-        <CardDescription>Bu ayar yalnızca Öğün masaüstü uygulamasında (Tauri) görünür.</CardDescription>
+        <CardDescription>
+          Bu ayar yalnızca Öğün masaüstü uygulamasında (Tauri) görünür.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={minimizeToTray} disabled={!loaded} onCheckedChange={(v) => handleToggle(v === true)} />
+          <Checkbox
+            checked={minimizeToTray}
+            disabled={!loaded}
+            onCheckedChange={(v) => handleToggle(v === true)}
+          />
           Pencereyi kapatınca uygulamayı tamamen kapatma, görev çubuğu simgesinde tut
         </label>
         <p className="mt-2 text-xs text-muted-foreground">
-          Kapalıysa pencerenin kapatma (X) düğmesi uygulamayı tamamen sonlandırır. Her iki durumda da tray simgesindeki
-          &quot;Çıkış&quot; her zaman uygulamayı tamamen kapatır.
+          Kapalıysa pencerenin kapatma (X) düğmesi uygulamayı tamamen sonlandırır. Her iki durumda
+          da tray simgesindeki &quot;Çıkış&quot; her zaman uygulamayı tamamen kapatır.
         </p>
+        <div className="mt-5 border-t border-border/70 pt-5">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <KeyRound className="size-4 text-primary" />
+            Çevrimdışı giriş PIN’i
+          </div>
+          <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+            İnternet yokken bu bilgisayardaki hesabınızı açmak için kullanılır.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <Input
+              type="password"
+              inputMode="numeric"
+              value={currentPin}
+              onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="Mevcut PIN"
+              className="rounded-xl"
+            />
+            <Input
+              type="password"
+              inputMode="numeric"
+              value={newPin}
+              onChange={(event) => setNewPin(event.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="Yeni PIN"
+              className="rounded-xl"
+            />
+            <Input
+              type="password"
+              inputMode="numeric"
+              value={newPinAgain}
+              onChange={(event) =>
+                setNewPinAgain(event.target.value.replace(/\D/g, '').slice(0, 8))
+              }
+              placeholder="Yeni PIN tekrar"
+              className="rounded-xl"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 rounded-xl"
+            disabled={savingPin}
+            onClick={handlePinChange}
+          >
+            PIN’i değiştir
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

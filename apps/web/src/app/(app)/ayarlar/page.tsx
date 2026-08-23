@@ -23,7 +23,7 @@ import { WEEKDAYS_TR } from '@/lib/onboarding'
 import { DesktopSettingsCard } from './desktop-settings-card'
 
 export default async function AyarlarPage() {
-  const { scope, role } = await requireClinic()
+  const { scope, role, user } = await requireClinic()
   const [clinic, workingHours] = await Promise.all([
     getClinicById(db, scope.clinicId),
     getWorkingHoursForClinic(db, scope.clinicId),
@@ -179,7 +179,7 @@ export default async function AyarlarPage() {
               />
             </>
           )}
-          <DesktopSettingsCard />
+          <DesktopSettingsCard userId={user.id} />
         </div>
       </section>
     </div>
