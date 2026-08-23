@@ -47,6 +47,11 @@ export const DESKTOP_RELEASES: DesktopRelease[] = [
         label: 'Windows 10/11 (64-bit)',
         url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.0/Ogun_0.2.0_x64-setup.exe',
       },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.0/Ogun_0.2.0_universal.dmg',
+      },
     ],
   },
   {

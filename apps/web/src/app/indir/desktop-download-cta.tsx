@@ -21,9 +21,11 @@ export function DesktopDownloadCta({ release }: { release: DesktopRelease }) {
   }, [])
 
   const windowsAsset = release.downloads.find((asset) => asset.platform === 'windows')
-  const isWindows = detected === 'windows'
+  const preferredAsset =
+    release.downloads.find((asset) => asset.platform === detected) ?? windowsAsset
+  const otherAssets = release.downloads.filter((asset) => asset !== preferredAsset)
 
-  if (!windowsAsset) return null
+  if (!preferredAsset) return null
 
   return (
     <div className="flex flex-col items-start gap-3">
@@ -32,15 +34,15 @@ export function DesktopDownloadCta({ release }: { release: DesktopRelease }) {
         size="lg"
         className="h-13 rounded-xl bg-white px-5 text-[0.9375rem] text-[#123d2e] shadow-[0_12px_35px_rgba(0,0,0,.22)] hover:bg-emerald-50"
       >
-        <a href={windowsAsset.url}>
+        <a href={preferredAsset.url}>
           <Download aria-hidden="true" />
-          Windows için indir
+          {preferredAsset.platform === 'macos' ? 'macOS için indir' : 'Windows için indir'}
         </a>
       </Button>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-emerald-50/60">
         <span className="inline-flex items-center gap-1.5">
           <MonitorDown aria-hidden="true" className="size-3.5" />
-          {windowsAsset.label}
+          {preferredAsset.label}
         </span>
         <a
           href={`https://github.com/mirhanayd/ogun/releases/tag/desktop-v${release.version}`}
@@ -52,12 +54,15 @@ export function DesktopDownloadCta({ release }: { release: DesktopRelease }) {
           <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </a>
       </div>
-      {detected && !isWindows ? (
-        <p className="max-w-md text-xs leading-5 text-emerald-100/65">
-          Cihazınız Windows olarak algılanmadı. macOS sürümü hazırlanıyor; bu kurulum
-          Windows 10/11 içindir.
-        </p>
-      ) : null}
+      {otherAssets.map((asset) => (
+        <a
+          key={asset.platform}
+          href={asset.url}
+          className="text-xs text-emerald-100/70 underline-offset-4 hover:text-white hover:underline"
+        >
+          {asset.platform === 'macos' ? 'macOS' : 'Windows'} sürümünü indir
+        </a>
+      ))}
     </div>
   )
 }

@@ -95,8 +95,8 @@ export default function IndirPage() {
                 Kliniğiniz, kendi penceresinde.
               </h1>
               <p className="mt-7 max-w-xl text-[1.0625rem] leading-7 text-emerald-50/75 sm:text-lg sm:leading-8">
-                Öğün’ün planlama ve danışan yönetimi deneyimini Windows’a taşıyın.
-                Web hesabınızla giriş yapın, verilerinize kaldığınız yerden ulaşın.
+                Öğün’ün planlama ve danışan yönetimi deneyimini Windows’a taşıyın. Web hesabınızla
+                giriş yapın, verilerinize kaldığınız yerden ulaşın.
               </p>
 
               <div className="mt-9">
@@ -123,7 +123,10 @@ export default function IndirPage() {
             </div>
 
             <div className="relative min-w-0 lg:-mr-32 xl:-mr-48">
-              <div aria-hidden="true" className="absolute -inset-8 rounded-full bg-emerald-300/10 blur-3xl" />
+              <div
+                aria-hidden="true"
+                className="absolute -inset-8 rounded-full bg-emerald-300/10 blur-3xl"
+              />
               <figure className="relative overflow-hidden rounded-[1.6rem] border border-white/15 bg-white/[0.08] p-2 shadow-[0_35px_90px_rgba(0,0,0,.4)] backdrop-blur-sm sm:p-3">
                 <div className="flex h-10 items-center gap-2 px-3" aria-hidden="true">
                   <span className="size-2 rounded-full bg-white/25" />
@@ -172,16 +175,16 @@ export default function IndirPage() {
                 Hızlı kurulum, aynı Öğün.
               </h2>
               <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
-                Masaüstü uygulaması ayrı bir veri kopyası oluşturmaz. Aynı güvenli klinik
-                alanına bağlanır; web ve masaüstü arasında geçiş yapabilirsiniz.
+                Masaüstü uygulaması ayrı bir veri kopyası oluşturmaz. Aynı güvenli klinik alanına
+                bağlanır; web ve masaüstü arasında geçiş yapabilirsiniz.
               </p>
 
               <div className="mt-8 rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100">
                 <div className="flex gap-3">
                   <ShieldCheck aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
                   <p>
-                    <strong>Beta notu:</strong> Windows kod imzalama sertifikası henüz eklenmediği için
-                    ilk kurulumda yayıncı doğrulama uyarısı görebilirsiniz. Kurulum dosyası bu
+                    <strong>Beta notu:</strong> Windows kod imzalama sertifikası henüz eklenmediği
+                    için ilk kurulumda yayıncı doğrulama uyarısı görebilirsiniz. Kurulum dosyası bu
                     projenin GitHub release alanından sunulur.
                   </p>
                 </div>
@@ -192,7 +195,10 @@ export default function IndirPage() {
               <article className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-7">
                 <Laptop aria-hidden="true" className="size-6 text-primary" />
                 <h3 className="mt-5 text-lg font-semibold">Sistem gereksinimleri</h3>
-                <ul className="mt-5 space-y-3 text-sm leading-6 text-muted-foreground">
+                <p className="mt-5 text-xs font-semibold tracking-[0.12em] text-foreground uppercase">
+                  Windows
+                </p>
+                <ul className="mt-3 space-y-3 text-sm leading-6 text-muted-foreground">
                   {DESKTOP_SYSTEM_REQUIREMENTS.windows.map((requirement) => (
                     <li key={requirement} className="flex gap-2.5">
                       <Check aria-hidden="true" className="mt-1 size-4 shrink-0 text-primary" />
@@ -200,9 +206,17 @@ export default function IndirPage() {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-6 border-t border-border pt-5 text-sm text-muted-foreground">
-                  macOS sürümü hazırlanıyor.
-                </div>
+                <p className="mt-6 border-t border-border pt-5 text-xs font-semibold tracking-[0.12em] text-foreground uppercase">
+                  macOS
+                </p>
+                <ul className="mt-3 space-y-3 text-sm leading-6 text-muted-foreground">
+                  {DESKTOP_SYSTEM_REQUIREMENTS.macos.map((requirement) => (
+                    <li key={requirement} className="flex gap-2.5">
+                      <Check aria-hidden="true" className="mt-1 size-4 shrink-0 text-primary" />
+                      <span>{requirement}</span>
+                    </li>
+                  ))}
+                </ul>
               </article>
 
               <article className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-7">
