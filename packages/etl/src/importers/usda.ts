@@ -17,7 +17,13 @@ const USDA_CITATION =
   'U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, fdc.nal.usda.gov.'
 const USDA_LICENSE = 'Public Domain (U.S. Government Work)'
 
-const REQUIRED_FILES = ['food.csv', 'food_nutrient.csv', 'nutrient.csv', 'food_portion.csv', 'measure_unit.csv']
+const REQUIRED_FILES = [
+  'food.csv',
+  'food_nutrient.csv',
+  'nutrient.csv',
+  'food_portion.csv',
+  'measure_unit.csv',
+]
 
 interface FoodRow {
   fdc_id: string
@@ -91,7 +97,9 @@ function streamCsvFiltered<T extends object>(
       rowCount += 1
       if (keep(row)) kept.push(row)
       if (rowCount % 1_000_000 === 0) {
-        console.log(`... ${fileName}: ${rowCount.toLocaleString('tr-TR')} satır tarandı, ${kept.length.toLocaleString('tr-TR')} tutuldu`)
+        console.log(
+          `... ${fileName}: ${rowCount.toLocaleString('tr-TR')} satır tarandı, ${kept.length.toLocaleString('tr-TR')} tutuldu`,
+        )
       }
     })
     parseStream.on('end', () => resolve(kept))
@@ -169,7 +177,9 @@ async function main() {
       'food_nutrient.csv',
       (row) => keptFdcIds.has(row.fdc_id),
     )
-    console.log(`food_nutrient.csv: ${foodNutrientRows.length.toLocaleString('tr-TR')} değer tutuldu.`)
+    console.log(
+      `food_nutrient.csv: ${foodNutrientRows.length.toLocaleString('tr-TR')} değer tutuldu.`,
+    )
     const foodNutrientsByFdcId = new Map<string, FoodNutrientRow[]>()
     for (const row of foodNutrientRows) {
       const list = foodNutrientsByFdcId.get(row.fdc_id) ?? []
@@ -229,14 +239,14 @@ async function main() {
 
     const ourNutrientRows = await db.select().from(nutrients)
     const nutrientIdByCode = new Map(ourNutrientRows.map((n) => [n.code, n.id]))
-    const nutrientCodeByUsdaId = new Map(
-      usdaNutrientMap.map((mapping) => [mapping.usdaNutrientId.toString(), mapping.nutrientCode]),
+    const nutrientMappingByUsdaId = new Map(
+      usdaNutrientMap.map((mapping) => [mapping.usdaNutrientId.toString(), mapping]),
     )
 
     const usedUsdaIds = new Set(foodNutrientRows.map((row) => row.nutrient_id))
     const unmapped = new Set(
       [...usedUsdaIds]
-        .filter((id) => !nutrientCodeByUsdaId.has(id))
+        .filter((id) => !nutrientMappingByUsdaId.has(id))
         .map((id) => `${id} (${nutrientNameById.get(id) ?? '?'})`),
     )
 
@@ -286,32 +296,42 @@ async function main() {
       // içerebiliyor (özellikle SR Legacy'de) — Map ile dedupe ediyoruz (son satır
       // kazanır), yoksa tek INSERT'te aynı (foodId,nutrientId,sourceId) anahtarını
       // iki kez hedeflemek Postgres'te hataya yol açar.
-      const nutrientBatchByNutrientId = new Map<string, FoodNutrientUpsertInput>()
+      const nutrientBatchByNutrientId = new Map<
+        string,
+        { input: FoodNutrientUpsertInput; preference: number }
+      >()
       let duplicateNutrientRows = 0
       for (const fnRow of foodNutrientsByFdcId.get(row.fdc_id) ?? []) {
-        const nutrientCode = nutrientCodeByUsdaId.get(fnRow.nutrient_id)
-        if (!nutrientCode) continue
-        const nutrientId = nutrientIdByCode.get(nutrientCode)
+        const mapping = nutrientMappingByUsdaId.get(fnRow.nutrient_id)
+        if (!mapping) continue
+        const nutrientId = nutrientIdByCode.get(mapping.nutrientCode)
         if (!nutrientId) {
-          console.warn(`nutrients tablosunda bulunamayan kod: ${nutrientCode}`)
+          console.warn(`nutrients tablosunda bulunamayan kod: ${mapping.nutrientCode}`)
           continue
         }
         const amount = toNumber(fnRow.amount)
         if (amount === null) continue
 
-        if (nutrientBatchByNutrientId.has(nutrientId)) duplicateNutrientRows += 1
-        nutrientBatchByNutrientId.set(nutrientId, {
-          foodId: food.id,
-          nutrientId,
-          valuePer100g: amount.toString(),
-          sourceId,
-          isImputed,
-        })
+        const preference = mapping.preference ?? 0
+        const existing = nutrientBatchByNutrientId.get(nutrientId)
+        if (existing) duplicateNutrientRows += 1
+        if (!existing || preference >= existing.preference) {
+          nutrientBatchByNutrientId.set(nutrientId, {
+            preference,
+            input: {
+              foodId: food.id,
+              nutrientId,
+              valuePer100g: amount.toString(),
+              sourceId,
+              isImputed,
+            },
+          })
+        }
       }
       duplicateNutrientRowCount += duplicateNutrientRows
       if (isImputed) imputedCount += nutrientBatchByNutrientId.size
 
-      const nutrientBatch = Array.from(nutrientBatchByNutrientId.values())
+      const nutrientBatch = Array.from(nutrientBatchByNutrientId.values(), (entry) => entry.input)
       await upsertFoodNutrients(db, nutrientBatch)
       nutrientValueCount += nutrientBatch.length
 
@@ -394,18 +414,29 @@ async function main() {
               eq(foodNutrients.isPreferred, true),
             ),
           )
-        const byNutrientId = new Map(values.map((value) => [value.nutrientId, Number(value.valuePer100g)]))
+        const byNutrientId = new Map(
+          values.map((value) => [value.nutrientId, Number(value.valuePer100g)]),
+        )
         const protein = byNutrientId.get(proteinId)
         const carb = byNutrientId.get(carbId)
         const fat = byNutrientId.get(fatId)
         const statedKcal = byNutrientId.get(energyId)
 
-        if (protein === undefined || carb === undefined || fat === undefined || statedKcal === undefined) {
+        if (
+          protein === undefined ||
+          carb === undefined ||
+          fat === undefined ||
+          statedKcal === undefined
+        ) {
           console.log(`${food?.nameTr}: eksik makro veri, atlandı.`)
           continue
         }
 
-        const calculatedKcal = calculateAtwaterEnergyKcal({ PROCNT: protein, CHOCDF: carb, FAT: fat })
+        const calculatedKcal = calculateAtwaterEnergyKcal({
+          PROCNT: protein,
+          CHOCDF: carb,
+          FAT: fat,
+        })
         const deviation = statedKcal === 0 ? 0 : Math.abs(calculatedKcal - statedKcal) / statedKcal
         const flag = deviation > 0.1 ? '⚠ SAPMA >%10' : 'OK'
         console.log(

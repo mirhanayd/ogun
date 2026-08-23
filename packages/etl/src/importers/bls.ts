@@ -72,7 +72,9 @@ async function main() {
 
   if (!existsSync(filePath)) {
     console.error(`BLS Excel dosyası bulunamadı: ${filePath}`)
-    console.error('Beklenen konum: packages/etl/data/bls/bls-4.0.xlsx (blsdb.de/download adresinden indir)')
+    console.error(
+      'Beklenen konum: packages/etl/data/bls/bls-4.0.xlsx (blsdb.de/download adresinden indir)',
+    )
     process.exit(1)
   }
 
@@ -135,13 +137,17 @@ async function main() {
 
     const mappedValueColumns = new Set(blsNutrientMap.map((mapping) => mapping.valueColumn))
     const mappedOriginColumns = new Set(
-      blsNutrientMap.filter((mapping) => mapping.originColumn).map((mapping) => mapping.originColumn),
+      blsNutrientMap
+        .filter((mapping) => mapping.originColumn)
+        .map((mapping) => mapping.originColumn),
     )
     const metaColumns = new Set([BLS_COLUMNS.sourceCode, BLS_COLUMNS.nameEn])
     const unmapped = new Set(
       headers.filter(
         (header) =>
-          !metaColumns.has(header) && !mappedValueColumns.has(header) && !mappedOriginColumns.has(header),
+          !metaColumns.has(header) &&
+          !mappedValueColumns.has(header) &&
+          !mappedOriginColumns.has(header),
       ),
     )
 
@@ -156,7 +162,8 @@ async function main() {
         continue
       }
       const nameEnRaw = row[BLS_COLUMNS.nameEn]
-      const nameEn = typeof nameEnRaw === 'string' && nameEnRaw.trim() !== '' ? nameEnRaw.trim() : null
+      const nameEn =
+        typeof nameEnRaw === 'string' && nameEnRaw.trim() !== '' ? nameEnRaw.trim() : null
       const nameTr = nameEn ?? String(sourceCode)
 
       const [food] = await db
@@ -193,7 +200,8 @@ async function main() {
         const rawValue = row[mapping.valueColumn]
         if (rawValue === null || rawValue === undefined || rawValue === '') continue
 
-        const numericValue = typeof rawValue === 'number' ? rawValue : Number.parseFloat(String(rawValue))
+        const numericValue =
+          typeof rawValue === 'number' ? rawValue : Number.parseFloat(String(rawValue))
         if (Number.isNaN(numericValue)) continue
 
         const nutrientId = nutrientIdByCode.get(mapping.nutrientCode)
@@ -207,12 +215,14 @@ async function main() {
         )
         if (isImputed) imputedCount += 1
 
+        const normalizedValue = numericValue * (mapping.valueMultiplier ?? 1)
         nutrientBatch.push({
           foodId: food.id,
           nutrientId,
-          valuePer100g: numericValue.toString(),
+          valuePer100g: normalizedValue.toString(),
           sourceId: blsSource.id,
           isImputed,
+          note: mapping.valueMultiplier ? 'unit-normalized:µg-to-mg-v1' : null,
         })
       }
 
@@ -269,18 +279,29 @@ async function main() {
             ),
           )
 
-        const byNutrientId = new Map(values.map((value) => [value.nutrientId, Number(value.valuePer100g)]))
+        const byNutrientId = new Map(
+          values.map((value) => [value.nutrientId, Number(value.valuePer100g)]),
+        )
         const protein = byNutrientId.get(proteinId)
         const carb = byNutrientId.get(carbId)
         const fat = byNutrientId.get(fatId)
         const statedKcal = byNutrientId.get(energyId)
 
-        if (protein === undefined || carb === undefined || fat === undefined || statedKcal === undefined) {
+        if (
+          protein === undefined ||
+          carb === undefined ||
+          fat === undefined ||
+          statedKcal === undefined
+        ) {
           console.log(`${food?.nameTr}: eksik makro veri, atlandı.`)
           continue
         }
 
-        const calculatedKcal = calculateAtwaterEnergyKcal({ PROCNT: protein, CHOCDF: carb, FAT: fat })
+        const calculatedKcal = calculateAtwaterEnergyKcal({
+          PROCNT: protein,
+          CHOCDF: carb,
+          FAT: fat,
+        })
         const deviation = statedKcal === 0 ? 0 : Math.abs(calculatedKcal - statedKcal) / statedKcal
         const flag = deviation > 0.1 ? '⚠ SAPMA >%10' : 'OK'
         console.log(

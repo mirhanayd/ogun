@@ -8,6 +8,8 @@
     "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
     "etl:usda": "tsx src/importers/usda.ts",
     "etl:usda:nutrients": "tsx src/importers/usda.ts --list-nutrients",
+    "audit:nutrition": "tsx src/audit-nutrition-data.ts",
+    "repair:nutrition": "tsx src/repair-nutrition-data.ts",
     "etl:e2e": "tsx src/e2e-plan-validation.ts",
     "typecheck": "tsc --noEmit"
   },
