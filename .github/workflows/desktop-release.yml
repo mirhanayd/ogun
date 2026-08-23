@@ -39,7 +39,12 @@ on:
   push:
     tags:
       - 'desktop-v*'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Yüklenecek mevcut desktop-v* etiketi'
+        required: true
+        type: string
 
 jobs:
   release:
@@ -50,11 +55,11 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
-            tauri-args: ''
+            tauri-args: '--bundles nsis'
             rust-targets: ''
           - platform: macos-latest
             # Evrensel macOS binary (arm64+x86_64) — bkz. issue metni.
-            tauri-args: '--target universal-apple-darwin'
+            tauri-args: '--target universal-apple-darwin --bundles dmg'
             rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
@@ -100,18 +105,13 @@ jobs:
             echo "[desktop-release] OGUN_UPDATE_PUBKEY tanımlı DEĞİL — güncelleme paketi imzalanmayacak (bkz. workflow başı notu)."
           fi
 
-      - name: Derle, imzala (varsa) ve GitHub Release'e yükle
+      - name: Windows paketini derle ve GitHub Release'e yükle
+        if: matrix.platform == 'windows-latest'
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # bkz. apps/desktop/src-tauri/src/updater.rs dosya başı notu — bu
@@ -122,7 +122,34 @@ jobs:
           OGUN_UPDATE_PUBKEY: ${{ vars.OGUN_UPDATE_PUBKEY }}
         with:
           projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: 'Öğün masaüstü v__VERSION__'
+          releaseBody: |
+            Sürüm notları için bkz. CHANGELOG.md.
+
+            Bu bir taslak (draft) release'tir — indirme sayfasında/güncelleme
+            manifestinde görünmeden ÖNCE elle yayınlanmalıdır (bkz.
+            docs/desktop-deployment.md "Yayın kontrol listesi").
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.tauri-args }} --config release-updater.conf.json
+
+      # Apple imzalama bilgileri henüz repoda yok. Boş APPLE_CERTIFICATE
+      # değişkenini geçirmek bile Tauri'nin geçersiz bir sertifikayı içe
+      # aktarmaya çalışmasına yol açtığından, bu adım sertifika değişkenlerini
+      # bilerek hiç tanımlamaz ve imzasız bir beta DMG üretir.
+      - name: macOS paketini derle ve GitHub Release'e yükle
+        if: matrix.platform == 'macos-latest'
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          OGUN_UPDATE_MANIFEST_URL: ${{ vars.OGUN_UPDATE_MANIFEST_URL }}
+          OGUN_UPDATE_PUBKEY: ${{ vars.OGUN_UPDATE_PUBKEY }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: 'Öğün masaüstü v__VERSION__'
           releaseBody: |
             Sürüm notları için bkz. CHANGELOG.md.
