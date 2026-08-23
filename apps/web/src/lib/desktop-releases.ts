@@ -33,6 +33,23 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.2.0',
+    publishedAt: '2026-08-23',
+    notes: [
+      'İnternet yokken kayıtlı cihaz hesabı ve yerel PIN ile giriş yapılabilir.',
+      'Danışan, plan ve randevu kayıtları şifreli cihaz kasasında kalıcı olarak bekler.',
+      'Bağlantı geri geldiğinde bekleyen değişiklikler otomatik olarak bulutla eşitlenir.',
+      'Plan editörü taslakları uygulama kapatılsa bile kaybolmaz.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.0/Ogun_0.2.0_x64-setup.exe',
+      },
+    ],
+  },
+  {
     version: '0.1.9',
     publishedAt: '2026-08-23',
     notes: [
