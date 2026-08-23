@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-unlock-offline-profile"
+description = "Enables the unlock_offline_profile command without any pre-configured scope."
+commands.allow = ["unlock_offline_profile"]
+
+[[permission]]
+identifier = "deny-unlock-offline-profile"
+description = "Denies the unlock_offline_profile command without any pre-configured scope."
+commands.deny = ["unlock_offline_profile"]

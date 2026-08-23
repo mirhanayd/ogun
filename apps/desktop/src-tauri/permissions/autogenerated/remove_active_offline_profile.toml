@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remove-active-offline-profile"
+description = "Enables the remove_active_offline_profile command without any pre-configured scope."
+commands.allow = ["remove_active_offline_profile"]
+
+[[permission]]
+identifier = "deny-remove-active-offline-profile"
+description = "Denies the remove_active_offline_profile command without any pre-configured scope."
+commands.deny = ["remove_active_offline_profile"]

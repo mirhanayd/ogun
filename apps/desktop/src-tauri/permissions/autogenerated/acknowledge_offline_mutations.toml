@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-acknowledge-offline-mutations"
+description = "Enables the acknowledge_offline_mutations command without any pre-configured scope."
+commands.allow = ["acknowledge_offline_mutations"]
+
+[[permission]]
+identifier = "deny-acknowledge-offline-mutations"
+description = "Denies the acknowledge_offline_mutations command without any pre-configured scope."
+commands.deny = ["acknowledge_offline_mutations"]

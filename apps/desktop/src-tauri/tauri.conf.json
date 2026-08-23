@@ -1,14 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Öğün",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "identifier": "app.ogun.desktop",
   "build": {
     "devUrl": "http://localhost:3000",
     "frontendDist": "../splash"
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "windows": [],
     "security": {
       "csp": null

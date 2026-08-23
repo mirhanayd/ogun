@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-upsert-offline-profile"
+description = "Enables the upsert_offline_profile command without any pre-configured scope."
+commands.allow = ["upsert_offline_profile"]
+
+[[permission]]
+identifier = "deny-upsert-offline-profile"
+description = "Denies the upsert_offline_profile command without any pre-configured scope."
+commands.deny = ["upsert_offline_profile"]

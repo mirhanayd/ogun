@@ -30,10 +30,11 @@ pnpm + Turborepo ile yönetilen monorepo.
 
 ## Masaüstü geliştirme (Tauri)
 
-GitHub issue #51 / Faz 9 — `apps/desktop`, apps/web'i saran bir Tauri 2.x
-native pencere kabuğudur. apps/web'in kod tabanı bu paketten ETKİLENMEZ;
-Tauri sadece onu SARAR (bkz. `faz-9-masaustu-kabugu.md`'deki mimari not:
-bu OFFLINE bir uygulama değil, klinik verisi merkezi Postgres'te kalır).
+`apps/desktop`, ortak web arayüzünü kullanan bir Tauri 2.x istemcisidir.
+Üretimde önce paketlenmiş yerel çalışma alanı açılır: bağlantı varsa canlı
+web uygulamasına geçer, bağlantı yoksa kayıtlı cihaz hesabı + PIN ile
+şifreli çevrimdışı çalışma alanını açar. Klinik verisinin merkezi kaynağı
+Postgres olarak kalır; cihaz değişiklikleri bağlantı gelince uzlaştırılır.
 
 ### Gereksinimler
 
@@ -66,10 +67,25 @@ cd apps/desktop
 pnpm build   # Tauri uygulamasını ve platform installer'larını derler
 ```
 
-Üretim paketi ince istemcidir ve doğrudan `https://ogun-web.vercel.app`
-adresine bağlanır. Neon bağlantı bilgisi, Better Auth secret'ı veya başka
-bir sunucu `.env` değeri installer'a konmaz. API route'ları ve server action'lar
-Vercel'deki web sunucusunda çalışır.
+Üretim paketi yerel başlangıç/çevrimdışı arayüzü içerir ve bağlantı varken
+`https://ogun-web.vercel.app` adresine geçer. Neon bağlantı bilgisi, Better
+Auth secret'ı veya başka bir sunucu `.env` değeri installer'a konmaz. API
+route'ları ve server action'lar Vercel'deki web sunucusunda çalışır.
+
+### Çevrimdışı çalışma ve cihaz PIN'i
+
+İlk başarılı masaüstü girişinde kullanıcıdan 4-8 rakamlı bir cihaz PIN'i
+istenir. PIN Argon2id ile özetlenir; profil, klinik snapshot'ı ve bekleyen
+mutasyon günlüğü Tauri Stronghold kasasında tutulur. Uygulama kapatılsa bile
+kuyruk kaybolmaz. İnternet geldiğinde danışan, plan ve randevu oluşturma
+kayıtları idempotent kimliklerle sunucuya aktarılır; plan editörünün son
+taslağı da kapanışlar arasında kalıcıdır. Açıkça "Çıkış yap" seçilirse cihaz
+profili ve ona ait çevrimdışı snapshot kaldırılır; yalnızca pencereyi veya
+uygulamayı kapatmak bunları silmez.
+
+E-posta/WhatsApp gönderimi, buluta belge yükleme ve başka bir harici servise
+ulaşmayı gerektiren işlemler doğal olarak bağlantı bekler. Mimari ve senkron
+kuralları için `docs/desktop-offline.md` dosyasına bakın.
 
 ### Native kimlik doğrulama (OAuth + deep link) — GitHub issue #52
 
@@ -112,35 +128,13 @@ indirme sayfası eklendi. **Bu, Faz 9'un (Masaüstü Kabuğu) SON parçasıdır 
 yayınlama kontrol listesi, güncelleme manifest şeması) için
 `docs/desktop-deployment.md`ye bakın.
 
-### Doğrulama durumu (dürüstlük notu)
+### Doğrulama durumu
 
-Bu sandbox'ta MSVC bağlayıcısı (link.exe) VE Windows SDK import
-kütüphaneleri (kernel32.lib vb.) kurulu DEĞİL (`tauri info` bunu
-bağımsız olarak doğruluyor). Sonuç: `cargo build` BAĞLANAMADI; `cargo
-check` bile bağımlılıkların (serde, thiserror, proc-macro2 vb.) build
-script'lerini çalıştırmak için linklemeye ihtiyaç duyduğundan AYNI
-şekilde başarısız oldu — yani Rust kodu derleyiciyle DOĞRULANAMADI,
-sadece tauri/tauri-plugin-* paketlerinin gerçek kaynak kodu okunarak
-dikkatli yazıldı. Gerçek bir pencere açılıp GÖRSEL olarak test edilmesi
-de mümkün değildi (headless ortam). Issue #52'nin deep-link/stronghold
-eklentileri de AYNI şekilde (`cargo add`/`cargo fetch` gerçek ağ erişimiyle
-ÇALIŞTI, sürümler doğrulandı — ama `cargo check` yine link.exe'de
-başarısız oldu) sadece kaynak kodu okunarak doğrulandı. Issue #53'ün YENİ
-bağımlılıkları (tauri-plugin-notification 2.3.3, tauri-plugin-dialog 2.7.2,
-tauri-plugin-fs 2.5.1) da AYNI şekilde `cargo add` ile gerçek ağ erişimiyle
-çözüldü/doğrulandı, `cargo check` ise AYNI linker hatasıyla (bu sefer daha
-erken, `proc-macro2`/`serde` build script'lerinde) başarısız oldu — Rust
-API'leri (Menu/MenuBuilder/TrayIconBuilder/NotificationBuilder/vb.) docs.rs
-üzerinden tek tek doğrulanarak, ama derleyiciyle DOĞRULANMADAN yazıldı. Bu
-YENİ Rust modüllerindeki (`menu.rs`, `tray.rs`, `notifications.rs`,
-`menu_actions.rs`, `settings.rs`, `window_ops.rs`, `deep_link.rs`'e eklenen
-kısımlar) SAF mantık (id ayrıştırma, URL inşası, ayar (de)serileştirme, zoom
-sınırlama) `cargo test`'le DEĞİL ama `#[cfg(test)]` birim testleriyle
-kaynak seviyesinde doğrulanmıştır — gerçek çalıştırma bu sandbox'ta mümkün
-olmadı. JS/TS tarafı (apps/web) TAM olarak doğrulandı: `pnpm typecheck`,
-`pnpm --filter web lint`, `pnpm --filter web test` (yeni testler dahil) ve
-`pnpm --filter web build` (turbopack'siz) hepsi geçti. Ayrıntılar için
-ilgili PR açıklamalarına bakın.
+Windows MSVC araç zinciri bu çalışma ortamında kuruludur. Tauri release
+binary'si `pnpm --filter desktop tauri build --no-bundle` ile üretildi;
+Rust kitaplığının 60 testi, web typecheck/lint/test ve Next.js production
+build'i geçti. Kod imzalama sertifikası tanımlı olmadıkça üretilen Windows
+installer'ı imzasızdır ve SmartScreen uyarısı gösterebilir.
 
 Release, kod imzalama ve otomatik güncelleme akışının ayrıntıları için
 `docs/desktop-deployment.md` dosyasına bakın.

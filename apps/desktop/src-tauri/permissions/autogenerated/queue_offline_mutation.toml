@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-queue-offline-mutation"
+description = "Enables the queue_offline_mutation command without any pre-configured scope."
+commands.allow = ["queue_offline_mutation"]
+
+[[permission]]
+identifier = "deny-queue-offline-mutation"
+description = "Denies the queue_offline_mutation command without any pre-configured scope."
+commands.deny = ["queue_offline_mutation"]

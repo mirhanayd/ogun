@@ -20,6 +20,7 @@ mod menu;
 mod menu_actions;
 mod navigation;
 mod notifications;
+mod offline_vault;
 mod secure_storage;
 mod settings;
 mod tray;
@@ -99,6 +100,20 @@ pub fn run() {
             secure_storage::store_session_token,
             secure_storage::load_session_token,
             secure_storage::clear_session_token,
+            offline_vault::list_offline_profiles,
+            offline_vault::upsert_offline_profile,
+            offline_vault::remove_active_offline_profile,
+            offline_vault::configure_offline_pin,
+            offline_vault::unlock_offline_profile,
+            offline_vault::lock_offline_profile,
+            offline_vault::get_unlocked_offline_workspace,
+            offline_vault::save_offline_workspace,
+            offline_vault::save_offline_plan_draft,
+            offline_vault::queue_offline_mutation,
+            offline_vault::load_pending_offline_mutations,
+            offline_vault::acknowledge_offline_mutations,
+            offline_vault::desktop_network_available,
+            offline_vault::show_offline_workspace,
             deep_link::notify_frontend_ready,
             // GitHub issue #53 / Prompt 9.3 — dar kapsamlı, tek-amaçlı
             // komutlar (bkz. Cargo.toml/PR'daki genel prensip: sadece
@@ -136,6 +151,7 @@ pub fn run() {
             // `notify_frontend_ready` çağrısı) işaretler; bundan ÖNCE
             // yayınlanan bir OAuth olayı dinleyicisiz kalıp KAYBOLABİLİRDİ.
             app.manage(FrontendReady::default());
+            app.manage(offline_vault::OfflineVaultState::default());
             // GitHub issue #53 / Prompt 9.3 — GÖREV 1 (Görünüm > Yakınlaştır/
             // Uzaklaştır zoom seviyesi) ve GÖREV 2 (tray'e küçültme tercihi,
             // bkz. settings.rs dosya başı "TASARIM KARARI" notu) durumu.
@@ -187,15 +203,18 @@ pub fn run() {
                 }
             }
 
-            let initial_url = WebviewUrl::External(
-                if is_dev {
-                    DEV_ENTRY_URL.to_string()
-                } else {
-                    format!("{PRODUCTION_ORIGIN}/giris")
-                }
-                .parse()
-                .expect("uygulama giriş adresi geçerli bir URL olmalı"),
-            );
+            let initial_url = if is_dev {
+                WebviewUrl::External(
+                    DEV_ENTRY_URL
+                        .parse()
+                        .expect("uygulama giriş adresi geçerli bir URL olmalı"),
+                )
+            } else {
+                // Üretimde önce paketlenmiş yerel çalışma alanını aç. Bu sayfa
+                // bağlantı varsa canlı uygulamaya geçer; yoksa cihaz profili
+                // ve PIN ile çevrimdışı çalışmayı sürdürür.
+                WebviewUrl::App("index.html".into())
+            };
 
             let setup_handle = app.handle().clone();
             let window = WebviewWindowBuilder::new(app, "main", initial_url)
