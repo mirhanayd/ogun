@@ -106,8 +106,8 @@ export interface LivePanelData {
   totalNutrients: NutrientValuesPer100g
   macroDistribution: MacroDistribution
   mealEnergyShares: MealEnergyShare[]
-  // Referans yoksa (danışanda yaş/cinsiyet bilgisi eksikse) boş dizi döner —
-  // panel bunu ayrı bir bilgilendirme olarak gösterir (bkz. nutrient-panel.tsx).
+  // Plan içinde değeri bulunan bütün öğeler listelenir. TÜBER referansı olanlar
+  // bantlanır; referansı olmayanlar gerçek değeriyle `no_reference` kalır.
   nutrientLevels: NutrientLevelResult[]
   warnings: NutritionWarning[]
   // Çok günlük bir plan mı (>1) — panelde "günlük ortalama" notunu göstermek için.
@@ -125,9 +125,23 @@ export function buildLivePanelData(input: LivePanelInput): LivePanelData {
 
   const macroDistribution = calculateMacroDistribution(displayResult.totalNutrients)
   const mealEnergyShares = calculateMealEnergyDistribution(displayResult)
-  const nutrientLevels = input.reference
+  const referencedLevels = input.reference
     ? classifyNutrientLevel(displayResult.totalNutrients, input.reference)
     : []
+  const referencedLevelByCode = new Map(
+    referencedLevels.map((level) => [level.nutrientCode, level]),
+  )
+  const nutrientLevels: NutrientLevelResult[] = Object.entries(displayResult.totalNutrients).map(
+    ([nutrientCode, actualValue]) =>
+      referencedLevelByCode.get(nutrientCode) ?? {
+        nutrientCode,
+        actualValue,
+        referenceValue: null,
+        percentOfReference: null,
+        upperLimit: null,
+        band: 'no_reference',
+      },
+  )
 
   // Uyarılar HAM (bölünmemiş) plan/sonuç üzerinden hesaplanır — kalem sayısı
   // (MISSING_NUTRIENT_DATA) ve kcal-ağırlıklı oran (IMPUTED_VALUE_HEAVY) gün

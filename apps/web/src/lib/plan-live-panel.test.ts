@@ -69,6 +69,11 @@ describe('buildLivePanelData', () => {
     expect(result.dayCount).toBe(1)
     expect(result.mealEnergyShares).toHaveLength(1)
     expect(result.mealEnergyShares[0]?.percentOfDailyTotal).toBeCloseTo(100)
+    expect(result.nutrientLevels.find((level) => level.nutrientCode === 'FE')).toMatchObject({
+      actualValue: 2,
+      band: 'no_reference',
+      percentOfReference: null,
+    })
   })
 
   it('çok günlük planlarda toplamı gün sayısına bölerek "günlük ortalama" döner', () => {

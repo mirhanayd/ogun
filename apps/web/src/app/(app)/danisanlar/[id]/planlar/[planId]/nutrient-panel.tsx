@@ -67,6 +67,7 @@ import { usePlanEditorStore, useAllergenConflictMap, type DraftDay } from './pla
 // gecikmeler için bkz. PR açıklaması / plan-live-panel-benchmark.ts.
 const DEBOUNCE_MS = 150
 const LIVE_PANEL_TARGET_MS = 50
+const QUICK_MICRONUTRIENT_CODES = ['CA', 'FE', 'VITB12', 'VITD'] as const
 
 function collectFoodIds(days: DraftDay[]): string[] {
   const ids = new Set<string>()
@@ -179,9 +180,27 @@ export function NutrientPanel({
     () => new Map(nutrientDefs.map((d) => [d.code, d])),
     [nutrientDefs],
   )
+  const micronutrientLevels = useMemo(() => {
+    const levelByCode = new Map(
+      panelData.nutrientLevels.map((level) => [level.nutrientCode, level]),
+    )
+    return nutrientDefs
+      .filter((def) => def.category === 'vitamin' || def.category === 'mineral')
+      .flatMap((def) => {
+        const level = levelByCode.get(def.code)
+        return level ? [level] : []
+      })
+  }, [nutrientDefs, panelData.nutrientLevels])
   const visibleNutrients = showAllNutrients
-    ? panelData.nutrientLevels
-    : panelData.nutrientLevels.filter((n) => nutrientDefByCode.get(n.nutrientCode)?.isCore)
+    ? micronutrientLevels
+    : micronutrientLevels.filter((n) => nutrientDefByCode.get(n.nutrientCode)?.isCore)
+  const quickMicronutrients = QUICK_MICRONUTRIENT_CODES.flatMap((code) => {
+    const def = nutrientDefByCode.get(code)
+    if (!def) return []
+    return [
+      { code, name: def.nameTr, unit: def.unit, value: panelData.totalNutrients[code] ?? null },
+    ]
+  })
 
   return (
     // Masaüstünde panel görünen alanın TAMAMINI kaplar (sticky konumlandırma
@@ -213,7 +232,12 @@ export function NutrientPanel({
 
       {/* --- 1. BÖLÜM: ÖZET (enerji + makro + öğün dağılımı) ---------------- */}
       <div className="flex shrink-0 flex-col gap-3 px-4 pb-3">
-        <EnergySummary totalKcal={totalKcal} targetKcal={targetKcal} kcalPercent={kcalPercent} />
+        <EnergySummary
+          totalKcal={totalKcal}
+          targetKcal={targetKcal}
+          kcalPercent={kcalPercent}
+          quickMicronutrients={quickMicronutrients}
+        />
 
         <MacroDistributionBar
           proteinPercent={panelData.macroDistribution.proteinPercent}
@@ -233,7 +257,7 @@ export function NutrientPanel({
         hasReference={reference !== null}
         showAll={showAllNutrients}
         onToggleShowAll={() => setShowAllNutrients((v) => !v)}
-        totalNutrientCount={panelData.nutrientLevels.length}
+        totalNutrientCount={micronutrientLevels.length}
       />
 
       {/* --- 3. BÖLÜM: UYARILAR (altta, ayrık) ----------------------------- */}
@@ -246,10 +270,12 @@ function EnergySummary({
   totalKcal,
   targetKcal,
   kcalPercent,
+  quickMicronutrients,
 }: {
   totalKcal: number
   targetKcal: number | null
   kcalPercent: number | null
+  quickMicronutrients: { code: string; name: string; unit: string; value: number | null }[]
 }) {
   // Dairesel ilerleme: 0-150% aralığını gösterir (150%+ tamamen dolu halka).
   const clampedPercent = kcalPercent === null ? 0 : Math.min(Math.max(kcalPercent, 0), 150)
@@ -266,50 +292,64 @@ function EnergySummary({
         : 'stroke-green-600'
 
   return (
-    <div className="flex items-center gap-3">
-      <svg width={64} height={64} viewBox="0 0 64 64" className="shrink-0 -rotate-90">
-        <circle cx={32} cy={32} r={radius} className="fill-none stroke-muted" strokeWidth={6} />
-        <circle
-          cx={32}
-          cy={32}
-          r={radius}
-          className={cn('fill-none transition-[stroke-dashoffset]', ringColor)}
-          strokeWidth={6}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-        />
-      </svg>
-      <div className="flex min-w-0 flex-col">
-        <div className="flex items-baseline gap-1">
-          {/* GitHub issue #59 / #61 — toplam kcal her düzenlemede canlı
-              güncelleniyor; `text-data-lg` tabular-nums uygular, yoksa sayının
-              genişliği değiştikçe yanındaki "kcal" etiketi zıplıyordu. */}
-          <span className="text-data-lg">{totalKcal.toFixed(0)}</span>
-          <span className="text-body text-muted-foreground">kcal</span>
-          {kcalPercent !== null && (
-            // Renk TEK BAŞINA taşıyıcı değil: hedef dışıysa ikon da değişiyor
-            // (bkz. GÖREV 3 erişilebilirlik notu).
-            <Badge
-              variant={offTarget ? 'destructive' : 'outline'}
-              className="ml-1 gap-1 text-data"
-              title={offTarget ? 'Hedefin %90-110 aralığının dışında' : 'Hedef aralığında'}
-            >
-              {offTarget ? (
-                <AlertTriangle className="size-3" aria-hidden />
-              ) : (
-                <Check className="size-3" aria-hidden />
-              )}
-              %{kcalPercent.toFixed(0)}
-            </Badge>
-          )}
+    <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] items-center gap-3 rounded-lg border border-border/70 bg-background/55 p-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <svg width={58} height={58} viewBox="0 0 64 64" className="shrink-0 -rotate-90">
+          <circle cx={32} cy={32} r={radius} className="fill-none stroke-muted" strokeWidth={6} />
+          <circle
+            cx={32}
+            cy={32}
+            r={radius}
+            className={cn('fill-none transition-[stroke-dashoffset]', ringColor)}
+            strokeWidth={6}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+          />
+        </svg>
+        <div className="flex min-w-0 flex-col">
+          <div className="flex flex-wrap items-baseline gap-1">
+            <span className="text-data-lg">{totalKcal.toFixed(0)}</span>
+            <span className="text-body text-muted-foreground">kcal</span>
+            {kcalPercent !== null && (
+              <Badge
+                variant={offTarget ? 'destructive' : 'outline'}
+                className="gap-1 text-data"
+                title={offTarget ? 'Hedefin %90-110 aralığının dışında' : 'Hedef aralığında'}
+              >
+                {offTarget ? (
+                  <AlertTriangle className="size-3" aria-hidden />
+                ) : (
+                  <Check className="size-3" aria-hidden />
+                )}
+                %{kcalPercent.toFixed(0)}
+              </Badge>
+            )}
+          </div>
+          <span className="text-helper text-muted-foreground">
+            {targetKcal !== null ? `${targetKcal} kcal hedef` : 'Hedef kalori girilmedi'}
+          </span>
         </div>
-        <span className="text-helper text-muted-foreground">
-          {targetKcal !== null ? `${targetKcal} kcal hedef` : 'Hedef kalori girilmedi'}
-        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 border-l border-border pl-3">
+        {quickMicronutrients.map((nutrient) => (
+          <div key={nutrient.code} className="min-w-0" title={nutrient.name}>
+            <div className="truncate text-helper text-muted-foreground">{nutrient.name}</div>
+            <div className="truncate text-data tabular-nums">
+              {nutrient.value === null ? '—' : formatCompactNutrient(nutrient.value)}{' '}
+              <span className="font-normal text-muted-foreground">{nutrient.unit}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
+}
+
+function formatCompactNutrient(value: number): string {
+  if (Math.abs(value) >= 100) return value.toFixed(0)
+  if (Math.abs(value) >= 10) return value.toFixed(1)
+  return value.toFixed(2)
 }
 
 const MACRO_COLORS: Record<'protein' | 'carb' | 'fat', string> = {
