@@ -31,7 +31,7 @@ export function OfflineIndicator() {
       className="fixed inset-x-0 bottom-16 z-50 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-destructive/40 bg-destructive px-3 py-1.5 text-helper font-medium text-white shadow-lg md:bottom-4"
     >
       <CloudOff className="size-3.5 shrink-0" />
-      <span>İnternet bağlantısı yok — değişiklikleriniz kaydedilmeyebilir.</span>
+      <span>Çevrimdışı — desteklenen değişiklikler bu cihazda bekletiliyor.</span>
     </div>
   )
 }

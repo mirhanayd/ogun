@@ -1,9 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Copy, Eye, Loader2, Mail, MessageCircle, Share2, XCircle } from 'lucide-react'
+import {
+  CheckCircle2,
+  Copy,
+  Eye,
+  Loader2,
+  Mail,
+  MessageCircle,
+  Share2,
+  XCircle,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import { Input } from '@/components/ui/input'
 import {
   Dialog,
@@ -56,9 +66,16 @@ export function ShareDialog({
   const [emailAddress, setEmailAddress] = useState(clientEmail ?? '')
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const offline = useConnectivityStatus() === 'offline'
 
   useEffect(() => {
     if (!open) return
+    if (offline) {
+      setShare(null)
+      setStatus('error')
+      setErrorMessage('Plan paylaşımı ve gönderim işlemleri için internet bağlantısı gerekir.')
+      return
+    }
     let cancelled = false
     setStatus('loading')
     setErrorMessage(null)
@@ -83,17 +100,17 @@ export function ShareDialog({
     return () => {
       cancelled = true
     }
-  }, [open, planId])
+  }, [offline, open, planId])
 
   async function handleCopy() {
-    if (!share) return
+    if (!share || offline) return
     await navigator.clipboard.writeText(share.url)
     setCopyLabel('Kopyalandı')
     setTimeout(() => setCopyLabel('Kopyala'), 1500)
   }
 
   async function handleRevoke() {
-    if (!share) return
+    if (!share || offline) return
     setRevoking(true)
     try {
       const result = await revokeShareLinkAction(share.shareId, planId, clientId)
@@ -108,15 +125,19 @@ export function ShareDialog({
   }
 
   function handleWhatsappSend() {
-    if (!share) return
-    const message = renderWhatsappMessage(whatsappTemplate, { clientName, planName, shareUrl: share.url })
+    if (!share || offline) return
+    const message = renderWhatsappMessage(whatsappTemplate, {
+      clientName,
+      planName,
+      shareUrl: share.url,
+    })
     const url = buildWhatsappShareUrl(clientPhone, message)
     window.open(url, '_blank', 'noopener,noreferrer')
     void recordWhatsappSentAction(clientId, share.shareId, clientPhone)
   }
 
   async function handleEmailSend() {
-    if (!share) return
+    if (!share || offline) return
     setEmailSending(true)
     setErrorMessage(null)
     try {
@@ -144,8 +165,8 @@ export function ShareDialog({
             Danışana ulaştır
           </DialogTitle>
           <DialogDescription>
-            Bu bağlantı sadece plan içeriğini gösterir — danışanın sağlık verisi, ölçümleri veya notları asla
-            paylaşılmaz.
+            Bu bağlantı sadece plan içeriğini gösterir — danışanın sağlık verisi, ölçümleri veya
+            notları asla paylaşılmaz.
           </DialogDescription>
         </DialogHeader>
 
@@ -157,19 +178,27 @@ export function ShareDialog({
         )}
 
         {status === 'error' && !share && (
-          <p className="text-sm text-destructive">{errorMessage ?? 'Paylaşım bağlantısı oluşturulamadı. Danışanın KVKK onayının alındığını doğrulayıp tekrar deneyin.'}</p>
+          <p className="text-sm text-destructive">
+            {errorMessage ??
+              'Paylaşım bağlantısı oluşturulamadı. Danışanın KVKK onayının alındığını doğrulayıp tekrar deneyin.'}
+          </p>
         )}
 
         {share && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
-                <Input readOnly value={share.url} className="h-8 text-xs" onFocus={(e) => e.target.select()} />
+                <Input
+                  readOnly
+                  value={share.url}
+                  className="h-8 text-xs"
+                  onFocus={(e) => e.target.select()}
+                />
                 <Button
                   variant="outline"
                   size="sm"
                   className="shrink-0 gap-1.5"
-                  disabled={!linkUsable}
+                  disabled={offline || !linkUsable}
                   onClick={handleCopy}
                 >
                   <Copy className="size-3.5" />
@@ -199,7 +228,7 @@ export function ShareDialog({
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                    disabled={revoking}
+                    disabled={offline || revoking}
                     onClick={handleRevoke}
                   >
                     {revoking ? 'İptal ediliyor…' : 'Linki iptal et'}
@@ -214,7 +243,7 @@ export function ShareDialog({
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                disabled={!linkUsable}
+                disabled={offline || !linkUsable}
                 onClick={handleWhatsappSend}
               >
                 <MessageCircle className="size-3.5" />
@@ -223,7 +252,9 @@ export function ShareDialog({
             </div>
 
             <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-              <p className="text-xs font-medium text-muted-foreground">E-posta ile gönder (PDF ekli)</p>
+              <p className="text-xs font-medium text-muted-foreground">
+                E-posta ile gönder (PDF ekli)
+              </p>
               <div className="flex items-center gap-2">
                 <Input
                   type="email"
@@ -235,10 +266,14 @@ export function ShareDialog({
                 <Button
                   size="sm"
                   className="shrink-0 gap-1.5"
-                  disabled={!linkUsable || emailSending || !emailAddress}
+                  disabled={offline || !linkUsable || emailSending || !emailAddress}
                   onClick={handleEmailSend}
                 >
-                  {emailSending ? <Loader2 className="size-3.5 animate-spin" /> : <Mail className="size-3.5" />}
+                  {emailSending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Mail className="size-3.5" />
+                  )}
                   Gönder
                 </Button>
               </div>

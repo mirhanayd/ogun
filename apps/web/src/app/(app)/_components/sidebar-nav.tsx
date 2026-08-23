@@ -70,7 +70,7 @@ export function SidebarNav({ role }: { role: ClinicMemberRole }) {
           {isOnline
             ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
             : connectivity === 'offline'
-              ? 'Değişiklikleriniz şu anda sunucuya kaydedilemez.'
+              ? 'Desteklenen kayıtlar cihazda tutulur; çevrimiçi işlemler geçici olarak kapalıdır.'
               : 'Güvenli klinik alanına erişim doğrulanıyor.'}
         </p>
       </div>

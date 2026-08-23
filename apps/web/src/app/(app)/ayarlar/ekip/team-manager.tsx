@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from 'react'
 import { Clock3, Mail, MailPlus, ShieldCheck, UserRoundCheck } from 'lucide-react'
 import type { ClinicTeamMember, PendingClinicInvitation } from '@ogun/db/queries'
 import { toast } from 'sonner'
+import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,10 +37,15 @@ export function TeamManager({
   const [email, setEmail] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const offline = useConnectivityStatus() === 'offline'
 
   function submitInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError(null)
+    if (offline) {
+      setFormError('E-posta daveti göndermek için internet bağlantısı gerekir.')
+      return
+    }
     startTransition(async () => {
       const result = await inviteDietitianAction({ name, email })
       if (!result.success) {
@@ -53,6 +59,10 @@ export function TeamManager({
   }
 
   function revoke(invitationId: string) {
+    if (offline) {
+      toast.error('Davet iptali için internet bağlantısı gerekir.')
+      return
+    }
     startTransition(async () => {
       const result = await revokeClinicInvitationAction(invitationId)
       if (!result.success) {
@@ -166,7 +176,7 @@ export function TeamManager({
                     size="sm"
                     variant="ghost"
                     className="rounded-lg"
-                    disabled={isPending}
+                    disabled={isPending || offline}
                     onClick={() => revoke(invitation.id)}
                   >
                     İptal et
@@ -225,9 +235,9 @@ export function TeamManager({
             <Button
               type="submit"
               className="rounded-xl shadow-sm shadow-primary/15"
-              disabled={isPending}
+              disabled={isPending || offline}
             >
-              {isPending ? 'Gönderiliyor…' : 'Daveti gönder'}
+              {offline ? 'Bağlantı gerekiyor' : isPending ? 'Gönderiliyor…' : 'Daveti gönder'}
             </Button>
           </form>
         </CardContent>

@@ -2,9 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   ACCEPTED_DOCUMENT_MIME_TYPES,
   DOCUMENT_CATEGORY_OPTIONS,
@@ -58,6 +65,7 @@ export function DocumentUploader({
   const [category, setCategory] = useState<UploadableDocumentCategory>(fixedCategory ?? 'diğer')
   const [status, setStatus] = useState<'idle' | 'uploading'>('idle')
   const [error, setError] = useState<string | null>(null)
+  const offline = useConnectivityStatus() === 'offline'
   // GitHub issue #52 kod incelemesi (PR #56) hydration notuyla AYNI
   // gerekçe (bkz. native-auth-bridge.tsx): `isNativeShell()`'i DOĞRUDAN
   // render sırasında çağırmak sunucu (her zaman false) ile native
@@ -79,8 +87,15 @@ export function DocumentUploader({
   async function uploadFile(file: File) {
     setError(null)
 
+    if (offline) {
+      setError('Belge yüklemek için internet bağlantısı gerekir.')
+      return
+    }
+
     if (!(ACCEPTED_DOCUMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
-      setError('Desteklenmeyen dosya türü. Yalnızca PDF veya görsel (JPEG/PNG/WEBP/HEIC) yükleyebilirsiniz.')
+      setError(
+        'Desteklenmeyen dosya türü. Yalnızca PDF veya görsel (JPEG/PNG/WEBP/HEIC) yükleyebilirsiniz.',
+      )
       return
     }
     if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
@@ -93,7 +108,12 @@ export function DocumentUploader({
 
     setStatus('uploading')
     const activeCategory = fixedCategory ?? category
-    const presignInput = { fileName: file.name, mimeType, sizeBytes: file.size, category: activeCategory }
+    const presignInput = {
+      fileName: file.name,
+      mimeType,
+      sizeBytes: file.size,
+      category: activeCategory,
+    }
 
     const presign = await presignDocumentUploadAction(clientId, presignInput)
     if (!presign.success || !presign.uploadUrl || !presign.storageKey) {
@@ -113,7 +133,10 @@ export function DocumentUploader({
       return
     }
 
-    const confirm = await confirmDocumentUploadAction(clientId, { ...presignInput, storageKey: presign.storageKey })
+    const confirm = await confirmDocumentUploadAction(clientId, {
+      ...presignInput,
+      storageKey: presign.storageKey,
+    })
     if (!confirm.success) {
       setError(confirm.error ?? 'Belge kaydedilemedi.')
       setStatus('idle')
@@ -135,10 +158,15 @@ export function DocumentUploader({
   // Native dosya seçici VE sürükle-bırak'ın PAYLAŞTIĞI: bir dosya yolundan
   // byte'ları okuyup (`readFile`, tauri-plugin-fs) bir `File` nesnesine
   // SARAR ki yukarıdaki `uploadFile` DEĞİŞİKLİKSİZ çalışsın.
-  async function uploadFromNativePath(path: string, readFile: (p: string) => Promise<Uint8Array<ArrayBuffer>>) {
+  async function uploadFromNativePath(
+    path: string,
+    readFile: (p: string) => Promise<Uint8Array<ArrayBuffer>>,
+  ) {
     const mimeType = guessMimeTypeFromPath(path)
     if (!mimeType) {
-      setError('Desteklenmeyen dosya türü. Yalnızca PDF veya görsel (JPEG/PNG/WEBP/HEIC) yükleyebilirsiniz.')
+      setError(
+        'Desteklenmeyen dosya türü. Yalnızca PDF veya görsel (JPEG/PNG/WEBP/HEIC) yükleyebilirsiniz.',
+      )
       return
     }
     const bytes = await readFile(path)
@@ -149,7 +177,10 @@ export function DocumentUploader({
   async function handleNativePick() {
     setError(null)
     try {
-      const [{ open }, { readFile }] = await Promise.all([import('@tauri-apps/plugin-dialog'), import('@tauri-apps/plugin-fs')])
+      const [{ open }, { readFile }] = await Promise.all([
+        import('@tauri-apps/plugin-dialog'),
+        import('@tauri-apps/plugin-fs'),
+      ])
       const path = await open({
         multiple: false,
         filters: [{ name: 'Belge', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'] }],
@@ -177,22 +208,23 @@ export function DocumentUploader({
     let cancelled = false
     let unlisten: (() => void) | undefined
 
-    void Promise.all([import('@tauri-apps/api/webviewWindow'), import('@tauri-apps/plugin-fs')]).then(
-      ([{ getCurrentWebviewWindow }, { readFile }]) => {
-        if (cancelled) return
-        void getCurrentWebviewWindow()
-          .onDragDropEvent((event) => {
-            if (event.payload.type !== 'drop') return
-            for (const path of event.payload.paths) {
-              void uploadFromNativePath(path, readFile)
-            }
-          })
-          .then((fn) => {
-            if (cancelled) fn()
-            else unlisten = fn
-          })
-      },
-    )
+    void Promise.all([
+      import('@tauri-apps/api/webviewWindow'),
+      import('@tauri-apps/plugin-fs'),
+    ]).then(([{ getCurrentWebviewWindow }, { readFile }]) => {
+      if (cancelled) return
+      void getCurrentWebviewWindow()
+        .onDragDropEvent((event) => {
+          if (event.payload.type !== 'drop') return
+          for (const path of event.payload.paths) {
+            void uploadFromNativePath(path, readFile)
+          }
+        })
+        .then((fn) => {
+          if (cancelled) fn()
+          else unlisten = fn
+        })
+    })
 
     return () => {
       cancelled = true
@@ -202,14 +234,17 @@ export function DocumentUploader({
     // fixedCategory'e kapanır (closure); bunlardan biri değiştiğinde
     // dinleyici TAZE bir kapanışla yeniden kurulmalı.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, category, fixedCategory])
+  }, [clientId, category, fixedCategory, offline])
 
   return (
     <div className="flex flex-wrap items-end gap-3">
       {!fixedCategory && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="documentCategory">Kategori</Label>
-          <Select value={category} onValueChange={(value) => setCategory(value as UploadableDocumentCategory)}>
+          <Select
+            value={category}
+            onValueChange={(value) => setCategory(value as UploadableDocumentCategory)}
+          >
             <SelectTrigger id="documentCategory" className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -228,13 +263,24 @@ export function DocumentUploader({
           type="button"
           variant="outline"
           size="sm"
-          disabled={status === 'uploading'}
+          disabled={status === 'uploading' || offline}
           onClick={() => (isNative ? void handleNativePick() : inputRef.current?.click())}
         >
-          {status === 'uploading' ? 'Yükleniyor…' : 'Dosya seç ve yükle'}
+          {offline
+            ? 'Bağlantı gerekiyor'
+            : status === 'uploading'
+              ? 'Yükleniyor…'
+              : 'Dosya seç ve yükle'}
         </Button>
         {isNative && (
-          <p className="text-xs text-muted-foreground">Pencerenin herhangi bir yerine dosya sürükleyip bırakabilirsiniz.</p>
+          <p className="text-xs text-muted-foreground">
+            Pencerenin herhangi bir yerine dosya sürükleyip bırakabilirsiniz.
+          </p>
+        )}
+        {offline && (
+          <p className="text-xs text-muted-foreground">
+            Dosya yükleme bağlantı geldiğinde yeniden kullanılabilir.
+          </p>
         )}
         <input
           ref={inputRef}
