@@ -59,7 +59,7 @@ export default async function PlanEditorPage({
   // diyalogda İSTEDİĞİ an override edebilir ama açılış hâli klinik
   // tercihini yansıtır (bkz. GÖREV: "klinik seviyesinde bir varsayılanı
   // OLMALI").
-  const { scope } = await requireClinic()
+  const { scope, user } = await requireClinic()
 
   // Önce danışan atama kapsamını doğrula; yetkisiz bir URL hiçbir plan okuma
   // veya bootstrap yan etkisini başlatmasın.
@@ -89,6 +89,7 @@ export default async function PlanEditorPage({
 
   return (
     <PlanEditor
+      userId={user.id}
       planId={tree.plan.id}
       clientId={id}
       planName={tree.plan.name}
