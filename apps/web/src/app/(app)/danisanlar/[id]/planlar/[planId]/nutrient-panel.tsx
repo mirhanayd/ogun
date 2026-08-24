@@ -46,12 +46,10 @@ import { usePlanEditorStore, useAllergenConflictMap, type DraftDay } from './pla
 // mikro besin öğesi ARDIŞIK olarak akıyor, panel ekrandan taşıyor ve
 // diyetisyen en çok baktığı iki sayıya (enerji + makro) ulaşmak için bile
 // kaydırıyordu. Üç bölüm:
-//   1. ÖZET (üstte, sabit): enerji + makro dağılımı + öğün dağılımı — büyük,
-//      her zaman görünür.
-//   2. MİKRO BESİN ÖĞELERİ (ortada, KENDİ İÇİNDE kaydırılır — #59'da eklenen
-//      ScrollArea): liste ne kadar uzarsa uzasın 1. ve 3. bölümü ekrandan
-//      itmez.
-//   3. UYARILAR (altta, ayrık): üstte ince bir kenarlıkla ayrılmış.
+// Özet, mikro besinler ve uyarılar tek bir kaydırma yüzeyinde, birbirinden
+// kenarlık ve yüzey rengiyle ayrılmış normal akış bölümleridir. İç içe
+// ScrollArea kullanmak dar pencerelerde mikro besinleri uyarıların üstüne
+// taşıdığı için kaldırılmıştır.
 //
 // GÖREV 3 (erişilebilirlik): "Durum renklerini yalnızca renkle taşıma".
 // Her durum bandının AYRI BİR İKONU var (bkz. BAND_ICON) — renk körü bir
@@ -94,6 +92,7 @@ export function NutrientPanel({
   const clientSex = usePlanEditorStore((s) => s.clientSex)
   const clientAge = usePlanEditorStore((s) => s.clientAge)
   const allergenConflicts = useAllergenConflictMap()
+  const foodMacros = usePlanEditorStore((s) => s.foodMacros)
 
   const [nutrientDefs, setNutrientDefs] = useState<NutrientDefRow[]>([])
   const [foodLookup, setFoodLookup] = useState<Map<string, FoodNutrientLookup>>(new Map())
@@ -161,17 +160,24 @@ export function NutrientPanel({
     [days, foodLookup, targetKcal, reference, coreNutrientCodes],
   )
 
-  const allergyConflictCount = useMemo(() => {
-    let count = 0
+  const allergenWarnings = useMemo(() => {
+    const messages = new Set<string>()
     for (const day of days) {
       for (const meal of day.meals) {
         for (const item of meal.items) {
-          if (item.foodId && allergenConflicts.has(item.foodId)) count += 1
+          if (!item.foodId) continue
+          const conflicts = allergenConflicts.get(item.foodId) ?? []
+          const foodName = foodMacros[item.foodId]?.nameTr ?? 'Besin'
+          for (const conflict of conflicts) {
+            const source =
+              conflict.matchedOn === 'ingredient' ? `; içerik: ${conflict.matchedText}` : ''
+            messages.add(`${foodName}: ${conflict.entry.label}${source}`)
+          }
         }
       }
     }
-    return count
-  }, [days, allergenConflicts])
+    return [...messages]
+  }, [days, allergenConflicts, foodMacros])
 
   const totalKcal = panelData.totalNutrients[NUTRIENT.ENERGY_KCAL] ?? 0
   const kcalPercent = targetKcal && targetKcal > 0 ? (totalKcal / targetKcal) * 100 : null
@@ -203,23 +209,16 @@ export function NutrientPanel({
   })
 
   return (
-    // Masaüstünde panel görünen alanın TAMAMINI kaplar (sticky konumlandırma
-    // plan-editor.tsx'te, `top-4` ile) — `max-h` DEĞİL `h`: 2. bölümün
-    // kaydırma alanı mutlak konumlandırıldığı için içeriğe yükseklik
-    // KATMIYOR; `max-h` ile esnek bölüm asgari yüksekliğinde (96px) kalıp
-    // panelin geri kalanı boş kalırdı. Dar pencerede (Sheet içinde) panel
-    // doğal yüksekliğinde akar, mikro liste sabit yükseklikli bir kaydırma
-    // alanıdır (aşağıya bkz.).
+    // Masaüstünde panel görünen alanı doldurur; dar penceredeki Sheet içinde
+    // ise kendi tek kaydırma yüzeyine sınır koyar.
     // Yükseklik hesabı: 100svh − (üst bar 3.5rem + sticky boşluğu 1rem + alt
     // nefes payı 1rem) = 100svh − 5.5rem. Kabuğun üst barı (bkz. (app)/
     // layout.tsx TopBar, h-14) kaydırma kabının DIŞINDA olduğu için düşülmesi
     // gerekiyor; düşülmezse panelin alt kenarı (uyarılar bölümü) ekranın
     // altında kalıyor.
-    // `overflow-hidden`: panel içeriği (ör. referans yokken gösterilen uzun
-    // bilgilendirme + uyarı listesi) toplamda panel yüksekliğini aşarsa
-    // bölümler BİRBİRİNİN ÜSTÜNE binmesin — taşan kısım kırpılır, her bölüm
-    // kendi kaydırmasını zaten taşıyor.
-    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card/50 lg:h-[calc(100svh-5.5rem)]">
+    // `overflow-hidden` yalnız ScrollArea viewport'unu yuvarlak panel sınırında
+    // tutar; içerik kırpılmak yerine bu tek viewport içinde kaydırılır.
+    <div className="flex h-full max-h-[calc(80svh-5rem)] flex-col overflow-hidden rounded-xl border border-border bg-card/50 lg:h-[calc(100svh-5.5rem)] lg:max-h-none">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3 text-body font-medium text-muted-foreground">
         <Sparkles className="size-4" />
         Besin öğesi paneli
@@ -230,38 +229,42 @@ export function NutrientPanel({
         )}
       </div>
 
-      {/* --- 1. BÖLÜM: ÖZET (enerji + makro + öğün dağılımı) ---------------- */}
-      <div className="flex shrink-0 flex-col gap-3 px-4 pb-3">
-        <EnergySummary
-          totalKcal={totalKcal}
-          targetKcal={targetKcal}
-          kcalPercent={kcalPercent}
-          quickMicronutrients={quickMicronutrients}
+      {/* Tek bir kaydırma yüzeyi kullanılır. Mikro besin ve uyarı bölümlerinin
+          ayrı viewport'ları dar yükseklikte birbirinin üstüne taşabiliyordu. */}
+      <ScrollArea className="min-h-0 flex-1">
+        {/* --- 1. BÖLÜM: ÖZET (enerji + makro + öğün dağılımı) ---------------- */}
+        <div className="flex flex-col gap-3 px-4 pb-3">
+          <EnergySummary
+            totalKcal={totalKcal}
+            targetKcal={targetKcal}
+            kcalPercent={kcalPercent}
+            quickMicronutrients={quickMicronutrients}
+          />
+
+          <MacroDistributionBar
+            proteinPercent={panelData.macroDistribution.proteinPercent}
+            carbPercent={panelData.macroDistribution.carbPercent}
+            fatPercent={panelData.macroDistribution.fatPercent}
+          />
+
+          {panelData.mealEnergyShares.length > 0 && (
+            <MealDistributionList shares={panelData.mealEnergyShares} />
+          )}
+        </div>
+
+        {/* --- 2. BÖLÜM: MİKRO BESİN ÖĞELERİ --------------------------------- */}
+        <NutrientLevelSection
+          levels={visibleNutrients}
+          nutrientDefByCode={nutrientDefByCode}
+          hasReference={reference !== null}
+          showAll={showAllNutrients}
+          onToggleShowAll={() => setShowAllNutrients((v) => !v)}
+          totalNutrientCount={micronutrientLevels.length}
         />
 
-        <MacroDistributionBar
-          proteinPercent={panelData.macroDistribution.proteinPercent}
-          carbPercent={panelData.macroDistribution.carbPercent}
-          fatPercent={panelData.macroDistribution.fatPercent}
-        />
-
-        {panelData.mealEnergyShares.length > 0 && (
-          <MealDistributionList shares={panelData.mealEnergyShares} />
-        )}
-      </div>
-
-      {/* --- 2. BÖLÜM: MİKRO BESİN ÖĞELERİ (kendi içinde kaydırılır) -------- */}
-      <NutrientLevelSection
-        levels={visibleNutrients}
-        nutrientDefByCode={nutrientDefByCode}
-        hasReference={reference !== null}
-        showAll={showAllNutrients}
-        onToggleShowAll={() => setShowAllNutrients((v) => !v)}
-        totalNutrientCount={micronutrientLevels.length}
-      />
-
-      {/* --- 3. BÖLÜM: UYARILAR (altta, ayrık) ----------------------------- */}
-      <WarningsSection warnings={panelData.warnings} allergyConflictCount={allergyConflictCount} />
+        {/* --- 3. BÖLÜM: UYARILAR (altta, ayrık) ----------------------------- */}
+        <WarningsSection warnings={panelData.warnings} allergenWarnings={allergenWarnings} />
+      </ScrollArea>
     </div>
   )
 }
@@ -471,32 +474,29 @@ const WARNING_SEVERITY_CLASS: Record<NutritionWarning['severity'], string> = {
 // çakışması. #61: panelin EN ALTINDA, üstündeki bölümden kenarlıkla AYRIK.
 function WarningsSection({
   warnings,
-  allergyConflictCount,
+  allergenWarnings,
 }: {
   warnings: NutritionWarning[]
-  allergyConflictCount: number
+  allergenWarnings: string[]
 }) {
-  if (warnings.length === 0 && allergyConflictCount === 0) return null
+  if (warnings.length === 0 && allergenWarnings.length === 0) return null
 
   return (
-    <div className="max-h-44 shrink-0 overflow-y-auto border-t border-border px-4 py-3">
+    <div className="border-t border-border bg-muted/20 px-4 py-3">
       <div className="mb-1.5 flex items-center gap-1.5 text-helper font-medium text-muted-foreground">
         <AlertTriangle className="size-3.5" aria-hidden />
         Uyarılar
         <Badge variant="outline" className="ml-auto text-helper tabular-nums">
-          {warnings.length + (allergyConflictCount > 0 ? 1 : 0)}
+          {warnings.length + allergenWarnings.length}
         </Badge>
       </div>
       <div className="flex flex-col gap-1.5">
-        {allergyConflictCount > 0 && (
-          <div className="flex items-start gap-1.5 text-helper text-destructive">
+        {allergenWarnings.map((message) => (
+          <div key={message} className="flex items-start gap-1.5 text-helper text-destructive">
             <ShieldAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            <span>
-              {allergyConflictCount} kalem danışanın alerji/intolerans listesiyle çakışıyor —
-              satırlarda kırmızı ikonla işaretlendi.
-            </span>
+            <span>{message}</span>
           </div>
-        )}
+        ))}
         {warnings.map((warning, index) => {
           const Icon = WARNING_SEVERITY_ICON[warning.severity]
           return (
@@ -593,7 +593,7 @@ function NutrientLevelSection({
   totalNutrientCount: number
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+    <div className="flex flex-col border-t border-border">
       <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3">
         <span className="text-helper font-medium text-muted-foreground">Mikro besin öğeleri</span>
         {totalNutrientCount > levels.length || showAll ? (
@@ -613,52 +613,31 @@ function NutrientLevelSection({
 
       <BandLegend />
 
-      {/* ÜÇ KATMANLI KABUK — GEREKLİ, ÖLÇÜLDÜ (issue #61):
-          Radix ScrollArea'nın viewport'u `height: 100%` kullanır ve bu YALNIZCA
-          KESİN (definite) yükseklikli bir kapsayıcıya karşı çözülür.
-            - ScrollArea'ya doğrudan `flex-1` verilince Chromium yüzdeyi
-              çözemedi, viewport içeriğe göre büyüdü (ölçüldü: kök 265px,
-              viewport 844px) ve liste alttaki uyarı bölümünün ÜSTÜNE taştı.
-            - ScrollArea'ya `absolute inset-0` vermek de ÇALIŞMAZ: Radix, Root'a
-              `position: relative`i SATIR İÇİ (inline style) yazar ve bu sınıfı
-              EZER (ölçüldü: kök yine 844px).
-          Bu yüzden konumlandırma ScrollArea'nın DIŞINDA: esnek kabuk
-          (`relative flex-1`) + kesin yükseklikli kutu (`absolute inset-0`) +
-          `h-full` ScrollArea. */}
-      <div className="relative h-72 lg:h-auto lg:min-h-24 lg:flex-1">
-        <div className="absolute inset-0">
-          <ScrollArea className="h-full">
-            {/* Referans yoksa gösterilen bilgilendirme LİSTENİN İÇİNDE
-                (kaydırma alanında): bölüm başlığının altında sabit dursaydı
-                3-4 satırlık bir metin panelin sabit yüksekliğinden kalıcı
-                olarak yer götürür ve dar pencerelerde bölümlerin üst üste
-                binmesine yol açardı. */}
-            {!hasReference && (
-              <p className="px-4 pb-2 text-helper text-muted-foreground">
-                Danışanın yaş/cinsiyet bilgisi eksik olduğu için referans karşılaştırması
-                gösterilemiyor — değerler yine de listelendi.
-              </p>
-            )}
-            <ul className="flex flex-col gap-0.5 px-4 pb-3">
-              {levels.map((level) => {
-                const def = nutrientDefByCode.get(level.nutrientCode)
-                return (
-                  <NutrientLevelRow
-                    key={level.nutrientCode}
-                    name={def?.nameTr ?? level.nutrientCode}
-                    unit={def?.unit ?? ''}
-                    actualValue={level.actualValue}
-                    percentOfReference={level.percentOfReference}
-                    band={level.band}
-                  />
-                )
-              })}
-              {levels.length === 0 && (
-                <li className="text-helper text-muted-foreground">Henüz kalem eklenmedi.</li>
-              )}
-            </ul>
-          </ScrollArea>
-        </div>
+      <div>
+        {!hasReference && (
+          <p className="px-4 pb-2 text-helper text-muted-foreground">
+            Danışanın yaş/cinsiyet bilgisi eksik olduğu için referans karşılaştırması gösterilemiyor
+            — değerler yine de listelendi.
+          </p>
+        )}
+        <ul className="flex flex-col gap-0.5 px-4 pb-3">
+          {levels.map((level) => {
+            const def = nutrientDefByCode.get(level.nutrientCode)
+            return (
+              <NutrientLevelRow
+                key={level.nutrientCode}
+                name={def?.nameTr ?? level.nutrientCode}
+                unit={def?.unit ?? ''}
+                actualValue={level.actualValue}
+                percentOfReference={level.percentOfReference}
+                band={level.band}
+              />
+            )
+          })}
+          {levels.length === 0 && (
+            <li className="text-helper text-muted-foreground">Henüz kalem eklenmedi.</li>
+          )}
+        </ul>
       </div>
     </div>
   )
