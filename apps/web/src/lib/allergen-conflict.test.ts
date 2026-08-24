@@ -30,6 +30,41 @@ describe('findAllergenConflicts', () => {
     expect(conflicts[0]?.kind).toBe('intolerance')
   })
 
+  it('yemek adı alerjeni söylemese bile malzeme içeriğinden uyarır', () => {
+    const conflicts = findAllergenConflicts(
+      'Muhallebi',
+      [],
+      [lactoseIntolerance],
+      ['İnek sütü', 'Pirinç unu'],
+    )
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0]).toMatchObject({
+      kind: 'intolerance',
+      matchedOn: 'ingredient',
+      matchedText: 'İnek sütü',
+    })
+  })
+
+  it('alerjen eş anlamlı grubunu güvenli içerik terimleriyle eşler', () => {
+    const milkAllergy = { ...peanutAllergy, id: 'milk', label: 'süt', normalized: 'sut' }
+    expect(findAllergenConflicts('Cacık', [milkAllergy], [], ['Yoğurt', 'Salatalık'])).toHaveLength(
+      1,
+    )
+  })
+
+  it('yer fıstığı ile Antep fıstığını açık kayıt varsa birbirine karıştırmaz', () => {
+    const explicitPeanut = {
+      ...peanutAllergy,
+      id: 'peanut',
+      label: 'yer fıstığı',
+      normalized: 'yer fistigi',
+    }
+    expect(findAllergenConflicts('Baklava', [explicitPeanut], [], ['Antep fıstığı'])).toEqual([])
+    expect(findAllergenConflicts('Kurabiye', [explicitPeanut], [], ['Fıstık ezmesi'])).toHaveLength(
+      1,
+    )
+  })
+
   it('eşleşme yoksa boş dizi döner', () => {
     expect(findAllergenConflicts('Tavuk göğsü', [peanutAllergy], [lactoseIntolerance])).toEqual([])
   })
@@ -44,8 +79,8 @@ describe('findAllergenConflicts', () => {
 describe('buildAllergenConflictMap', () => {
   it('sadece çakışan besinleri haritaya ekler', () => {
     const foodNames = new Map([
-      ['food-1', 'Fıstık ezmesi'],
-      ['food-2', 'Tavuk göğsü'],
+      ['food-1', { nameTr: 'Fıstık ezmesi', ingredientNames: [] }],
+      ['food-2', { nameTr: 'Tavuk göğsü', ingredientNames: [] }],
     ])
     const map = buildAllergenConflictMap(foodNames, [peanutAllergy], [])
     expect(map.has('food-1')).toBe(true)
@@ -53,7 +88,7 @@ describe('buildAllergenConflictMap', () => {
   })
 
   it('alerji/intolerans listesi boşsa boş harita döner', () => {
-    const foodNames = new Map([['food-1', 'Fıstık ezmesi']])
+    const foodNames = new Map([['food-1', { nameTr: 'Fıstık ezmesi', ingredientNames: [] }]])
     expect(buildAllergenConflictMap(foodNames, [], []).size).toBe(0)
     expect(buildAllergenConflictMap(foodNames, null, null).size).toBe(0)
   })

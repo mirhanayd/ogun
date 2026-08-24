@@ -47,6 +47,7 @@ export interface FoodSearchSelection {
   carbPer100g: number | null
   fatPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
+  ingredientNames?: string[]
   amount: number
   unit?: ParsedFoodInput['unit']
   portion?: string
@@ -99,6 +100,7 @@ interface ResultRow {
   carbPer100g: number | null
   fatPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
+  ingredientNames?: string[]
   pinned?: 'recent' | 'frequent'
 }
 
@@ -112,6 +114,7 @@ function toResultRow(hit: FoodSearchHit): ResultRow {
     carbPer100g: hit.carbPer100g,
     fatPer100g: hit.fatPer100g,
     defaultPortion: hit.defaultPortion,
+    ingredientNames: hit.ingredientNames,
   }
 }
 
@@ -279,6 +282,7 @@ export function FoodSearchInput({
         carbPer100g: row.carbPer100g,
         fatPer100g: row.fatPer100g,
         defaultPortion: row.defaultPortion,
+        ingredientNames: row.ingredientNames,
         amount: parsed.amount,
         unit: parsed.unit,
         portion: parsed.portion,

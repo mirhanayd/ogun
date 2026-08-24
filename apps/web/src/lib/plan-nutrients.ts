@@ -46,7 +46,7 @@ const ZERO_TOTALS: MealTotals = {
 export type FoodMacroLookup = Pick<
   FoodIndexRow,
   'id' | 'nameTr' | 'kcalPer100g' | 'proteinPer100g' | 'carbPer100g' | 'fatPer100g'
->
+> & { ingredientNames?: string[] }
 
 // SAF fonksiyon — Dexie'ye/İstemci ortamına bağımlı DEĞİL, bu yüzden birim
 // testte (bkz. plan-nutrients.test.ts) sahte bir foodLookup Map'iyle

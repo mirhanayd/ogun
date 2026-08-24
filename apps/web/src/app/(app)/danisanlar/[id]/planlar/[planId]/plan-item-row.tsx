@@ -82,7 +82,13 @@ export function PlanItemRow({
   const conflicts = item.foodId ? allergenConflicts.get(item.foodId) : undefined
   const conflictLabel =
     conflicts && conflicts.length > 0
-      ? `Alerji/intolerans çakışması: ${conflicts.map((c) => c.entry.label).join(', ')}`
+      ? `Alerji/intolerans uyarısı: ${conflicts
+          .map((conflict) =>
+            conflict.matchedOn === 'ingredient'
+              ? `${conflict.entry.label} (${conflict.matchedText} içeriği)`
+              : conflict.entry.label,
+          )
+          .join(', ')}`
       : null
 
   const style = { transform: CSS.Transform.toString(transform), transition }

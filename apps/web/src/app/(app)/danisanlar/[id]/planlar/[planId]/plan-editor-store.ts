@@ -2,7 +2,12 @@
 
 import { useMemo } from 'react'
 import { create } from 'zustand'
-import type { ClientAllergenEntry, ClientSex, PlanMealType, PlanOutputFormat } from '@ogun/db/schema'
+import type {
+  ClientAllergenEntry,
+  ClientSex,
+  PlanMealType,
+  PlanOutputFormat,
+} from '@ogun/db/schema'
 import type { PlanTree } from '@ogun/db/queries'
 import { buildAllergenConflictMap, type AllergenConflict } from '@/lib/allergen-conflict'
 import {
@@ -18,7 +23,7 @@ import {
   updatePlanAction,
 } from '@/app/(app)/planlar/actions'
 import type { FoodSearchSelection } from '@/components/food-search-input'
-import { getFoodIndexEntriesByIds, whenFoodIndexReady } from '@/lib/food-index'
+import { getFoodIndexEntriesByIds, whenFoodSearchIndexReady } from '@/lib/food-index'
 import { resolveGramsFromSelection, type FoodMacroLookup } from '@/lib/plan-nutrients'
 import type { FoodExchangeInfo } from '@/lib/plan-exchanges'
 import { OfflineQueue, type QueueStatus } from '@/lib/offline-queue'
@@ -297,7 +302,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
   // ANDA çalışıyor. `days`/`foodMacros` bekleme SIRASINDA değişmiş olabilir,
   // bu yüzden durum bekleme SONRASINDA yeniden okunuyor.
   resolveFoodMacros: async () => {
-    await whenFoodIndexReady()
+    await whenFoodSearchIndexReady()
     const { days, foodMacros } = get()
     const allFoodIds = new Set<string>()
     for (const day of days) {
@@ -310,7 +315,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
         }
       }
     }
-    const missing = [...allFoodIds].filter((id) => !foodMacros[id])
+    const missing = [...allFoodIds].filter((id) => foodMacros[id]?.ingredientNames === undefined)
     if (missing.length === 0) return
     const rows = await getFoodIndexEntriesByIds(missing)
     const patch: Record<string, FoodMacroLookup> = {}
@@ -322,6 +327,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
         proteinPer100g: row.proteinPer100g,
         carbPer100g: row.carbPer100g,
         fatPer100g: row.fatPer100g,
+        ingredientNames: row.ingredientNames,
       }
     }
     // Beklerken kullanıcı arama kutusundan AYNI besini eklemiş olabilir
@@ -330,7 +336,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     set((state) => {
       const next = { ...state.foodMacros }
       for (const [id, macro] of Object.entries(patch)) {
-        if (!next[id]) next[id] = macro
+        next[id] = { ...next[id], ...macro }
       }
       return { foodMacros: next }
     })
@@ -346,7 +352,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     // yazılmadan okunursa TÜM besinler "değişim eşleşmesi yok" (null) olarak
     // ÖNBELLEKLENİR ve `id in foodExchangeInfo` kontrolü yüzünden bir daha
     // ASLA sorgulanmazdı — değişim modu ilk açılışta kalıcı olarak boş kalırdı.
-    await whenFoodIndexReady()
+    await whenFoodSearchIndexReady()
     const { days, foodExchangeInfo } = get()
     const allFoodIds = new Set<string>()
     for (const day of days) {
@@ -454,6 +460,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
           proteinPer100g: selection.proteinPer100g,
           carbPer100g: selection.carbPer100g,
           fatPer100g: selection.fatPer100g,
+          ingredientNames: selection.ingredientNames,
         },
       },
     }))
@@ -701,6 +708,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
           proteinPer100g: selection.proteinPer100g,
           carbPer100g: selection.carbPer100g,
           fatPer100g: selection.fatPer100g,
+          ingredientNames: selection.ingredientNames,
         },
       },
     }))
@@ -832,8 +840,13 @@ export function useAllergenConflictMap(): Map<string, AllergenConflict[]> {
   const intolerances = usePlanEditorStore((s) => s.intolerances)
 
   return useMemo(() => {
-    const foodNamesById = new Map(Object.entries(foodMacros).map(([id, m]) => [id, m.nameTr]))
-    return buildAllergenConflictMap(foodNamesById, allergies, intolerances)
+    const foodContentsById = new Map(
+      Object.entries(foodMacros).map(([id, food]) => [
+        id,
+        { nameTr: food.nameTr, ingredientNames: food.ingredientNames ?? [] },
+      ]),
+    )
+    return buildAllergenConflictMap(foodContentsById, allergies, intolerances)
   }, [foodMacros, allergies, intolerances])
 }
 
