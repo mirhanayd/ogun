@@ -36,6 +36,13 @@ async function main() {
       join data_sources ds on ds.id = f.source_id
      where ds.code = 'OGUN'
   `)
+  const [ingredientTotals] = await db.execute<{ ingredients: number }>(sql`
+    select count(*)::int as ingredients
+      from food_ingredients fi
+      join foods f on f.id = fi.food_id
+      join data_sources ds on ds.id = f.source_id
+     where ds.code = 'OGUN'
+  `)
   const [coverage] = await db.execute<{ minNutrients: number; maxNutrients: number }>(sql`
     select min(nutrient_count)::int as "minNutrients",
            max(nutrient_count)::int as "maxNutrients"
@@ -96,6 +103,9 @@ async function main() {
     portionTotals?.portions !== 119
       ? `OGUN portions=${portionTotals?.portions ?? 'yok'} (beklenen 119)`
       : null,
+    ingredientTotals?.ingredients !== 708
+      ? `OGUN ingredients=${ingredientTotals?.ingredients ?? 'yok'} (beklenen 708)`
+      : null,
     coverage?.minNutrients !== 20 || coverage.maxNutrients !== 20
       ? `Besin kapsamı min=${coverage?.minNutrients}, max=${coverage?.maxNutrients} (beklenen 20/20)`
       : null,
@@ -110,6 +120,7 @@ async function main() {
         databaseTotals,
         sourceTotals,
         portionTotals,
+        ingredientTotals,
         coverage,
         foodIndex: {
           version: foodIndexVersion,

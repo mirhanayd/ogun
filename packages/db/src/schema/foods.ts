@@ -156,6 +156,29 @@ export const foodPortions = pgTable('food_portions', {
   sortOrder: integer('sort_order').notNull().default(0),
 })
 
+// Bileşik yemeklerin kaynakta açıkça verilen malzeme dökümü. Bu tablo tarifin
+// besin hesabını yeniden üretmez; plan editörünün alerji/intolerans kontrolünde
+// yalnız görünen yemek adına değil gerçek içeriğe de bakabilmesini sağlar.
+export const foodIngredients = pgTable(
+  'food_ingredients',
+  {
+    id: id(),
+    foodId: text('food_id')
+      .notNull()
+      .references(() => foods.id),
+    nameTr: text('name_tr').notNull(),
+    normalizedName: text('normalized_name').notNull(),
+    amountGrams: numeric('amount_grams', { precision: 10, scale: 2 }),
+    measure: text('measure'),
+    sourceLine: text('source_line'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (table) => [
+    index('food_ingredients_food_id_idx').on(table.foodId),
+    index('food_ingredients_normalized_name_idx').on(table.normalizedName),
+  ],
+)
+
 // Çiğ ağırlıktan pişmiş ağırlığa dönüşüm. foodId doluysa besine özel,
 // boşsa groupCode üzerinden genel bir gruba uygulanır.
 export const yieldFactors = pgTable('yield_factors', {

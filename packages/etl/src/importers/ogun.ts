@@ -2,7 +2,14 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { count, eq } from 'drizzle-orm'
 import Papa from 'papaparse'
-import { dataSources, foodNutrients, foodPortions, foods, nutrients } from '@ogun/db/schema'
+import {
+  dataSources,
+  foodIngredients,
+  foodNutrients,
+  foodPortions,
+  foods,
+  nutrients,
+} from '@ogun/db/schema'
 import { resolvePreferredSources } from '../lib/merge'
 import { normalizeSearchText } from '../lib/normalize'
 import { upsertFoodNutrients, type FoodNutrientUpsertInput } from '../lib/upsert'
@@ -69,6 +76,11 @@ interface RecipeRow extends Record<string, string> {
 
 interface IngredientRow extends Record<string, string> {
   recipe_order: string
+  ingredient_order: string
+  ingredient_name_ocr: string
+  measure_ocr: string
+  amount_g: string
+  source_line_raw: string
 }
 
 interface NutritionRow extends Record<string, string> {
@@ -418,6 +430,12 @@ async function main() {
       list.push(row)
       nutritionByRecipe.set(row.recipe_order, list)
     }
+    const ingredientsByRecipe = new Map<string, IngredientRow[]>()
+    for (const row of ingredients) {
+      const list = ingredientsByRecipe.get(row.recipe_order) ?? []
+      list.push(row)
+      ingredientsByRecipe.set(row.recipe_order, list)
+    }
 
     const seenTitles = new Map<string, number>()
     let importedNutrients = 0
@@ -494,6 +512,18 @@ async function main() {
         sortOrder: 0,
       })
       importedPortions += 1
+
+      await db.delete(foodIngredients).where(eq(foodIngredients.foodId, food.id))
+      const ingredientBatch = (ingredientsByRecipe.get(recipe.recipe_order) ?? []).map((row) => ({
+        foodId: food.id,
+        nameTr: row.ingredient_name_ocr.trim(),
+        normalizedName: normalizeSearchText(row.ingredient_name_ocr),
+        amountGrams: row.amount_g.trim() ? Number(row.amount_g).toFixed(2) : null,
+        measure: row.measure_ocr.trim() || null,
+        sourceLine: row.source_line_raw.trim() || null,
+        sortOrder: Number(row.ingredient_order) - 1,
+      }))
+      if (ingredientBatch.length > 0) await db.insert(foodIngredients).values(ingredientBatch)
 
       if (Number(recipe.recipe_order) % 25 === 0) {
         console.log(`... ${recipe.recipe_order}/${recipes.length} yemek işlendi`)
