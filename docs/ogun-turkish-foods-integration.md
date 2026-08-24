@@ -41,7 +41,7 @@ eşleme ve doğrulama kuralları sürümlenir.
 - [x] Importer birim testleri ve TypeScript tip kontrollerini çalıştır.
 - [x] Web testlerini ve production build'i çalıştır.
 - [x] Desktop Rust kontrollerini çalıştır; kullanıcı istemediği sürece installer build etme.
-- [ ] Mantıksal değişiklikleri ayrı commit'lere ayır ve `origin/master`'a push et.
+- [x] Mantıksal değişiklikleri ayrı commit'lere ayır ve `origin/master`'a push et.
 
 ## Komutlar
 
