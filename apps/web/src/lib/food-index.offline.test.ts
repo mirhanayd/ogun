@@ -45,44 +45,43 @@ it('ağ kesildiğinde önceden indirilen tam besin kataloğuyla arama yapar', as
   ]
 
   const version = 'v2-15521-test-2'
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input: string | URL | Request) => {
-      const url = String(input)
-      if (url.includes('/api/foods/index/version')) {
-        return Promise.resolve(Response.json({ version }))
-      }
-      if (url.includes('/api/foods/nutrients')) {
-        return Promise.resolve(
-          Response.json({
-            version,
-            entries: [
-              {
-                id: entry.id,
-                nutrientsPer100g: entry.nutrientsPer100g,
-                hasImputedValues: entry.hasImputedValues,
-              },
-            ],
-          }),
-        )
-      }
+  const onlineFetch = vi.fn((input: string | URL | Request) => {
+    const url = String(input)
+    if (url.includes('/api/foods/index/version')) {
+      return Promise.resolve(Response.json({ version }))
+    }
+    if (url.includes('/api/foods/nutrients')) {
       return Promise.resolve(
         Response.json({
           version,
           entries: [
             {
-              ...entry,
-              nutrientsPer100g: undefined,
-              hasImputedValues: undefined,
+              id: entry.id,
+              nutrientsPer100g: entry.nutrientsPer100g,
+              hasImputedValues: entry.hasImputedValues,
             },
           ],
-          nutrientDefs,
         }),
       )
-    }),
-  )
+    }
+    return Promise.resolve(
+      Response.json({
+        version,
+        entries: [
+          {
+            ...entry,
+            nutrientsPer100g: undefined,
+            hasImputedValues: undefined,
+          },
+        ],
+        nutrientDefs,
+      }),
+    )
+  })
+  vi.stubGlobal('fetch', onlineFetch)
   const onlineModule = await import('./food-index')
   await onlineModule.initFoodIndex()
+  expect(onlineFetch.mock.calls.some(([input]) => String(input).includes('/nutrients'))).toBe(false)
   await onlineModule.whenFoodIndexReady()
   expect((await onlineModule.searchFoodsOffline('toyga')).hits[0]?.nameTr).toBe('Toyga Çorba')
 

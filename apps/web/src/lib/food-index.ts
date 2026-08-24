@@ -93,6 +93,16 @@ type OramaDb = Awaited<ReturnType<typeof create<typeof oramaSchema>>>
 
 let oramaIndexPromise: Promise<OramaDb> | null = null
 
+// Büyük IndexedDB ve Orama işlemleri async görünse de JS ana iş parçacığını
+// uzun süre meşgul edebilir. Küçük partiler arasında event loop'a dönmek,
+// pencere kontrolleri ve menülerin katalog hazırlanırken de çalışmasını sağlar.
+const INDEX_WRITE_BATCH_SIZE = 300
+const ORAMA_BUILD_BATCH_SIZE = 500
+
+function yieldToBrowser(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 async function getStoredVersion(
   key: 'searchVersion' | 'nutrientVersion' = 'searchVersion',
 ): Promise<string | null> {
@@ -203,10 +213,16 @@ async function downloadAndStoreIndex(): Promise<void> {
   }
 
   const previousRows = new Map((await dexieDb.foods.toArray()).map((row) => [row.id, row]))
-  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, dexieDb.nutrientDefs, async () => {
+  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.nutrientDefs, async () => {
     await dexieDb.foods.clear()
+    await dexieDb.nutrientDefs.clear()
+    await dexieDb.nutrientDefs.bulkPut(nutrientDefs)
+  })
+
+  for (let start = 0; start < entries.length; start += INDEX_WRITE_BATCH_SIZE) {
+    const batch = entries.slice(start, start + INDEX_WRITE_BATCH_SIZE)
     await dexieDb.foods.bulkPut(
-      entries.map((entry) => {
+      batch.map((entry) => {
         const previous = previousRows.get(entry.id)
         const macroPairs: Array<[string, number | null]> = [
           ['ENERC_KCAL', entry.kcalPer100g],
@@ -236,10 +252,9 @@ async function downloadAndStoreIndex(): Promise<void> {
         }
       }),
     )
-    await dexieDb.nutrientDefs.clear()
-    await dexieDb.nutrientDefs.bulkPut(nutrientDefs)
-    await setStoredVersion(version, 'searchVersion')
-  })
+    await yieldToBrowser()
+  }
+  await setStoredVersion(version, 'searchVersion')
 
   // Yeni veri geldiğinde bellekteki Orama indeksi bayatlar, yeniden kurulacak.
   oramaIndexPromise = null
@@ -291,23 +306,24 @@ async function downloadAndStoreNutrientPack(): Promise<void> {
       hasImputedValues: boolean
     }>
   }
-  const detailById = new Map(entries.map((entry) => [entry.id, entry]))
-  const rows = await dexieDb.foods.toArray()
-  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, async () => {
-    await dexieDb.foods.bulkPut(
-      rows.map((row) => {
-        const detail = detailById.get(row.id)
-        return detail
-          ? {
-              ...row,
-              nutrientsPer100g: detail.nutrientsPer100g,
-              hasImputedValues: detail.hasImputedValues,
-            }
-          : row
-      }),
-    )
-    await setStoredVersion(version, 'nutrientVersion')
-  })
+  for (let start = 0; start < entries.length; start += INDEX_WRITE_BATCH_SIZE) {
+    const batch = entries.slice(start, start + INDEX_WRITE_BATCH_SIZE)
+    const rows = await dexieDb.foods.bulkGet(batch.map((entry) => entry.id))
+    const updates: FoodIndexRow[] = []
+    for (let index = 0; index < batch.length; index += 1) {
+      const row = rows[index]
+      const detail = batch[index]
+      if (!row || !detail) continue
+      updates.push({
+        ...row,
+        nutrientsPer100g: detail.nutrientsPer100g,
+        hasImputedValues: detail.hasImputedValues,
+      })
+    }
+    if (updates.length > 0) await dexieDb.foods.bulkPut(updates)
+    await yieldToBrowser()
+  }
+  await setStoredVersion(version, 'nutrientVersion')
 }
 
 // GitHub issue #26 / Prompt 5.4 — mikro besin öğesi listesinin metadata'sı
@@ -322,11 +338,13 @@ export async function getNutrientDefinitions(): Promise<NutrientDefRow[]> {
 async function buildOramaIndex(): Promise<OramaDb> {
   const oramaDb = await create({ schema: oramaSchema })
   const rows = await dexieDb.foods.toArray()
-  if (rows.length > 0) {
+  for (let start = 0; start < rows.length; start += ORAMA_BUILD_BATCH_SIZE) {
+    const batch = rows.slice(start, start + ORAMA_BUILD_BATCH_SIZE)
     await insertMultiple(
       oramaDb,
-      rows.map((row) => ({ id: row.id, nameTr: row.nameTr, searchText: row.searchText })),
+      batch.map((row) => ({ id: row.id, nameTr: row.nameTr, searchText: row.searchText })),
     )
+    await yieldToBrowser()
   }
   return oramaDb
 }
@@ -340,12 +358,8 @@ async function getOramaIndex(): Promise<OramaDb> {
 
 export async function initFoodIndex(): Promise<void> {
   await ensureIndexLoaded()
-  await getOramaIndex()
-  // Arama hazır olduktan sonra tam mikro besin paketi kullanıcıyı kilitlemeden
-  // indirilir. Plan paneli gerektiğinde aynı promise'i ayrıca bekler.
-  void ensureNutrientPackLoaded().catch((error: unknown) =>
-    console.error('[food-index] arka plan besin paketi hazırlanamadı:', error),
-  )
+  // Orama yalnız ilk gerçek aramada, tam mikro besin paketi yalnız besin
+  // panelinde hazırlanır. Uygulama kabuğunu açmak bu ağır işleri tetiklemez.
 }
 
 // GitHub issue #61 — "Dexie BOŞKEN yapılan İLK açılışta kalemler 'Bilinmeyen
