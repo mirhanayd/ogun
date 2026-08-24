@@ -10,7 +10,6 @@ import {
   Laptop,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react'
 import { SiteFooter } from '../_landing/site-footer'
 import { SiteHeader } from '../_landing/site-header'
@@ -93,22 +92,41 @@ export default function IndirPage() {
             className="absolute inset-0 -z-10 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,.55)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.55)_1px,transparent_1px)] [background-size:72px_72px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]"
           />
 
-          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[0.86fr_1.14fr] lg:gap-16 lg:px-8 lg:py-28">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold tracking-[0.14em] text-emerald-100 uppercase backdrop-blur-sm">
-                <Sparkles aria-hidden="true" className="size-3.5 text-emerald-300" />
-                Masaüstü deneyimi
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col items-center pt-16 pb-12 text-center sm:pt-20 lg:pt-24">
+              <div className="relative">
+                <div
+                  aria-hidden="true"
+                  className="absolute -inset-5 rounded-[2rem] bg-emerald-400/25 blur-2xl"
+                />
+                <Image
+                  src="/brand/ogun-uygulama-ikonu.svg"
+                  alt=""
+                  width={88}
+                  height={88}
+                  priority
+                  unoptimized
+                  className="relative size-20 rounded-[22%] shadow-[0_18px_45px_rgba(0,0,0,.35)] ring-1 ring-white/20 sm:size-24"
+                />
               </div>
 
-              <h1 className="mt-7 max-w-[11ch] text-[clamp(2.75rem,5vw,4.9rem)] leading-[0.98] font-semibold tracking-[-0.055em] text-balance">
-                Kliniğiniz, kendi penceresinde.
+              {release ? (
+                <p className="mt-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold tracking-wide text-emerald-100 backdrop-blur-sm">
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-300" />
+                  Sürüm {release.version}
+                  {releaseDate ? ` · ${releaseDate}` : null}
+                </p>
+              ) : null}
+
+              <h1 className="mt-6 text-[clamp(2.5rem,5vw,4rem)] leading-[1.02] font-semibold tracking-[-0.045em] text-balance">
+                Öğün Masaüstü
               </h1>
-              <p className="mt-7 max-w-xl text-[1.0625rem] leading-7 text-emerald-50/75 sm:text-lg sm:leading-8">
-                Öğün’ün planlama ve danışan yönetimi deneyimini Windows’a taşıyın. Web hesabınızla
-                giriş yapın, verilerinize kaldığınız yerden ulaşın.
+              <p className="mt-5 max-w-xl text-base leading-7 text-emerald-50/75 sm:text-lg sm:leading-8">
+                Kliniğiniz kendi penceresinde. Planlama ve danışan yönetimi deneyimini Windows’a
+                taşıyın; web hesabınızla kaldığınız yerden devam edin.
               </p>
 
-              <div className="mt-9">
+              <div className="mt-9 w-full max-w-md">
                 {release ? (
                   <DesktopDownloadCta release={release} />
                 ) : (
@@ -118,23 +136,26 @@ export default function IndirPage() {
                 )}
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-emerald-50/65">
-                <span className="inline-flex items-center gap-1.5">
+              <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-emerald-50/65">
+                <li className="inline-flex items-center gap-1.5">
                   <Check aria-hidden="true" className="size-3.5 text-emerald-300" />
                   Windows 10 ve 11
-                </span>
-                <span className="inline-flex items-center gap-1.5">
+                </li>
+                <li className="inline-flex items-center gap-1.5">
                   <Check aria-hidden="true" className="size-3.5 text-emerald-300" />
-                  64-bit
-                </span>
-                {release ? <span>Sürüm {release.version}</span> : null}
-              </div>
+                  64-bit kurulum (.exe)
+                </li>
+                <li className="inline-flex items-center gap-1.5">
+                  <Check aria-hidden="true" className="size-3.5 text-emerald-300" />
+                  Web hesabınızla çalışır
+                </li>
+              </ul>
             </div>
 
-            <div className="relative min-w-0 lg:-mr-32 xl:-mr-48">
+            <div className="relative mx-auto max-w-5xl pb-16 sm:pb-20 lg:pb-24">
               <div
                 aria-hidden="true"
-                className="absolute -inset-8 rounded-full bg-emerald-300/10 blur-3xl"
+                className="absolute inset-x-0 top-16 bottom-0 rounded-full bg-emerald-300/10 blur-3xl"
               />
               <figure className="relative overflow-hidden rounded-[1.6rem] border border-white/15 bg-white/[0.08] p-2 shadow-[0_35px_90px_rgba(0,0,0,.4)] backdrop-blur-sm sm:p-3">
                 <div className="flex h-10 items-center gap-2 px-3" aria-hidden="true">
@@ -150,7 +171,7 @@ export default function IndirPage() {
                     width={1440}
                     height={900}
                     priority
-                    sizes="(max-width: 1024px) 100vw, 800px"
+                    sizes="(max-width: 1024px) 100vw, 1024px"
                     className="absolute inset-y-0 left-0 h-full w-auto max-w-none object-cover object-left-top"
                   />
                 </div>

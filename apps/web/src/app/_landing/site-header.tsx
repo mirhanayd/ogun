@@ -7,7 +7,7 @@ const NAV_LINKS = [
   { href: '/#urun', label: 'Ürün' },
   { href: '/#neden-ogun', label: 'Neden Öğün' },
   { href: '/#kaynaklar', label: 'Veri kaynakları' },
-  { href: '/indir', label: 'Masaüstü' },
+  { href: '/indir', label: 'Download' },
   { href: '/#sss', label: 'SSS' },
 ]
 
