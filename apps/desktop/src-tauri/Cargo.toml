@@ -54,6 +54,10 @@ tauri-plugin-stronghold = "2"
 # Builder::callback varsayılanı). macOS bunu işletim sistemi düzeyinde zaten
 # native olarak hallettiğinden bu eklenti orada devreye GİRMEZ.
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# Cihazda kayıtlı hesap varsa işletim sistemi oturumu açıldığında Öğün'ü
+# arka planda başlatır. `--autostart-hidden` argümanı pencerenin besin kataloğu
+# hazırlanana kadar görünmemesini sağlar (bkz. startup.rs).
+tauri-plugin-autostart = "2"
 # GitHub issue #53 / Prompt 9.3, GÖREV 3 — native OS bildirimleri (bkz.
 # notifications.rs). Sürüm 2.3.3 olarak çözüldü (bkz. Cargo.lock) — bu
 # sandbox'ta gerçek network erişimiyle `cargo add` ÇALIŞTI, TAHMİN değil.

@@ -138,6 +138,10 @@ fn load_document(app: &AppHandle) -> Result<VaultDocument, String> {
     }
 }
 
+pub fn has_saved_profiles(app: &AppHandle) -> bool {
+    load_document(app).is_ok_and(|document| !document.profiles.is_empty())
+}
+
 fn save_document(app: &AppHandle, document: &VaultDocument) -> Result<(), String> {
     let vault = open_vault(app)?;
     let client = match vault.load_client(CLIENT_PATH) {
@@ -261,6 +265,7 @@ pub fn upsert_offline_profile(
         });
     }
     save_document(&app, &document)?;
+    crate::startup::set_enabled_for_saved_profiles(&app, true);
     state
         .0
         .lock()
@@ -292,6 +297,7 @@ pub fn remove_active_offline_profile(
         .profiles
         .retain(|record| record.summary.user_id != user_id);
     save_document(&app, &document)?;
+    crate::startup::set_enabled_for_saved_profiles(&app, !document.profiles.is_empty());
     let mut runtime = state
         .0
         .lock()

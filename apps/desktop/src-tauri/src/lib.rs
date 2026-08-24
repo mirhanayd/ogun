@@ -23,6 +23,7 @@ mod notifications;
 mod offline_vault;
 mod secure_storage;
 mod settings;
+mod startup;
 mod tray;
 mod updater;
 mod window_controls;
@@ -47,15 +48,21 @@ pub fn run() {
         // erkenden YAKALAYIP kapatır ve argümanlarını (deep-link özelliği
         // sayesinde, bkz. Cargo.toml) ÇALIŞAN sürece iletir. macOS bunu
         // OS düzeyinde zaten native halleder, burada devreye GİRMEZ.
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // "deep-link" özelliği (Cargo.toml), ikinci süreç argümanlarını
             // OTOMATİK olarak tauri-plugin-deep-link'in
             // handle_cli_arguments'ına iletir ve (eşleşen bir URL varsa)
             // "deep-link://new-url" olayını KENDİSİ yayınlar — aşağıdaki
             // TEK dinleyici (bkz. .setup() içindeki app.listen) bunu soğuk
-            // başlangıçtan gelenle AYNI şekilde işler. Burada EK bir şey
-            // yapmaya gerek YOK.
+            // başlangıçtan gelenle AYNI şekilde işler. Normal masaüstü
+            // kısayoluna ikinci kez basılmışsa deep link bulunmaz; yine de
+            // kullanıcının beklediği davranış mevcut pencerenin açılmasıdır.
+            window_ops::focus_main_window(app);
         }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![startup::AUTOSTART_HIDDEN_ARG]),
+        ))
         // GÖREV 2 — pencere boyutu/konumu/maximize durumu kalıcılığı.
         // Kullanıcı her açtığında sıfırlanmaması için tek satır yeterli:
         // eklenti pencere oluşturulduğunda otomatik geri yükler, kapanışta
@@ -125,9 +132,14 @@ pub fn run() {
             settings::get_minimize_to_tray_setting,
             settings::set_minimize_to_tray_setting,
             tray::update_tray_today_appointments_summary,
+            startup::is_autostart_launch,
+            startup::complete_startup_launch,
         ])
         .setup(|app| {
             let is_dev = tauri::is_dev();
+            let autostart_requested = startup::is_autostart_argument(std::env::args());
+            let has_saved_profiles = offline_vault::has_saved_profiles(app.handle());
+            let start_hidden = autostart_requested && has_saved_profiles;
 
             // GÖREV 3'ün karar mantığı (navigation.rs) kendi origin'imizi
             // bilmeye ihtiyaç duyar: dev'de localhost, üretimde sabit ve
@@ -160,6 +172,8 @@ pub fn run() {
             // AppOrigin ile AYNI sıralama gerekçesi).
             app.manage(window_ops::ZoomLevel::default());
             app.manage(settings::SettingsState::load(app.handle()));
+            app.manage(startup::StartupLaunchState::new(start_hidden));
+            startup::set_enabled_for_saved_profiles(app.handle(), has_saved_profiles);
 
             // GÖREV 1 — native menü çubuğu. GÖREV 2 — tray simgesi. İkisi de
             // "main" penceresinin VAR OLMASINI gerektirmez (bkz. menu.rs/
@@ -226,6 +240,7 @@ pub fn run() {
                 // apps/web içinde çiziyor; işletim sistemi başlığını kapatıp
                 // çift başlık oluşmasını önlüyoruz.
                 .decorations(false)
+                .visible(!start_hidden)
                 // GÖREV 3 — pencere içi TAM SAYFA navigasyon denemelerini
                 // yakalar (bkz. navigation.rs'teki modül notu: Next.js
                 // App Router'ın istemci-taraflı gezinmesi buradan hiç

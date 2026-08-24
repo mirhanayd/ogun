@@ -57,3 +57,12 @@ test('offline workspace remains backward compatible and journals every clinical 
     'mutation journal must be durable before the workspace projection is saved',
   )
 })
+
+test('offline autostart reveals the window only after device profiles are ready', async () => {
+  const script = await readFile(scriptUrl, 'utf8')
+  assert.ok(
+    script.indexOf("profiles = await invoke('list_offline_profiles')") <
+      script.indexOf("invoke('complete_startup_launch')"),
+    'hidden autostart window must wait until saved profiles are loaded',
+  )
+})

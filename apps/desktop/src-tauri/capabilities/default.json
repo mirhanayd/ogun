@@ -40,6 +40,8 @@
     "allow-get-minimize-to-tray-setting",
     "allow-set-minimize-to-tray-setting",
     "allow-update-tray-today-appointments-summary",
+    "allow-is-autostart-launch",
+    "allow-complete-startup-launch",
     "opener:default",
     "deep-link:default",
     "notification:default",

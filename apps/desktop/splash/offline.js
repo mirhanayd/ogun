@@ -115,6 +115,9 @@ async function boot() {
     : 'Bu cihazda henüz kayıtlı profil yok. İnternet geldiğinde bir kez giriş yapıp hızlı giriş PIN’i belirleyin.'
   $('online-login').classList.remove('hidden')
   renderProfiles()
+  // Çevrimdışı açılışta indirilecek uzak katalog yok; diskteki profil ve
+  // çalışma alanı hazır olduğunda otomatik başlangıç penceresini göster.
+  await invoke('complete_startup_launch').catch(() => {})
 }
 
 function renderProfiles() {

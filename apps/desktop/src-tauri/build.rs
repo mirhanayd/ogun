@@ -27,6 +27,8 @@ fn main() {
         "get_minimize_to_tray_setting",
         "set_minimize_to_tray_setting",
         "update_tray_today_appointments_summary",
+        "is_autostart_launch",
+        "complete_startup_launch",
     ]);
 
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(app_manifest))
