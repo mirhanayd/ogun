@@ -39,8 +39,8 @@ eşleme ve doğrulama kuralları sürümlenir.
 ## Yayın kontrolü
 
 - [x] Importer birim testleri ve TypeScript tip kontrollerini çalıştır.
-- [ ] Web testlerini ve production build'i çalıştır.
-- [ ] Desktop Rust kontrollerini çalıştır; kullanıcı istemediği sürece installer build etme.
+- [x] Web testlerini ve production build'i çalıştır.
+- [x] Desktop Rust kontrollerini çalıştır; kullanıcı istemediği sürece installer build etme.
 - [ ] Mantıksal değişiklikleri ayrı commit'lere ayır ve `origin/master`'a push et.
 
 ## Komutlar
