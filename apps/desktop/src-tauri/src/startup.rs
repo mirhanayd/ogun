@@ -8,7 +8,12 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, State};
-use tauri_plugin_autostart::ManagerExt;
+
+#[cfg(windows)]
+use winreg::{
+    enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE},
+    RegKey,
+};
 
 pub const AUTOSTART_HIDDEN_ARG: &str = "--autostart-hidden";
 
@@ -37,30 +42,53 @@ where
         .any(|argument| argument.as_ref() == AUTOSTART_HIDDEN_ARG)
 }
 
-pub fn set_enabled_for_saved_profiles(app: &AppHandle, has_saved_profiles: bool) {
+pub fn set_enabled_for_saved_profiles(_app: &AppHandle, has_saved_profiles: bool) {
     // Geliştirme ikilisini Windows başlangıcına kaydetmeyelim. Kurulu release
     // uygulamasında bu değer false olur.
     if tauri::is_dev() {
         return;
     }
 
-    let manager = app.autolaunch();
-    let currently_enabled = match manager.is_enabled() {
-        Ok(value) => value,
-        Err(error) => {
-            eprintln!("[ogun-desktop] otomatik başlangıç durumu okunamadı: {error}");
-            return;
-        }
-    };
-
-    let result = match (has_saved_profiles, currently_enabled) {
-        (true, false) => manager.enable(),
-        (false, true) => manager.disable(),
-        _ => Ok(()),
-    };
+    let result = set_platform_autostart(has_saved_profiles);
     if let Err(error) = result {
         eprintln!("[ogun-desktop] otomatik başlangıç güncellenemedi: {error}");
     }
+}
+
+#[cfg(windows)]
+fn set_platform_autostart(enabled: bool) -> Result<(), String> {
+    const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    const VALUE_NAME: &str = "Öğün";
+
+    let current_exe = std::env::current_exe()
+        .map_err(|error| format!("uygulama yolu çözülemedi: {error}"))?;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (run_key, _) = hkcu
+        .create_subkey_with_flags(RUN_KEY, KEY_READ | KEY_WRITE)
+        .map_err(|error| format!("Windows başlangıç anahtarı açılamadı: {error}"))?;
+
+    if enabled {
+        let command = format!("\"{}\" {}", current_exe.display(), AUTOSTART_HIDDEN_ARG);
+        let existing = run_key.get_value::<String, _>(VALUE_NAME).ok();
+        if existing.as_deref() != Some(command.as_str()) {
+            run_key
+                .set_value(VALUE_NAME, &command)
+                .map_err(|error| format!("Windows başlangıç kaydı yazılamadı: {error}"))?;
+        }
+    } else if let Err(error) = run_key.delete_value(VALUE_NAME) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            return Err(format!("Windows başlangıç kaydı kaldırılamadı: {error}"));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn set_platform_autostart(_enabled: bool) -> Result<(), String> {
+    // İlk yayın hedefi Windows. Diğer masaüstü platformlarında bu işlev,
+    // platforma özgü güvenilir başlangıç entegrasyonu eklenene kadar no-op.
+    Ok(())
 }
 
 #[tauri::command]

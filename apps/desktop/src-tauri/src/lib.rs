@@ -59,10 +59,6 @@ pub fn run() {
             // kullanıcının beklediği davranış mevcut pencerenin açılmasıdır.
             window_ops::focus_main_window(app);
         }))
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![startup::AUTOSTART_HIDDEN_ARG]),
-        ))
         // GÖREV 2 — pencere boyutu/konumu/maximize durumu kalıcılığı.
         // Kullanıcı her açtığında sıfırlanmaması için tek satır yeterli:
         // eklenti pencere oluşturulduğunda otomatik geri yükler, kapanışta

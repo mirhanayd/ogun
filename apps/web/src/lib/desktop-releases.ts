@@ -46,7 +46,13 @@ export const DESKTOP_RELEASES: DesktopRelease[] = [
     downloads: [
       {
         platform: 'windows',
-        label: 'Windows 10/11 (64-bit MSI)',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.5/Ogun_0.2.5_x64-setup.exe',
+        sha256: '2c8bf047fe3e852e7fbc6b51a61427dde1d42a6b688c6645624909f18857eb40',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
         url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.5/Ogun_0.2.5_x64_tr-TR.msi',
         sha256: '8d01e19463960836dfe12ad92078924917daff076adf0806c3f84b97fddcca0c',
       },
