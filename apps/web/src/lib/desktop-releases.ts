@@ -35,6 +35,23 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.2.4',
+    publishedAt: '2026-08-24',
+    notes: [
+      'Besin araması ilk açılışta daha hızlı hazır olur; ayrıntılı mikro besin paketi arka planda indirilir.',
+      'Plan editöründeki mikro besinler ve uyarılar artık tek, düzenli bir kaydırma alanında gösterilir.',
+      'Tarif bileşeni bulunan Türk yemeklerinde alerji ve intolerans uyarıları doğrudan içerikten üretilir.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.4/Ogun_0.2.4_x64-setup.exe',
+        sha256: 'dc92c23569e6bf2a8633c078d85fe7f432007aa758133e7a163121ecc42f1e10',
+      },
+    ],
+  },
+  {
     version: '0.2.1',
     publishedAt: '2026-08-24',
     notes: [
