@@ -35,6 +35,24 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.2.5',
+    publishedAt: '2026-08-25',
+    notes: [
+      'Bu cihazda kayıtlı hesap varsa Öğün, Windows oturumu açıldığında arka planda otomatik başlar.',
+      'Hafif besin kataloğu hazırlandıktan sonra uygulama penceresi kendiliğinden gösterilir.',
+      'Öğün sistem tepsisinde zaten açıksa masaüstü kısayoluna yeniden tıklamak mevcut pencereyi öne getirir.',
+      'Başlangıçtaki besin indeksleme işlemleri arayüzü kilitlememesi için küçük partilere bölündü.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.5/Ogun_0.2.5_x64-setup.exe',
+        sha256: '96f99a1d04a710867b0c3884a0b621f37b9f1afa01ef561062b6894864c620f3',
+      },
+    ],
+  },
+  {
     version: '0.2.4',
     publishedAt: '2026-08-24',
     notes: [
