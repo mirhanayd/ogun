@@ -139,16 +139,31 @@ async function ensureIndexLoaded(): Promise<void> {
 // Dexie'ye yazar. Sürüm değişmediyse ağa hiç çıkmaz — sunucu 304 döner.
 async function downloadAndStoreIndex(): Promise<void> {
   const storedVersion = await getStoredVersion()
-  const url = storedVersion
+  const [cachedFoodCount, cachedNutrientCount] = await Promise.all([
+    dexieDb.foods.count(),
+    dexieDb.nutrientDefs.count(),
+  ])
+  const hasUsableCache = storedVersion !== null && cachedFoodCount > 0 && cachedNutrientCount > 0
+  const url = hasUsableCache
     ? `/api/foods/index?v=${encodeURIComponent(storedVersion)}`
     : '/api/foods/index'
 
-  const response = await fetch(url)
+  let response: Response
+  try {
+    response = await fetch(url)
+  } catch (error: unknown) {
+    // Masaüstü webview'i ağ kesildikten sonra aynı katalogla plan yazmaya ve
+    // mikro/makro hesaplamaya devam edebilmeli. Dexie'deki tam katalog varsa
+    // ağ hatası bir başlatma hatası değildir; yalnızca yenileme ertelenir.
+    if (hasUsableCache) return
+    throw error
+  }
 
   if (response.status === 304) {
     return
   }
   if (!response.ok) {
+    if (hasUsableCache) return
     throw new Error(`Besin indeksi indirilemedi: ${response.status}`)
   }
 
