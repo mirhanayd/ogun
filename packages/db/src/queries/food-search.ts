@@ -174,6 +174,7 @@ export interface FoodIndexEntry {
   carbPer100g: number | null
   fatPer100g: number | null
   defaultPortion: FoodPortionSummary | null
+  ingredientNames: string[]
   // GitHub issue #26 / Prompt 5.4 — canlı besin öğesi panelinin ~60 besin
   // öğesi (isCore dahil tümü) üzerinden hesap yapabilmesi için TAM besin
   // öğesi haritası (nutrition-core'un NutrientValuesPer100g'ıyla BİREBİR
@@ -218,6 +219,7 @@ export async function getFoodDetailsByIds(
     exchange_group_code: string | null
     exchange_group_name_tr: string | null
     exchange_grams_per_exchange: string | null
+    ingredient_names: string[] | null
   }>(sql`
     SELECT
       f.id, f.name_tr, f.search_text, f.group_name_tr,
@@ -227,7 +229,8 @@ export async function getFoodDetailsByIds(
       na.has_imputed,
       fx.group_code AS exchange_group_code,
       fx.group_name_tr AS exchange_group_name_tr,
-      fx.grams_per_exchange AS exchange_grams_per_exchange
+      fx.grams_per_exchange AS exchange_grams_per_exchange,
+      fi.ingredient_names
     FROM foods f
     LEFT JOIN LATERAL (
       SELECT label, grams FROM food_portions
@@ -251,6 +254,11 @@ export async function getFoodDetailsByIds(
       ORDER BY fe.is_primary DESC
       LIMIT 1
     ) fx ON true
+    LEFT JOIN LATERAL (
+      SELECT array_agg(name_tr ORDER BY sort_order) AS ingredient_names
+      FROM food_ingredients
+      WHERE food_id = f.id
+    ) fi ON true
     WHERE f.id IN (${sql.join(
       foodIds.map((id) => sql`${id}`),
       sql`, `,
@@ -276,6 +284,7 @@ export async function getFoodDetailsByIds(
         row.portion_label && row.portion_grams
           ? { label: row.portion_label, grams: Number(row.portion_grams) }
           : null,
+      ingredientNames: row.ingredient_names ?? [],
       nutrientsPer100g,
       hasImputedValues: row.has_imputed ?? false,
       exchange:
@@ -311,6 +320,7 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
     exchange_group_code: string | null
     exchange_group_name_tr: string | null
     exchange_grams_per_exchange: string | null
+    ingredient_names: string[] | null
   }>(sql`
     SELECT
       f.id, f.name_tr, f.search_text, f.group_name_tr,
@@ -320,7 +330,8 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
       na.has_imputed,
       fx.group_code AS exchange_group_code,
       fx.group_name_tr AS exchange_group_name_tr,
-      fx.grams_per_exchange AS exchange_grams_per_exchange
+      fx.grams_per_exchange AS exchange_grams_per_exchange,
+      fi.ingredient_names
     FROM foods f
     LEFT JOIN LATERAL (
       SELECT label, grams FROM food_portions
@@ -344,6 +355,11 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
       ORDER BY fe.is_primary DESC
       LIMIT 1
     ) fx ON true
+    LEFT JOIN LATERAL (
+      SELECT array_agg(name_tr ORDER BY sort_order) AS ingredient_names
+      FROM food_ingredients
+      WHERE food_id = f.id
+    ) fi ON true
   `)
 
   return rows.map((row) => {
@@ -365,6 +381,7 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
         row.portion_label && row.portion_grams
           ? { label: row.portion_label, grams: Number(row.portion_grams) }
           : null,
+      ingredientNames: row.ingredient_names ?? [],
       nutrientsPer100g,
       hasImputedValues: row.has_imputed ?? false,
       exchange:
@@ -377,6 +394,126 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
           : null,
     }
   })
+}
+
+export type FoodSearchIndexEntry = Omit<FoodIndexEntry, 'nutrientsPer100g' | 'hasImputedValues'>
+
+// İlk etkileşimi engellemeyen hafif katalog: yalnız arama, porsiyon, dört
+// makro, değişim ve bileşen adları. 700 bini aşkın tam besin haritası ayrı
+// arka plan paketinden gelir.
+export async function getAllFoodSearchIndexEntries(db: Database): Promise<FoodSearchIndexEntry[]> {
+  const rows = await db.execute<{
+    id: string
+    name_tr: string
+    search_text: string
+    group_name_tr: string | null
+    portion_label: string | null
+    portion_grams: string | null
+    kcal: string | null
+    protein: string | null
+    carb: string | null
+    fat: string | null
+    exchange_group_code: string | null
+    exchange_group_name_tr: string | null
+    exchange_grams_per_exchange: string | null
+    ingredient_names: string[] | null
+  }>(sql`
+    WITH macro_values AS (
+      SELECT fn.food_id,
+             max(fn.value_per_100g) FILTER (WHERE n.code = 'ENERC_KCAL') AS kcal,
+             max(fn.value_per_100g) FILTER (WHERE n.code = 'PROCNT') AS protein,
+             max(fn.value_per_100g) FILTER (WHERE n.code = 'CHOCDF') AS carb,
+             max(fn.value_per_100g) FILTER (WHERE n.code = 'FAT') AS fat
+        FROM food_nutrients fn
+        JOIN nutrients n ON n.id = fn.nutrient_id
+       WHERE fn.is_preferred = true
+         AND n.code IN ('ENERC_KCAL', 'PROCNT', 'CHOCDF', 'FAT')
+       GROUP BY fn.food_id
+    ), default_portions AS (
+      SELECT DISTINCT ON (food_id) food_id, label, grams
+        FROM food_portions
+       ORDER BY food_id, is_default DESC, sort_order ASC
+    ), primary_exchanges AS (
+      SELECT DISTINCT ON (fe.food_id)
+             fe.food_id, eg.code, eg.name_tr, fe.grams_per_exchange
+        FROM food_exchanges fe
+        JOIN exchange_groups eg ON eg.id = fe.group_id
+       ORDER BY fe.food_id, fe.is_primary DESC
+    ), ingredient_lists AS (
+      SELECT food_id, array_agg(name_tr ORDER BY sort_order) AS ingredient_names
+        FROM food_ingredients
+       GROUP BY food_id
+    )
+    SELECT f.id, f.name_tr, f.search_text, f.group_name_tr,
+           dp.label AS portion_label, dp.grams AS portion_grams,
+           mv.kcal, mv.protein, mv.carb, mv.fat,
+           pe.code AS exchange_group_code,
+           pe.name_tr AS exchange_group_name_tr,
+           pe.grams_per_exchange AS exchange_grams_per_exchange,
+           il.ingredient_names
+      FROM foods f
+      LEFT JOIN macro_values mv ON mv.food_id = f.id
+      LEFT JOIN default_portions dp ON dp.food_id = f.id
+      LEFT JOIN primary_exchanges pe ON pe.food_id = f.id
+      LEFT JOIN ingredient_lists il ON il.food_id = f.id
+  `)
+
+  return rows.map((row) => ({
+    id: row.id,
+    nameTr: row.name_tr,
+    searchText: row.search_text,
+    groupNameTr: row.group_name_tr,
+    kcalPer100g: row.kcal === null ? null : Number(row.kcal),
+    proteinPer100g: row.protein === null ? null : Number(row.protein),
+    carbPer100g: row.carb === null ? null : Number(row.carb),
+    fatPer100g: row.fat === null ? null : Number(row.fat),
+    defaultPortion:
+      row.portion_label && row.portion_grams
+        ? { label: row.portion_label, grams: Number(row.portion_grams) }
+        : null,
+    ingredientNames: row.ingredient_names ?? [],
+    exchange:
+      row.exchange_group_code && row.exchange_group_name_tr && row.exchange_grams_per_exchange
+        ? {
+            groupCode: row.exchange_group_code,
+            groupNameTr: row.exchange_group_name_tr,
+            gramsPerExchange: Number(row.exchange_grams_per_exchange),
+          }
+        : null,
+  }))
+}
+
+export interface FoodNutrientPackEntry {
+  id: string
+  nutrientsPer100g: Record<string, number>
+  hasImputedValues: boolean
+}
+
+export async function getAllFoodNutrientPackEntries(
+  db: Database,
+): Promise<FoodNutrientPackEntry[]> {
+  const rows = await db.execute<{
+    id: string
+    nutrients_json: Record<string, number | string> | null
+    has_imputed: boolean | null
+  }>(sql`
+    SELECT f.id,
+           jsonb_object_agg(n.code, fn.value_per_100g)
+             FILTER (WHERE n.code IS NOT NULL) AS nutrients_json,
+           bool_or(fn.is_imputed) AS has_imputed
+      FROM foods f
+      LEFT JOIN food_nutrients fn ON fn.food_id = f.id AND fn.is_preferred = true
+      LEFT JOIN nutrients n ON n.id = fn.nutrient_id
+     GROUP BY f.id
+  `)
+
+  return rows.map((row) => ({
+    id: row.id,
+    nutrientsPer100g: Object.fromEntries(
+      Object.entries(row.nutrients_json ?? {}).map(([code, value]) => [code, Number(value)]),
+    ),
+    hasImputedValues: row.has_imputed ?? false,
+  }))
 }
 
 export interface NutrientDefinition {
@@ -421,9 +558,18 @@ export async function getNutrientDefinitions(db: Database): Promise<NutrientDefi
 // güncelleme zamanı). İstemci bunu ?v= olarak kullanır; değişmediyse ağa
 // hiç çıkmaz (bkz. apps/web/src/lib/food-index.ts).
 export async function getFoodIndexVersion(db: Database): Promise<string> {
-  const [row] = await db.execute<{ count: string; max_updated: string | null }>(sql`
-    SELECT count(*) AS count, max(updated_at) AS max_updated FROM foods
+  const [row] = await db.execute<{
+    count: string
+    max_updated: string | null
+    ingredient_count: string
+  }>(sql`
+    SELECT count(*) AS count,
+           max(updated_at) AS max_updated,
+           (SELECT count(*) FROM food_ingredients) AS ingredient_count
+      FROM foods
   `)
   const maxUpdated = row?.max_updated ? new Date(row.max_updated).getTime() : 0
-  return `${row?.count ?? 0}-${maxUpdated}`
+  // v2: arama ve tam besin paketinin ayrıldığı istemci şeması. Sabit önek,
+  // eski tek-parça önbelleklerin yeni bileşen listesini atlamasını engeller.
+  return `v2-${row?.count ?? 0}-${maxUpdated}-${row?.ingredient_count ?? 0}`
 }

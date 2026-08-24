@@ -11,6 +11,7 @@ import {
   requireClinic,
 } from '@/lib/authz'
 import { OfflineIndicator } from '@/components/offline-indicator'
+import { FoodIndexPreloader } from '@/components/food-index-preloader'
 import { BottomNav } from './_components/bottom-nav'
 import { DesktopTitlebar } from './_components/desktop-titlebar'
 import { ProductTour } from './_components/product-tour'
@@ -108,6 +109,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           şeyi söylüyor — bağlantının kendisi yok, yani hiçbir ekranda
           kaydetme/yenileme çalışmaz. */}
         <OfflineIndicator />
+        <FoodIndexPreloader />
         <ScreenTimeTracker />
         {showProductTour && <ProductTour />}
         {/* GitHub issue #53 / Prompt 9.3, GÖREV 3 — kimlik doğrulaması VE aktif

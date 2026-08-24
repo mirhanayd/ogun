@@ -28,6 +28,7 @@ it('ağ kesildiğinde önceden indirilen tam besin kataloğuyla arama yapar', as
     carbPer100g: 14.45,
     fatPer100g: 5,
     defaultPortion: { label: '1 kase', grams: 200 },
+    ingredientNames: ['Yoğurt', 'Buğday'],
     nutrientsPer100g: { ENERC_KCAL: 125.6, PROCNT: 5.4, FE: 1.2, VITC: 0.65 },
     hasImputedValues: true,
     exchange: null,
@@ -43,17 +44,46 @@ it('ağ kesildiğinde önceden indirilen tam besin kataloğuyla arama yapar', as
     },
   ]
 
+  const version = 'v2-15521-test-2'
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ version: '15521-test', entries: [entry], nutrientDefs }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    ),
+    vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/foods/index/version')) {
+        return Promise.resolve(Response.json({ version }))
+      }
+      if (url.includes('/api/foods/nutrients')) {
+        return Promise.resolve(
+          Response.json({
+            version,
+            entries: [
+              {
+                id: entry.id,
+                nutrientsPer100g: entry.nutrientsPer100g,
+                hasImputedValues: entry.hasImputedValues,
+              },
+            ],
+          }),
+        )
+      }
+      return Promise.resolve(
+        Response.json({
+          version,
+          entries: [
+            {
+              ...entry,
+              nutrientsPer100g: undefined,
+              hasImputedValues: undefined,
+            },
+          ],
+          nutrientDefs,
+        }),
+      )
+    }),
   )
   const onlineModule = await import('./food-index')
   await onlineModule.initFoodIndex()
+  await onlineModule.whenFoodIndexReady()
   expect((await onlineModule.searchFoodsOffline('toyga')).hits[0]?.nameTr).toBe('Toyga Çorba')
 
   vi.resetModules()

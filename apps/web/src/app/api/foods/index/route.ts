@@ -1,7 +1,11 @@
 import { gzipSync } from 'node:zlib'
 import { NextResponse, type NextRequest } from 'next/server'
 import { db } from '@ogun/db'
-import { getAllFoodIndexEntries, getFoodIndexVersion, getNutrientDefinitions } from '@ogun/db/queries'
+import {
+  getAllFoodSearchIndexEntries,
+  getFoodIndexVersion,
+  getNutrientDefinitions,
+} from '@ogun/db/queries'
 import { withRequestLogging } from '@/lib/monitoring/logger'
 
 // İstemci tarafı (Dexie + Orama) offline arama indeksinin kaynağı. Tüm katalogu
@@ -14,7 +18,7 @@ async function handleGet(request: NextRequest): Promise<Response> {
 
   const requestedVersion = request.nextUrl.searchParams.get('v')
   const ifNoneMatch = request.headers.get('if-none-match')
-  const notModified = requestedVersion === version || ifNoneMatch === etag
+  const notModified = ifNoneMatch === etag
 
   if (notModified) {
     return new NextResponse(null, {
@@ -34,7 +38,7 @@ async function handleGet(request: NextRequest): Promise<Response> {
   // birim/isCore metadata'sı) eklendi — aynı versiyonlu önbellek, iki ayrı
   // fetch yerine tek indirme.
   const [entries, nutrientDefs] = await Promise.all([
-    getAllFoodIndexEntries(db),
+    getAllFoodSearchIndexEntries(db),
     getNutrientDefinitions(db),
   ])
   const body = gzipSync(Buffer.from(JSON.stringify({ version, entries, nutrientDefs })))
@@ -48,7 +52,7 @@ async function handleGet(request: NextRequest): Promise<Response> {
       'Cache-Control':
         requestedVersion === null
           ? 'no-cache'
-          : 'public, max-age=31536000, immutable',
+          : 'public, max-age=31536000, s-maxage=31536000, immutable',
     },
   })
 }

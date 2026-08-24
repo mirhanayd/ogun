@@ -22,6 +22,7 @@ export interface FoodIndexRow {
   fatPer100g: number | null
   defaultPortionLabel: string | null
   defaultPortionGrams: number | null
+  ingredientNames: string[]
   // GitHub issue #26 / Prompt 5.4, GÖREV 4 — canlı besin öğesi panelinin
   // "Hesap İSTEMCİDE yapılsın... Besin verisi Dexie'den okunsun" kuralı: ~60
   // besin öğesinin TAMAMI (sadece kcal/protein/karb/yağ değil) burada,
@@ -92,13 +93,26 @@ type OramaDb = Awaited<ReturnType<typeof create<typeof oramaSchema>>>
 
 let oramaIndexPromise: Promise<OramaDb> | null = null
 
-async function getStoredVersion(): Promise<string | null> {
-  const row = await dexieDb.meta.get('version')
-  return row?.value ?? null
+async function getStoredVersion(
+  key: 'searchVersion' | 'nutrientVersion' = 'searchVersion',
+): Promise<string | null> {
+  const row = await dexieDb.meta.get(key)
+  if (row) return row.value
+  const legacy = await dexieDb.meta.get('version')
+  return legacy?.value ?? null
 }
 
-async function setStoredVersion(version: string) {
-  await dexieDb.meta.put({ key: 'version', value: version })
+async function setStoredVersion(
+  version: string,
+  key: 'searchVersion' | 'nutrientVersion' = 'searchVersion',
+) {
+  await dexieDb.meta.put({ key, value: version })
+}
+
+async function fetchCurrentVersion(): Promise<string> {
+  const response = await fetch('/api/foods/index/version', { cache: 'no-store' })
+  if (!response.ok) throw new Error(`Besin indeksi sürümü alınamadı: ${response.status}`)
+  return ((await response.json()) as { version: string }).version
 }
 
 // GitHub issue #60 — EŞ ZAMANLI YÜKLEME KİLİDİ (bu issue'nun konusu DEĞİL,
@@ -138,19 +152,25 @@ async function ensureIndexLoaded(): Promise<void> {
 // İlk açılışta (veya sunucudaki katalog değiştiğinde) tüm indeksi indirip
 // Dexie'ye yazar. Sürüm değişmediyse ağa hiç çıkmaz — sunucu 304 döner.
 async function downloadAndStoreIndex(): Promise<void> {
-  const storedVersion = await getStoredVersion()
+  const storedVersion = await getStoredVersion('searchVersion')
   const [cachedFoodCount, cachedNutrientCount] = await Promise.all([
     dexieDb.foods.count(),
     dexieDb.nutrientDefs.count(),
   ])
   const hasUsableCache = storedVersion !== null && cachedFoodCount > 0 && cachedNutrientCount > 0
-  const url = hasUsableCache
-    ? `/api/foods/index?v=${encodeURIComponent(storedVersion)}`
-    : '/api/foods/index'
+
+  let currentVersion: string
+  try {
+    currentVersion = await fetchCurrentVersion()
+  } catch (error: unknown) {
+    if (hasUsableCache) return
+    throw error
+  }
+  if (hasUsableCache && currentVersion === storedVersion) return
 
   let response: Response
   try {
-    response = await fetch(url)
+    response = await fetch(`/api/foods/index?v=${encodeURIComponent(currentVersion)}`)
   } catch (error: unknown) {
     // Masaüstü webview'i ağ kesildikten sonra aynı katalogla plan yazmaya ve
     // mikro/makro hesaplamaya devam edebilmeli. Dexie'deki tam katalog varsa
@@ -159,9 +179,6 @@ async function downloadAndStoreIndex(): Promise<void> {
     throw error
   }
 
-  if (response.status === 304) {
-    return
-  }
   if (!response.ok) {
     if (hasUsableCache) return
     throw new Error(`Besin indeksi indirilemedi: ${response.status}`)
@@ -179,39 +196,118 @@ async function downloadAndStoreIndex(): Promise<void> {
       carbPer100g: number | null
       fatPer100g: number | null
       defaultPortion: { label: string; grams: number } | null
-      nutrientsPer100g: Record<string, number>
-      hasImputedValues: boolean
+      ingredientNames: string[]
       exchange: { groupCode: string; groupNameTr: string; gramsPerExchange: number } | null
     }>
     nutrientDefs: NutrientDefRow[]
   }
 
+  const previousRows = new Map((await dexieDb.foods.toArray()).map((row) => [row.id, row]))
   await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, dexieDb.nutrientDefs, async () => {
     await dexieDb.foods.clear()
     await dexieDb.foods.bulkPut(
-      entries.map((entry) => ({
-        id: entry.id,
-        nameTr: entry.nameTr,
-        searchText: entry.searchText,
-        groupNameTr: entry.groupNameTr,
-        kcalPer100g: entry.kcalPer100g,
-        proteinPer100g: entry.proteinPer100g,
-        carbPer100g: entry.carbPer100g,
-        fatPer100g: entry.fatPer100g,
-        defaultPortionLabel: entry.defaultPortion?.label ?? null,
-        defaultPortionGrams: entry.defaultPortion?.grams ?? null,
-        nutrientsPer100g: entry.nutrientsPer100g,
-        hasImputedValues: entry.hasImputedValues,
-        exchange: entry.exchange,
-      })),
+      entries.map((entry) => {
+        const previous = previousRows.get(entry.id)
+        const macroPairs: Array<[string, number | null]> = [
+          ['ENERC_KCAL', entry.kcalPer100g],
+          ['PROCNT', entry.proteinPer100g],
+          ['CHOCDF', entry.carbPer100g],
+          ['FAT', entry.fatPer100g],
+        ]
+        return {
+          id: entry.id,
+          nameTr: entry.nameTr,
+          searchText: entry.searchText,
+          groupNameTr: entry.groupNameTr,
+          kcalPer100g: entry.kcalPer100g,
+          proteinPer100g: entry.proteinPer100g,
+          carbPer100g: entry.carbPer100g,
+          fatPer100g: entry.fatPer100g,
+          defaultPortionLabel: entry.defaultPortion?.label ?? null,
+          defaultPortionGrams: entry.defaultPortion?.grams ?? null,
+          ingredientNames: entry.ingredientNames,
+          nutrientsPer100g:
+            previous?.nutrientsPer100g ??
+            Object.fromEntries(
+              macroPairs.filter((pair): pair is [string, number] => pair[1] !== null),
+            ),
+          hasImputedValues: previous?.hasImputedValues ?? false,
+          exchange: entry.exchange,
+        }
+      }),
     )
     await dexieDb.nutrientDefs.clear()
     await dexieDb.nutrientDefs.bulkPut(nutrientDefs)
-    await setStoredVersion(version)
+    await setStoredVersion(version, 'searchVersion')
   })
 
   // Yeni veri geldiğinde bellekteki Orama indeksi bayatlar, yeniden kurulacak.
   oramaIndexPromise = null
+}
+
+let nutrientPackPromise: Promise<void> | null = null
+
+async function ensureNutrientPackLoaded(): Promise<void> {
+  if (!nutrientPackPromise) {
+    nutrientPackPromise = downloadAndStoreNutrientPack().catch((error: unknown) => {
+      nutrientPackPromise = null
+      throw error
+    })
+  }
+  return nutrientPackPromise
+}
+
+async function downloadAndStoreNutrientPack(): Promise<void> {
+  await ensureIndexLoaded()
+  const storedVersion = await getStoredVersion('nutrientVersion')
+  const hasUsableCache = storedVersion !== null && (await dexieDb.foods.count()) > 0
+
+  let currentVersion: string
+  try {
+    currentVersion = await fetchCurrentVersion()
+  } catch (error: unknown) {
+    if (hasUsableCache) return
+    throw error
+  }
+  if (hasUsableCache && currentVersion === storedVersion) return
+
+  let response: Response
+  try {
+    response = await fetch(`/api/foods/nutrients?v=${encodeURIComponent(currentVersion)}`)
+  } catch (error: unknown) {
+    if (hasUsableCache) return
+    throw error
+  }
+  if (!response.ok) {
+    if (hasUsableCache) return
+    throw new Error(`Tam besin öğesi paketi indirilemedi: ${response.status}`)
+  }
+
+  const { version, entries } = (await response.json()) as {
+    version: string
+    entries: Array<{
+      id: string
+      nutrientsPer100g: Record<string, number>
+      hasImputedValues: boolean
+    }>
+  }
+  const detailById = new Map(entries.map((entry) => [entry.id, entry]))
+  const rows = await dexieDb.foods.toArray()
+  await dexieDb.transaction('rw', dexieDb.foods, dexieDb.meta, async () => {
+    await dexieDb.foods.bulkPut(
+      rows.map((row) => {
+        const detail = detailById.get(row.id)
+        return detail
+          ? {
+              ...row,
+              nutrientsPer100g: detail.nutrientsPer100g,
+              hasImputedValues: detail.hasImputedValues,
+            }
+          : row
+      }),
+    )
+    await setStoredVersion(version, 'nutrientVersion')
+  })
 }
 
 // GitHub issue #26 / Prompt 5.4 — mikro besin öğesi listesinin metadata'sı
@@ -245,6 +341,11 @@ async function getOramaIndex(): Promise<OramaDb> {
 export async function initFoodIndex(): Promise<void> {
   await ensureIndexLoaded()
   await getOramaIndex()
+  // Arama hazır olduktan sonra tam mikro besin paketi kullanıcıyı kilitlemeden
+  // indirilir. Plan paneli gerektiğinde aynı promise'i ayrıca bekler.
+  void ensureNutrientPackLoaded().catch((error: unknown) =>
+    console.error('[food-index] arka plan besin paketi hazırlanamadı:', error),
+  )
 }
 
 // GitHub issue #61 — "Dexie BOŞKEN yapılan İLK açılışta kalemler 'Bilinmeyen
@@ -270,8 +371,19 @@ export async function initFoodIndex(): Promise<void> {
 export async function whenFoodIndexReady(): Promise<void> {
   try {
     await ensureIndexLoaded()
+    await ensureNutrientPackLoaded()
   } catch (error: unknown) {
     console.error('[food-index] besin indeksi hazırlanamadı:', error)
+  }
+}
+
+// Ad, porsiyon, makro, değişim ve yemek bileşenleri için yalnızca hafif arama
+// paketini bekler. Planın ilk görünümü tam mikro besin paketine bağlı kalmaz.
+export async function whenFoodSearchIndexReady(): Promise<void> {
+  try {
+    await ensureIndexLoaded()
+  } catch (error: unknown) {
+    console.error('[food-index] arama indeksi hazırlanamadı:', error)
   }
 }
 
@@ -300,6 +412,7 @@ export interface FoodSearchHit {
   carbPer100g: number | null
   fatPer100g: number | null
   defaultPortion: { label: string; grams: number } | null
+  ingredientNames: string[]
 }
 
 const P95_WARN_THRESHOLD_MS = 20
@@ -329,6 +442,7 @@ export async function searchFoodsOffline(
         row.defaultPortionLabel && row.defaultPortionGrams !== null
           ? { label: row.defaultPortionLabel, grams: row.defaultPortionGrams }
           : null,
+      ingredientNames: row.ingredientNames ?? [],
     }))
 
   const elapsedMs = performance.now() - start

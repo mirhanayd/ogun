@@ -10,6 +10,7 @@ const sampleHit: FoodSearchHit = {
   proteinPer100g: 0.3,
   carbPer100g: 14,
   fatPer100g: 0.2,
+  ingredientNames: [],
   defaultPortion: { label: '1 orta boy', grams: 150 },
 }
 
