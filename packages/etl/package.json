@@ -8,6 +8,8 @@
     "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
     "etl:usda": "tsx src/importers/usda.ts",
     "etl:usda:nutrients": "tsx src/importers/usda.ts --list-nutrients",
+    "etl:ogun": "tsx src/importers/ogun.ts",
+    "etl:ogun:audit": "tsx src/importers/ogun.ts --audit-only",
     "audit:nutrition": "tsx src/audit-nutrition-data.ts",
     "repair:nutrition": "tsx src/repair-nutrition-data.ts",
     "etl:e2e": "tsx src/e2e-plan-validation.ts",
@@ -27,6 +29,7 @@
     "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

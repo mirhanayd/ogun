@@ -16,6 +16,7 @@ interface DataSourceSeed {
 // yazılmamış kaynakları (TURKOMP, OFF, CUSTOM) baştan kaydediyor.
 export const dataSourcesSeed: DataSourceSeed[] = [
   { code: 'TURKOMP', name: 'TürKomp (Türkiye Gıda Kompozisyon Veri Tabanı)', priority: 100 },
+  { code: 'OGUN', name: 'Öğün Türk Yemekleri', priority: 30 },
   { code: 'BLS4', name: 'Bundeslebensmittelschlüssel', priority: 80, license: 'CC BY 4.0' },
   { code: 'USDA_FDN', name: 'USDA FoodData Central — Foundation Foods', priority: 60 },
   { code: 'USDA_SR', name: 'USDA FoodData Central — SR Legacy', priority: 40 },

@@ -16,6 +16,7 @@ export const dataSourceCodeEnum = pgEnum('data_source_code', [
   'BLS4',
   'USDA_FDN',
   'USDA_SR',
+  'OGUN',
   'TURKOMP',
   'OFF',
   'CUSTOM',

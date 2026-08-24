@@ -1,0 +1,1 @@
+ALTER TYPE "public"."data_source_code" ADD VALUE 'OGUN' BEFORE 'TURKOMP';
