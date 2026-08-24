@@ -24,15 +24,15 @@ eşleme ve doğrulama kuralları sürümlenir.
 - [x] Porsiyon değerlerini gram ağırlığıyla 100 grama normalize et.
 - [x] OCR kökenini `isImputed=true`, yemeği `isVerified=false` ve açıklama notuyla şeffaflaştır.
 - [x] İdempotent importer ve salt-okunur audit komutlarını ekle.
-- [ ] Neon enum migration'ını uygula.
-- [ ] Neon'a 119 yemek, 2.380 besin değeri ve 119 varsayılan porsiyon yaz.
-- [ ] Neon'da kaynak bazında sayıları ve örnek makro/mikro değerlerini sorguyla doğrula.
+- [x] Neon enum migration'ını uygula.
+- [x] Neon'a 119 yemek, 2.380 besin değeri ve 119 varsayılan porsiyon yaz.
+- [x] Neon'da kaynak bazında sayıları ve örnek makro/mikro değerlerini sorguyla doğrula.
 
 ## Web ve masaüstü çevrimdışı kullanım
 
 - [x] Besin API'sinin tüm tercih edilen makro/mikro değerleri istemci indeksine taşıdığını doğrula.
-- [ ] `OGUN` kayıtlarının web besin indeksinde arandığını ve plan hesabına katıldığını doğrula.
-- [ ] Ağ yokken mevcut Dexie besin indeksine geri düşmeyi güvenceye al ve test et.
+- [x] `OGUN` kayıtlarının 119'unun da web besin indeksine ve tercih edilen besin değerlerine katıldığını doğrula.
+- [x] Ağ yokken mevcut Dexie besin indeksine geri düşmeyi güvenceye al ve test et.
 - [ ] Masaüstü uygulama yeniden açıldığında kayıtlı besin kataloğunun kullanılmasını doğrula.
 - [ ] Çevrimdışı oluşturulan plan değişikliklerinin kalıcı kuyruğa yazılıp bağlantıda eşitlendiğini doğrula.
 
