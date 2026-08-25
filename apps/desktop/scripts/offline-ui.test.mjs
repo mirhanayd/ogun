@@ -66,3 +66,15 @@ test('offline autostart reveals the window only after device profiles are ready'
     'hidden autostart window must wait until saved profiles are loaded',
   )
 })
+
+test('titlebar drag detects double-click manually instead of relying on DOM dblclick', async () => {
+  // Native sürükleme (DragMove) modal döngüsü tarayıcının click/dblclick
+  // zincirini yuttuğu için dblclick olayı güvenilir ulaşmaz; ikinci hızlı
+  // basış mousedown içinde yakalanmalı. Geri dönüşte dblclick dinleyicisi
+  // kalmasın — ilk sürükleme ile birlikte çift geçiş (toggle+untoggle)
+  // riskini yeniden yaratır.
+  const script = await readFile(scriptUrl, 'utf8')
+  assert.match(script, /DOUBLE_CLICK_TIME_MS/)
+  assert.match(script, /action: 'toggleMaximize'/)
+  assert.doesNotMatch(script, /addEventListener\('dblclick'/)
+})

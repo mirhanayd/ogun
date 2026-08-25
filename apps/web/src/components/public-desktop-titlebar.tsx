@@ -78,7 +78,6 @@ function WindowButton({
       type="button"
       aria-label={label}
       title={label}
-      onDoubleClick={(event) => event.stopPropagation()}
       onClick={onClick}
       className={`grid h-full w-11 place-items-center transition-colors [&_svg]:size-3.5 ${
         destructive ? 'hover:bg-red-500 hover:text-white' : 'hover:bg-white/10'

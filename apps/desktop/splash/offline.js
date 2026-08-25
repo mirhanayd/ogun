@@ -69,12 +69,31 @@ document
       invoke('control_main_window', { action: button.dataset.window }),
     ),
   )
+// Çift tık algılama: mousedown'da başlatılan native sürükleme, OS'un modal
+// taşıma döngüsüne girip tarayıcının click/dblclick zincirini yuttuğu için
+// DOM dblclick olayı güvenilir şekilde ulaşmaz. İkinci hızlı basışı
+// sürükleme başlatmadan KENDİMİZ yakalayıp büyüt/döndür yapıyoruz (eşikler
+// Windows varsayılanlarıyla uyumlu: GetDoubleClickTime ≈ 500 ms, ~4-5 px).
+const DOUBLE_CLICK_TIME_MS = 500
+const DOUBLE_CLICK_DISTANCE_PX = 5
+let lastDragPress = null
+
 $('drag').addEventListener('mousedown', (event) => {
-  if (event.button === 0) invoke('control_main_window', { action: 'startDragging' })
+  if (event.button !== 0) return
+  const now = performance.now()
+  const previous = lastDragPress
+  lastDragPress = { time: now, x: event.clientX, y: event.clientY }
+  if (
+    previous &&
+    now - previous.time <= DOUBLE_CLICK_TIME_MS &&
+    Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= DOUBLE_CLICK_DISTANCE_PX
+  ) {
+    lastDragPress = null
+    invoke('control_main_window', { action: 'toggleMaximize' })
+    return
+  }
+  invoke('control_main_window', { action: 'startDragging' })
 })
-$('drag').addEventListener('dblclick', () =>
-  invoke('control_main_window', { action: 'toggleMaximize' }),
-)
 
 async function networkAvailable() {
   try {
