@@ -92,33 +92,42 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
     if (!isNativeShell()) return
     let cancelled = false
 
+    // Profil kaydı ERTELMEZ, mount'ta HEMEN yazılır. Ayarlar'daki hızlı
+    // giriş PIN'i bu kayda bağımlıdır (bkz. offline_vault.rs
+    // configure_offline_pin): kaydı da ertelersek kullanıcı girişten hemen
+    // sonra PIN oluşturmaya çalışınca "Bu cihazda kayıtlı hesap bulunamadı."
+    // hatası görür (0.2.6 gerileme raporu). İşlem ucuzdur — komutlar artık
+    // ana iş parçacığını bloklamadığı için kasma yaratmaz.
+    void invoke('upsert_offline_profile', {
+      profile: {
+        userId: props.userId,
+        email: props.email,
+        displayName: props.displayName,
+        clinicId: props.clinicId,
+        clinicName: props.clinicName,
+        role: props.role,
+        lastSyncedAt: null,
+      },
+    }).catch((error) => {
+      console.warn('[desktop-offline] cihaz profili kaydedilemedi', error)
+    })
+
     // PERFORMANS (kullanıcı raporu: "giriş yaptıktan sonra arayüz kasıyor"):
-    // tam çalışma alanı anlık görüntüsünün indirilip kasaya yazılması, ilk
+    // ASIL AĞIR iş olan tam çalışma alanı indirme + kasaya yazma ilk
     // boyama/hidrasyon ile AYNI anda başlamasın — tarayıcıya boşta kaldığında
     // soruyoruz (desteklemeyenlerde kısa zaman aşımı). Olay kaynaklı
     // eşitlemeler (online/mutation) aşağıda olduğu gibi anında kalır.
     const idleId =
       typeof requestIdleCallback === 'function'
         ? requestIdleCallback(() => {
-            if (!cancelled) void runInitialSync()
+            if (!cancelled) void runDeferredSync()
           })
         : window.setTimeout(() => {
-            if (!cancelled) void runInitialSync()
+            if (!cancelled) void runDeferredSync()
           }, 1_500)
 
-    function runInitialSync() {
+    function runDeferredSync() {
       void (async () => {
-        await invoke('upsert_offline_profile', {
-          profile: {
-            userId: props.userId,
-            email: props.email,
-            displayName: props.displayName,
-            clinicId: props.clinicId,
-            clinicName: props.clinicName,
-            role: props.role,
-            lastSyncedAt: null,
-          },
-        })
         const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
         const deviceProfile = profiles.find((profile) => profile.userId === props.userId)
         if (!cancelled && deviceProfile?.pinConfigured === false) {
