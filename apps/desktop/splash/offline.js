@@ -85,7 +85,14 @@ async function networkAvailable() {
 }
 
 function goOnline() {
-  location.href = `${PRODUCTION_URL}/giris`
+  // Beyaz ekran düzeltmesi: uzak sayfayı DOĞRUDAN gezinmek yerine Rust'a
+  // devret. Ana pencere splash'i GÖRÜNÜR tutarken gizli bir pencerede aynı
+  // adres ön yüklenir; hazır olunca ana pencere önbellek-sıcak geçişle
+  // açılır (bkz. src-tauri/src/online_preload.rs). Komut başarısızsa
+  // (eski ikili dosya vb.) eski davranışa düşülür.
+  invoke('open_online_app', { entryUrl: `${PRODUCTION_URL}/giris` }).catch(() => {
+    location.href = `${PRODUCTION_URL}/giris`
+  })
 }
 
 async function boot() {
@@ -95,8 +102,8 @@ async function boot() {
   status.lastElementChild.textContent = online ? 'İnternet bağlantısı hazır' : 'Çevrimdışı mod'
   if (online) {
     $('boot-title').textContent = 'Çevrimiçi uygulama açılıyor'
-    $('boot-copy').textContent = 'Güvenli oturumunuz kontrol edilecek.'
-    setTimeout(goOnline, 350)
+    $('boot-copy').textContent = 'Giriş ekranı hazır olduğunda otomatik açılacak.'
+    goOnline()
     return
   }
   // Açılmış bir PIN profili ağ geri geldiğinde kullanıcıyı yerel arayüzde
@@ -929,7 +936,7 @@ $('sync-now').onclick = async () => {
   }
   $('sync-title').textContent = 'Bağlantı bulundu'
   $('sync-copy').textContent = 'Canlı uygulama açılıyor; bekleyen kayıtlar otomatik eşitlenecek.'
-  setTimeout(goOnline, 300)
+  goOnline()
 }
 $('change-pin').onclick = async () => {
   try {

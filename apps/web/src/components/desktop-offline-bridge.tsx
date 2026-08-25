@@ -92,38 +92,54 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
     if (!isNativeShell()) return
     let cancelled = false
 
-    void (async () => {
-      await invoke('upsert_offline_profile', {
-        profile: {
-          userId: props.userId,
-          email: props.email,
-          displayName: props.displayName,
-          clinicId: props.clinicId,
-          clinicName: props.clinicName,
-          role: props.role,
-          lastSyncedAt: null,
-        },
-      })
-      const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
-      const deviceProfile = profiles.find((profile) => profile.userId === props.userId)
-      if (!cancelled && deviceProfile?.pinConfigured === false) {
-        // PIN hızlı giriş için isteğe bağlıdır; normal uygulamayı örten zorunlu
-        // bir "offline moda geçiş" ekranı değildir. Kullanıcı aynı arayüzde
-        // çalışmaya devam eder, dilerse Ayarlar'dan PIN oluşturur.
-        toast.info('Bu cihaz için hızlı giriş PIN’i ayarlayabilirsiniz.', {
-          id: 'desktop-quick-login-pin',
-          description: 'PIN isteğe bağlıdır ve yalnızca kayıtlı hesabın kilidini açar.',
-          duration: 12_000,
-          action: {
-            label: 'Ayarlara git',
-            onClick: () => window.location.assign('/ayarlar'),
+    // PERFORMANS (kullanıcı raporu: "giriş yaptıktan sonra arayüz kasıyor"):
+    // tam çalışma alanı anlık görüntüsünün indirilip kasaya yazılması, ilk
+    // boyama/hidrasyon ile AYNI anda başlamasın — tarayıcıya boşta kaldığında
+    // soruyoruz (desteklemeyenlerde kısa zaman aşımı). Olay kaynaklı
+    // eşitlemeler (online/mutation) aşağıda olduğu gibi anında kalır.
+    const idleId =
+      typeof requestIdleCallback === 'function'
+        ? requestIdleCallback(() => {
+            if (!cancelled) void runInitialSync()
+          })
+        : window.setTimeout(() => {
+            if (!cancelled) void runInitialSync()
+          }, 1_500)
+
+    function runInitialSync() {
+      void (async () => {
+        await invoke('upsert_offline_profile', {
+          profile: {
+            userId: props.userId,
+            email: props.email,
+            displayName: props.displayName,
+            clinicId: props.clinicId,
+            clinicName: props.clinicName,
+            role: props.role,
+            lastSyncedAt: null,
           },
         })
-      }
-      await synchronize()
-    })().catch((error) => {
-      console.warn('[desktop-offline] cihaz çalışma alanı hazırlanamadı', error)
-    })
+        const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
+        const deviceProfile = profiles.find((profile) => profile.userId === props.userId)
+        if (!cancelled && deviceProfile?.pinConfigured === false) {
+          // PIN hızlı giriş için isteğe bağlıdır; normal uygulamayı örten zorunlu
+          // bir "offline moda geçiş" ekranı değildir. Kullanıcı aynı arayüzde
+          // çalışmaya devam eder, dilerse Ayarlar'dan PIN oluşturur.
+          toast.info('Bu cihaz için hızlı giriş PIN’i ayarlayabilirsiniz.', {
+            id: 'desktop-quick-login-pin',
+            description: 'PIN isteğe bağlıdır ve yalnızca kayıtlı hesabın kilidini açar.',
+            duration: 12_000,
+            action: {
+              label: 'Ayarlara git',
+              onClick: () => window.location.assign('/ayarlar'),
+            },
+          })
+        }
+        await synchronize()
+      })().catch((error) => {
+        console.warn('[desktop-offline] cihaz çalışma alanı hazırlanamadı', error)
+      })
+    }
 
     const onOnline = () =>
       void synchronize().catch((error) => {
@@ -138,6 +154,8 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
     window.addEventListener('ogun-offline-mutation-queued', onMutationQueued)
     return () => {
       cancelled = true
+      if (typeof cancelIdleCallback === 'function') cancelIdleCallback(idleId as number)
+      else window.clearTimeout(idleId as number)
       window.clearTimeout(queuedTimer)
       window.removeEventListener('online', onOnline)
       window.removeEventListener('ogun-offline-mutation-queued', onMutationQueued)

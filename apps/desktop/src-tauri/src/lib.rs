@@ -21,11 +21,13 @@ mod menu_actions;
 mod navigation;
 mod notifications;
 mod offline_vault;
+mod online_preload;
 mod secure_storage;
 mod settings;
 mod startup;
 mod tray;
 mod updater;
+mod vault;
 mod window_controls;
 mod window_ops;
 
@@ -130,11 +132,26 @@ pub fn run() {
             tray::update_tray_today_appointments_summary,
             startup::is_autostart_launch,
             startup::complete_startup_launch,
+            // Kullanıcı raporu: "ilk açtığımda 4-5 saniyelik full beyaz ekran
+            // geliyor" — splash görünürken çevrimiçi uygulamayı gizli pencerede
+            // ön yükleyip hazır olunca geçen akış (bkz. online_preload.rs).
+            online_preload::open_online_app,
         ])
         .setup(|app| {
             let is_dev = tauri::is_dev();
             let autostart_requested = startup::is_autostart_argument(std::env::args());
-            let has_saved_profiles = offline_vault::has_saved_profiles(app.handle());
+            // PERFORMANS (kullanıcı raporu: "ilk açılış beyaz ekranda
+            // kalıyor"): has_saved_profiles kasa snapshot'ını açar — eski kod
+            // bunu PENCERE OLUŞTURULMADAN her başlangıçta senkron yapıyordu,
+            // yani Argon2 + snapshot çözümü pencere daha var olmadan gecikme
+            // ekliyordu. Otomatik başlangıçta (pencere zaten gizli olacak)
+            // sonuç hâlâ gerekli; normal açılışta ise pencere GÖSTERİLDİKTEN
+            // sonra arka planda hesaplanır.
+            let has_saved_profiles = if autostart_requested {
+                offline_vault::has_saved_profiles(app.handle())
+            } else {
+                false
+            };
             let start_hidden = autostart_requested && has_saved_profiles;
 
             // GÖREV 3'ün karar mantığı (navigation.rs) kendi origin'imizi
@@ -169,7 +186,21 @@ pub fn run() {
             app.manage(window_ops::ZoomLevel::default());
             app.manage(settings::SettingsState::load(app.handle()));
             app.manage(startup::StartupLaunchState::new(start_hidden));
-            startup::set_enabled_for_saved_profiles(app.handle(), has_saved_profiles);
+            if autostart_requested {
+                startup::set_enabled_for_saved_profiles(app.handle(), has_saved_profiles);
+            } else {
+                // Normal açılış: otomatik başlangıç kaydının güncel durumu
+                // (kayıtlı hesap var mı) pencere gösterildikten sonra
+                // hesaplanır — bkz. yukarıdaki PERFORMANS notu.
+                let deferred_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let has_profiles = offline_vault::has_saved_profiles(&deferred_handle);
+                    startup::set_enabled_for_saved_profiles(&deferred_handle, has_profiles);
+                });
+            }
+            // Splash'in çevrimiçi geçişi için tek uçuş durumu (bkz.
+            // online_preload.rs).
+            app.manage(online_preload::OnlinePreloadState::default());
 
             // GÖREV 1 — native menü çubuğu. GÖREV 2 — tray simgesi. İkisi de
             // "main" penceresinin VAR OLMASINI gerektirmez (bkz. menu.rs/
@@ -229,6 +260,12 @@ pub fn run() {
             let setup_handle = app.handle().clone();
             let window = WebviewWindowBuilder::new(app, "main", initial_url)
                 .title("Öğün")
+                // Kullanıcı raporu: "ilk açtığımda full beyaz ekran geliyor."
+                // WebView2 ilk boyamaya kadar (ve uzak sayfa yüklenene kadar)
+                // penceresini BEYAZ gösterir; başlık çubuğunun koyu yeşili
+                // (#09271d) arka plan olarak verildiğinde bu boşluklar beyaz
+                // flaş yerine marka rengiyle dolar.
+                .background_color(tauri::window::Color(9, 39, 29, 255))
                 // GÖREV 2 — varsayılan 1280x800, minimum 1024x680.
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(1024.0, 680.0)
