@@ -1,6 +1,6 @@
 [package]
 name = "ogun-desktop"
-version = "0.2.8"
+version = "0.2.9"
 description = "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere."
 authors = ["Öğün"]
 edition = "2021"
@@ -46,6 +46,12 @@ tauri-plugin-deep-link = "2"
 # KULLANILMIYOR — sadece `stronghold::Stronghold` ve `kdf::KeyDerivation`
 # Rust API'leri DOĞRUDAN, kendi 3 dar kapsamlı komutumuzun içinde.
 tauri-plugin-stronghold = "2"
+# tauri-plugin-stronghold bu paketin TİPLERİNİ (Client/ClientError) yeniden
+# export ETMİYOR; ama API'sini doğrudan kullanıyoruz — vault.rs'teki
+# open_client yardımcısı (load_client'ın "client zaten yüklüyse HATA döner"
+# tuzağına karşı doğru erişim sırası) bu tipleri ismen kullanır. Sürüm
+# eklentinkiyle aynı 2.x ağacından çözümlenir (bkz. Cargo.lock: 2.1.0).
+iota_stronghold = "2"
 # Windows/Linux'ta ikinci bir "ogun://..." tıklaması normalde YENİ bir
 # süreç başlatır (uygulama zaten açıkken bile) — bu eklenti olmadan
 # GÖREV 1'deki OAuth deep link'i ÇALIŞAN pencereye asla ULAŞMAZ. "deep-link"

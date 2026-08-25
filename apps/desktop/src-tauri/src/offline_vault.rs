@@ -118,10 +118,9 @@ pub struct OfflineVaultState(Mutex<RuntimeState>);
 
 fn load_document(app: &AppHandle) -> Result<VaultDocument, String> {
     crate::vault::with_vault(app, |vault| {
-        let client = match vault.load_client(CLIENT_PATH) {
-            Ok(client) => client,
-            // Henüz hiç offline kayıt yazılmamışsa boş belge normaldir.
-            Err(_) => return Ok(VaultDocument::default()),
+        // Henüz hiç offline kayıt yazılmamışsa boş belge normaldir.
+        let Some(client) = crate::vault::open_client(vault, CLIENT_PATH)? else {
+            return Ok(VaultDocument::default());
         };
         let bytes = client
             .store()
@@ -137,9 +136,12 @@ fn load_document(app: &AppHandle) -> Result<VaultDocument, String> {
 
 fn save_document(app: &AppHandle, document: &VaultDocument) -> Result<(), String> {
     crate::vault::with_vault(app, |vault| {
-        let client = match vault.load_client(CLIENT_PATH) {
-            Ok(client) => client,
-            Err(_) => vault
+        // DİKKAT: mevcut client'ı open_client ile YENİDEN KULLAN —
+        // koşulsuz create_client, o clientın bellek durumunu sıfırlayıp
+        // üzerine yazar (bkz. vault.rs open_client kök neden notu).
+        let client = match crate::vault::open_client(vault, CLIENT_PATH)? {
+            Some(client) => client,
+            None => vault
                 .create_client(CLIENT_PATH)
                 .map_err(|err| format!("Çevrimdışı kasa istemcisi oluşturulamadı: {err}"))?,
         };

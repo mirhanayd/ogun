@@ -92,9 +92,12 @@ pub async fn store_session_token(app: AppHandle, token: String) -> Result<(), St
     let log_app = app.clone();
     let outcome = tauri::async_runtime::spawn_blocking(move || {
         crate::vault::with_vault(&app, |vault| {
-            let client = match vault.load_client(CLIENT_PATH) {
-                Ok(client) => client,
-                Err(_) => vault
+            // DİKKAT: mevcut client'ı open_client ile YENİDEN KULLAN —
+            // koşulsuz create_client, o clientın bellek durumunu sıfırlayıp
+            // üzerine yazar (bkz. vault.rs open_client kök neden notu).
+            let client = match crate::vault::open_client(vault, CLIENT_PATH)? {
+                Some(client) => client,
+                None => vault
                     .create_client(CLIENT_PATH)
                     .map_err(|err| format!("stronghold client oluşturulamadı: {err}"))?,
             };
@@ -121,9 +124,12 @@ pub async fn load_session_token(app: AppHandle) -> Result<Option<String>, String
     let log_app = app.clone();
     let outcome = tauri::async_runtime::spawn_blocking(move || {
         crate::vault::with_vault(&app, |vault| {
-            let client = match vault.load_client(CLIENT_PATH) {
-                Ok(client) => client,
-                Err(_) => return Ok(None),
+            // Eski kod burada `load_client` hatasını "token yok" sanıyordu —
+            // oysa paylaşılan örnekte ikinci çağrı ClientAlreadyLoaded döner
+            // (bkz. vault.rs open_client kök neden notu) ve VAR OLAN token
+            // hiç okunamadan kaybolmuş sayılırdı.
+            let Some(client) = crate::vault::open_client(vault, CLIENT_PATH)? else {
+                return Ok(None);
             };
             let value = client
                 .store()
@@ -156,7 +162,10 @@ pub async fn clear_session_token(app: AppHandle) -> Result<(), String> {
     let log_app = app.clone();
     let outcome = tauri::async_runtime::spawn_blocking(move || {
         crate::vault::with_vault(&app, |vault| {
-            if let Ok(client) = vault.load_client(CLIENT_PATH) {
+            // Eski `if let Ok(client) = load_client(...)` koşulu, client zaten
+            // bellekte yüklüyse ClientAlreadyLoaded hatası aldığı için silme
+            // işlemini SESSİZCE ATLARDI (bkz. vault.rs open_client notu).
+            if let Some(client) = crate::vault::open_client(vault, CLIENT_PATH)? {
                 client
                     .store()
                     .delete(SESSION_TOKEN_KEY)
