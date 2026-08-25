@@ -110,6 +110,11 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
       },
     }).catch((error) => {
       console.warn('[desktop-offline] cihaz profili kaydedilemedi', error)
+      // Sessiz kalma: PIN oluşturma bu kayda bağlıdır; başarısızlık nedenini
+      // kullanıcı görsün (tanı için).
+      if (!cancelled) {
+        toast.error('Cihaz hesabı kaydedilemedi.', { description: String(error) })
+      }
     })
 
     // PERFORMANS (kullanıcı raporu: "giriş yaptıktan sonra arayüz kasıyor"):

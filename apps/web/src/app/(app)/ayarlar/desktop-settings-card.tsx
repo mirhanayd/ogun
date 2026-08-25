@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { KeyRound, Monitor } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,7 +24,21 @@ import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
 // `set_minimize_to_tray_setting` Tauri komutları (bkz. settings.rs)
 // doğrudan yerel bir JSON dosyasını okur/yazar; bu bileşen SADECE bir
 // istemci arayüzü.
-export function DesktopSettingsCard({ userId }: { userId: string }) {
+export function DesktopSettingsCard({
+  userId,
+  email,
+  displayName,
+  clinicId,
+  clinicName,
+  role,
+}: {
+  userId: string
+  email: string
+  displayName: string
+  clinicId: string
+  clinicName: string
+  role: string
+}) {
   const [isNative, setIsNative] = useState(false)
   const [minimizeToTray, setMinimizeToTray] = useState(true)
   const [loaded, setLoaded] = useState(false)
@@ -32,10 +47,17 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
   const [newPinAgain, setNewPinAgain] = useState('')
   const [savingPin, setSavingPin] = useState(false)
   const [pinConfigured, setPinConfigured] = useState(false)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isNativeShell()) return
     setIsNative(true)
+    // Kullanıcı hangi DERLEMENIN kurulu olduğunu ekranda görsün diye —
+    // "aynı dosya adıyla aynı sürümü kurup eskiyi test etmeyi" önler
+    // (0.2.6 gerileme araştırmasındaki belirsizlik dersidir).
+    void getVersion()
+      .then(setAppVersion)
+      .catch((err) => console.warn('[desktop-settings-card] sürüm okunamadı', err))
     void invoke<boolean>('get_minimize_to_tray_setting')
       .then((value) => {
         setMinimizeToTray(value)
@@ -76,6 +98,21 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
     }
     setSavingPin(true)
     try {
+      // PIN, cihaz kasasındaki profil kaydına bağlıdır (configure_offline_pin
+      // kaydı arar). Kayıt her ne sebeple yoksa (farklı hesapla giriş,
+      // köprü yazımının başarısız olması vb.) burada GARANTI edilir — ve
+      // bu adımın hatası kullanıcıya görünür (sessiz console.warn değil).
+      await invoke('upsert_offline_profile', {
+        profile: {
+          userId,
+          email,
+          displayName,
+          clinicId,
+          clinicName,
+          role,
+          lastSyncedAt: null,
+        },
+      })
       await invoke('configure_offline_pin', {
         userId,
         currentPin,
@@ -104,6 +141,7 @@ export function DesktopSettingsCard({ userId }: { userId: string }) {
         </CardTitle>
         <CardDescription>
           Bu ayar yalnızca Öğün masaüstü uygulamasında (Tauri) görünür.
+          {appVersion ? ` Kurulu sürüm: v${appVersion}.` : ''}
         </CardDescription>
       </CardHeader>
       <CardContent>

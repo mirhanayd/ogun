@@ -179,7 +179,14 @@ export default async function AyarlarPage() {
               />
             </>
           )}
-          <DesktopSettingsCard userId={user.id} />
+          <DesktopSettingsCard
+            userId={user.id}
+            email={user.email}
+            displayName={user.name ?? user.email}
+            clinicId={scope.clinicId}
+            clinicName={clinic.name}
+            role={role}
+          />
         </div>
       </section>
     </div>
