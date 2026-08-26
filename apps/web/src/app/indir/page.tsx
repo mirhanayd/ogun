@@ -61,7 +61,10 @@ const BENEFITS = [
 
 export default function IndirPage() {
   const release = getLatestDesktopRelease()
-  const windowsAsset = release?.downloads.find((asset) => asset.platform === 'windows')
+  // Bütünlük kutusu TÜM Windows paketlerinin özetini listeler (aynı sürümün
+  // .exe ve .msi'si birlikte yayınlandığında ikisi de doğrulanabilir olsun).
+  const windowsChecksums =
+    release?.downloads.filter((asset) => asset.platform === 'windows' && asset.sha256) ?? []
   const releaseDate = release
     ? new Intl.DateTimeFormat('tr-TR', {
         day: 'numeric',
@@ -219,12 +222,19 @@ export default function IndirPage() {
                     taramasında tehdit bulunmamıştır.
                   </p>
                 </div>
-                {windowsAsset?.sha256 ? (
+                {windowsChecksums.length > 0 ? (
                   <div className="mt-3 border-t border-amber-300/50 pt-3 dark:border-amber-800">
                     <p className="text-xs font-semibold">Dosya bütünlüğü — SHA-256</p>
-                    <code className="mt-1 block break-all font-mono text-[0.68rem] leading-5">
-                      {windowsAsset.sha256.toUpperCase()}
-                    </code>
+                    {windowsChecksums.map((asset) => (
+                      <div key={asset.url} className="mt-2">
+                        <p className="font-mono text-[0.68rem] leading-4 text-amber-900/80 dark:text-amber-200/80">
+                          {asset.url.split('/').pop()}
+                        </p>
+                        <code className="block break-all font-mono text-[0.68rem] leading-5">
+                          {asset.sha256?.toUpperCase()}
+                        </code>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
               </div>

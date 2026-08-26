@@ -58,13 +58,17 @@ export function DesktopDownloadCta({ release }: { release: DesktopRelease }) {
           <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </a>
       </div>
+      {/* Ana düğme kullanıcının platformuna göre seçilir; kalan paketler
+          (ör. aynı sürümün .msi alternatifi) ETİKETLERiyle listelenir —
+          iki Windows paketi (.exe + .msi) yayınlandığında hangi bağlantının
+          hangi dosya olduğu metinden okunabilir. */}
       {otherAssets.map((asset) => (
         <a
-          key={asset.platform}
+          key={asset.url}
           href={asset.url}
           className="text-xs text-emerald-100/70 underline-offset-4 hover:text-white hover:underline"
         >
-          {asset.platform === 'macos' ? 'macOS' : 'Windows'} sürümünü indir
+          {asset.label} indir
         </a>
       ))}
     </div>
