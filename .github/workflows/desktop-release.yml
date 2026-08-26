@@ -55,7 +55,7 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
-            tauri-args: '--bundles nsis'
+            tauri-args: '--bundles nsis msi'
             rust-targets: ''
           - platform: macos-latest
             # Evrensel macOS binary (arm64+x86_64) — bkz. issue metni.
