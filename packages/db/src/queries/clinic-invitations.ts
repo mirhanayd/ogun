@@ -1,5 +1,12 @@
 import { and, desc, eq, gt, isNull } from 'drizzle-orm'
-import { accounts, clinicInvitations, clinicMembers, clinics, users } from '../schema'
+import {
+  accounts,
+  clinicInvitations,
+  clinicMembers,
+  clinics,
+  users,
+  type ClinicMemberRole,
+} from '../schema'
 import type { Database } from '../client'
 
 export interface UpsertClinicInvitationInput {
@@ -14,12 +21,18 @@ export function normalizeInvitationEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-export async function isClinicMemberEmail(db: Database, clinicId: string, email: string): Promise<boolean> {
+export async function isClinicMemberEmail(
+  db: Database,
+  clinicId: string,
+  email: string,
+): Promise<boolean> {
   const [row] = await db
     .select({ id: clinicMembers.id })
     .from(clinicMembers)
     .innerJoin(users, eq(users.id, clinicMembers.userId))
-    .where(and(eq(clinicMembers.clinicId, clinicId), eq(users.email, normalizeInvitationEmail(email))))
+    .where(
+      and(eq(clinicMembers.clinicId, clinicId), eq(users.email, normalizeInvitationEmail(email))),
+    )
     .limit(1)
   return Boolean(row)
 }
@@ -112,6 +125,41 @@ export async function listClinicTeam(db: Database, clinicId: string, now = new D
   }
 }
 
+export async function getClinicTeamMemberById(db: Database, clinicId: string, memberId: string) {
+  const [member] = await db
+    .select({
+      id: clinicMembers.id,
+      userId: clinicMembers.userId,
+      role: clinicMembers.role,
+    })
+    .from(clinicMembers)
+    .where(and(eq(clinicMembers.id, memberId), eq(clinicMembers.clinicId, clinicId)))
+    .limit(1)
+  return member ?? null
+}
+
+export async function updateClinicTeamMemberRole(
+  db: Database,
+  clinicId: string,
+  memberId: string,
+  role: ClinicMemberRole,
+) {
+  const [member] = await db
+    .update(clinicMembers)
+    .set({ role })
+    .where(and(eq(clinicMembers.id, memberId), eq(clinicMembers.clinicId, clinicId)))
+    .returning({ id: clinicMembers.id, userId: clinicMembers.userId, role: clinicMembers.role })
+  return member ?? null
+}
+
+export async function deleteClinicTeamMember(db: Database, clinicId: string, memberId: string) {
+  const [member] = await db
+    .delete(clinicMembers)
+    .where(and(eq(clinicMembers.id, memberId), eq(clinicMembers.clinicId, clinicId)))
+    .returning({ id: clinicMembers.id, userId: clinicMembers.userId, role: clinicMembers.role })
+  return member ?? null
+}
+
 export interface InvitationPreview {
   id: string
   name: string
@@ -151,7 +199,11 @@ export async function getActiveInvitationByTokenHash(
     .limit(1)
   if (!row) return null
 
-  const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, row.email)).limit(1)
+  const [existingUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, row.email))
+    .limit(1)
   const [credentialAccount] = existingUser
     ? await db
         .select({ id: accounts.id, password: accounts.password })

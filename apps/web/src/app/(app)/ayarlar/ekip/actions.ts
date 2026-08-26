@@ -3,9 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import {
+  deleteClinicTeamMember,
+  getClinicTeamMemberById,
   getClinicById,
   isClinicMemberEmail,
   revokeClinicInvitation,
+  updateClinicTeamMemberRole,
   upsertClinicInvitation,
 } from '@ogun/db/queries'
 import { withAuth } from '@/lib/authz'
@@ -18,6 +21,7 @@ import {
 } from '@/lib/clinic-invitation-token'
 import { clinicInvitationEmail } from '@/lib/email/clinic-invitation-template'
 import { getEmailSender } from '@/lib/email'
+import { assertCanPromoteClinicMember, assertCanRemoveClinicMember } from '@/lib/team-management'
 import {
   inviteDietitianSchema,
   type InviteDietitianValues,
@@ -66,10 +70,15 @@ const inviteForClinic = withAuth(
   ['owner'],
 )
 
-export async function inviteDietitianAction(input: InviteDietitianValues): Promise<TeamActionResult> {
+export async function inviteDietitianAction(
+  input: InviteDietitianValues,
+): Promise<TeamActionResult> {
   const parsed = inviteDietitianSchema.safeParse(input)
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? 'Geçersiz bilgi gönderildi.' }
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? 'Geçersiz bilgi gönderildi.',
+    }
   }
   try {
     await inviteForClinic(parsed.data)
@@ -91,18 +100,88 @@ const revokeForClinic = withAuth(
       entityId: ([invitationId]: [string]) => invitationId,
       metadata: () => ({ operation: 'revoke' }),
     },
-    async (ctx, invitationId: string) => revokeClinicInvitation(db, ctx.scope.clinicId, invitationId),
+    async (ctx, invitationId: string) =>
+      revokeClinicInvitation(db, ctx.scope.clinicId, invitationId),
   ),
   ['owner'],
 )
 
-export async function revokeClinicInvitationAction(invitationId: string): Promise<TeamActionResult> {
+export async function revokeClinicInvitationAction(
+  invitationId: string,
+): Promise<TeamActionResult> {
   try {
     const revoked = await revokeForClinic(invitationId)
     if (!revoked) return { success: false, error: 'Aktif davet bulunamadı.' }
     revalidatePath('/ayarlar/ekip')
     return { success: true }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Davet iptal edilemedi.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Davet iptal edilemedi.',
+    }
+  }
+}
+
+const promoteMemberForClinic = withAuth(
+  withAudit(
+    {
+      action: 'update',
+      entityType: 'clinic_member',
+      entityId: ([memberId]: [string]) => memberId,
+      metadata: () => ({ operation: 'promote_to_owner', role: 'owner' }),
+    },
+    async (ctx, memberId: string) => {
+      const member = await getClinicTeamMemberById(db, ctx.scope.clinicId, memberId)
+      if (!member) throw new Error('Ekip üyesi bulunamadı.')
+      assertCanPromoteClinicMember(ctx.user.id, member)
+      const updated = await updateClinicTeamMemberRole(db, ctx.scope.clinicId, memberId, 'owner')
+      if (!updated) throw new Error('Ekip üyesinin rolü güncellenemedi.')
+    },
+  ),
+  ['owner'],
+)
+
+export async function promoteClinicMemberAction(memberId: string): Promise<TeamActionResult> {
+  try {
+    await promoteMemberForClinic(memberId)
+    revalidatePath('/ayarlar/ekip')
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Yönetici rolü atanamadı.',
+    }
+  }
+}
+
+const removeMemberForClinic = withAuth(
+  withAudit(
+    {
+      action: 'delete',
+      entityType: 'clinic_member',
+      entityId: ([memberId]: [string]) => memberId,
+      metadata: () => ({ operation: 'remove_from_clinic' }),
+    },
+    async (ctx, memberId: string) => {
+      const member = await getClinicTeamMemberById(db, ctx.scope.clinicId, memberId)
+      if (!member) throw new Error('Ekip üyesi bulunamadı.')
+      assertCanRemoveClinicMember(ctx.user.id, member)
+      const removed = await deleteClinicTeamMember(db, ctx.scope.clinicId, memberId)
+      if (!removed) throw new Error('Ekip üyesi silinemedi.')
+    },
+  ),
+  ['owner'],
+)
+
+export async function removeClinicMemberAction(memberId: string): Promise<TeamActionResult> {
+  try {
+    await removeMemberForClinic(memberId)
+    revalidatePath('/ayarlar/ekip')
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Ekip üyesi silinemedi.',
+    }
   }
 }

@@ -6,7 +6,7 @@ import { requireClinic } from '@/lib/authz'
 import { TeamManager } from './team-manager'
 
 export default async function TeamSettingsPage() {
-  const { scope, role } = await requireClinic()
+  const { scope, role, user } = await requireClinic()
   if (role !== 'owner') redirect('/ayarlar')
 
   const [clinic, team] = await Promise.all([
@@ -30,7 +30,7 @@ export default async function TeamSettingsPage() {
           yönetin.
         </p>
       </header>
-      <TeamManager members={team.members} invitations={team.invitations} />
+      <TeamManager members={team.members} invitations={team.invitations} currentUserId={user.id} />
     </div>
   )
 }
