@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, UserPlus, UtensilsCrossed, type LucideIcon } from 'lucide-react'
+import { Search, UserPlus, UserRound, UtensilsCrossed, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import { Badge } from '@/components/ui/badge'
@@ -19,20 +19,34 @@ import { initFoodIndex, searchFoodsOffline, type FoodSearchHit } from '@/lib/foo
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import { searchClientsAction, type ClientPickerOption } from '@/app/(app)/randevular/actions'
 import { visibleNavItems } from './nav-items'
+import { visibleSettingsEntries } from './settings-search'
 
-export interface CommandPaletteItem {
+// PALETİN SATIR MODELİ: artık her satır SADECE bir etiket değil — ikinci
+// satırda açıklama ve sağda bir TİP ROZETİ ("Sayfa" / "Bölüm" / "Ayar" /
+// "Eylem" / "Danışan" / "Besin") taşıyor. Kullanıcının "bu sonuç bir ayar mı,
+// bir özellik mi, yoksa bir danışan mı?" sorusu rozetten okunur; hangi
+// grubun altında kaldığına bakmak zorunda kalmaz.
+type PaletteBadge = 'Sayfa' | 'Bölüm' | 'Ayar' | 'Eylem' | 'Danışan' | 'Besin'
+
+export interface PaletteItem {
   id: string
   label: string
+  /** Etiketin altındaki ikinci satır (varsa). */
+  description?: string
   icon: LucideIcon
+  badge?: PaletteBadge
+  /**
+   * cmdk'nın fuzzy filtresinin eşlediği tam metin: etiket + açıklama +
+   * anahtar kelimeler. `value` verilmeyen satırlar yalnızca etiketleriyle
+   * eşleşirdi; kullanıcı "sms" yazıp "Randevu hatırlatmaları"na ulaşamazdı.
+   */
+  searchValue: string
   onSelect?: () => void
-  // Şema/modül henüz hazır değilse (bkz. buildClientStubGroup) true —
-  // tıklanamaz, yanında "Yakında" rozeti gösterilir.
-  disabled?: boolean
 }
 
 export interface CommandPaletteGroup {
   heading: string
-  items: CommandPaletteItem[]
+  items: PaletteItem[]
 }
 
 // "Sayfaya git" — gerçek, çalışan navigasyon. Rol filtrelemesi sidebar/bottom
@@ -43,22 +57,71 @@ function buildNavigationGroup(
   navigate: (href: string) => void,
 ): CommandPaletteGroup {
   return {
-    heading: 'Sayfaya git',
+    heading: 'Sayfalar',
     items: visibleNavItems(role).map((item) => ({
       id: `nav-${item.href}`,
       label: item.label,
+      description: NAV_PAGE_DESCRIPTIONS[item.href],
       icon: item.icon,
+      badge: 'Sayfa',
+      searchValue: `${item.label} ${NAV_PAGE_DESCRIPTIONS[item.href] ?? ''}`,
       onSelect: () => navigate(item.href),
+    })),
+  }
+}
+
+const NAV_PAGE_DESCRIPTIONS: Record<string, string> = {
+  '/panel': 'Günlük özet ve hızlı erişim',
+  '/danisanlar': 'Danışan listesi ve kayıtları',
+  '/randevular': 'Takvim ve randevu yönetimi',
+  '/planlar': 'Beslenme planları ve şablonlar',
+  '/tarifler': 'Tarif kitaplığı',
+  '/finans': 'Gelir-gider takibi',
+  '/ayarlar': 'Klinik ayarları ve ekip yönetimi',
+}
+
+function buildQuickActionsGroup(navigate: (href: string) => void): CommandPaletteGroup {
+  return {
+    heading: 'Hızlı eylemler',
+    items: [
+      {
+        id: 'client-create',
+        label: 'Yeni danışan',
+        icon: UserPlus,
+        badge: 'Eylem',
+        searchValue: 'yeni danışan ekle oluştur kayıt aç',
+        onSelect: () => navigate('/danisanlar/yeni'),
+      },
+    ],
+  }
+}
+
+// AYAR ARAMASI: settings-search.ts'teki statik kayıt defterinden üretilir.
+// cmdk'nın kendi filtresi daraltır — bu yüzden liste TAMAMIyla render edilir;
+// eşleşmeyen girdilerin grup başlığı cmdk tarafından otomatik gizlenir.
+function buildSettingsSearchGroup(
+  role: ClinicMemberRole,
+  navigate: (href: string) => void,
+): CommandPaletteGroup {
+  return {
+    heading: 'Ayarlar ve bölümler',
+    items: visibleSettingsEntries(role).map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      description: entry.description,
+      icon: entry.icon,
+      badge: entry.kind === 'bölüm' ? 'Bölüm' : 'Ayar',
+      searchValue: `${entry.label} ${entry.description} ${entry.keywords}`,
+      onSelect: () => navigate(entry.href),
     })),
   }
 }
 
 // GitHub issue #39 / Prompt 7.1 GÜNCELLEMESİ: "Danışan ara" artık GERÇEK bir
 // arama — GitHub issue #25'in bıraktığı "yakında" stub'ı burada kapanıyor.
-// buildFoodSearchGroup'taki AYNI desen (ZATEN filtrelenmiş bir `hits`
-// listesini gösteren bir grup): arama mantığı burada TEKRARLANMIYOR,
-// randevu modülünün searchClientsAction'ı (app/(app)/randevular/actions.ts)
-// AYNEN çağrılıyor — o da clients.ts'teki listClients arama filtresini sarar.
+// Besin aramasındaki AYNI desen (ZATEN filtrelenmiş bir `hits` listesini
+// gösteren grup): arama mantığı burada TEKRARLANMIYOR, randevu modülünün
+// searchClientsAction'ı AYNEN çağrılıyor.
 function buildClientSearchGroup(
   hits: ClientPickerOption[],
   onSelectClient: (client: ClientPickerOption) => void,
@@ -68,23 +131,13 @@ function buildClientSearchGroup(
     items: hits.map((client) => ({
       id: `client-${client.id}`,
       label: `${client.firstName} ${client.lastName}`,
-      icon: Search,
+      icon: UserRound,
+      badge: 'Danışan',
+      // UUID'nin bir kısmı yazılarak da bulunabilsin diye id de eşleşme
+      // değerine eklenir (destek/hata ayıklama senaryoları için).
+      searchValue: `${client.firstName} ${client.lastName} ${client.id}`,
       onSelect: () => onSelectClient(client),
     })),
-  }
-}
-
-function buildClientCommandGroup(navigate: (href: string) => void): CommandPaletteGroup {
-  return {
-    heading: 'Danışanlar',
-    items: [
-      {
-        id: 'client-create',
-        label: 'Yeni danışan',
-        icon: UserPlus,
-        onSelect: () => navigate('/danisanlar/yeni'),
-      },
-    ],
   }
 }
 
@@ -92,35 +145,28 @@ function buildClientCommandGroup(navigate: (href: string) => void): CommandPalet
 // notu tam olarak burada gerçekleşiyor.
 //
 // GitHub issue #25 GÜNCELLEMESİ: "plan editöründeyken ⌘K → besin arama
-// moduna girsin, seçilince aktif öğüne eklensin" davranışı artık ÇALIŞIYOR
-// — bkz. lib/stores/active-meal-store.ts. Bu grup HÂLÂ bağlamsız (her
-// sayfada aynı şekilde) çalışır: yazılan sorgu != '' olduğunda
-// lib/food-index.ts'teki offline indeksten (Hafta 1) anlık sonuç gösterir.
-// Seçim yapıldığında (bkz. CommandPalette bileşenindeki onSelectFood):
-//   - plan editöründe bir öğün odaktaysa (useActiveMealStore.activeMealId)
-//     → GERÇEK addItemAction çağrısı (handler üzerinden) çalışır,
-//   - aktif öğün yoksa (kullanıcı başka bir sayfadaysa) → eski toast
-//     yer tutucusuna düşülür (aşağıdaki fallback).
+// moduna girsin, seçilince aktif öğüne eklensin" davranışı ÇALIŞIYOR — bkz.
+// lib/stores/active-meal-store.ts.
 //
-// DİĞER build*Group()'lardan FARKI: onlar `role`/`navigate` gibi durağan
-// girdilerle SABİT bir liste üretir (cmdk kendi iç fuzzy filtresiyle
-// daraltır) — burası ise ZATEN filtrelenmiş (Orama'dan gelen) bir sonuç
-// listesini `hits` parametresiyle alır, çünkü 10.000+ besini tek seferde
-// CommandItem olarak render etmek (cmdk'nın kendi filtresine güvenmek)
-// hem performans hem doğruluk açısından yanlış olurdu.
+// DİĞER build*Group()'lardan FARKI: onlar durağan girdilerle SABİT liste
+// üretir (cmdk kendi fuzzy filtresiyle daraltır) — burası ZATEN filtrelenmiş
+// (Orama'dan gelen) bir sonuç listesi alır, çünkü 10.000+ besini tek seferde
+// CommandItem olarak render etmek hem performans hem doğruluk açısından
+// yanlış olurdu.
 function buildFoodSearchGroup(
   hits: FoodSearchHit[],
   onSelectFood: (hit: FoodSearchHit) => void,
 ): CommandPaletteGroup {
   return {
-    heading: 'Besin ara',
+    heading: 'Besinler',
     items: hits.map((hit) => ({
       id: `food-${hit.id}`,
-      label:
-        hit.kcalPer100g !== null
-          ? `${hit.nameTr} — ${hit.kcalPer100g.toFixed(0)} kcal/100g`
-          : hit.nameTr,
+      label: hit.nameTr,
+      description:
+        hit.kcalPer100g !== null ? `${hit.kcalPer100g.toFixed(0)} kcal / 100 g` : undefined,
       icon: UtensilsCrossed,
+      badge: 'Besin',
+      searchValue: hit.nameTr,
       onSelect: () => onSelectFood(hit),
     })),
   }
@@ -133,31 +179,89 @@ function useCommandPaletteGroups(
   role: ClinicMemberRole,
   navigate: (href: string) => void,
   foodHits: FoodSearchHit[],
-  foodQuery: string,
+  query: string,
   onSelectFood: (hit: FoodSearchHit) => void,
   clientHits: ClientPickerOption[],
   onSelectClient: (client: ClientPickerOption) => void,
 ): CommandPaletteGroup[] {
   return useMemo(() => {
     const groups = [buildNavigationGroup(role, navigate)]
-    // Sorgu boşken (henüz bir şey yazılmadıysa) arama sonucu grupları hiç
-    // eklenmez — boş bir "Danışanlar"/"Besin ara" başlığı göstermek kafa
-    // karıştırır, CommandEmpty diğer gruplar için normal çalışmaya devam eder.
-    if (foodQuery.trim() !== '') {
+    // Sorgu boşken (henüz bir şey yazılmadıysa) arama-sonucu grupları hiç
+    // eklenmez — boş "Ayarlar"/"Danışanlar" başlıkları kafa karıştırır. Boş
+    // durum = sayfalar + hızlı eylemler; kullanıcı yazmaya başlayınca ayar,
+    // danışan ve besin sonuçları belirir. Sonuçsuz gruplar da hiç push
+    // edilmez (cmdk zaten tamamen boşalan grupların başlığını gizler ama
+    // HİÇ item'i olmayanı çizmemek daha temiz).
+    if (query.trim() === '') {
+      groups.push(buildQuickActionsGroup(navigate))
+      return groups
+    }
+    groups.push(buildSettingsSearchGroup(role, navigate))
+    if (clientHits.length > 0) {
       groups.push(buildClientSearchGroup(clientHits, onSelectClient))
+    }
+    if (foodHits.length > 0) {
       groups.push(buildFoodSearchGroup(foodHits, onSelectFood))
-    } else {
-      groups.push(buildClientCommandGroup(navigate))
     }
     return groups
-  }, [role, navigate, foodHits, foodQuery, onSelectFood, clientHits, onSelectClient])
+  }, [role, navigate, foodHits, query, onSelectFood, clientHits, onSelectClient])
+}
+
+// Tek satır: simge kutucuğu + etiket/açıklama + sağda tip rozeti.
+// `[&>svg:last-child]:hidden` — ui/command.tsx'in CommandItem'ı seçimde
+// sağa CheckIcon basıyor; bizim rozetimiz aynı yeri kapladığından o varsayılan
+// onay işaretini gizliyoruz (seçili satır zaten bg-muted ile vurgulanıyor).
+function PaletteRow({ item }: { item: PaletteItem }) {
+  return (
+    <CommandItem
+      value={item.searchValue}
+      onSelect={() => item.onSelect?.()}
+      className="gap-3 py-2 [&>svg:last-child]:hidden"
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+        <item.icon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium leading-tight">{item.label}</span>
+        {item.description ? (
+          <span className="mt-0.5 block truncate text-xs leading-tight text-muted-foreground">
+            {item.description}
+          </span>
+        ) : null}
+      </span>
+      {item.badge ? (
+        <Badge
+          variant="outline"
+          className="shrink-0 rounded-lg border-border/70 px-2 py-0.5 text-[0.68rem] font-normal text-muted-foreground group-data-[selected=true]/command-item:border-border group-data-[selected=true]/command-item:text-foreground/80"
+        >
+          {item.badge}
+        </Badge>
+      ) : null}
+    </CommandItem>
+  )
+}
+
+function FooterHint({ keys, children }: { keys: string[]; children: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      {keys.map((key) => (
+        <kbd
+          key={key}
+          className="inline-flex h-4 min-w-4 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[0.6rem] text-muted-foreground"
+        >
+          {key}
+        </kbd>
+      ))}
+      {children}
+    </span>
+  )
 }
 
 export function CommandPalette({ role }: { role: ClinicMemberRole }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [foodIndexReady, setFoodIndexReady] = useState(false)
-  const [foodQuery, setFoodQuery] = useState('')
+  const [query, setQuery] = useState('')
   const [foodHits, setFoodHits] = useState<FoodSearchHit[]>([])
   const [clientHits, setClientHits] = useState<ClientPickerOption[]>([])
 
@@ -184,32 +288,31 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
   }, [open, foodIndexReady])
 
   useEffect(() => {
-    if (!foodIndexReady || foodQuery.trim() === '') {
+    if (!foodIndexReady || query.trim() === '') {
       setFoodHits([])
       return
     }
     let cancelled = false
-    searchFoodsOffline(foodQuery, 8).then((result) => {
+    searchFoodsOffline(query, 8).then((result) => {
       if (!cancelled) setFoodHits(result.hits)
     })
     return () => {
       cancelled = true
     }
-  }, [foodQuery, foodIndexReady])
+  }, [query, foodIndexReady])
 
-  // Danışan araması — food-index'ten FARKLI olarak sunucuya gidiyor (offline
-  // indeks yok, klinik başına yüz/bin mertebesindeki danışan verisi zaten
-  // basit bir ILIKE'a yetiyor, bkz. listClients üstündeki not). foodQuery
-  // AYNI giriş kutusunu besliyor — tek bir arama kutusu hem besin hem danışan
-  // aramasını (bağlama göre farklı gruplar altında) sonuçlandırır.
+  // Danışan araması — besin indeksinden FARKLI olarak sunucuya gidiyor
+  // (offline indeks yok; klinik başına yüz/bin mertebesindeki danışan verisi
+  // basit bir ILIKE'a yetiyor, bkz. listClients üstündeki not). 200ms debounce
+  // tuş vuruşlarında gereksiz istek atılmasını engeller.
   useEffect(() => {
-    if (foodQuery.trim() === '') {
+    if (query.trim() === '') {
       setClientHits([])
       return
     }
     let cancelled = false
     const timeout = setTimeout(() => {
-      searchClientsAction(foodQuery).then((hits) => {
+      searchClientsAction(query).then((hits) => {
         if (!cancelled) setClientHits(hits)
       })
     }, 200)
@@ -217,12 +320,12 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
       cancelled = true
       clearTimeout(timeout)
     }
-  }, [foodQuery])
+  }, [query])
 
-  // Palet kapanınca sorgu sıfırlanır — bir sonraki açılışta önceki besin
-  // aramasının kalıntısı görünmesin diye.
+  // Palet kapanınca sorgu sıfırlanır — bir sonraki açılışta önceki aramanın
+  // kalıntısı görünmesin diye.
   useEffect(() => {
-    if (!open) setFoodQuery('')
+    if (!open) setQuery('')
   }, [open])
 
   const navigate = useCallback(
@@ -236,10 +339,8 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
   const addFoodToActiveMeal = useActiveMealStore((state) => state.addFoodToActiveMeal)
   const activeMealLabel = useActiveMealStore((state) => state.activeMealLabel)
 
-  // bkz. dosya başı notu: plan editöründe bir öğün aktifse GERÇEK ekleme,
-  // değilse eski toast yer tutucusu (ör. danışan listesindeyken ⌘K ile
-  // besin aratmak hâlâ mümkün olsun, ama hiçbir yere "eklenmiş" gibi
-  // yanıltmasın).
+  // Plan editöründe bir öğün aktifse GERÇEK ekleme, değilse bilgi tostu —
+  // hiçbir yere "eklendi" gibi yanıltmasın.
   const onSelectFood = useCallback(
     (hit: FoodSearchHit) => {
       setOpen(false)
@@ -265,11 +366,12 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
     [router],
   )
 
+  const trimmedQuery = query.trim()
   const groups = useCommandPaletteGroups(
     role,
     navigate,
     foodHits,
-    foodQuery,
+    query,
     onSelectFood,
     clientHits,
     onSelectClient,
@@ -293,35 +395,35 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
-        title="Komut paleti"
-        description="Sayfalar ve eylemler arasında hızlıca gezinin."
+        title="Arama"
+        description="Sayfalar, ayarlar, danışanlar ve besinler arasında arama yapın."
+        className="sm:max-w-[36rem]"
       >
         <CommandInput
-          placeholder="Bir komut yazın veya besin arayın…"
-          value={foodQuery}
-          onValueChange={setFoodQuery}
+          placeholder="Sayfa, ayar veya danışan arayın…"
+          value={query}
+          onValueChange={setQuery}
         />
-        <CommandList>
-          <CommandEmpty>Sonuç bulunamadı.</CommandEmpty>
+        <CommandList className="max-h-[min(26rem,55vh)]">
+          <CommandEmpty>
+            {trimmedQuery !== '' ? `“${trimmedQuery}” için sonuç bulunamadı.` : 'Sonuç bulunamadı.'}
+          </CommandEmpty>
           {groups.map((group, index) => (
             <div key={group.heading}>
               {index > 0 && <CommandSeparator />}
               <CommandGroup heading={group.heading}>
                 {group.items.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    disabled={item.disabled}
-                    onSelect={() => item.onSelect?.()}
-                  >
-                    <item.icon className="size-4" />
-                    {item.label}
-                    {item.disabled && <Badge variant="secondary">Yakında</Badge>}
-                  </CommandItem>
+                  <PaletteRow key={item.id} item={item} />
                 ))}
               </CommandGroup>
             </div>
           ))}
         </CommandList>
+        <div className="flex items-center gap-4 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
+          <FooterHint keys={['↑', '↓']}>ile gezin</FooterHint>
+          <FooterHint keys={['↵']}>aç</FooterHint>
+          <FooterHint keys={['esc']}>kapat</FooterHint>
+        </div>
       </CommandDialog>
     </>
   )
