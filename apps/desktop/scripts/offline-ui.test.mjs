@@ -13,6 +13,10 @@ test('packaged desktop page loads the maintainable offline client', async () => 
   assert.match(html, /<button disabled title="Tarifler için internet bağlantısı gerekir">/)
   assert.match(html, /<button disabled title="Finans ekranı için internet bağlantısı gerekir">/)
   assert.match(html, /id="page-client-detail"/)
+  assert.match(html, /class="desktop-pill">Desktop</)
+  assert.match(html, /id="clinic-initials"/)
+  assert.match(html, /class="offline-chip"/)
+  assert.match(html, /<h1>Panel<\/h1>/)
   assert.match(html, /data-modal="anamnesis"/)
   assert.match(html, /data-modal="measurement"/)
   assert.match(html, /data-modal="labResult"/)
@@ -77,4 +81,17 @@ test('titlebar drag detects double-click manually instead of relying on DOM dblc
   assert.match(script, /DOUBLE_CLICK_TIME_MS/)
   assert.match(script, /action: 'toggleMaximize'/)
   assert.doesNotMatch(script, /addEventListener\('dblclick'/)
+})
+
+test('offline shell derives the same clinic and user identity marks as the live shell', async () => {
+  const script = await readFile(scriptUrl, 'utf8')
+  assert.match(
+    script,
+    /\$\('clinic-initials'\)\.textContent = initials\(current\.profile\.clinicName\)/,
+  )
+  assert.match(
+    script,
+    /\$\('title-avatar'\)\.textContent = initials\(current\.profile\.displayName\)/,
+  )
+  assert.match(script, /\.toLocaleUpperCase\('tr-TR'\)/)
 })

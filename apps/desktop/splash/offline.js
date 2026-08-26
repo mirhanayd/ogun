@@ -177,7 +177,19 @@ function openWorkspace(unlocked) {
   $('app').classList.remove('hidden')
   $('clinic-name').textContent = current.profile.clinicName
   $('user-name').textContent = current.profile.displayName
+  $('clinic-initials').textContent = initials(current.profile.clinicName)
+  $('title-avatar').textContent = initials(current.profile.displayName)
   renderAll()
+}
+
+function initials(value) {
+  return String(value || 'Ö')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toLocaleUpperCase('tr-TR')
 }
 
 async function unlock() {
