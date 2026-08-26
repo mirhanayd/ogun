@@ -35,6 +35,30 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.2.10',
+    publishedAt: '2026-08-26',
+    notes: [
+      'Açılıştaki beyaz ekran flaşı ve girişten sonraki arayüz takılması giderildi.',
+      'Cihaz profili hazırlanmadan PIN oluşturulamama sorunu çözüldü; hızlı giriş PIN’i ilk denemede kaydedilir.',
+      'Başlık çubuğundaki pencere düğmeleri ve çift tıkla büyütme daha güvenilir çalışır.',
+      'Üst çubukta arama artık sayfa, ayar, danışan ve besin sonuçlarını tür etiketleriyle ayırıp listeler.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.10/Ogun_0.2.10_x64-setup.exe',
+        sha256: '844c4c4e6eca22cd1357e4101340e9ae7e2c0fa70da7eee40cb2335a08e768e7',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.10/Ogun_0.2.10_x64_tr-TR.msi',
+        sha256: 'fc9384abc46b1cd0a16606712e9ec880526873e2849e1e37e99dc54b4a20044d',
+      },
+    ],
+  },
+  {
     version: '0.2.5',
     publishedAt: '2026-08-25',
     notes: [
