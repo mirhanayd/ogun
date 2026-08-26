@@ -35,6 +35,36 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.2.11',
+    publishedAt: '2026-08-26',
+    notes: [
+      'Çevrimdışı çalışma alanı artık çevrimiçi masaüstü uygulamasıyla aynı başlık çubuğu, kenar menüsü, renkler ve panel kart düzenini kullanır.',
+      'Klinik ve kullanıcı kimlik işaretleri kayıtlı cihaz profilinden otomatik oluşturulur.',
+      'Şifreli cihaz kasası, hızlı giriş PIN’i ve bağlantı gelince senkronizasyon davranışı korunur.',
+      'Windows EXE ve MSI paketleriyle birlikte Apple Silicon ve Intel uyumlu universal macOS paketi yayınlandı.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.11/Ogun_0.2.11_x64-setup.exe',
+        sha256: 'ba996a4dc0fe1db18a8ddb4bd4af6ccba39757b78ab0a64c792964afb0af6a7f',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.11/Ogun_0.2.11_x64_tr-TR.msi',
+        sha256: 'ed2a4ae875f2b514f6a3476e2f75aae1451769ec98f2926940d3063209b13741',
+      },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.11/Ogun_0.2.11_universal.dmg',
+        sha256: '86f80cb1c2fa9b15a814de58854ab79b529045fb72118cc35fca69e6f82ce951',
+      },
+    ],
+  },
+  {
     version: '0.2.10',
     publishedAt: '2026-08-26',
     notes: [
