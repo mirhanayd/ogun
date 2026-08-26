@@ -25,6 +25,7 @@ faz-10-ui-cilasi.md
 # boşluktu.
 apps/desktop/~/
 .neon
+/.vercel/
 .agents/
 skills-lock.json
 

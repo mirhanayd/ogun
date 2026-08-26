@@ -56,6 +56,12 @@ export const DESKTOP_RELEASES: DesktopRelease[] = [
         url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.10/Ogun_0.2.10_x64_tr-TR.msi',
         sha256: 'fc9384abc46b1cd0a16606712e9ec880526873e2849e1e37e99dc54b4a20044d',
       },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.10/Ogun_0.2.10_universal.dmg',
+        sha256: 'a64f512386286a1ffba48f4ee3b699fc60b4dce8cd65304c6fc022cce3f0669a',
+      },
     ],
   },
   {

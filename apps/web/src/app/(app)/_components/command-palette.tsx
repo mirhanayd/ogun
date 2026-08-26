@@ -185,15 +185,14 @@ function useCommandPaletteGroups(
   onSelectClient: (client: ClientPickerOption) => void,
 ): CommandPaletteGroup[] {
   return useMemo(() => {
-    const groups = [buildNavigationGroup(role, navigate)]
+    const groups = [buildNavigationGroup(role, navigate), buildQuickActionsGroup(navigate)]
     // Sorgu boşken (henüz bir şey yazılmadıysa) arama-sonucu grupları hiç
     // eklenmez — boş "Ayarlar"/"Danışanlar" başlıkları kafa karıştırır. Boş
     // durum = sayfalar + hızlı eylemler; kullanıcı yazmaya başlayınca ayar,
-    // danışan ve besin sonuçları belirir. Sonuçsuz gruplar da hiç push
-    // edilmez (cmdk zaten tamamen boşalan grupların başlığını gizler ama
-    // HİÇ item'i olmayanı çizmemek daha temiz).
+    // danışan ve besin sonuçları belirir. Hızlı eylemler her zaman
+    // render edilir ki "yeni danışan" gibi sorgularla da bulunabilsin;
+    // eşleşmeyen grubu cmdk otomatik gizler.
     if (query.trim() === '') {
-      groups.push(buildQuickActionsGroup(navigate))
       return groups
     }
     groups.push(buildSettingsSearchGroup(role, navigate))
