@@ -29,6 +29,22 @@ const hourFormatter = new Intl.DateTimeFormat('tr-TR', {
   timeZone: 'Europe/Istanbul',
 })
 
+const appointmentDateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Europe/Istanbul',
+})
+
+const appointmentTypeLabels = {
+  ilk_görüşme: 'İlk görüşme',
+  kontrol: 'Kontrol',
+  online: 'Online',
+  ölçüm: 'Ölçüm',
+} as const
+
 export default async function PanelPage() {
   const feed = await getPanelNotificationFeed()
   const now = new Date()
@@ -118,6 +134,80 @@ export default async function PanelPage() {
           href={feed.canManageFinance ? '/finans' : '/danisanlar'}
           tone={feed.expiringPackageCount > 0 ? 'warning' : 'calm'}
         />
+      </section>
+
+      <section>
+        <Card className="overflow-hidden border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 px-5 py-5 sm:px-6">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base tracking-tight">Yaklaşan randevular</CardTitle>
+              <CardDescription>Önümüzdeki 7 gün içindeki planlanmış görüşmeler</CardDescription>
+            </div>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="-mr-2 rounded-lg text-muted-foreground"
+            >
+              <Link href="/randevular">
+                Takvimi aç
+                <ArrowRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {feed.upcomingAppointments.length === 0 ? (
+              <div className="flex min-h-36 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+                <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/8 text-primary ring-1 ring-primary/10">
+                  <CalendarDays className="size-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium">Yaklaşan randevu yok</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Önümüzdeki 7 gün için programınız boş.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ul className="grid md:grid-cols-2 xl:grid-cols-3">
+                {feed.upcomingAppointments.map((appointment) => (
+                  <li
+                    key={appointment.id}
+                    className="border-border/60 md:border-r md:nth-[2n]:border-r-0 xl:nth-[2n]:border-r xl:nth-[3n]:border-r-0 [&:nth-child(n+3)]:border-t xl:[&:nth-child(3)]:border-t-0"
+                  >
+                    <Link
+                      href="/randevular"
+                      className="group flex h-full items-start gap-3 px-5 py-4 transition-colors hover:bg-muted/45 sm:px-6"
+                    >
+                      <span className="flex size-10 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/8 text-primary ring-1 ring-primary/10">
+                        <Clock3 className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="truncate text-sm font-medium">
+                            {appointment.clientFirstName} {appointment.clientLastName}
+                          </span>
+                          <Badge
+                            variant={appointment.status === 'ertelendi' ? 'outline' : 'secondary'}
+                          >
+                            {appointment.status === 'ertelendi' ? 'Ertelendi' : 'Planlandı'}
+                          </Badge>
+                        </span>
+                        <span className="mt-1 block text-xs font-medium text-primary first-letter:uppercase">
+                          {appointmentDateFormatter.format(appointment.startsAt)}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                          {appointmentTypeLabels[appointment.type]} · {appointment.dietitianName}
+                          {appointment.location ? ` · ${appointment.location}` : ''}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">

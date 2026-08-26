@@ -4,6 +4,7 @@ import {
   isPackageExpiringSoon,
   isStaleMeasurementClient,
   packageExpiryState,
+  selectUpcomingAppointments,
 } from './summary'
 
 const NOW = new Date('2026-08-17T12:00:00Z')
@@ -79,7 +80,12 @@ describe('buildNotificationFeed', () => {
       {
         todayAppointmentsCount: 4,
         noShowClients: [
-          { clientId: 'c1', clientFirstName: 'A', clientLastName: 'B', startsAt: new Date(NOW.getTime() - 24 * 60 * 60 * 1000) },
+          {
+            clientId: 'c1',
+            clientFirstName: 'A',
+            clientLastName: 'B',
+            startsAt: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
+          },
         ],
         clientsWithLastMeasurement: [
           {
@@ -126,5 +132,31 @@ describe('buildNotificationFeed', () => {
     expect(feed.expiringPackageCount).toBe(1)
     expect(feed.expiringPackages[0]?.clientPackageId).toBe('p1')
     expect(feed.expiringPackages[0]?.state).toBe('yaklaşıyor')
+  })
+})
+
+describe('selectUpcomingAppointments', () => {
+  it('yalnızca gelecekteki aktif randevuları kronolojik sıralar', () => {
+    const appointments = [
+      { id: 'later', startsAt: new Date(NOW.getTime() + 3 * 60 * 60 * 1000), status: 'ertelendi' },
+      { id: 'cancelled', startsAt: new Date(NOW.getTime() + 60 * 60 * 1000), status: 'iptal' },
+      { id: 'past', startsAt: new Date(NOW.getTime() - 60 * 1000), status: 'planlandı' },
+      { id: 'next', startsAt: new Date(NOW.getTime() + 2 * 60 * 60 * 1000), status: 'planlandı' },
+      { id: 'completed', startsAt: new Date(NOW.getTime() + 30 * 60 * 1000), status: 'geldi' },
+    ]
+
+    expect(
+      selectUpcomingAppointments(appointments, NOW).map((appointment) => appointment.id),
+    ).toEqual(['next', 'later'])
+  })
+
+  it('panel için sonuç sayısını sınırlar', () => {
+    const appointments = Array.from({ length: 8 }, (_, index) => ({
+      id: String(index),
+      startsAt: new Date(NOW.getTime() + (index + 1) * 60 * 60 * 1000),
+      status: 'planlandı',
+    }))
+
+    expect(selectUpcomingAppointments(appointments, NOW, 3)).toHaveLength(3)
   })
 })
