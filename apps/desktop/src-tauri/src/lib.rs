@@ -28,7 +28,6 @@ mod startup;
 mod tray;
 mod updater;
 mod vault;
-mod vault_log;
 mod window_controls;
 mod window_ops;
 
@@ -139,10 +138,6 @@ pub fn run() {
             online_preload::open_online_app,
         ])
         .setup(|app| {
-            // GEÇİCİ TANI (0.2.8): kasa komutlarının dosya günlüğü —
-            // "PIN oluşturulamadı" hatasının gerçek nedenini kullanıcının
-            // makinesinde yakalamak için (bkz. vault_log.rs dosya başı notu).
-            vault_log::session_start(app.handle());
             let is_dev = tauri::is_dev();
             let autostart_requested = startup::is_autostart_argument(std::env::args());
             // PERFORMANS (kullanıcı raporu: "ilk açılış beyaz ekranda

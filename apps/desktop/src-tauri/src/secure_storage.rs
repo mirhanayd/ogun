@@ -82,15 +82,7 @@ const SESSION_TOKEN_KEY: &[u8] = b"better-auth-session-token";
 /// eklenmedi; okuma yolu zaten ucuzladı ve ek durum tutmamak daha güvenli.
 #[tauri::command]
 pub async fn store_session_token(app: AppHandle, token: String) -> Result<(), String> {
-    // GEÇİCİ TANI (0.2.8): snapshot mtime'ının kimden geldiğini ayırt etmek
-    // için (bkz. vault_log.rs). HASSAS VERİ KURALI: yalnızca uzunluk.
-    crate::vault_log::log(
-        &app,
-        format!("store_session_token çağrıldı: tokenUzunluk={}", token.len()),
-    );
-    // `app` closure'a taşındığı için sonuç günlüğü klon üzerinden yazılır.
-    let log_app = app.clone();
-    let outcome = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         crate::vault::with_vault(&app, |vault| {
             // DİKKAT: mevcut client'ı open_client ile YENİDEN KULLAN —
             // koşulsuz create_client, o clientın bellek durumunu sıfırlayıp
@@ -111,9 +103,7 @@ pub async fn store_session_token(app: AppHandle, token: String) -> Result<(), St
         })
     })
     .await
-    .map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?;
-    crate::vault_log::log_result(&log_app, "store_session_token", &outcome);
-    outcome
+    .map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?
 }
 
 /// Daha önce saklanmış bearer oturum token'ını okur. Hiç kaydedilmemişse
@@ -121,8 +111,7 @@ pub async fn store_session_token(app: AppHandle, token: String) -> Result<(), St
 /// bu bir HATA değildir (bkz. native-shell.ts `loadNativeSessionToken`).
 #[tauri::command]
 pub async fn load_session_token(app: AppHandle) -> Result<Option<String>, String> {
-    let log_app = app.clone();
-    let outcome = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         crate::vault::with_vault(&app, |vault| {
             // Eski kod burada `load_client` hatasını "token yok" sanıyordu —
             // oysa paylaşılan örnekte ikinci çağrı ClientAlreadyLoaded döner
@@ -139,17 +128,7 @@ pub async fn load_session_token(app: AppHandle) -> Result<Option<String>, String
         })
     })
     .await
-    .map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?;
-    // GEÇİCİ TANI (0.2.8): yalnızca var-yok — token DEĞERİ asla günlüğe yazılmaz.
-    match &outcome {
-        Ok(Some(token)) => crate::vault_log::log(
-            &log_app,
-            format!("load_session_token ✓ (var, uzunluk={})", token.len()),
-        ),
-        Ok(None) => crate::vault_log::log(&log_app, "load_session_token ✓ (kayıtlı token yok)"),
-        Err(err) => crate::vault_log::log(&log_app, format!("load_session_token ✗ hata: {err}")),
-    }
-    outcome
+    .map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?
 }
 
 /// Saklanan bearer oturum token'ını siler (çıkış yapıldığında kullanılmak
@@ -158,9 +137,7 @@ pub async fn load_session_token(app: AppHandle) -> Result<Option<String>, String
 /// yoksa sessizce başarılı sayılır (idempotent).
 #[tauri::command]
 pub async fn clear_session_token(app: AppHandle) -> Result<(), String> {
-    crate::vault_log::log(&app, "clear_session_token çağrıldı (çıkış akışı)");
-    let log_app = app.clone();
-    let outcome = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         crate::vault::with_vault(&app, |vault| {
             // Eski `if let Ok(client) = load_client(...)` koşulu, client zaten
             // bellekte yüklüyse ClientAlreadyLoaded hatası aldığı için silme
@@ -178,9 +155,7 @@ pub async fn clear_session_token(app: AppHandle) -> Result<(), String> {
         })
     })
     .await
-    .map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?;
-    crate::vault_log::log_result(&log_app, "clear_session_token", &outcome);
-    outcome
+    .map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?
 }
 
 #[cfg(test)]

@@ -170,20 +170,6 @@ fn is_online_app(window: &WebviewWindow) -> bool {
     })
 }
 
-/// GEÇİCİ TANI (0.2.8): `is_online_app` kararının TAM girdisini günlük için
-/// hazırlar — pencere URL'si okunabiliyorsa adres + host + karar; okunamıyorsa
-/// hatanın kendisi. Kök neden bulununca `vault_log` ile birlikte kaldırılır.
-fn url_diagnosis(window: &WebviewWindow) -> String {
-    match window.url() {
-        Ok(url) => format!(
-            "url={url} host={:?} onlineKararı={}",
-            url.host_str(),
-            is_online_app(window)
-        ),
-        Err(err) => format!("pencere URL'si OKUNAMADI: {err} → is_online_app=false"),
-    }
-}
-
 fn validate_pin(pin: &str) -> Result<(), String> {
     if !(4..=8).contains(&pin.len()) || !pin.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err("PIN 4-8 rakamdan oluşmalıdır.".to_string());
@@ -576,56 +562,20 @@ fn acknowledge_offline_mutations_impl(
 }
 
 /// spawn_blocking gövdesinin JoinError'ını (tauri::Error) komut hatasına
-/// çevirir. Panik olan bir kasa işlemi süreci düşürmek yerine kullanıcıya
-/// bildirilir.
-fn join_result<T>(result: tauri::Result<T>) -> Result<T, String> {
-    result.map_err(|err| format!("Cihaz kasası işlemi tamamlanamadı: {err}"))
-}
-
-/// GEÇİCİ TANI (0.2.8): `join_result` ile aynı işi yapar ve sonucu (görev
-/// hatası dahil) `vault_debug.log`'a yazar. Kök neden bulununca
-/// `vault_log` ile birlikte kaldırılır.
-fn logged_join<T>(
-    app: &AppHandle,
-    name: &str,
-    joined: tauri::Result<Result<T, String>>,
-) -> Result<T, String> {
-    match join_result(joined) {
-        // İç katman: komut gövdesinin kendi ✓/✗ sonucu.
-        Ok(outcome) => {
-            crate::vault_log::log_result(app, name, &outcome);
-            outcome
-        }
-        // Dış katman: spawn_blocking görevi panik/başarısız oldu — komut
-        // gövdesine hiç gelinmedi.
-        Err(err) => {
-            crate::vault_log::log(app, format!("{name} ✗ görev hatası: {err}"));
-            Err(err)
-        }
+/// çevirip içteki kasa sonucuyla BİRLEŞTİRİR (`Result<Result<T, String>, _>`
+/// -> `Result<T, String>`). Panik olan bir kasa işlemi süreci düşürmek
+/// yerine kullanıcıya bildirilir.
+fn join_result<T>(result: tauri::Result<Result<T, String>>) -> Result<T, String> {
+    match result {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(err)) => Err(err),
+        Err(err) => Err(format!("Cihaz kasası işlemi tamamlanamadı: {err}")),
     }
 }
 
 #[tauri::command]
 pub async fn list_offline_profiles(app: AppHandle) -> Result<Vec<OfflineProfileSummary>, String> {
-    crate::vault_log::log(&app, "list_offline_profiles çağrıldı");
-    // `app` aşağıdaki closure'a taşındığı için sonuç günlüğü klon üzerinden
-    // yazılır (AppHandle klonu ucuzdur — Arc sayacı).
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "list_offline_profiles",
-        tauri::async_runtime::spawn_blocking(move || {
-            let outcome = list_offline_profiles_impl(&app);
-            if let Ok(profiles) = &outcome {
-                crate::vault_log::log(
-                    &app,
-                    format!("list_offline_profiles: profilSayısı={}", profiles.len()),
-                );
-            }
-            outcome
-        })
-        .await,
-    )
+    join_result(tauri::async_runtime::spawn_blocking(move || list_offline_profiles_impl(&app)).await)
 }
 
 #[tauri::command]
@@ -634,23 +584,8 @@ pub async fn upsert_offline_profile(
     window: WebviewWindow,
     profile: OfflineProfileInput,
 ) -> Result<(), String> {
-    // GEÇİCİ TANI: giriş meta bilgisi + URL kararı + sonuç. Bu satır
-    // günlükte YOKSA çağrı komut gövdesine ulaşmamış demektir (argüman
-    // serileştirme hatası) — hatanın katmanını tek başına ayırt eder.
-    crate::vault_log::log(
-        &app,
-        format!(
-            "upsert_offline_profile çağrıldı: userId={} email={} clinicId={} role={} lastSyncedAt={:?}",
-            profile.user_id, profile.email, profile.clinic_id, profile.role, profile.last_synced_at
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "upsert_offline_profile",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            let url_note = url_diagnosis(&window);
-            crate::vault_log::log(&app, format!("upsert_offline_profile: {url_note}"));
             let state = app.state::<OfflineVaultState>();
             upsert_offline_profile_impl(&app, &window, &state, profile)
         })
@@ -663,16 +598,8 @@ pub async fn remove_active_offline_profile(
     app: AppHandle,
     window: WebviewWindow,
 ) -> Result<(), String> {
-    crate::vault_log::log(&app, "remove_active_offline_profile çağrıldı");
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "remove_active_offline_profile",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("remove_active_offline_profile: {}", url_diagnosis(&window)),
-            );
             let state = app.state::<OfflineVaultState>();
             remove_active_offline_profile_impl(&app, &window, &state)
         })
@@ -688,26 +615,8 @@ pub async fn configure_offline_pin(
     new_pin: String,
     current_pin: Option<String>,
 ) -> Result<(), String> {
-    // HASSAS VERİ KURALI: PIN DEĞERİ günlüğe yazılmaz — yalnızca uzunluk ve
-    // mevcut PIN'in verilip verilmediği.
-    crate::vault_log::log(
-        &app,
-        format!(
-            "configure_offline_pin çağrıldı: userId={} newPinUzunluk={} currentPinVar={}",
-            user_id,
-            new_pin.len(),
-            current_pin.is_some()
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "configure_offline_pin",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("configure_offline_pin: {}", url_diagnosis(&window)),
-            );
             let state = app.state::<OfflineVaultState>();
             configure_offline_pin_impl(&app, &window, &state, user_id, new_pin, current_pin)
         })
@@ -721,18 +630,7 @@ pub async fn unlock_offline_profile(
     user_id: String,
     pin: String,
 ) -> Result<UnlockedWorkspace, String> {
-    crate::vault_log::log(
-        &app,
-        format!(
-            "unlock_offline_profile çağrıldı: userId={} pinUzunluk={}",
-            user_id,
-            pin.len()
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "unlock_offline_profile",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
             let state = app.state::<OfflineVaultState>();
             unlock_offline_profile_impl(&app, &state, user_id, pin)
@@ -756,24 +654,10 @@ pub fn lock_offline_profile(state: State<'_, OfflineVaultState>) -> Result<(), S
 pub async fn get_unlocked_offline_workspace(
     app: AppHandle,
 ) -> Result<Option<UnlockedWorkspace>, String> {
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "get_unlocked_offline_workspace",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
             let state = app.state::<OfflineVaultState>();
-            let outcome = get_unlocked_offline_workspace_impl(&app, &state);
-            if let Ok(Some(workspace)) = &outcome {
-                crate::vault_log::log(
-                    &app,
-                    format!(
-                        "get_unlocked_offline_workspace: açıkProfil={} workspaceVar={}",
-                        workspace.profile.user_id,
-                        !workspace.workspace.is_null()
-                    ),
-                );
-            }
-            outcome
+            get_unlocked_offline_workspace_impl(&app, &state)
         })
         .await,
     )
@@ -786,26 +670,8 @@ pub async fn save_offline_workspace(
     user_id: String,
     workspace: Value,
 ) -> Result<(), String> {
-    // HASSAS VERİ KURALI: workspace İÇERİĞİ günlüğe yazılmaz — yalnızca
-    // serileştirilmiş boyutu. Bu komutun deneme/sonuç kaydı, "tam
-    // senkronizasyon neden asla kasaya yazamıyor" sorusunun da izini tutar.
-    let workspace_bytes = serde_json::to_vec(&workspace).map_or(0, |bytes| bytes.len());
-    crate::vault_log::log(
-        &app,
-        format!(
-            "save_offline_workspace çağrıldı: userId={} bayt={workspace_bytes}",
-            user_id
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "save_offline_workspace",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("save_offline_workspace: {}", url_diagnosis(&window)),
-            );
             let state = app.state::<OfflineVaultState>();
             save_offline_workspace_impl(&app, &window, &state, user_id, workspace)
         })
@@ -821,22 +687,8 @@ pub async fn save_offline_plan_draft(
     plan_id: String,
     draft: Value,
 ) -> Result<(), String> {
-    crate::vault_log::log(
-        &app,
-        format!(
-            "save_offline_plan_draft çağrıldı: userId={} planId={plan_id}",
-            user_id
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "save_offline_plan_draft",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("save_offline_plan_draft: {}", url_diagnosis(&window)),
-            );
             let state = app.state::<OfflineVaultState>();
             save_offline_plan_draft_impl(&app, &window, &state, user_id, plan_id, draft)
         })
@@ -851,22 +703,8 @@ pub async fn queue_offline_mutation(
     user_id: String,
     mutation: OfflineMutation,
 ) -> Result<(), String> {
-    crate::vault_log::log(
-        &app,
-        format!(
-            "queue_offline_mutation çağrıldı: userId={} tür={} id={}",
-            user_id, mutation.kind, mutation.id
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "queue_offline_mutation",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("queue_offline_mutation: {}", url_diagnosis(&window)),
-            );
             let state = app.state::<OfflineVaultState>();
             queue_offline_mutation_impl(&app, &window, &state, user_id, mutation)
         })
@@ -880,27 +718,9 @@ pub async fn load_pending_offline_mutations(
     window: WebviewWindow,
     user_id: String,
 ) -> Result<Vec<OfflineMutation>, String> {
-    crate::vault_log::log(
-        &app,
-        format!("load_pending_offline_mutations çağrıldı: userId={user_id}"),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "load_pending_offline_mutations",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("load_pending_offline_mutations: {}", url_diagnosis(&window)),
-            );
-            let outcome = load_pending_offline_mutations_impl(&app, &window, user_id);
-            if let Ok(mutations) = &outcome {
-                crate::vault_log::log(
-                    &app,
-                    format!("load_pending_offline_mutations: adet={}", mutations.len()),
-                );
-            }
-            outcome
+            load_pending_offline_mutations_impl(&app, &window, user_id)
         })
         .await,
     )
@@ -913,23 +733,8 @@ pub async fn acknowledge_offline_mutations(
     user_id: String,
     mutation_ids: Vec<String>,
 ) -> Result<(), String> {
-    crate::vault_log::log(
-        &app,
-        format!(
-            "acknowledge_offline_mutations çağrıldı: userId={} adet={}",
-            user_id,
-            mutation_ids.len()
-        ),
-    );
-    let log_app = app.clone();
-    logged_join(
-        &log_app,
-        "acknowledge_offline_mutations",
+    join_result(
         tauri::async_runtime::spawn_blocking(move || {
-            crate::vault_log::log(
-                &app,
-                format!("acknowledge_offline_mutations: {}", url_diagnosis(&window)),
-            );
             acknowledge_offline_mutations_impl(&app, &window, user_id, mutation_ids)
         })
         .await,
@@ -941,8 +746,8 @@ pub async fn acknowledge_offline_mutations(
 /// BLOKLAMAMASI zorunludur (eskiden senkrondu — açılıştaki takılmanın bir
 /// başka kaynağı).
 #[tauri::command]
-pub async fn desktop_network_available(app: AppHandle) -> bool {
-    let available = tauri::async_runtime::spawn_blocking(|| {
+pub async fn desktop_network_available() -> bool {
+    tauri::async_runtime::spawn_blocking(|| {
         let addresses = match ("ogun-web.vercel.app", 443).to_socket_addrs() {
             Ok(addresses) => addresses,
             Err(_) => return false,
@@ -952,9 +757,7 @@ pub async fn desktop_network_available(app: AppHandle) -> bool {
             .any(|address| TcpStream::connect_timeout(&address, NETWORK_CONNECT_TIMEOUT).is_ok())
     })
     .await
-    .unwrap_or(false);
-    crate::vault_log::log(&app, format!("desktop_network_available → {available}"));
-    available
+    .unwrap_or(false)
 }
 
 #[tauri::command]
