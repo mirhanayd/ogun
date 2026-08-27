@@ -56,13 +56,18 @@ const urlOrLocalhost = z
 const alwaysRequiredSchema = z.object({
   DATABASE_URL: z
     .string()
-    .min(1, 'DATABASE_URL zorunlu — postgresql://kullanici:sifre@host:port/veritabani formatında olmalı.'),
+    .min(
+      1,
+      'DATABASE_URL zorunlu — postgresql://kullanici:sifre@host:port/veritabani formatında olmalı.',
+    ),
   BETTER_AUTH_SECRET: z
     .string()
     .min(1, 'BETTER_AUTH_SECRET zorunlu — `openssl rand -base64 32` ile üretilebilir.'),
   BETTER_AUTH_URL: urlOrLocalhost,
   NEXT_PUBLIC_BETTER_AUTH_URL: urlOrLocalhost,
-  S3_ENDPOINT: z.string().min(1, 'S3_ENDPOINT zorunlu — dosya yükleme (#19) bu değişken olmadan çalışmaz.'),
+  S3_ENDPOINT: z
+    .string()
+    .min(1, 'S3_ENDPOINT zorunlu — dosya yükleme (#19) bu değişken olmadan çalışmaz.'),
   S3_BUCKET: z.string().min(1, 'S3_BUCKET zorunlu.'),
   S3_ACCESS_KEY_ID: z.string().min(1, 'S3_ACCESS_KEY_ID zorunlu.'),
   S3_SECRET_ACCESS_KEY: z.string().min(1, 'S3_SECRET_ACCESS_KEY zorunlu.'),
@@ -102,6 +107,7 @@ const optionalSchema = z.object({
   IYZICO_API_KEY: z.string().optional(),
   IYZICO_SECRET_KEY: z.string().optional(),
   IYZICO_BASE_URL: z.string().optional(),
+  IYZICO_PRODUCT_REFERENCE_CODE: z.string().optional(),
   IYZICO_SINGLE_MONTHLY_PLAN_REFERENCE_CODE: z.string().optional(),
   IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE: z.string().optional(),
   IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE: z.string().optional(),
@@ -125,24 +131,6 @@ function buildSchema(appEnvironment: AppEnvironment) {
     }
 
     if (appEnvironment !== 'local') {
-      const requiredIyzicoFields = [
-        'IYZICO_API_KEY',
-        'IYZICO_SECRET_KEY',
-        'IYZICO_BASE_URL',
-        'IYZICO_SINGLE_MONTHLY_PLAN_REFERENCE_CODE',
-        'IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE',
-        'IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE',
-        'IYZICO_TEAM_YEARLY_PLAN_REFERENCE_CODE',
-      ] as const
-      for (const field of requiredIyzicoFields) {
-        if (!value[field]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${field}, ${appEnvironment} ortamında zorunlu — iyzico abonelik akışı eksik yapılandırılamaz.`,
-            path: [field],
-          })
-        }
-      }
       if (!value.RESEND_API_KEY) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

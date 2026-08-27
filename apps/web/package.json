@@ -13,6 +13,7 @@
     "test": "vitest run",
     "benchmark": "tsx src/lib/food-search-benchmark.ts",
     "benchmark:nutrient-panel": "tsx src/lib/plan-live-panel-benchmark.ts",
+    "iyzico:setup:sandbox": "tsx ../../scripts/setup-iyzico-subscriptions.ts",
     "analyze": "ANALYZE=true next build --turbopack",
     "lighthouse": "tsx scripts/lighthouse.ts"
   },
@@ -42,6 +43,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dexie": "^4.0.11",
+    "iyzipay": "^2.0.69",
     "lucide-react": "^1.31.0",
     "next": "15.5.23",
     "next-themes": "^0.4.6",

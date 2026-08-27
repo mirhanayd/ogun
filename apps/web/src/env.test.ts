@@ -17,16 +17,6 @@ const validLocalEnv: NodeJS.ProcessEnv = {
   S3_SECRET_ACCESS_KEY: 'minioadmin',
 }
 
-const validIyzicoEnv: Record<string, string> = {
-  IYZICO_API_KEY: 'sandbox-api-key',
-  IYZICO_SECRET_KEY: 'sandbox-secret-key',
-  IYZICO_BASE_URL: 'https://sandbox-api.iyzipay.com',
-  IYZICO_SINGLE_MONTHLY_PLAN_REFERENCE_CODE: 'single-monthly',
-  IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE: 'single-yearly',
-  IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE: 'team-monthly',
-  IYZICO_TEAM_YEARLY_PLAN_REFERENCE_CODE: 'team-yearly',
-}
-
 describe('validateEnv', () => {
   it('geçerli local yapılandırmayı kabul eder', () => {
     const result = validateEnv(validLocalEnv)
@@ -84,7 +74,6 @@ describe('validateEnv', () => {
       APP_ENV: 'production',
       RESEND_API_KEY: 're_test_key',
       RESEND_FROM_EMAIL: 'Öğün <bildirim@ogun.co>',
-      ...validIyzicoEnv,
     })
     expect(result.success).toBe(true)
   })
@@ -120,7 +109,6 @@ describe('validateEnv', () => {
       APP_ENV: 'production',
       RESEND_API_KEY: 're_test_key',
       RESEND_FROM_EMAIL: 'Öğün <bildirim@ogun.co>',
-      ...validIyzicoEnv,
     })
     expect(result.success).toBe(true)
   })

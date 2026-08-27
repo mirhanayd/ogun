@@ -1,16 +1,8 @@
 import 'server-only'
 
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { SubscriptionBillingCycle, SubscriptionPlan } from '@ogun/db/schema'
-
-interface IyzicoEnvelope<T> {
-  status?: 'success' | 'failure'
-  errorMessage?: string
-  errorCode?: string
-  token?: string
-  checkoutFormContent?: string
-  data?: T
-}
+import { iyzicoSandboxRequest } from './iyzico-api'
 
 export interface IyzicoCustomer {
   name: string
@@ -44,7 +36,8 @@ function requiredEnv(name: string): string {
 }
 
 function pricingPlanEnvName(planCode: SubscriptionPlan, cycle: SubscriptionBillingCycle): string {
-  const packageName = planCode === 'başlangıç' ? 'SINGLE' : planCode === 'klinik' ? 'TEAM' : 'ENTERPRISE'
+  const packageName =
+    planCode === 'başlangıç' ? 'SINGLE' : planCode === 'klinik' ? 'TEAM' : 'ENTERPRISE'
   return `IYZICO_${packageName}_${cycle === 'monthly' ? 'MONTHLY' : 'YEARLY'}_PLAN_REFERENCE_CODE`
 }
 
@@ -53,47 +46,6 @@ export function getIyzicoPricingPlanReference(
   cycle: SubscriptionBillingCycle,
 ): string {
   return requiredEnv(pricingPlanEnvName(planCode, cycle))
-}
-
-function credentials() {
-  const baseUrl = requiredEnv('IYZICO_BASE_URL').replace(/\/$/, '')
-  const parsed = new URL(baseUrl)
-  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
-    throw new Error('IYZICO_BASE_URL HTTPS olmalıdır.')
-  }
-  return {
-    apiKey: requiredEnv('IYZICO_API_KEY'),
-    secretKey: requiredEnv('IYZICO_SECRET_KEY'),
-    baseUrl,
-  }
-}
-
-function authorization(path: string, body: string, apiKey: string, secretKey: string) {
-  const randomKey = `${Date.now()}${randomBytes(8).toString('hex')}`
-  const signature = createHmac('sha256', secretKey).update(randomKey + path + body, 'utf8').digest('hex')
-  const value = Buffer.from(`apiKey:${apiKey}&randomKey:${randomKey}&signature:${signature}`, 'utf8').toString('base64')
-  return { value: `IYZWSv2 ${value}`, randomKey }
-}
-
-async function iyzicoRequest<T>(path: string, init: { method: 'GET' | 'POST'; body?: unknown }) {
-  const { apiKey, secretKey, baseUrl } = credentials()
-  const body = init.body === undefined ? '' : JSON.stringify(init.body)
-  const auth = authorization(path, body, apiKey, secretKey)
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: init.method,
-    headers: {
-      Authorization: auth.value,
-      'x-iyzi-rnd': auth.randomKey,
-      'Content-Type': 'application/json',
-    },
-    body: init.method === 'POST' ? body : undefined,
-    cache: 'no-store',
-  })
-  const payload = (await response.json().catch(() => null)) as IyzicoEnvelope<T> | null
-  if (!response.ok || !payload || payload.status !== 'success') {
-    throw new Error(payload?.errorMessage || `iyzico isteği başarısız oldu (${response.status}).`)
-  }
-  return payload
 }
 
 export async function initializeIyzicoSubscription(input: {
@@ -109,25 +61,28 @@ export async function initializeIyzicoSubscription(input: {
     city: input.customer.city,
     country: input.customer.country,
   }
-  const response = await iyzicoRequest<Record<string, unknown>>('/v2/subscription/checkoutform/initialize', {
-    method: 'POST',
-    body: {
-      locale: 'tr',
-      callbackUrl: input.callbackUrl,
-      pricingPlanReferenceCode: input.pricingPlanReferenceCode,
-      subscriptionInitialStatus: 'ACTIVE',
-      conversationId: input.conversationId,
-      customer: {
-        name: input.customer.name,
-        surname: input.customer.surname,
-        email: input.customer.email,
-        gsmNumber: input.customer.gsmNumber,
-        identityNumber: input.customer.identityNumber,
-        billingAddress: address,
-        shippingAddress: address,
+  const response = await iyzicoSandboxRequest<Record<string, unknown>>(
+    '/v2/subscription/checkoutform/initialize',
+    {
+      method: 'POST',
+      body: {
+        locale: 'tr',
+        callbackUrl: input.callbackUrl,
+        pricingPlanReferenceCode: input.pricingPlanReferenceCode,
+        subscriptionInitialStatus: 'ACTIVE',
+        conversationId: input.conversationId,
+        customer: {
+          name: input.customer.name,
+          surname: input.customer.surname,
+          email: input.customer.email,
+          gsmNumber: input.customer.gsmNumber,
+          identityNumber: input.customer.identityNumber,
+          billingAddress: address,
+          shippingAddress: address,
+        },
       },
     },
-  })
+  )
   if (!response.token || !response.checkoutFormContent) {
     throw new Error('iyzico ödeme formu yanıtı eksik geldi.')
   }
@@ -139,7 +94,7 @@ function fromEpoch(value: unknown): Date | null {
 }
 
 export async function retrieveIyzicoSubscription(token: string): Promise<IyzicoSubscriptionResult> {
-  const response = await iyzicoRequest<{
+  const response = await iyzicoSandboxRequest<{
     referenceCode?: string
     customerReferenceCode?: string
     subscriptionStatus?: string
@@ -160,10 +115,13 @@ export async function retrieveIyzicoSubscription(token: string): Promise<IyzicoS
 }
 
 export async function cancelIyzicoSubscription(subscriptionReferenceCode: string): Promise<void> {
-  await iyzicoRequest(`/v2/subscription/subscriptions/${encodeURIComponent(subscriptionReferenceCode)}/cancel`, {
-    method: 'POST',
-    body: {},
-  })
+  await iyzicoSandboxRequest(
+    `/v2/subscription/subscriptions/${encodeURIComponent(subscriptionReferenceCode)}/cancel`,
+    {
+      method: 'POST',
+      body: {},
+    },
+  )
 }
 
 export interface IyzicoSubscriptionWebhook {
