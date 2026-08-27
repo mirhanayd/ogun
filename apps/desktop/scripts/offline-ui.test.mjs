@@ -4,10 +4,11 @@ import test from 'node:test'
 
 const htmlUrl = new URL('../splash/index.html', import.meta.url)
 const scriptUrl = new URL('../splash/offline.js', import.meta.url)
+const searchModuleUrl = new URL('../splash/offline-search.mjs', import.meta.url)
 
 test('packaged desktop page loads the maintainable offline client', async () => {
   const html = await readFile(htmlUrl, 'utf8')
-  assert.match(html, /<script src="offline\.js"><\/script>/)
+  assert.match(html, /<script type="module" src="offline\.js"><\/script>/)
   assert.match(html, /ogun-uygulama-ikonu\.svg/)
   assert.match(html, /Hızlı giriş PIN’i/)
   assert.match(html, /<button disabled title="Tarifler için internet bağlantısı gerekir">/)
@@ -21,6 +22,54 @@ test('packaged desktop page loads the maintainable offline client', async () => 
   assert.match(html, /data-modal="measurement"/)
   assert.match(html, /data-modal="labResult"/)
   assert.match(html, /data-modal="payment"/)
+})
+
+test('offline header search finds device records with Turkish-insensitive matching', async () => {
+  const { buildOfflineSearchResults, normalizeOfflineSearchText } = await import(
+    searchModuleUrl.href
+  )
+  const workspace = {
+    clients: [
+      {
+        id: 'client-1',
+        firstName: 'Işıl',
+        lastName: 'Öztürk',
+        phone: '0555 111 22 33',
+        email: 'isil@example.com',
+      },
+    ],
+    plans: [{ id: 'plan-1', clientId: 'client-1', name: 'Glütensiz plan', status: 'taslak' }],
+    appointments: [
+      {
+        id: 'appointment-1',
+        clientId: 'client-1',
+        type: 'kontrol',
+        startsAt: '2026-08-28T09:00:00.000Z',
+      },
+    ],
+  }
+
+  assert.equal(normalizeOfflineSearchText('ÖLÇÜM IŞIL'), 'olcum isil')
+  assert.equal(buildOfflineSearchResults(workspace, 'isil')[0]?.recordId, 'client-1')
+  assert.equal(buildOfflineSearchResults(workspace, 'glutensiz')[0]?.recordId, 'plan-1')
+  assert.equal(buildOfflineSearchResults(workspace, 'kontrol')[0]?.recordId, 'appointment-1')
+  assert.equal(buildOfflineSearchResults(workspace, 'ayar')[0]?.targetPage, 'settings')
+  assert.deepEqual(
+    buildOfflineSearchResults(workspace, '').map((result) => result.kind),
+    ['page', 'page', 'page', 'page', 'page'],
+  )
+})
+
+test('offline header search is keyboard accessible and avoids native titlebar drag', async () => {
+  const html = await readFile(htmlUrl, 'utf8')
+  const script = await readFile(scriptUrl, 'utf8')
+  assert.match(html, /id="global-search-trigger"/)
+  assert.match(html, /id="global-search-input"/)
+  assert.match(script, /event\.target\.closest\('\.title-search'\)/)
+  assert.match(script, /event\.key === 'ArrowDown'/)
+  assert.match(script, /event\.key === 'Enter'/)
+  assert.match(script, /event\.key === 'Escape'/)
+  assert.match(script, /event\.ctrlKey \|\| event\.metaKey/)
 })
 
 test('offline workspace remains backward compatible and journals every clinical record', async () => {

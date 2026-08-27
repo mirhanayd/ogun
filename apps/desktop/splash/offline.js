@@ -1,3 +1,5 @@
+import { buildOfflineSearchResults } from './offline-search.mjs'
+
 const invoke = window.__TAURI__.core.invoke
 const PRODUCTION_URL = 'https://ogun-web.vercel.app'
 
@@ -8,6 +10,8 @@ let selectedClientId = null
 let modalType = null
 let workspace = emptyWorkspace()
 let mutations = []
+let searchResults = []
+let activeSearchResultIndex = 0
 
 const $ = (id) => document.getElementById(id)
 const esc = (value = '') =>
@@ -80,6 +84,7 @@ let lastDragPress = null
 
 $('drag').addEventListener('mousedown', (event) => {
   if (event.button !== 0) return
+  if (event.target.closest('.title-search')) return
   const now = performance.now()
   const previous = lastDragPress
   lastDragPress = { time: now, x: event.clientX, y: event.clientY }
@@ -179,6 +184,7 @@ function openWorkspace(unlocked) {
   $('user-name').textContent = current.profile.displayName
   $('clinic-initials').textContent = initials(current.profile.clinicName)
   $('title-avatar').textContent = initials(current.profile.displayName)
+  $('global-search-trigger').disabled = false
   renderAll()
 }
 
@@ -230,6 +236,131 @@ function showPage(name) {
     .querySelectorAll('.page')
     .forEach((page) => page.classList.toggle('active', page.id === `page-${name}`))
 }
+
+const searchKindLabels = {
+  page: 'Sayfa',
+  client: 'Danışan',
+  plan: 'Plan',
+  appointment: 'Randevu',
+}
+
+const searchKindIcons = {
+  page: '↗',
+  client: 'D',
+  plan: 'P',
+  appointment: 'R',
+}
+
+function renderSearchResults() {
+  const query = $('global-search-input').value
+  searchResults = buildOfflineSearchResults(workspace, query)
+  activeSearchResultIndex = Math.min(activeSearchResultIndex, Math.max(0, searchResults.length - 1))
+  $('global-search-results').innerHTML = searchResults.length
+    ? searchResults
+        .map(
+          (result, index) =>
+            `<button type="button" class="search-result ${index === activeSearchResultIndex ? 'active' : ''}" data-search-index="${index}" role="option" aria-selected="${index === activeSearchResultIndex}"><span class="search-result-icon">${esc(searchKindIcons[result.kind] || '↗')}</span><span class="search-result-copy"><strong>${esc(result.label)}</strong><span>${esc(searchResultDescription(result))}</span></span><span class="search-result-kind">${esc(searchKindLabels[result.kind] || 'Kayıt')}</span></button>`,
+        )
+        .join('')
+    : '<div class="search-empty">Bu cihazdaki kayıtlarda eşleşme bulunamadı.</div>'
+  document.querySelectorAll('[data-search-index]').forEach((button) => {
+    button.onmouseenter = () => {
+      activeSearchResultIndex = Number(button.dataset.searchIndex)
+      updateActiveSearchResult()
+    }
+    button.onclick = () => activateSearchResult(Number(button.dataset.searchIndex))
+  })
+}
+
+function searchResultDescription(result) {
+  if (result.kind !== 'appointment') return result.description || ''
+  const appointment = workspace.appointments.find((item) => item.id === result.recordId)
+  if (!appointment) return result.description || ''
+  return `${appointment.type || 'Görüşme'} · ${formatDate(appointment.startsAt)}`
+}
+
+function updateActiveSearchResult() {
+  document.querySelectorAll('[data-search-index]').forEach((button) => {
+    const active = Number(button.dataset.searchIndex) === activeSearchResultIndex
+    button.classList.toggle('active', active)
+    button.setAttribute('aria-selected', String(active))
+    if (active) button.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+function openGlobalSearch() {
+  if (!current) return
+  $('global-search').classList.remove('hidden')
+  $('global-search-input').value = ''
+  activeSearchResultIndex = 0
+  renderSearchResults()
+  requestAnimationFrame(() => $('global-search-input').focus())
+}
+
+function closeGlobalSearch() {
+  $('global-search').classList.add('hidden')
+  $('global-search-trigger').focus()
+}
+
+function highlightSearchTarget(selector) {
+  requestAnimationFrame(() => {
+    const target = document.querySelector(selector)
+    if (!target) return
+    target.classList.remove('search-target')
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    requestAnimationFrame(() => target.classList.add('search-target'))
+  })
+}
+
+function activateSearchResult(index) {
+  const result = searchResults[index]
+  if (!result) return
+  closeGlobalSearch()
+  if (result.kind === 'client') {
+    openClient(result.recordId)
+    return
+  }
+  showPage(result.targetPage)
+  if (result.kind === 'plan')
+    highlightSearchTarget(`[data-plan-id="${CSS.escape(result.recordId)}"]`)
+  if (result.kind === 'appointment') {
+    highlightSearchTarget(`[data-appointment-id="${CSS.escape(result.recordId)}"]`)
+  }
+}
+
+$('global-search-trigger').onclick = openGlobalSearch
+$('global-search').onclick = (event) => {
+  if (event.target === $('global-search')) closeGlobalSearch()
+}
+$('global-search-input').addEventListener('input', () => {
+  activeSearchResultIndex = 0
+  renderSearchResults()
+})
+$('global-search-input').addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown' && searchResults.length) {
+    event.preventDefault()
+    activeSearchResultIndex = (activeSearchResultIndex + 1) % searchResults.length
+    updateActiveSearchResult()
+  } else if (event.key === 'ArrowUp' && searchResults.length) {
+    event.preventDefault()
+    activeSearchResultIndex =
+      (activeSearchResultIndex - 1 + searchResults.length) % searchResults.length
+    updateActiveSearchResult()
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
+    activateSearchResult(activeSearchResultIndex)
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    closeGlobalSearch()
+  }
+})
+document.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase('tr-TR') === 'k') {
+    event.preventDefault()
+    if ($('global-search').classList.contains('hidden')) openGlobalSearch()
+    else closeGlobalSearch()
+  }
+})
 
 document.querySelectorAll('nav button').forEach((button) => {
   button.onclick = () => showPage(button.dataset.page)
@@ -300,7 +431,7 @@ function renderAll() {
   $('plans-list').innerHTML = workspace.plans
     .map(
       (plan) =>
-        `<div class="list-item"><strong>${esc(plan.name)}</strong><span>${esc(clientName(plan.clientId))} · ${esc(String(plan.targetKcal || '—'))} kcal · ${esc(plan.status || 'taslak')}${localBadge(plan.id)}</span>${plan.notes ? `<span>${esc(plan.notes)}</span>` : ''}</div>`,
+        `<div class="list-item" data-plan-id="${esc(plan.id)}"><strong>${esc(plan.name)}</strong><span>${esc(clientName(plan.clientId))} · ${esc(String(plan.targetKcal || '—'))} kcal · ${esc(plan.status || 'taslak')}${localBadge(plan.id)}</span>${plan.notes ? `<span>${esc(plan.notes)}</span>` : ''}</div>`,
     )
     .join('')
   $('plans-empty').classList.toggle('hidden', workspace.plans.length > 0)
@@ -308,7 +439,7 @@ function renderAll() {
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
     .map(
       (appointment) =>
-        `<div class="list-item"><strong>${esc(clientName(appointment.clientId))}</strong><span>${formatDate(appointment.startsAt)} — ${formatDate(appointment.endsAt)} · ${esc(appointment.type || 'kontrol')}${localBadge(appointment.id)}</span>${appointment.notes ? `<span>${esc(appointment.notes)}</span>` : ''}</div>`,
+        `<div class="list-item" data-appointment-id="${esc(appointment.id)}"><strong>${esc(clientName(appointment.clientId))}</strong><span>${formatDate(appointment.startsAt)} — ${formatDate(appointment.endsAt)} · ${esc(appointment.type || 'kontrol')}${localBadge(appointment.id)}</span>${appointment.notes ? `<span>${esc(appointment.notes)}</span>` : ''}</div>`,
     )
     .join('')
   $('appointments-empty').classList.toggle('hidden', workspace.appointments.length > 0)
