@@ -309,6 +309,7 @@ export async function deletePlan(db: Database, clinicId: string, planId: string)
 // --- plan_days / plan_meals / plan_items — düzenleme yardımcıları -------------
 
 export interface DayInput {
+  id?: string
   dayNumber: number
   dayLabel?: string | null
   notes?: string | null
@@ -319,6 +320,7 @@ export async function addDay(db: Database, clinicId: string, planId: string, inp
   const [day] = await db
     .insert(planDays)
     .values({
+      ...(input.id !== undefined && { id: input.id }),
       planId,
       dayNumber: input.dayNumber,
       dayLabel: input.dayLabel ?? null,
@@ -330,6 +332,7 @@ export async function addDay(db: Database, clinicId: string, planId: string, inp
 }
 
 export interface MealInput {
+  id?: string
   mealType: PlanMealType
   time?: string | null
   name: string
@@ -344,6 +347,7 @@ export async function addMeal(db: Database, clinicId: string, dayId: string, inp
   const [meal] = await db
     .insert(planMeals)
     .values({
+      ...(input.id !== undefined && { id: input.id }),
       dayId,
       mealType: input.mealType,
       time: input.time ?? null,

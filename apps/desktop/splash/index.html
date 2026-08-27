@@ -121,10 +121,13 @@
         color: #fff;
       }
       #boot {
-        height: calc(100% - 48px);
+        position: fixed;
+        inset: 48px 0 0;
+        z-index: 80;
         display: grid;
         place-items: center;
-        background: radial-gradient(circle at 50% 35%, #e7f4ee, transparent 42%), #f8fbf9;
+        background: rgba(9, 39, 29, 0.24);
+        backdrop-filter: blur(5px);
       }
       .boot-card {
         width: min(520px, calc(100vw - 48px));
@@ -132,7 +135,7 @@
         border: 1px solid var(--line);
         border-radius: 24px;
         background: rgba(255, 255, 255, 0.94);
-        box-shadow: 0 24px 70px rgba(15, 55, 40, 0.12);
+        box-shadow: 0 24px 70px rgba(9, 39, 29, 0.22);
         text-align: center;
       }
       .mark {
@@ -536,6 +539,79 @@
         color: var(--muted);
         font-size: 12px;
       }
+      button.list-item {
+        width: 100%;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
+      }
+      button.list-item:hover {
+        border-color: #83b8a4;
+        background: #f7fbf9;
+      }
+      .plan-editor-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+        gap: 14px;
+      }
+      .meal-card + .meal-card {
+        margin-top: 10px;
+      }
+      .meal-head,
+      .food-result,
+      .plan-food-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .meal-head {
+        padding: 13px 15px;
+        border-bottom: 1px solid var(--line);
+      }
+      .meal-head h3 {
+        margin: 0;
+        font-size: 14px;
+      }
+      .plan-food-item,
+      .food-result {
+        padding: 11px 13px;
+        border-bottom: 1px solid #edf2ef;
+      }
+      .plan-food-item:last-child,
+      .food-result:last-child {
+        border-bottom: 0;
+      }
+      .food-copy {
+        min-width: 0;
+        flex: 1;
+      }
+      .food-copy strong,
+      .food-copy span {
+        display: block;
+      }
+      .food-copy span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .food-result button,
+      .plan-food-item button {
+        flex: none;
+      }
+      .food-search-controls {
+        display: grid;
+        gap: 10px;
+      }
+      .food-search-controls input,
+      .food-search-controls select {
+        width: 100%;
+        padding: 10px 11px;
+        border: 1px solid #cbd9d2;
+        border-radius: 10px;
+        background: #fff;
+        outline: none;
+      }
       .modal-backdrop {
         position: fixed;
         inset: 48px 0 0;
@@ -617,6 +693,9 @@
         }
         main {
           padding: 24px;
+        }
+        .plan-editor-grid {
+          grid-template-columns: 1fr;
         }
       }
       tbody tr.client-row {
@@ -1226,7 +1305,7 @@
         <button id="online-login" class="btn secondary hidden">Çevrimiçi girişe git</button>
       </div>
     </section>
-    <section id="app" class="hidden">
+    <section id="app" class="hidden" aria-hidden="true">
       <aside>
         <div class="clinic">
           <span class="clinic-badge" id="clinic-initials">Ö</span>
@@ -1262,14 +1341,14 @@
                 <path d="M9 5h6M9 9h6M9 13h4" />
                 <path d="M5 3h14a2 2 0 0 1 2 2v16H3V5a2 2 0 0 1 2-2Z" /></svg></span
             >Planlar</button
-          ><button disabled title="Tarifler için internet bağlantısı gerekir">
+          ><button data-page="foods">
             <span class="nav-icon"
               ><svg viewBox="0 0 24 24">
                 <path
                   d="M6 3v8M3 3v5a3 3 0 0 0 6 0V3M6 11v10M16 3c3 2 4 5 4 8h-5V3h1ZM18 11v10"
                 /></svg></span
             >Tarifler</button
-          ><button disabled title="Finans ekranı için internet bağlantısı gerekir">
+          ><button data-page="finance">
             <span class="nav-icon"
               ><svg viewBox="0 0 24 24">
                 <path d="M3 6h18v14H3zM3 9h18M16 15h2" />
@@ -1448,6 +1527,78 @@
           </div>
           <div class="list" id="plans-list"></div>
           <div class="card empty hidden" id="plans-empty">Henüz plan yok.</div>
+        </section>
+        <section class="page" id="page-plan-editor">
+          <button class="back-link" id="plan-editor-back">← Planlara dön</button>
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Çevrimdışı plan editörü</div>
+              <h1 id="plan-editor-title">Beslenme planı</h1>
+              <p id="plan-editor-summary">
+                Değişiklikler cihazda tutulur ve internet gelince aktarılır.
+              </p>
+            </div>
+            <span class="offline-chip"><span class="dot"></span>Cihaza kaydediliyor</span>
+          </div>
+          <div class="plan-editor-grid">
+            <div id="plan-meals"></div>
+            <div class="card">
+              <div class="card-head"><h2>Besin ekle</h2></div>
+              <div class="card-body food-search-controls">
+                <select id="offline-food-meal" aria-label="Öğün seç"></select>
+                <input
+                  id="offline-food-search"
+                  type="search"
+                  placeholder="Besin ara (en az 2 harf)"
+                  autocomplete="off"
+                />
+                <input
+                  id="offline-food-grams"
+                  type="number"
+                  min="1"
+                  max="5000"
+                  value="100"
+                  aria-label="Gram"
+                />
+                <p class="hint" id="offline-food-hint">
+                  Bu cihaza indirilen besin kataloğunda arama yapın.
+                </p>
+              </div>
+              <div id="offline-food-results"></div>
+            </div>
+          </div>
+        </section>
+        <section class="page" id="page-foods">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Yerel katalog</div>
+              <h1>Tarifler ve besinler</h1>
+              <p>Besin kataloğu plan editöründe internet olmadan aranabilir.</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-body">
+              <p class="hint">
+                Bir plana besin eklemek için Planlar sayfasından planı açın. Tarif oluşturma, sunucu
+                bağlantısı gerektirdiği için yeniden bağlanınca kullanılabilir.
+              </p>
+              <button class="btn secondary" id="foods-open-plans">Planlara git</button>
+            </div>
+          </div>
+        </section>
+        <section class="page" id="page-finance">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Yerel kayıtlar</div>
+              <h1>Finans</h1>
+              <p>
+                Tahsilatlar bu cihazda görüntülenir; yeni tahsilatı danışan dosyasından
+                ekleyebilirsiniz.
+              </p>
+            </div>
+          </div>
+          <div class="list" id="finance-list"></div>
+          <div class="card empty hidden" id="finance-empty">Henüz tahsilat kaydı yok.</div>
         </section>
         <section class="page" id="page-appointments">
           <div class="page-head">

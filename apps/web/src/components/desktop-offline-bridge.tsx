@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
+import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import {
   remainingOfflineMutations,
   type DesktopOfflineMutation,
@@ -26,6 +27,8 @@ function authHeaders(): HeadersInit {
 }
 
 export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
+  const connectivity = useConnectivityStatus()
+  const openingLocalWorkspace = useRef(false)
   const refreshSnapshot = useCallback(async () => {
     const response = await fetch('/api/desktop/workspace', {
       cache: 'no-store',
@@ -87,6 +90,12 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
       toast.error('Bazı çevrimdışı kayıtlar beklemede.', { description: result.error })
     }
   }, [props.userId, refreshSnapshot])
+
+  const refreshFoodCatalog = useCallback(async () => {
+    const { exportDesktopFoodCatalog } = await import('@/lib/food-index')
+    const catalog = await exportDesktopFoodCatalog()
+    await invoke('save_offline_food_catalog', { catalog })
+  }, [])
 
   useEffect(() => {
     if (!isNativeShell()) return
@@ -150,6 +159,9 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
           })
         }
         await synchronize()
+        await refreshFoodCatalog().catch((error) => {
+          console.warn('[desktop-offline] besin kataloğu cihaza kaydedilemedi', error)
+        })
       })().catch((error) => {
         console.warn('[desktop-offline] cihaz çalışma alanı hazırlanamadı', error)
       })
@@ -181,8 +193,19 @@ export function DesktopOfflineBridge(props: DesktopOfflineBridgeProps) {
     props.email,
     props.role,
     props.userId,
+    refreshFoodCatalog,
     synchronize,
   ])
+
+  useEffect(() => {
+    if (!isNativeShell() || connectivity !== 'offline' || openingLocalWorkspace.current) return
+    openingLocalWorkspace.current = true
+    void invoke('show_offline_workspace', { route: window.location.pathname }).catch((error) => {
+      openingLocalWorkspace.current = false
+      console.warn('[desktop-offline] yerel çalışma alanına geçilemedi', error)
+      toast.error('Çevrimdışı çalışma alanı açılamadı.', { description: String(error) })
+    })
+  }, [connectivity])
 
   return null
 }

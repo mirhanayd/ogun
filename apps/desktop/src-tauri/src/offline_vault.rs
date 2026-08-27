@@ -23,6 +23,7 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    collections::HashSet,
     net::{TcpStream, ToSocketAddrs},
     sync::Mutex,
     time::{Duration, Instant},
@@ -31,6 +32,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 const CLIENT_PATH: &[u8] = b"ogun-offline-workspace";
 const DOCUMENT_KEY: &[u8] = b"offline-vault-v1";
+const FOOD_CATALOG_KEY: &[u8] = b"offline-food-catalog-v1";
 const MAX_FAILED_ATTEMPTS: u8 = 5;
 const LOCKOUT_DURATION: Duration = Duration::from_secs(30);
 const NETWORK_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -79,6 +81,28 @@ pub struct UnlockedWorkspace {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OfflineFoodEntry {
+    pub id: String,
+    pub name_tr: String,
+    pub search_text: String,
+    pub group_name_tr: Option<String>,
+    pub kcal_per_100g: Option<f64>,
+    pub protein_per_100g: Option<f64>,
+    pub carb_per_100g: Option<f64>,
+    pub fat_per_100g: Option<f64>,
+    pub default_portion_label: Option<String>,
+    pub default_portion_grams: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfflineFoodCatalog {
+    pub version: String,
+    pub entries: Vec<OfflineFoodEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OfflineProfileRecord {
     summary: OfflineProfileSummary,
     pin_hash: Option<String>,
@@ -111,6 +135,7 @@ struct RuntimeState {
     active_online_user_id: Option<String>,
     failed_attempts: u8,
     locked_until: Option<Instant>,
+    food_catalog: Option<OfflineFoodCatalog>,
 }
 
 #[derive(Default)]
@@ -155,6 +180,207 @@ fn save_document(app: &AppHandle, document: &VaultDocument) -> Result<(), String
             .save()
             .map_err(|err| format!("Çevrimdışı kasa diske kaydedilemedi: {err}"))
     })
+}
+
+fn load_food_catalog(app: &AppHandle) -> Result<Option<OfflineFoodCatalog>, String> {
+    crate::vault::with_vault(app, |vault| {
+        let Some(client) = crate::vault::open_client(vault, CLIENT_PATH)? else {
+            return Ok(None);
+        };
+        let bytes = client
+            .store()
+            .get(FOOD_CATALOG_KEY)
+            .map_err(|err| format!("Yerel besin kataloğu okunamadı: {err}"))?;
+        bytes
+            .map(|value| {
+                serde_json::from_slice(&value)
+                    .map_err(|err| format!("Yerel besin kataloğu bozuk: {err}"))
+            })
+            .transpose()
+    })
+}
+
+fn save_food_catalog(app: &AppHandle, catalog: &OfflineFoodCatalog) -> Result<(), String> {
+    crate::vault::with_vault(app, |vault| {
+        let client = match crate::vault::open_client(vault, CLIENT_PATH)? {
+            Some(client) => client,
+            None => vault
+                .create_client(CLIENT_PATH)
+                .map_err(|err| format!("Yerel besin kataloğu kasası oluşturulamadı: {err}"))?,
+        };
+        let bytes = serde_json::to_vec(catalog)
+            .map_err(|err| format!("Yerel besin kataloğu hazırlanamadı: {err}"))?;
+        client
+            .store()
+            .insert(FOOD_CATALOG_KEY.to_vec(), bytes, None)
+            .map_err(|err| format!("Yerel besin kataloğu kaydedilemedi: {err}"))?;
+        vault
+            .save()
+            .map_err(|err| format!("Yerel besin kataloğu diske yazılamadı: {err}"))
+    })
+}
+
+fn normalize_food_search(value: &str) -> String {
+    value
+        .chars()
+        .flat_map(char::to_lowercase)
+        .map(|character| match character {
+            'ç' => 'c',
+            'ğ' => 'g',
+            'ı' => 'i',
+            'ö' => 'o',
+            'ş' => 's',
+            'ü' => 'u',
+            other => other,
+        })
+        .filter(|character| character.is_alphanumeric() || character.is_whitespace())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn save_offline_food_catalog_impl(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    state: &OfflineVaultState,
+    catalog: OfflineFoodCatalog,
+) -> Result<(), String> {
+    if !is_online_app(window) {
+        return Err(
+            "Besin kataloğu yalnızca doğrulanmış çevrimiçi uygulamadan güncellenebilir."
+                .to_string(),
+        );
+    }
+    if catalog.entries.is_empty() || catalog.entries.len() > 30_000 {
+        return Err("Besin kataloğu boş veya beklenen sınırın dışında.".to_string());
+    }
+    let unchanged = state
+        .0
+        .lock()
+        .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?
+        .food_catalog
+        .as_ref()
+        .is_some_and(|existing| {
+            existing.version == catalog.version && existing.entries.len() == catalog.entries.len()
+        });
+    if unchanged {
+        return Ok(());
+    }
+    save_food_catalog(app, &catalog)?;
+    state
+        .0
+        .lock()
+        .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?
+        .food_catalog = Some(catalog);
+    Ok(())
+}
+
+fn search_offline_food_catalog_impl(
+    app: &AppHandle,
+    state: &OfflineVaultState,
+    query: String,
+    limit: usize,
+) -> Result<Vec<OfflineFoodEntry>, String> {
+    let cached = {
+        let runtime = state
+            .0
+            .lock()
+            .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
+        if runtime.unlocked_user_id.is_none() && runtime.active_online_user_id.is_none() {
+            return Err(
+                "Besin kataloğunu kullanmak için kayıtlı hesabın kilidini açın.".to_string(),
+            );
+        }
+        runtime.food_catalog.clone()
+    };
+    let catalog = match cached {
+        Some(catalog) => catalog,
+        None => load_food_catalog(app)?
+            .ok_or_else(|| "Besin kataloğu bu cihaza henüz indirilmemiş.".to_string())?,
+    };
+    if state
+        .0
+        .lock()
+        .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?
+        .food_catalog
+        .is_none()
+    {
+        state
+            .0
+            .lock()
+            .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?
+            .food_catalog = Some(catalog.clone());
+    }
+
+    let normalized_query = normalize_food_search(&query);
+    if normalized_query.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let mut matches = catalog
+        .entries
+        .into_iter()
+        .filter_map(|entry| {
+            let name = normalize_food_search(&entry.name_tr);
+            let searchable = normalize_food_search(&entry.search_text);
+            if !name.contains(&normalized_query) && !searchable.contains(&normalized_query) {
+                return None;
+            }
+            let rank = if name == normalized_query {
+                0
+            } else if name.starts_with(&normalized_query) {
+                1
+            } else if name.contains(&normalized_query) {
+                2
+            } else {
+                3
+            };
+            Some((rank, entry))
+        })
+        .collect::<Vec<_>>();
+    matches.sort_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then_with(|| left.1.name_tr.cmp(&right.1.name_tr))
+    });
+    Ok(matches
+        .into_iter()
+        .take(limit.clamp(1, 50))
+        .map(|(_, entry)| entry)
+        .collect())
+}
+
+fn get_offline_food_entries_impl(
+    app: &AppHandle,
+    state: &OfflineVaultState,
+    ids: Vec<String>,
+) -> Result<Vec<OfflineFoodEntry>, String> {
+    if ids.len() > 1_000 {
+        return Err("Tek seferde en fazla 1000 besin okunabilir.".to_string());
+    }
+    let cached = {
+        let runtime = state
+            .0
+            .lock()
+            .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
+        if runtime.unlocked_user_id.is_none() && runtime.active_online_user_id.is_none() {
+            return Err(
+                "Besin kataloğunu kullanmak için kayıtlı hesabın kilidini açın.".to_string(),
+            );
+        }
+        runtime.food_catalog.clone()
+    };
+    let catalog = match cached {
+        Some(catalog) => catalog,
+        None => load_food_catalog(app)?
+            .ok_or_else(|| "Besin kataloğu bu cihaza henüz indirilmemiş.".to_string())?,
+    };
+    let requested = ids.into_iter().collect::<HashSet<_>>();
+    Ok(catalog
+        .entries
+        .into_iter()
+        .filter(|entry| requested.contains(&entry.id))
+        .collect())
 }
 
 pub fn has_saved_profiles(app: &AppHandle) -> bool {
@@ -269,11 +495,15 @@ fn upsert_offline_profile_impl(
     }
     save_document(app, &document)?;
     crate::startup::set_enabled_for_saved_profiles(app, true);
-    state
+    let mut runtime = state
         .0
         .lock()
-        .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?
-        .active_online_user_id = Some(active_user_id);
+        .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
+    runtime.active_online_user_id = Some(active_user_id.clone());
+    // Kullanıcı bu süreçte sunucu tarafından zaten doğrulandı. İnternet aynı
+    // oturum içinde kesilirse ikinci kez PIN istemeden şifreli yerel çalışma
+    // alanına geçebilmek için yalnız bellek içindeki kilidi aç.
+    runtime.unlocked_user_id = Some(active_user_id);
     Ok(())
 }
 
@@ -575,7 +805,9 @@ fn join_result<T>(result: tauri::Result<Result<T, String>>) -> Result<T, String>
 
 #[tauri::command]
 pub async fn list_offline_profiles(app: AppHandle) -> Result<Vec<OfflineProfileSummary>, String> {
-    join_result(tauri::async_runtime::spawn_blocking(move || list_offline_profiles_impl(&app)).await)
+    join_result(
+        tauri::async_runtime::spawn_blocking(move || list_offline_profiles_impl(&app)).await,
+    )
 }
 
 #[tauri::command]
@@ -741,6 +973,50 @@ pub async fn acknowledge_offline_mutations(
     )
 }
 
+#[tauri::command]
+pub async fn save_offline_food_catalog(
+    app: AppHandle,
+    window: WebviewWindow,
+    catalog: OfflineFoodCatalog,
+) -> Result<(), String> {
+    join_result(
+        tauri::async_runtime::spawn_blocking(move || {
+            let state = app.state::<OfflineVaultState>();
+            save_offline_food_catalog_impl(&app, &window, &state, catalog)
+        })
+        .await,
+    )
+}
+
+#[tauri::command]
+pub async fn search_offline_food_catalog(
+    app: AppHandle,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<OfflineFoodEntry>, String> {
+    join_result(
+        tauri::async_runtime::spawn_blocking(move || {
+            let state = app.state::<OfflineVaultState>();
+            search_offline_food_catalog_impl(&app, &state, query, limit.unwrap_or(20))
+        })
+        .await,
+    )
+}
+
+#[tauri::command]
+pub async fn get_offline_food_entries(
+    app: AppHandle,
+    ids: Vec<String>,
+) -> Result<Vec<OfflineFoodEntry>, String> {
+    join_result(
+        tauri::async_runtime::spawn_blocking(move || {
+            let state = app.state::<OfflineVaultState>();
+            get_offline_food_entries_impl(&app, &state, ids)
+        })
+        .await,
+    )
+}
+
 /// DNS çözümlemesi + TCP bağlantı denemesi bazı ağlarda saniyeler sürebilir;
 /// splash ekranının boot akışı bunu çağırdığından ana iş parçacığını
 /// BLOKLAMAMASI zorunludur (eskiden senkrondu — açılıştaki takılmanın bir
@@ -760,18 +1036,33 @@ pub async fn desktop_network_available() -> bool {
     .unwrap_or(false)
 }
 
+fn offline_page_for_route(route: Option<&str>) -> &'static str {
+    match route.unwrap_or_default() {
+        path if path.starts_with("/danisanlar/") => "clients",
+        "/danisanlar" => "clients",
+        "/randevular" => "appointments",
+        path if path.starts_with("/planlar") => "plans",
+        path if path.starts_with("/tarifler") || path.starts_with("/besinler") => "foods",
+        path if path.starts_with("/finans") => "finance",
+        path if path.starts_with("/ayarlar") => "settings",
+        _ => "panel",
+    }
+}
+
 #[tauri::command]
-pub fn show_offline_workspace(window: WebviewWindow) -> Result<(), String> {
+pub fn show_offline_workspace(window: WebviewWindow, route: Option<String>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let url = "tauri://localhost/index.html";
     #[cfg(not(target_os = "macos"))]
     let url = "http://tauri.localhost/index.html";
 
+    let mut parsed = url
+        .parse::<tauri::Url>()
+        .map_err(|err| format!("Yerel adres hazırlanamadı: {err}"))?;
+    parsed.set_fragment(Some(offline_page_for_route(route.as_deref())));
+
     window
-        .navigate(
-            url.parse()
-                .map_err(|err| format!("Yerel adres hazırlanamadı: {err}"))?,
-        )
+        .navigate(parsed)
         .map_err(|err| format!("Yerel çalışma alanı açılamadı: {err}"))
 }
 
@@ -814,5 +1105,26 @@ mod tests {
             crate::vault::VAULT_PASSPHRASE,
             "ogun-desktop-native-session-v1"
         );
+    }
+
+    #[test]
+    fn live_routes_open_the_matching_local_workspace_page() {
+        assert_eq!(offline_page_for_route(Some("/panel")), "panel");
+        assert_eq!(offline_page_for_route(Some("/danisanlar")), "clients");
+        assert_eq!(
+            offline_page_for_route(Some("/danisanlar/client-1")),
+            "clients"
+        );
+        assert_eq!(offline_page_for_route(Some("/randevular")), "appointments");
+        assert_eq!(offline_page_for_route(Some("/planlar/abc")), "plans");
+        assert_eq!(offline_page_for_route(Some("/tarifler")), "foods");
+        assert_eq!(offline_page_for_route(Some("/finans")), "finance");
+        assert_eq!(offline_page_for_route(Some("/ayarlar/ekip")), "settings");
+    }
+
+    #[test]
+    fn food_search_normalization_is_turkish_insensitive() {
+        assert_eq!(normalize_food_search("ÖLÇÜM IŞIL"), "olcum isil");
+        assert_eq!(normalize_food_search("Çılgın  Şeftali"), "cilgin seftali");
     }
 }

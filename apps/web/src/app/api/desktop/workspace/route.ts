@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { db } from '@ogun/db'
 import {
   addAlternative,
+  addDay,
   addItem,
+  addMeal,
   createAppointment,
   createClient,
   createGoal,
@@ -183,6 +185,30 @@ const planCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   targetKcal: z.number().int().min(500).max(10000).nullable().optional(),
   notes: z.string().max(20_000).nullable().optional(),
+  skeleton: z
+    .object({
+      days: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(160),
+            dayNumber: z.number().int().positive(),
+            dayLabel: z.string().nullable(),
+            meals: z
+              .array(
+                z.object({
+                  id: z.string().min(1).max(160),
+                  mealType: z.enum(['kahvaltı', 'ara1', 'öğle', 'ara2', 'akşam', 'gece']),
+                  time: z.string().nullable(),
+                  name: z.string().trim().min(1).max(120),
+                  sortOrder: z.number().int().nonnegative(),
+                }),
+              )
+              .max(12),
+          }),
+        )
+        .max(31),
+    })
+    .optional(),
 })
 
 const appointmentCreateSchema = z
@@ -270,6 +296,9 @@ async function reconcilePlanDraft(
       day.meals.flatMap((meal) => meal.items.map(({ item }) => [item.id, item] as const)),
     ),
   )
+  const serverMealIds = new Set(
+    serverTree.days.flatMap((day) => day.meals.map(({ meal }) => meal.id)),
+  )
   const draftRealItemIds = new Set(
     payload.days.flatMap((day) =>
       day.meals.flatMap((meal) =>
@@ -284,7 +313,10 @@ async function reconcilePlanDraft(
 
   for (const day of payload.days) {
     for (const meal of day.meals) {
-      if (isTemporaryId(meal.id)) continue
+      // Yeni çevrimdışı planların yerel öğün kimlikleri plan.create
+      // sırasında sunucuda aynen oluşturulur. Yalnızca henüz karşılığı
+      // bulunmayan geçici öğünleri atla.
+      if (isTemporaryId(meal.id) && !serverMealIds.has(meal.id)) continue
       await updateMeal(db, clinicId, meal.id, {
         name: meal.name,
         time: meal.time,
@@ -581,6 +613,32 @@ export async function POST(request: Request) {
               status: 'taslak',
             }))
           idMap[payload.id] = created.id
+          if (payload.skeleton) {
+            const tree = await getPlanTree(db, ctx.scope.clinicId, created.id)
+            const existingDayIds = new Set(tree?.days.map(({ day }) => day.id) ?? [])
+            const existingMealIds = new Set(
+              tree?.days.flatMap((day) => day.meals.map(({ meal }) => meal.id)) ?? [],
+            )
+            for (const day of payload.skeleton.days) {
+              if (!existingDayIds.has(day.id)) {
+                await addDay(db, ctx.scope.clinicId, created.id, {
+                  id: day.id,
+                  dayNumber: day.dayNumber,
+                  dayLabel: day.dayLabel,
+                })
+              }
+              for (const meal of day.meals) {
+                if (existingMealIds.has(meal.id)) continue
+                await addMeal(db, ctx.scope.clinicId, day.id, {
+                  id: meal.id,
+                  mealType: meal.mealType,
+                  time: meal.time,
+                  name: meal.name,
+                  sortOrder: meal.sortOrder,
+                })
+              }
+            }
+          }
         }
 
         if (mutation.kind === 'appointment.create') {

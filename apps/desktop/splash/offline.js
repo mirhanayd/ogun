@@ -12,6 +12,10 @@ let workspace = emptyWorkspace()
 let mutations = []
 let searchResults = []
 let activeSearchResultIndex = 0
+let transitioningOnline = false
+let editingPlanId = null
+let offlineFoodResults = []
+let foodSearchTimer = null
 
 const $ = (id) => document.getElementById(id)
 const esc = (value = '') =>
@@ -45,6 +49,7 @@ function emptyWorkspace() {
     payments: [],
     plans: [],
     appointments: [],
+    planDrafts: {},
   }
 }
 
@@ -63,6 +68,8 @@ function normalizeWorkspace(value) {
     if (!Array.isArray(normalized[key])) normalized[key] = []
   }
   normalized.version = 2
+  if (!normalized.planDrafts || typeof normalized.planDrafts !== 'object')
+    normalized.planDrafts = {}
   return normalized
 }
 
@@ -108,15 +115,36 @@ async function networkAvailable() {
   }
 }
 
-function goOnline() {
+function goOnline(path = current ? '/panel' : '/giris') {
+  if (transitioningOnline) return
+  transitioningOnline = true
   // Beyaz ekran düzeltmesi: uzak sayfayı DOĞRUDAN gezinmek yerine Rust'a
   // devret. Ana pencere splash'i GÖRÜNÜR tutarken gizli bir pencerede aynı
   // adres ön yüklenir; hazır olunca ana pencere önbellek-sıcak geçişle
   // açılır (bkz. src-tauri/src/online_preload.rs). Komut başarısızsa
   // (eski ikili dosya vb.) eski davranışa düşülür.
-  invoke('open_online_app', { entryUrl: `${PRODUCTION_URL}/giris` }).catch(() => {
-    location.href = `${PRODUCTION_URL}/giris`
+  invoke('open_online_app', { entryUrl: `${PRODUCTION_URL}${path}` }).catch(() => {
+    location.href = `${PRODUCTION_URL}${path}`
   })
+}
+
+function requestedOfflinePage() {
+  const requested = location.hash.replace(/^#/, '')
+  return ['panel', 'clients', 'appointments', 'plans', 'foods', 'finance', 'settings'].includes(
+    requested,
+  )
+    ? requested
+    : 'panel'
+}
+
+function showLockedShell(profile = null) {
+  $('app').classList.remove('hidden')
+  $('app').setAttribute('aria-hidden', 'true')
+  $('clinic-name').textContent = profile?.clinicName || 'Öğün çalışma alanı'
+  $('user-name').textContent = profile?.displayName || 'Çevrimdışı erişim'
+  $('clinic-initials').textContent = initials(profile?.clinicName || 'Öğün')
+  $('title-avatar').textContent = initials(profile?.displayName || 'Öğün')
+  showPage(requestedOfflinePage())
 }
 
 async function boot() {
@@ -130,6 +158,9 @@ async function boot() {
     goOnline()
     return
   }
+  // Ayrı bir "offline uygulaması" göstermek yerine normal uygulama kabuğunu
+  // hemen çiz; hesap/PIN seçimi bu kabuğun üzerinde güvenli bir kilit katmanıdır.
+  showLockedShell()
   // Açılmış bir PIN profili ağ geri geldiğinde kullanıcıyı yerel arayüzde
   // tutmamalı. Bağlantı kontrolü bu nedenle kasadaki kilit durumundan ÖNCE.
   const unlocked = await invoke('get_unlocked_offline_workspace').catch(() => null)
@@ -138,6 +169,7 @@ async function boot() {
     return
   }
   profiles = await invoke('list_offline_profiles').catch(() => [])
+  showLockedShell(profiles[0] || null)
   $('boot-title').textContent = profiles.length
     ? 'Bu cihazda kim çalışıyor?'
     : 'İlk giriş için bağlantı gerekiyor'
@@ -166,6 +198,7 @@ function renderProfiles() {
 function selectProfile(userId) {
   selectedProfile = profiles.find((profile) => profile.userId === userId)
   if (!selectedProfile) return
+  showLockedShell(selectedProfile)
   $('profiles').classList.add('hidden')
   $('pin-panel').classList.remove('hidden')
   $('boot-title').textContent = `Hoş geldiniz, ${selectedProfile.displayName.split(' ')[0]}`
@@ -180,12 +213,14 @@ function openWorkspace(unlocked) {
   mutations = current.pendingMutations || []
   $('boot').classList.add('hidden')
   $('app').classList.remove('hidden')
+  $('app').setAttribute('aria-hidden', 'false')
   $('clinic-name').textContent = current.profile.clinicName
   $('user-name').textContent = current.profile.displayName
   $('clinic-initials').textContent = initials(current.profile.clinicName)
   $('title-avatar').textContent = initials(current.profile.displayName)
   $('global-search-trigger').disabled = false
   renderAll()
+  showPage(requestedOfflinePage())
 }
 
 function initials(value) {
@@ -227,6 +262,17 @@ $('online-login').onclick = async () => {
   if (await networkAvailable()) goOnline()
   else $('boot-error').textContent = 'İnternet bağlantısı hâlâ yok.'
 }
+
+async function resumeOnlineIfAvailable() {
+  if (transitioningOnline || !(await networkAvailable())) return
+  $('sync-title').textContent = 'Bağlantı bulundu'
+  $('sync-copy').textContent =
+    'Bekleyen kayıtlar bulutla eşitlenmek üzere ana uygulamaya aktarılıyor.'
+  goOnline(current ? '/panel' : '/giris')
+}
+
+window.addEventListener('online', () => void resumeOnlineIfAvailable())
+window.setInterval(() => void resumeOnlineIfAvailable(), 10_000)
 
 function showPage(name) {
   document
@@ -431,10 +477,13 @@ function renderAll() {
   $('plans-list').innerHTML = workspace.plans
     .map(
       (plan) =>
-        `<div class="list-item" data-plan-id="${esc(plan.id)}"><strong>${esc(plan.name)}</strong><span>${esc(clientName(plan.clientId))} · ${esc(String(plan.targetKcal || '—'))} kcal · ${esc(plan.status || 'taslak')}${localBadge(plan.id)}</span>${plan.notes ? `<span>${esc(plan.notes)}</span>` : ''}</div>`,
+        `<button type="button" class="list-item" data-plan-id="${esc(plan.id)}"><strong>${esc(plan.name)}</strong><span>${esc(clientName(plan.clientId))} · ${esc(String(plan.targetKcal || '—'))} kcal · ${esc(plan.status || 'taslak')}${localBadge(plan.id)}</span>${plan.notes ? `<span>${esc(plan.notes)}</span>` : ''}</button>`,
     )
     .join('')
   $('plans-empty').classList.toggle('hidden', workspace.plans.length > 0)
+  document.querySelectorAll('[data-plan-id]').forEach((row) => {
+    row.onclick = () => openPlanEditor(row.dataset.planId)
+  })
   $('appointments-list').innerHTML = [...workspace.appointments]
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
     .map(
@@ -443,6 +492,14 @@ function renderAll() {
     )
     .join('')
   $('appointments-empty').classList.toggle('hidden', workspace.appointments.length > 0)
+  $('finance-list').innerHTML = [...workspace.payments]
+    .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt))
+    .map(
+      (payment) =>
+        `<div class="list-item"><strong>${esc(clientName(payment.clientId))} · ${Number(payment.amount).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</strong><span>${formatDate(payment.paidAt)} · ${esc(payment.method)}${localBadge(payment.id)}</span>${payment.notes ? `<span>${esc(payment.notes)}</span>` : ''}</div>`,
+    )
+    .join('')
+  $('finance-empty').classList.toggle('hidden', workspace.payments.length > 0)
   if (selectedClientId) renderClientDetail()
 }
 
@@ -542,6 +599,245 @@ async function persist(kind, payload) {
   await invoke('save_offline_workspace', { userId: current.profile.userId, workspace })
   renderAll()
 }
+
+const defaultMeals = [
+  ['kahvaltı', 'Kahvaltı', '08:00'],
+  ['ara1', 'Ara öğün', '10:30'],
+  ['öğle', 'Öğle', '13:00'],
+  ['ara2', 'Ara öğün', '16:00'],
+  ['akşam', 'Akşam', '19:00'],
+  ['gece', 'Gece', '21:30'],
+]
+
+function createPlanDraft(plan) {
+  const dayId = localId('day')
+  return {
+    planId: plan.id,
+    planName: plan.name,
+    targetKcal: plan.targetKcal,
+    startDate: null,
+    endDate: null,
+    outputFormat: 'besin_listesi',
+    days: [
+      {
+        id: dayId,
+        dayNumber: 1,
+        dayLabel: null,
+        meals: defaultMeals.map(([mealType, name, time], sortOrder) => ({
+          id: localId('meal'),
+          dayId,
+          mealType,
+          time,
+          name,
+          sortOrder,
+          items: [],
+        })),
+      },
+    ],
+  }
+}
+
+function currentPlanDraft() {
+  return editingPlanId ? workspace.planDrafts[editingPlanId] : null
+}
+
+async function persistPlanDraft() {
+  const draft = currentPlanDraft()
+  if (!draft) return
+  workspace.capturedAt = iso()
+  await invoke('save_offline_plan_draft', {
+    userId: current.profile.userId,
+    planId: editingPlanId,
+    draft,
+  })
+  const mutation = {
+    id: `plan-draft-${editingPlanId}`,
+    kind: 'plan.draft.replace',
+    payload: draft,
+    createdAt: iso(),
+  }
+  await invoke('queue_offline_mutation', { userId: current.profile.userId, mutation })
+  const mutationIndex = mutations.findIndex((item) => item.id === mutation.id)
+  if (mutationIndex >= 0) mutations[mutationIndex] = mutation
+  else mutations.push(mutation)
+  await invoke('save_offline_workspace', { userId: current.profile.userId, workspace })
+  renderAll()
+  renderPlanEditor()
+}
+
+function planItemNutrition(item) {
+  const ratio = Number(item.amountGrams || 0) / 100
+  return {
+    kcal: Number(item.kcalPer100g || 0) * ratio,
+    protein: Number(item.proteinPer100g || 0) * ratio,
+    carb: Number(item.carbPer100g || 0) * ratio,
+    fat: Number(item.fatPer100g || 0) * ratio,
+  }
+}
+
+function renderPlanEditor() {
+  const plan = workspace.plans.find((item) => item.id === editingPlanId)
+  const draft = currentPlanDraft()
+  if (!plan || !draft) return
+  const meals = draft.days.flatMap((day) => day.meals)
+  const totals = meals
+    .flatMap((meal) => meal.items)
+    .reduce(
+      (sum, item) => {
+        const value = planItemNutrition(item)
+        sum.kcal += value.kcal
+        sum.protein += value.protein
+        sum.carb += value.carb
+        sum.fat += value.fat
+        return sum
+      },
+      { kcal: 0, protein: 0, carb: 0, fat: 0 },
+    )
+  $('plan-editor-title').textContent = plan.name
+  $('plan-editor-summary').textContent =
+    `${clientName(plan.clientId)} · ${Math.round(totals.kcal)} kcal · P ${totals.protein.toFixed(1)} g · K ${totals.carb.toFixed(1)} g · Y ${totals.fat.toFixed(1)} g`
+  $('offline-food-meal').innerHTML = meals
+    .map((meal) => `<option value="${esc(meal.id)}">${esc(meal.name)}</option>`)
+    .join('')
+  $('plan-meals').innerHTML = meals
+    .map(
+      (meal) =>
+        `<div class="card meal-card"><div class="meal-head"><h3>${esc(meal.name)}</h3><span class="badge">${esc(meal.time || '—')}</span></div><div>${
+          meal.items.length
+            ? meal.items
+                .map((item) => {
+                  const nutrition = planItemNutrition(item)
+                  return `<div class="plan-food-item" data-plan-item="${esc(item.id)}"><div class="food-copy"><strong>${esc(item.foodName || item.freeText || 'Besin')}</strong><span>${Number(item.amountGrams).toLocaleString('tr-TR')} g · ${Math.round(nutrition.kcal)} kcal</span></div><button type="button" class="btn secondary small" data-remove-plan-item="${esc(item.id)}" data-meal-id="${esc(meal.id)}">Kaldır</button></div>`
+                })
+                .join('')
+            : '<div class="empty">Bu öğüne henüz besin eklenmedi.</div>'
+        }</div></div>`,
+    )
+    .join('')
+  document.querySelectorAll('[data-remove-plan-item]').forEach((button) => {
+    button.onclick = async () => {
+      const meal = meals.find((item) => item.id === button.dataset.mealId)
+      if (!meal) return
+      meal.items = meal.items.filter((item) => item.id !== button.dataset.removePlanItem)
+      await persistPlanDraft()
+    }
+  })
+}
+
+async function enrichDraftFoodMetadata(draft) {
+  const items = draft.days.flatMap((day) => day.meals.flatMap((meal) => meal.items))
+  const ids = [...new Set(items.map((item) => item.foodId).filter(Boolean))]
+  if (!ids.length) return
+  try {
+    const entries = await invoke('get_offline_food_entries', { ids })
+    const byId = new Map(entries.map((entry) => [entry.id, entry]))
+    for (const item of items) {
+      const food = byId.get(item.foodId)
+      if (!food) continue
+      item.foodName = food.nameTr
+      item.kcalPer100g = food.kcalPer100g
+      item.proteinPer100g = food.proteinPer100g
+      item.carbPer100g = food.carbPer100g
+      item.fatPer100g = food.fatPer100g
+    }
+    await invoke('save_offline_workspace', { userId: current.profile.userId, workspace })
+  } catch (error) {
+    console.warn('[offline-plan] besin ayrıntıları okunamadı', error)
+  }
+}
+
+async function openPlanEditor(planId) {
+  const plan = workspace.plans.find((item) => item.id === planId)
+  if (!plan) return
+  if (!workspace.planDrafts[planId]) {
+    if (!String(plan.id).startsWith('local-')) {
+      alert(
+        'Bu planı çevrimiçiyken bir kez açın; ayrıntılar cihaza kaydedildikten sonra internet olmadan düzenlenebilir.',
+      )
+      return
+    }
+    workspace.planDrafts[planId] = createPlanDraft(plan)
+  }
+  editingPlanId = planId
+  offlineFoodResults = []
+  $('offline-food-results').innerHTML = ''
+  $('offline-food-search').value = ''
+  renderPlanEditor()
+  showPage('plan-editor')
+  await enrichDraftFoodMetadata(workspace.planDrafts[planId])
+  if (editingPlanId === planId) renderPlanEditor()
+}
+
+function renderOfflineFoodResults() {
+  $('offline-food-results').innerHTML = offlineFoodResults.length
+    ? offlineFoodResults
+        .map(
+          (food, index) =>
+            `<div class="food-result"><div class="food-copy"><strong>${esc(food.nameTr)}</strong><span>${esc(food.groupNameTr || 'Besin')} · ${Math.round(food.kcalPer100g || 0)} kcal/100 g</span></div><button type="button" class="btn small" data-add-food="${index}">Ekle</button></div>`,
+        )
+        .join('')
+    : ''
+  document.querySelectorAll('[data-add-food]').forEach((button) => {
+    button.onclick = async () => {
+      const food = offlineFoodResults[Number(button.dataset.addFood)]
+      const draft = currentPlanDraft()
+      const meal = draft?.days
+        .flatMap((day) => day.meals)
+        .find((item) => item.id === $('offline-food-meal').value)
+      if (!food || !meal) return
+      const grams = Math.max(
+        1,
+        Math.min(5000, Number($('offline-food-grams').value) || food.defaultPortionGrams || 100),
+      )
+      meal.items.push({
+        id: localId('item'),
+        mealId: meal.id,
+        foodId: food.id,
+        recipeId: null,
+        freeText: null,
+        amountGrams: grams,
+        note: null,
+        sortOrder: meal.items.length,
+        isOptional: false,
+        alternatives: [],
+        foodName: food.nameTr,
+        kcalPer100g: food.kcalPer100g,
+        proteinPer100g: food.proteinPer100g,
+        carbPer100g: food.carbPer100g,
+        fatPer100g: food.fatPer100g,
+      })
+      await persistPlanDraft()
+    }
+  })
+}
+
+async function searchOfflineFoods() {
+  const query = $('offline-food-search').value.trim()
+  if (query.length < 2) {
+    offlineFoodResults = []
+    renderOfflineFoodResults()
+    return
+  }
+  $('offline-food-hint').textContent = 'Yerel katalog aranıyor…'
+  try {
+    offlineFoodResults = await invoke('search_offline_food_catalog', { query, limit: 20 })
+    $('offline-food-hint').textContent = offlineFoodResults.length
+      ? `${offlineFoodResults.length} sonuç bulundu.`
+      : 'Eşleşen besin bulunamadı.'
+    renderOfflineFoodResults()
+  } catch (error) {
+    offlineFoodResults = []
+    renderOfflineFoodResults()
+    $('offline-food-hint').textContent = String(error)
+  }
+}
+
+$('plan-editor-back').onclick = () => showPage('plans')
+$('foods-open-plans').onclick = () => showPage('plans')
+$('offline-food-search').addEventListener('input', () => {
+  window.clearTimeout(foodSearchTimer)
+  foodSearchTimer = window.setTimeout(() => void searchOfflineFoods(), 180)
+})
 
 const option = (value, label) => ({ value, label })
 const sexOptions = [option('', 'Belirtilmedi'), option('female', 'Kadın'), option('male', 'Erkek')]
@@ -1054,7 +1350,26 @@ $('modal-form').onsubmit = async (event) => {
         updatedAt: iso(),
       }
       workspace.plans.unshift(record)
-      await persist('plan.create', record)
+      const draft = createPlanDraft(record)
+      workspace.planDrafts[id] = draft
+      const skeleton = {
+        days: draft.days.map((day) => ({
+          id: day.id,
+          dayNumber: day.dayNumber,
+          dayLabel: day.dayLabel,
+          meals: day.meals.map(({ id: mealId, mealType, time, name, sortOrder }) => ({
+            id: mealId,
+            mealType,
+            time,
+            name,
+            sortOrder,
+          })),
+        })),
+      }
+      await persist('plan.create', { ...record, skeleton })
+      editingPlanId = id
+      await persistPlanDraft()
+      openPlanEditor(id)
     } else if (modalType === 'appointment') {
       const record = {
         id,

@@ -429,6 +429,47 @@ export interface FoodSearchHit {
   ingredientNames: string[]
 }
 
+export interface DesktopFoodCatalogExport {
+  version: string
+  entries: Array<{
+    id: string
+    nameTr: string
+    searchText: string
+    groupNameTr: string | null
+    kcalPer100g: number | null
+    proteinPer100g: number | null
+    carbPer100g: number | null
+    fatPer100g: number | null
+    defaultPortionLabel: string | null
+    defaultPortionGrams: number | null
+  }>
+}
+
+/** Şifreli masaüstü kasası için yalnız arama/plan yazımında gereken hafif katalog. */
+export async function exportDesktopFoodCatalog(): Promise<DesktopFoodCatalogExport> {
+  await ensureIndexLoaded()
+  const [version, rows] = await Promise.all([
+    getStoredVersion('searchVersion'),
+    dexieDb.foods.toArray(),
+  ])
+  if (!version || rows.length === 0) throw new Error('Besin kataloğu henüz hazır değil.')
+  return {
+    version,
+    entries: rows.map((row) => ({
+      id: row.id,
+      nameTr: row.nameTr,
+      searchText: row.searchText,
+      groupNameTr: row.groupNameTr,
+      kcalPer100g: row.kcalPer100g,
+      proteinPer100g: row.proteinPer100g,
+      carbPer100g: row.carbPer100g,
+      fatPer100g: row.fatPer100g,
+      defaultPortionLabel: row.defaultPortionLabel,
+      defaultPortionGrams: row.defaultPortionGrams,
+    })),
+  }
+}
+
 const P95_WARN_THRESHOLD_MS = 20
 
 export async function searchFoodsOffline(

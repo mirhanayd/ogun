@@ -3,11 +3,7 @@
   "description": "Öğün masaüstü kabuğu — ana pencere için varsayılan izinler (GitHub issue #51, #52, #53).",
   "windows": ["main"],
   "remote": {
-    "urls": [
-      "http://127.0.0.1:*/*",
-      "http://localhost:*/*",
-      "https://ogun-web.vercel.app/*"
-    ]
+    "urls": ["http://127.0.0.1:*/*", "http://localhost:*/*", "https://ogun-web.vercel.app/*"]
   },
   "permissions": [
     "core:default",
@@ -31,6 +27,9 @@
     "allow-queue-offline-mutation",
     "allow-load-pending-offline-mutations",
     "allow-acknowledge-offline-mutations",
+    "allow-save-offline-food-catalog",
+    "allow-search-offline-food-catalog",
+    "allow-get-offline-food-entries",
     "allow-desktop-network-available",
     "allow-show-offline-workspace",
     "allow-notify-frontend-ready",

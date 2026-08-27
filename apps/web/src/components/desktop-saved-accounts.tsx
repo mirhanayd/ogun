@@ -46,7 +46,7 @@ export function DesktopSavedAccounts() {
         window.location.assign('/panel')
         return
       }
-      await invoke('show_offline_workspace')
+      await invoke('show_offline_workspace', { route: '/panel' })
     } catch (unlockError) {
       setError(String(unlockError))
       setPin('')

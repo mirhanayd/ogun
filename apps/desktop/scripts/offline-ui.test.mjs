@@ -11,8 +11,8 @@ test('packaged desktop page loads the maintainable offline client', async () => 
   assert.match(html, /<script type="module" src="offline\.js"><\/script>/)
   assert.match(html, /ogun-uygulama-ikonu\.svg/)
   assert.match(html, /Hızlı giriş PIN’i/)
-  assert.match(html, /<button disabled title="Tarifler için internet bağlantısı gerekir">/)
-  assert.match(html, /<button disabled title="Finans ekranı için internet bağlantısı gerekir">/)
+  assert.match(html, /<button data-page="foods">/)
+  assert.match(html, /<button data-page="finance">/)
   assert.match(html, /id="page-client-detail"/)
   assert.match(html, /class="desktop-pill">Desktop</)
   assert.match(html, /id="clinic-initials"/)
@@ -22,6 +22,31 @@ test('packaged desktop page loads the maintainable offline client', async () => 
   assert.match(html, /data-modal="measurement"/)
   assert.match(html, /data-modal="labResult"/)
   assert.match(html, /data-modal="payment"/)
+  assert.match(html, /id="page-plan-editor"/)
+  assert.match(html, /id="offline-food-search"/)
+})
+
+test('offline startup keeps the standard shell behind the saved-account PIN lock', async () => {
+  const html = await readFile(htmlUrl, 'utf8')
+  const script = await readFile(scriptUrl, 'utf8')
+  assert.match(html, /#boot \{[\s\S]*position: fixed;[\s\S]*backdrop-filter: blur/)
+  assert.match(script, /function showLockedShell/)
+  assert.ok(
+    script.indexOf('showLockedShell()') <
+      script.indexOf("invoke('get_unlocked_offline_workspace')"),
+  )
+  assert.match(script, /window\.addEventListener\('online'/)
+  assert.match(script, /goOnline\(current \? '\/panel' : '\/giris'\)/)
+})
+
+test('offline plan editor searches the encrypted food catalog and journals one replace draft', async () => {
+  const script = await readFile(scriptUrl, 'utf8')
+  assert.match(script, /search_offline_food_catalog/)
+  assert.match(script, /get_offline_food_entries/)
+  assert.match(script, /save_offline_plan_draft/)
+  assert.match(script, /id: `plan-draft-\$\{editingPlanId\}`/)
+  assert.match(script, /kind: 'plan\.draft\.replace'/)
+  assert.match(script, /skeleton/)
 })
 
 test('offline header search finds device records with Turkish-insensitive matching', async () => {
