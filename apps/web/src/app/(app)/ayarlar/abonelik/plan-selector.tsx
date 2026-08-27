@@ -23,7 +23,8 @@ export function PlanSelector({ currentPlan }: { currentPlan: SubscriptionPlan | 
     setError(null)
     setPendingPlan(planCode)
     startTransition(async () => {
-      const result = await selectSubscriptionPlanAction({ planCode })
+      if (planCode === 'kurumsal') return
+      const result = await selectSubscriptionPlanAction({ planCode, billingCycle: 'monthly' })
       if (!result.success) {
         setError(result.error ?? 'Plan seçilemedi, lütfen tekrar deneyin.')
       }
@@ -34,6 +35,7 @@ export function PlanSelector({ currentPlan }: { currentPlan: SubscriptionPlan | 
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {Object.values(PLAN_DEFINITIONS).map((plan) => {
+          if (plan.code === 'kurumsal') return null
           const isCurrent = currentPlan === plan.code
           return (
             <Card key={plan.code} className={isCurrent ? 'border-primary' : undefined}>

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
-import { getDraftClinicForUser, getWorkingHoursForClinic } from '@ogun/db/queries'
+import { getDraftClinicForUser, getSubscriptionSelectionForUser, getWorkingHoursForClinic } from '@ogun/db/queries'
 import {
   ClinicSelectionRequiredError,
   NoActiveClinicError,
@@ -46,6 +46,8 @@ async function getSetupContext() {
 
 export default async function KurulumPage() {
   const { user } = await getSetupContext()
+  const selection = await getSubscriptionSelectionForUser(db, user.id)
+  if (!selection) redirect('/plan-sec')
   const draft = await getDraftClinicForUser(db, user.id)
   const workingHours = draft ? await getWorkingHoursForClinic(db, draft.id) : []
 

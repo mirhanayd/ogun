@@ -24,6 +24,8 @@ belirler; boşsa `NODE_ENV`'den türetilir.
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Zorunlu | Zorunlu |
 | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` | Opsiyonel (ikisi birlikte ya da hiçbiri) | Opsiyonel (aynı kural) |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Opsiyonel — boşsa plan e-posta paylaşımı çalışmaz | **Zorunlu** |
+| `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL` | Ödeme testi için gerekli | **Zorunlu** |
+| `IYZICO_SINGLE_MONTHLY_PLAN_REFERENCE_CODE`, `IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE`, `IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE`, `IYZICO_TEAM_YEARLY_PLAN_REFERENCE_CODE` | iyzico planları oluşturulduğunda gerekli | **Zorunlu** |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Opsiyonel | Opsiyonel — GÜÇLÜ ÖNERİ (bkz. aşağıdaki not) |
 | `LOG_LEVEL`, `SENTRY_ENVIRONMENT`, `SENTRY_ORG/PROJECT/AUTH_TOKEN`, `DATABASE_POOL_MAX` | Opsiyonel | Opsiyonel |
 
@@ -33,6 +35,18 @@ start, next build sırasında DEĞİL) çağırır ve hangi değişkenin eksik/h
 olduğunu satır satır yazan bir Error ile süreci durdurur. Bu, aşağıdaki
 Docker doğrulamasında GERÇEKTEN tetiklendi (bkz. "Self-hosted" bölümü, adım
 5 — RESEND_* olmadan container'ın gerçekten başlamayı reddettiği loglandı).
+
+### iyzico abonelik kurulumu
+
+iyzico panelinde iki ürün ve toplam dört `RECURRING` ödeme planı oluşturun:
+
+- Tek Kullanıcı Yönetici Hesabı: `MONTHLY` 2.500 TL, `YEARLY` 28.000 TL
+- Yönetici + 4 Diyetisyen: `MONTHLY` 3.000 TL, `YEARLY` 30.000 TL
+
+Panelin verdiği fiyat planı referans kodlarını yukarıdaki dört ortam değişkenine
+yazın. Abonelik bildirim URL'sini `https://<alan-adı>/api/iyzico/webhook` olarak
+tanımlayın ve `X-IYZ-SIGNATURE-V3` imza özelliğini etkinleştirin. İlk ödeme
+callback'i uygulama tarafından `/api/iyzico/callback` olarak otomatik gönderilir.
 
 **NOT — Sentry neden production'da da opsiyonel**: #45'te alınan ürün
 kararı, DSN yokken Sentry'nin sessizce no-op olmasıydı. Bu davranış

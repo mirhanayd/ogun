@@ -14,7 +14,7 @@
 // notundaki aynı gerekçe), üç sabit plan için ayrı bir plan-tanımı tablosu
 // gereksiz normalizasyon olurdu.
 import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
-import { clinics } from './tenancy'
+import { clinics, users } from './tenancy'
 import { id, timestamps } from './_helpers'
 
 // Roadmap'te (Prompt 7.3, GÖREV 1) bire bir Türkçe verilen plan adları —
@@ -31,6 +31,25 @@ export type SubscriptionPlan = (typeof subscriptionPlanEnum.enumValues)[number]
 export const paymentProviderNameEnum = pgEnum('payment_provider_name', ['manuel', 'iyzico', 'paytr'])
 export type PaymentProviderNameValue = (typeof paymentProviderNameEnum.enumValues)[number]
 
+export const subscriptionBillingCycleEnum = pgEnum('subscription_billing_cycle', ['monthly', 'yearly'])
+export type SubscriptionBillingCycle = (typeof subscriptionBillingCycleEnum.enumValues)[number]
+
+// Hesap oluşturulduktan hemen sonra, klinik henüz kurulmadan yapılan zorunlu
+// paket seçimi. Klinik tamamlandığında seçim subscriptions satırına taşınır.
+export const subscriptionSelections = pgTable(
+  'subscription_selections',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    planCode: subscriptionPlanEnum('plan_code').notNull(),
+    billingCycle: subscriptionBillingCycleEnum('billing_cycle').notNull(),
+    ...timestamps(),
+  },
+  (table) => [uniqueIndex('subscription_selections_user_id_idx').on(table.userId)],
+)
+
 export const subscriptions = pgTable(
   'subscriptions',
   {
@@ -39,12 +58,15 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => clinics.id),
     planCode: subscriptionPlanEnum('plan_code').notNull(),
+    billingCycle: subscriptionBillingCycleEnum('billing_cycle').notNull().default('monthly'),
     provider: paymentProviderNameEnum('provider').notNull().default('manuel'),
     // Gerçek sağlayıcıdaki (iyzico) müşteri/abonelik kimlikleri — manuel
     // sağlayıcıda her zaman NULL (dış sistemde bir karşılığı yok, bkz.
     // invoicing/manual-provider.ts externalId ile AYNI gerekçe).
     providerCustomerId: text('provider_customer_id'),
     providerSubscriptionId: text('provider_subscription_id'),
+    // Checkout başlatma ile callback arasındaki kısa ömürlü iyzico token'ı.
+    checkoutToken: text('checkout_token'),
     // Dönem sonunda iptal edilecek mi — kart bilgisi olmadan başlayan deneme
     // ve manuel sağlayıcıda "hemen iptal" ile "dönem sonunda iptal" ayrımı
     // şimdilik BASİTLEŞTİRİLDİ: iptal action'ı ikisini de bu bayrağı set
@@ -60,6 +82,7 @@ export const subscriptions = pgTable(
     // değişiklikleri bu satırı GÜNCELLER, yeni satır AÇMAZ; geçmiş, aşağıdaki
     // subscription_events'te tutulur.
     uniqueIndex('subscriptions_clinic_id_idx').on(table.clinicId),
+    uniqueIndex('subscriptions_checkout_token_idx').on(table.checkoutToken),
   ],
 )
 

@@ -11,6 +11,7 @@ export type SmsTemplateSettingFormValues = z.infer<typeof smsTemplateSettingSche
 // (client-schemas.ts SEX_OPTIONS ile AYNI gerekçe: drizzle-orm'u istemci
 // paketine sürüklememek için).
 export const selectSubscriptionPlanSchema = z.object({
-  planCode: z.enum(['başlangıç', 'klinik', 'kurumsal']),
+  planCode: z.enum(['başlangıç', 'klinik']),
+  billingCycle: z.enum(['monthly', 'yearly']),
 })
 export type SelectSubscriptionPlanFormValues = z.infer<typeof selectSubscriptionPlanSchema>

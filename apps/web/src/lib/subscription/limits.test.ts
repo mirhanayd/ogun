@@ -13,6 +13,16 @@ describe('getPlanLimits', () => {
   })
 })
 
+describe('zorunlu abonelik fiyatları', () => {
+  it('tek kullanıcı planının aylık ve yıllık peşin fiyatlarını korur', () => {
+    expect(PLAN_DEFINITIONS.başlangıç.prices).toEqual({ monthly: 2500, yearly: 28000 })
+  })
+
+  it('yönetici + 4 diyetisyen planının aylık ve yıllık peşin fiyatlarını korur', () => {
+    expect(PLAN_DEFINITIONS.klinik.prices).toEqual({ monthly: 3000, yearly: 30000 })
+  })
+})
+
 describe('computeUsageWarnings', () => {
   const limits = PLAN_DEFINITIONS.başlangıç.limits // { maxClients: 60, maxUsers: 1, smsQuotaPerMonth: 50 }
 

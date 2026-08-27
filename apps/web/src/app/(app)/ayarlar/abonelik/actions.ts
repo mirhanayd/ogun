@@ -11,6 +11,7 @@ import {
 } from '@ogun/db/queries'
 import { requireRole } from '@/lib/authz'
 import { getPaymentProvider } from '@/lib/subscription/payment-provider'
+import { cancelIyzicoSubscription } from '@/lib/subscription/iyzico-client'
 import { runSmsReminderSweepForClinic, type ReminderSweepResult } from '@/lib/sms/reminder-runner'
 import {
   selectSubscriptionPlanSchema,
@@ -57,6 +58,7 @@ export async function selectSubscriptionPlanAction(
 
   const subscription = await upsertSubscriptionForClinic(db, ctx.scope.clinicId, {
     planCode: parsed.data.planCode,
+    billingCycle: parsed.data.billingCycle,
     provider: checkout.provider,
     providerCustomerId: checkout.providerCustomerId,
     providerSubscriptionId: checkout.providerSubscriptionId,
@@ -87,11 +89,15 @@ export async function cancelSubscriptionAction(): Promise<SubscriptionActionResu
     return { success: false, error: 'Aktif bir abonelik bulunamadı.' }
   }
 
-  const provider = getPaymentProvider()
-  await provider.cancelSubscription({
-    clinicId: ctx.scope.clinicId,
-    providerSubscriptionId: subscription.providerSubscriptionId,
-  })
+  if (subscription.provider === 'iyzico' && subscription.providerSubscriptionId) {
+    await cancelIyzicoSubscription(subscription.providerSubscriptionId)
+  } else {
+    const provider = getPaymentProvider()
+    await provider.cancelSubscription({
+      clinicId: ctx.scope.clinicId,
+      providerSubscriptionId: subscription.providerSubscriptionId,
+    })
+  }
 
   await upsertSubscriptionForClinic(db, ctx.scope.clinicId, {
     planCode: subscription.planCode,

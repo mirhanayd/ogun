@@ -99,6 +99,13 @@ const optionalSchema = z.object({
   // gönderdiği ve sayfada gösterilen e-posta adresi. Boşken form AÇIK bir
   // hata döndürür, talebi SESSİZCE KAYBETMEZ (bkz. app/_landing/actions.ts).
   NEXT_PUBLIC_PILOT_CONTACT_EMAIL: z.string().optional(),
+  IYZICO_API_KEY: z.string().optional(),
+  IYZICO_SECRET_KEY: z.string().optional(),
+  IYZICO_BASE_URL: z.string().optional(),
+  IYZICO_SINGLE_MONTHLY_PLAN_REFERENCE_CODE: z.string().optional(),
+  IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE: z.string().optional(),
+  IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE: z.string().optional(),
+  IYZICO_TEAM_YEARLY_PLAN_REFERENCE_CODE: z.string().optional(),
 })
 
 const envShape = alwaysRequiredSchema.merge(optionalSchema)
@@ -118,6 +125,24 @@ function buildSchema(appEnvironment: AppEnvironment) {
     }
 
     if (appEnvironment !== 'local') {
+      const requiredIyzicoFields = [
+        'IYZICO_API_KEY',
+        'IYZICO_SECRET_KEY',
+        'IYZICO_BASE_URL',
+        'IYZICO_SINGLE_MONTHLY_PLAN_REFERENCE_CODE',
+        'IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE',
+        'IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE',
+        'IYZICO_TEAM_YEARLY_PLAN_REFERENCE_CODE',
+      ] as const
+      for (const field of requiredIyzicoFields) {
+        if (!value[field]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${field}, ${appEnvironment} ortamında zorunlu — iyzico abonelik akışı eksik yapılandırılamaz.`,
+            path: [field],
+          })
+        }
+      }
       if (!value.RESEND_API_KEY) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

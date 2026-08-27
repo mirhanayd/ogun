@@ -5,8 +5,10 @@
 import { and, desc, eq } from 'drizzle-orm'
 import {
   subscriptionEvents,
+  subscriptionSelections,
   subscriptions,
   type PaymentProviderNameValue,
+  type SubscriptionBillingCycle,
   type SubscriptionPlan,
 } from '../schema/subscriptions'
 import type { Database } from '../client'
@@ -16,11 +18,54 @@ export async function getSubscriptionForClinic(db: Database, clinicId: string) {
   return row ?? null
 }
 
+export async function getSubscriptionSelectionForUser(db: Database, userId: string) {
+  const [row] = await db
+    .select()
+    .from(subscriptionSelections)
+    .where(eq(subscriptionSelections.userId, userId))
+    .limit(1)
+  return row ?? null
+}
+
+export async function upsertSubscriptionSelectionForUser(
+  db: Database,
+  userId: string,
+  input: { planCode: SubscriptionPlan; billingCycle: SubscriptionBillingCycle },
+) {
+  const [row] = await db
+    .insert(subscriptionSelections)
+    .values({ userId, ...input })
+    .onConflictDoUpdate({ target: subscriptionSelections.userId, set: input })
+    .returning()
+  if (!row) throw new Error('Plan seçimi kaydedilemedi.')
+  return row
+}
+
+export async function getSubscriptionByCheckoutToken(db: Database, checkoutToken: string) {
+  const [row] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.checkoutToken, checkoutToken))
+    .limit(1)
+  return row ?? null
+}
+
+export async function getSubscriptionByProviderReference(db: Database, providerSubscriptionId: string) {
+  const [row] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.providerSubscriptionId, providerSubscriptionId))
+    .limit(1)
+  return row ?? null
+}
+
 export interface UpsertSubscriptionInput {
   planCode: SubscriptionPlan
+  billingCycle?: SubscriptionBillingCycle
   provider: PaymentProviderNameValue
   providerCustomerId?: string | null
   providerSubscriptionId?: string | null
+  checkoutToken?: string | null
   currentPeriodStart?: Date | null
   currentPeriodEnd?: Date | null
   cancelAtPeriodEnd?: boolean

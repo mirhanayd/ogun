@@ -18,6 +18,7 @@ export interface PlanDefinition {
   label: string
   description: string
   limits: PlanLimits
+  prices: { monthly: number; yearly: number }
 }
 
 // Roadmap (Prompt 7.3, GÖREV 1): "Başlangıç (tek diyetisyen), Klinik (5
@@ -29,21 +30,24 @@ export interface PlanDefinition {
 export const PLAN_DEFINITIONS: Record<SubscriptionPlan, PlanDefinition> = {
   başlangıç: {
     code: 'başlangıç',
-    label: 'Başlangıç',
-    description: 'Tek diyetisyen için — küçük ölçekli bağımsız pratisyenler.',
+    label: 'Tek Kullanıcı Yönetici Hesabı',
+    description: 'Bağımsız çalışan yönetici/diyetisyen için tek kullanıcı hesabı.',
     limits: { maxClients: 60, maxUsers: 1, smsQuotaPerMonth: 50 },
+    prices: { monthly: 2500, yearly: 28000 },
   },
   klinik: {
     code: 'klinik',
-    label: 'Klinik',
-    description: '5 kullanıcıya kadar — birden fazla diyetisyenli klinikler.',
+    label: 'Yönetici + 4 Diyetisyen',
+    description: 'Bir yönetici ve dört diyetisyen olmak üzere toplam 5 kullanıcı.',
     limits: { maxClients: 400, maxUsers: 5, smsQuotaPerMonth: 300 },
+    prices: { monthly: 3000, yearly: 30000 },
   },
   kurumsal: {
     code: 'kurumsal',
     label: 'Kurumsal',
     description: 'Büyük klinik/zincirler için sınırsız kullanıcı ve danışan.',
     limits: { maxClients: null, maxUsers: 9999, smsQuotaPerMonth: 2000 },
+    prices: { monthly: 0, yearly: 0 },
   },
 }
 

@@ -162,6 +162,13 @@
       "when": 1787582632933,
       "tag": "0022_demonic_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787831163782,
+      "tag": "0023_little_puck",
+      "breakpoints": true
     }
   ]
 }

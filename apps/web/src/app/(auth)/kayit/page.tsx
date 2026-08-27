@@ -38,7 +38,7 @@ export default function KayitPage() {
       )
       return
     }
-    router.push('/kurulum')
+    router.push('/plan-sec')
     router.refresh()
   }
 

@@ -47,6 +47,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     hasCompletedProductTour(db, ctx.user.id),
     getClinicById(db, ctx.scope.clinicId),
   ])
+  // Paket seçimi ve iyzico doğrulaması tamamlanmadan uygulama kabuğu açılmaz.
+  // Davetli ekip üyeleri de ödemesi aktif olmayan bir kliniğe erişemez.
+  if (clinic?.subscriptionStatus !== 'active') {
+    redirect('/odeme')
+  }
   const showProductTour = !hasCompletedTour
   const clinicName = clinic?.name ?? 'Klinik'
   const clinicInitials = clinicName

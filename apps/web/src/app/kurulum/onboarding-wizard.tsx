@@ -60,7 +60,7 @@ export function OnboardingWizard({
               // kabuğunun (app)/layout.tsx bunu görmesi için tam bir
               // navigasyon + refresh gerekiyor — bkz. giris/kayit
               // sayfalarındaki aynı örüntü.
-              router.push('/panel')
+              router.push('/odeme')
               router.refresh()
             }}
           />
