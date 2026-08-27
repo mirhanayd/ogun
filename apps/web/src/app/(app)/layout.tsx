@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
-import { getClinicById, hasCompletedProductTour } from '@ogun/db/queries'
+import {
+  getClinicById,
+  getSubscriptionSelectionForUser,
+  hasCompletedProductTour,
+} from '@ogun/db/queries'
 import { NativeNotificationBridge } from '@/components/native-notification-bridge'
 import { DesktopOfflineBridge } from '@/components/desktop-offline-bridge'
 import { ConnectivityStatusProvider } from '@/components/connectivity-status-provider'
@@ -11,6 +15,7 @@ import {
   requireClinic,
 } from '@/lib/authz'
 import { OfflineIndicator } from '@/components/offline-indicator'
+import { requiresSubscriptionPayment } from '@/lib/subscription/access'
 import { BottomNav } from './_components/bottom-nav'
 import { DesktopTitlebar } from './_components/desktop-titlebar'
 import { ProductTour } from './_components/product-tour'
@@ -43,13 +48,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // turu". users.productTourCompletedAt NULL'sa (bkz. schema/tenancy.ts)
   // tur gösterilir — bu kontrol layout'ta (her sayfa yüklemesinde) YAPILIR,
   // ama tur SADECE bir kez (tamamlanana/atlanana kadar) render edilir.
-  const [hasCompletedTour, clinic] = await Promise.all([
+  const [hasCompletedTour, clinic, planSelection] = await Promise.all([
     hasCompletedProductTour(db, ctx.user.id),
     getClinicById(db, ctx.scope.clinicId),
+    getSubscriptionSelectionForUser(db, ctx.user.id),
   ])
-  // Paket seçimi ve iyzico doğrulaması tamamlanmadan uygulama kabuğu açılmaz.
-  // Davetli ekip üyeleri de ödemesi aktif olmayan bir kliniğe erişemez.
-  if (clinic?.subscriptionStatus !== 'active') {
+  // Plan zorunluluğundan önce açılmış trial hesapların plan seçimi yoktur;
+  // onları ödeme ekranına göndermek sonsuz yönlendirme döngüsü oluşturur.
+  // Yeni akışta plan seçimi bulunan hesap ödeme tamamlanana kadar burada tutulur.
+  if (clinic && requiresSubscriptionPayment(clinic.subscriptionStatus, planSelection !== null)) {
     redirect('/odeme')
   }
   const showProductTour = !hasCompletedTour
