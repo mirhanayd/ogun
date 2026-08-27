@@ -3085,7 +3085,7 @@ dependencies = [
 
 [[package]]
 name = "ogun-desktop"
-version = "0.2.12"
+version = "0.2.13"
 dependencies = [
  "argon2",
  "iota_stronghold",
