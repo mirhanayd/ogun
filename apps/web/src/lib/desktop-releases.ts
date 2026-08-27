@@ -35,6 +35,36 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.2.13',
+    publishedAt: '2026-08-27',
+    notes: [
+      'Bağlantı kesildiğinde Edge hata sayfası yerine aynı masaüstü kabuğunda çevrimdışı çalışma alanına geçilir.',
+      'Çevrimdışı başlangıçta kayıtlı hesap ve PIN kilidi standart uygulama arayüzünün üzerinde açılır.',
+      'Danışan, randevu, tahsilat ve plan değişiklikleri şifreli cihaz kasasında tutulup bağlantı gelince otomatik eşitlenir.',
+      'Besin kataloğu cihaza indirilir; çevrimdışıyken besin arama, öğüne ekleme ve yeni plan oluşturma desteklenir.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.13/Ogun_0.2.13_x64-setup.exe',
+        sha256: 'fbe67611a6edea9c8880487dd256e86473e75d75f0b2f29f37a6b090c94924d5',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.13/Ogun_0.2.13_x64_tr-TR.msi',
+        sha256: 'a6ce215ade3477145be11ece7bc3d5396396e30d66df20c9fdff25fa1ba94052',
+      },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.2.13/Ogun_0.2.13_universal.dmg',
+        sha256: '430e722856ea2c2faeffb8e79731509875ce2e4f56675041c2250dc5bc382b15',
+      },
+    ],
+  },
+  {
     version: '0.2.11',
     publishedAt: '2026-08-26',
     notes: [
