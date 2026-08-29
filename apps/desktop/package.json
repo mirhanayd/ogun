@@ -2,22 +2,34 @@
   "name": "desktop",
   "version": "0.2.13",
   "private": true,
-  "description": "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere (GitHub issue #51).",
+  "description": "Öğün local-first desktop application",
   "scripts": {
     "tauri": "tauri",
-    "dev": "wait-on tcp:3000 && tauri dev",
+    "dev": "tauri dev",
+    "ui:dev": "vite --host 127.0.0.1 --port 1420",
+    "ui:build": "vite build",
     "icons": "node scripts/generate-icons.mjs",
     "build": "tauri build",
     "signer:generate": "tauri signer generate -w ~/.tauri/ogun-updater.key",
-    "typecheck": "echo 'apps/desktop: Rust tarafı `cargo check` ile doğrulanır, JS tarafında derlenecek TypeScript yok' && exit 0",
-    "lint": "echo 'apps/desktop: JS tarafında lint edilecek uygulama kodu yok (yalnızca build script\\'leri)' && exit 0",
+    "typecheck": "tsc --noEmit -p ui/tsconfig.json",
+    "lint": "tsc --noEmit -p ui/tsconfig.json",
     "test": "node --test scripts/offline-ui.test.mjs"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.3",
+    "vite": "^7.3.6",
     "wait-on": "^8.0.5"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1"
+    "@tauri-apps/api": "^2.11.1",
+    "lucide-react": "^1.31.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   }
 }

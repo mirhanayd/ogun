@@ -4,8 +4,10 @@
   "version": "0.2.13",
   "identifier": "app.ogun.desktop",
   "build": {
-    "devUrl": "http://localhost:3000",
-    "frontendDist": "../splash"
+    "beforeDevCommand": "pnpm ui:dev",
+    "beforeBuildCommand": "pnpm ui:build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,

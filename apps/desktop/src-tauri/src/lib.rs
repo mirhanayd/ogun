@@ -37,9 +37,8 @@ use tauri::{Listener, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEven
 use tauri_plugin_opener::OpenerExt;
 
 /// apps/web'in `next dev` sunucusunun varsayılan adresi.
-const DEV_ORIGIN: &str = "http://localhost:3000";
-const DEV_ENTRY_URL: &str = "http://localhost:3000/giris";
-const PRODUCTION_ORIGIN: &str = "https://ogun-web.vercel.app";
+const DEV_ORIGIN: &str = "http://127.0.0.1:1420";
+const PRODUCTION_ORIGIN: &str = "http://tauri.localhost";
 
 pub fn run() {
     tauri::Builder::default()
@@ -249,16 +248,15 @@ pub fn run() {
                 }
             }
 
+            // Development and production both boot the packaged Ogun renderer.
+            // Connectivity may change its repositories, never this WebView URL.
             let initial_url = if is_dev {
                 WebviewUrl::External(
-                    DEV_ENTRY_URL
+                    DEV_ORIGIN
                         .parse()
-                        .expect("uygulama giriş adresi geçerli bir URL olmalı"),
+                        .expect("desktop UI development URL must be valid"),
                 )
             } else {
-                // Üretimde önce paketlenmiş yerel çalışma alanını aç. Bu sayfa
-                // bağlantı varsa canlı uygulamaya geçer; yoksa cihaz profili
-                // ve PIN ile çevrimdışı çalışmayı sürdürür.
                 WebviewUrl::App("index.html".into())
             };
 
