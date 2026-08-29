@@ -1,6 +1,10 @@
 import 'server-only'
 import { db } from '@ogun/db'
-import { getClientHealth } from '@ogun/db/queries'
+import {
+  getClientClinicalSelections,
+  getClientHealth,
+  withoutCatalogLabels,
+} from '@ogun/db/queries'
 import { withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 
@@ -11,6 +15,27 @@ import { withAudit } from '@/lib/audit'
 export const getClientHealthRecord = withClientAuth(
   withAudit(
     { action: 'read', entityType: 'client_health', entityId: ([clientId]: [string]) => clientId },
-    async (ctx, clientId: string) => getClientHealth(db, ctx.scope.clinicId, clientId),
+    async (ctx, clientId: string) => {
+      const [healthRecord, clinical] = await Promise.all([
+        getClientHealth(db, ctx.scope.clinicId, clientId),
+        getClientClinicalSelections(db, ctx.scope.clinicId, clientId),
+      ])
+      const conditionCatalogLabels = clinical.conditions.map((condition) => condition.nameTr)
+      const medicationCatalogLabels = clinical.medications.flatMap((medication) => {
+        const label = medication.productName ?? medication.substanceName
+        return label ? [label] : []
+      })
+
+      return {
+        ...healthRecord,
+        healthRecord,
+        legacyConditions: withoutCatalogLabels(healthRecord?.conditions, conditionCatalogLabels),
+        legacyMedications: withoutCatalogLabels(healthRecord?.medications, medicationCatalogLabels),
+        conditionSelections: clinical.conditions,
+        medicationSelections: clinical.medications.filter(
+          (medication) => medication.medicationProductId || medication.medicationSubstanceId,
+        ),
+      }
+    },
   ),
 )

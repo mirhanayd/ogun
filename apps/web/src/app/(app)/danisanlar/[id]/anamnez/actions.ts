@@ -1,7 +1,12 @@
 'use server'
 
 import { db } from '@ogun/db'
-import { upsertClientHealth } from '@ogun/db/queries'
+import {
+  mergeLegacyAndCatalogLabels,
+  replaceClientConditions,
+  replaceClientMedications,
+  upsertClientHealth,
+} from '@ogun/db/queries'
 import { withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import {
@@ -20,11 +25,36 @@ import type { ClientActionResult } from '../../actions'
 
 const upsertClientHealthForClinic = withClientAuth(
   withAudit(
-    { action: 'update', entityType: 'client_health', entityId: ([clientId]: [string, AnamnesisFormValues]) => clientId },
-    async (ctx, clientId: string, input: AnamnesisFormValues) =>
-      upsertClientHealth(db, ctx.scope.clinicId, clientId, {
-        conditions: listFromText(input.conditions),
-        medications: listFromText(input.medications),
+    {
+      action: 'update',
+      entityType: 'client_health',
+      entityId: ([clientId]: [string, AnamnesisFormValues]) => clientId,
+    },
+    async (ctx, clientId: string, input: AnamnesisFormValues) => {
+      const conditionResult = await replaceClientConditions(
+        db,
+        ctx.scope.clinicId,
+        clientId,
+        input.conditionSelections.map((condition) => ({ conditionId: condition.conditionId })),
+      )
+      const medicationResult = await replaceClientMedications(
+        db,
+        ctx.scope.clinicId,
+        clientId,
+        input.medicationSelections.map((medication) => ({
+          medicationProductId: medication.medicationProductId,
+          medicationSubstanceId: medication.medicationSubstanceId,
+        })),
+      )
+      await upsertClientHealth(db, ctx.scope.clinicId, clientId, {
+        conditions: mergeLegacyAndCatalogLabels(
+          listFromText(input.conditions),
+          conditionResult.catalogLabels,
+        ),
+        medications: mergeLegacyAndCatalogLabels(
+          listFromText(input.medications),
+          medicationResult.catalogLabels,
+        ),
         allergies: input.allergies,
         intolerances: input.intolerances,
         surgeries: input.surgeries || null,
@@ -39,7 +69,8 @@ const upsertClientHealthForClinic = withClientAuth(
         sleepHours: input.sleepHours ? Number(input.sleepHours) : null,
         sleepQuality: input.sleepQuality || null,
         bowelHabits: input.bowelHabits || null,
-      }),
+      })
+    },
   ),
 )
 
@@ -59,7 +90,10 @@ export async function saveAnamnesisAction(
   try {
     await upsertClientHealthForClinic(clientId, parsed.data)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Anamnez kaydedilemedi.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Anamnez kaydedilemedi.',
+    }
   }
   return { success: true }
 }

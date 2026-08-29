@@ -30,11 +30,12 @@ export const ACTIVITY_LEVEL_LABELS_TR: Record<ActivityLevelValue, string> = {
   very_active: 'Çok aktif',
 }
 
-export const ALLERGEN_SEVERITY_OPTIONS: { value: 'hafif' | 'orta' | 'şiddetli'; label: string }[] = [
-  { value: 'hafif', label: 'Hafif' },
-  { value: 'orta', label: 'Orta' },
-  { value: 'şiddetli', label: 'Şiddetli' },
-]
+export const ALLERGEN_SEVERITY_OPTIONS: { value: 'hafif' | 'orta' | 'şiddetli'; label: string }[] =
+  [
+    { value: 'hafif', label: 'Hafif' },
+    { value: 'orta', label: 'Orta' },
+    { value: 'şiddetli', label: 'Şiddetli' },
+  ]
 
 // Besin alerjisi/intoleransı — GÖREV 1'in "plan editöründe kırmızı
 // işaretlenecek" bağlantısı için normalize edilmiş liste girişi (bkz.
@@ -53,7 +54,9 @@ function optionalIntegerField(min: number, max: number, label: string) {
     .string()
     .trim()
     .refine(
-      (value) => value === '' || (Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max),
+      (value) =>
+        value === '' ||
+        (Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max),
       `${label} geçersiz.`,
     )
     .optional()
@@ -65,15 +68,60 @@ function optionalIntegerField(min: number, max: number, label: string) {
 // açısından yapılandırılmış bir "chip ekle" arayüzünden daha hızlı — uzun
 // bir ilaç/hastalık listesini yapıştırıp Enter'la ayırabilsin diye), form
 // katmanında satırlara bölünüp trim edilir.
-const freeTextListSchema = z.string().trim().max(4000, 'Bu alan çok uzun.').optional().or(z.literal(''))
+const freeTextListSchema = z
+  .string()
+  .trim()
+  .max(4000, 'Bu alan çok uzun.')
+  .optional()
+  .or(z.literal(''))
+
+export const conditionCatalogSelectionSchema = z.object({
+  conditionId: z.string().min(1).max(160),
+  nameTr: z.string().min(1).max(500),
+  nameEn: z.string().max(500),
+  sourceCode: z.string().min(1).max(160),
+  isNeoplasm: z.boolean(),
+  needsReview: z.boolean(),
+})
+
+export const medicationCatalogSelectionSchema = z
+  .object({
+    key: z.string().min(1).max(180),
+    kind: z.enum(['product', 'substance']),
+    medicationProductId: z.string().min(1).max(160).nullable(),
+    medicationSubstanceId: z.string().min(1).max(160).nullable(),
+    name: z.string().min(1).max(500),
+    substanceNames: z.array(z.string().min(1).max(500)).max(20),
+    barcode: z.string().max(32).nullable(),
+    needsReview: z.boolean(),
+  })
+  .superRefine((selection, ctx) => {
+    const validProduct =
+      selection.kind === 'product' &&
+      selection.medicationProductId &&
+      !selection.medicationSubstanceId
+    const validSubstance =
+      selection.kind === 'substance' &&
+      selection.medicationSubstanceId &&
+      !selection.medicationProductId
+    if (!validProduct && !validSubstance) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'İlaç katalog seçimi geçersiz.' })
+    }
+  })
 
 export const anamnesisFormSchema = z.object({
   // --- Sağlık geçmişi ------------------------------------------------------
   conditions: freeTextListSchema,
+  conditionSelections: z
+    .array(conditionCatalogSelectionSchema)
+    .max(100, 'En fazla 100 hastalık seçilebilir.'),
   familyHistory: z.string().trim().max(2000, 'Bu alan çok uzun.').optional().or(z.literal('')),
   surgeries: z.string().trim().max(2000, 'Bu alan çok uzun.').optional().or(z.literal('')),
   // --- İlaçlar ---------------------------------------------------------------
   medications: freeTextListSchema,
+  medicationSelections: z
+    .array(medicationCatalogSelectionSchema)
+    .max(100, 'En fazla 100 ilaç seçilebilir.'),
   // --- Alerjiler ---------------------------------------------------------
   allergies: z.array(allergenEntrySchema).max(50, 'En fazla 50 kayıt eklenebilir.'),
   intolerances: z.array(allergenEntrySchema).max(50, 'En fazla 50 kayıt eklenebilir.'),
@@ -97,9 +145,11 @@ export type AnamnesisFormValues = z.infer<typeof anamnesisFormSchema>
 
 export const ANAMNESIS_FORM_DEFAULT_VALUES: AnamnesisFormValues = {
   conditions: '',
+  conditionSelections: [],
   familyHistory: '',
   surgeries: '',
   medications: '',
+  medicationSelections: [],
   allergies: [],
   intolerances: [],
   smokingStatus: '',
