@@ -28,6 +28,27 @@ export interface ClinicBrandingInput {
   primaryColor?: string | null
 }
 
+// clinics tablosundaki kullanıcıya açık identity alanlarının tamamı. slug,
+// subscription/onboarding ayarları, createdBy ve timestamp alanları sistem
+// yönetimindedir; bu sözleşmeye bilinçli olarak dahil edilmez.
+export const editableClinicIdentityFields = [
+  'name',
+  'logoUrl',
+  'primaryColor',
+  'phone',
+  'address',
+  'taxId',
+] as const
+
+export interface ClinicIdentityInput {
+  name: string
+  logoUrl: string | null
+  primaryColor: string | null
+  phone: string | null
+  address: string | null
+  taxId: string | null
+}
+
 export interface ClinicMembership {
   clinicId: string
   role: ClinicMemberRole
@@ -61,6 +82,50 @@ export async function getDraftClinicForUser(db: Database, userId: string) {
 export async function getClinicById(db: Database, clinicId: string) {
   const [clinic] = await db.select().from(clinics).where(eq(clinics.id, clinicId)).limit(1)
   return clinic ?? null
+}
+
+export async function getClinicIdentityById(db: Database, clinicId: string) {
+  const [identity] = await db
+    .select({
+      name: clinics.name,
+      logoUrl: clinics.logoUrl,
+      primaryColor: clinics.primaryColor,
+      phone: clinics.phone,
+      address: clinics.address,
+      taxId: clinics.taxId,
+    })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1)
+  return identity ?? null
+}
+
+export async function updateClinicIdentity(
+  db: Database,
+  clinicId: string,
+  input: ClinicIdentityInput,
+) {
+  const [identity] = await db
+    .update(clinics)
+    .set({
+      name: input.name,
+      logoUrl: input.logoUrl,
+      primaryColor: input.primaryColor,
+      phone: input.phone,
+      address: input.address,
+      taxId: input.taxId,
+    })
+    .where(eq(clinics.id, clinicId))
+    .returning({
+      name: clinics.name,
+      logoUrl: clinics.logoUrl,
+      primaryColor: clinics.primaryColor,
+      phone: clinics.phone,
+      address: clinics.address,
+      taxId: clinics.taxId,
+    })
+  if (!identity) throw new Error('Klinik bulunamadı.')
+  return identity
 }
 
 // Onboarding adım 1: taslak klinik satırını oluşturur. Abonelik ürünü şimdilik
