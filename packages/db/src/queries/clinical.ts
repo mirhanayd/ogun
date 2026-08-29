@@ -47,7 +47,7 @@ export async function searchConditions(
   if (options.uiReadyOnly) filters.push(eq(conditions.isUiReady, true))
   if (options.includeReview === false) filters.push(eq(conditions.needsReview, false))
 
-  return db
+  const matches = await db
     .select({
       id: conditions.id,
       sourceCode: conditions.sourceCode,
@@ -60,8 +60,42 @@ export async function searchConditions(
     })
     .from(conditions)
     .where(and(...filters))
-    .orderBy(desc(conditions.isUiReady), asc(conditions.needsReview), asc(conditions.nameTr))
+    .orderBy(
+      sql`case when ${conditions.searchText} ilike ${`${normalized}%`} then 0 else 1 end`,
+      desc(conditions.isUiReady),
+      asc(conditions.needsReview),
+      asc(conditions.nameTr),
+    )
     .limit(limit)
+
+  const matchIds = matches.map((match) => match.id)
+  const matchingAliases = matchIds.length
+    ? await db
+        .select({
+          conditionId: conditionAliases.conditionId,
+          alias: conditionAliases.alias,
+        })
+        .from(conditionAliases)
+        .where(
+          and(
+            inArray(conditionAliases.conditionId, matchIds),
+            eq(conditionAliases.language, 'tr'),
+            sql<boolean>`${conditionAliases.searchNormalized} ilike ${pattern}`,
+          ),
+        )
+        .orderBy(sql`length(${conditionAliases.alias})`, asc(conditionAliases.alias))
+    : []
+  const matchedAliasByCondition = new Map<string, string>()
+  for (const alias of matchingAliases) {
+    if (!matchedAliasByCondition.has(alias.conditionId)) {
+      matchedAliasByCondition.set(alias.conditionId, alias.alias)
+    }
+  }
+
+  return matches.map((match) => ({
+    ...match,
+    matchedAlias: matchedAliasByCondition.get(match.id) ?? null,
+  }))
 }
 
 export async function findConditionsByAlias(
@@ -250,7 +284,11 @@ export async function searchMedicationProducts(
     })
     .from(medicationProducts)
     .where(and(...filters))
-    .orderBy(desc(medicationProducts.isSelectable), asc(medicationProducts.name))
+    .orderBy(
+      sql`case when ${medicationProducts.searchText} ilike ${`${normalized}%`} then 0 else 1 end`,
+      desc(medicationProducts.isSelectable),
+      asc(medicationProducts.name),
+    )
     .limit(limit)
 
   const productIds = products.map((product) => product.id)

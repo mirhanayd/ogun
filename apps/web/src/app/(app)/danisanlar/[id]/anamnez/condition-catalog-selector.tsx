@@ -81,7 +81,7 @@ export function ConditionCatalogSelector({
         value,
         {
           conditionId: condition.id,
-          nameTr: condition.nameTr,
+          nameTr: condition.matchedAlias ?? condition.nameTr,
           nameEn: condition.nameEn,
           sourceCode: condition.sourceCode,
           isNeoplasm: condition.isNeoplasm,
@@ -155,13 +155,13 @@ export function ConditionCatalogSelector({
                       >
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5 font-medium">
-                            {condition.nameTr}
+                            {condition.matchedAlias ?? condition.nameTr}
                             {condition.isNeoplasm && <Badge variant="secondary">Kanser</Badge>}
                             {condition.needsReview && (
                               <Badge variant="outline">İnceleme gerekli</Badge>
                             )}
                           </span>
-                          {condition.nameEn !== condition.nameTr && (
+                          {condition.nameEn !== (condition.matchedAlias ?? condition.nameTr) && (
                             <span className="mt-0.5 block text-xs text-muted-foreground">
                               {condition.nameEn}
                             </span>

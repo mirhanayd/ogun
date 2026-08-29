@@ -29,7 +29,7 @@ const readConditionCatalogItem = withAuth(async (_ctx, conditionId: string) =>
 
 const searchMedicationCatalog = withAuth(async (_ctx, query: string) =>
   searchMedicationProducts(db, catalogQuerySchema.parse(query), {
-    limit: 24,
+    limit: 36,
     selectableOnly: true,
   }),
 )
