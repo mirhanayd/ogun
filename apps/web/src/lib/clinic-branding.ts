@@ -36,9 +36,9 @@ export function contrastRatio(first: string, second: string): number {
 
 export function readableBrandForeground(
   background: string | null | undefined,
-): '#ffffff' | '#111111' {
+): '#ffffff' | '#000000' {
   const color = resolveBrandColor(background)
-  return contrastRatio(color, '#ffffff') >= contrastRatio(color, '#111111') ? '#ffffff' : '#111111'
+  return contrastRatio(color, '#ffffff') >= contrastRatio(color, '#000000') ? '#ffffff' : '#000000'
 }
 
 export type ClinicBrandingVariables = CSSProperties & Record<`--${string}`, string>
