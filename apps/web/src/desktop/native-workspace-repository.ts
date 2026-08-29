@@ -253,13 +253,35 @@ export function createNativeRepositories(scope: DesktopLocalScope): OgunReposito
         return (await read('plans')).find((plan) => plan.id === id) ?? null
       },
       async upsert(plan) {
+        const existing = (await read('plans')).find((candidate) => candidate.id === plan.id)
+        const projection: DomainEntity = {
+          ...existing,
+          ...plan,
+          status:
+            plan.status === 'aktif' || plan.status === 'arşiv' ? plan.status : 'taslak',
+          updatedAt: new Date().toISOString(),
+        }
         await applyLocalMutation(scope, {
-          kind: 'plan.create',
+          kind: existing ? 'plan.update' : 'plan.create',
           entityType: 'plans',
           entityId: plan.id,
-          operation: 'create',
-          payload: plan,
-          projection: plan,
+          operation: existing ? 'update' : 'create',
+          payload: existing
+            ? {
+                planId: plan.id,
+                name: String(projection.name ?? ''),
+                targetKcal: projection.targetKcal ? Number(projection.targetKcal) : null,
+                notes: nullableString(projection.notes),
+                status: projection.status,
+              }
+            : {
+                id: plan.id,
+                clientId: String(plan.clientId ?? ''),
+                name: String(plan.name ?? ''),
+                targetKcal: plan.targetKcal ? Number(plan.targetKcal) : null,
+                notes: nullableString(plan.notes),
+              },
+          projection,
         })
       },
     },

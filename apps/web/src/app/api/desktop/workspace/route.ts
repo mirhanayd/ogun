@@ -56,6 +56,7 @@ const mutationEnvelopeSchema = z.object({
     'labResult.create',
     'payment.create',
     'plan.create',
+    'plan.update',
     'appointment.create',
     'plan.draft.replace',
   ]),
@@ -211,6 +212,14 @@ const planCreateSchema = z.object({
         .max(31),
     })
     .optional(),
+})
+
+const planUpdateSchema = z.object({
+  planId: z.string().min(1),
+  name: z.string().trim().min(1).max(160),
+  targetKcal: z.number().int().min(500).max(10000).nullable().optional(),
+  notes: z.string().max(20_000).nullable().optional(),
+  status: z.enum(['taslak', 'aktif', 'arşiv']),
 })
 
 const appointmentCreateSchema = z
@@ -653,6 +662,23 @@ export async function POST(request: Request) {
               }
             }
           }
+        }
+
+        if (mutation.kind === 'plan.update') {
+          const payload = planUpdateSchema.parse(mutation.payload)
+          const plan = await getPlanById(db, ctx.scope.clinicId, payload.planId)
+          const client = plan?.clientId
+            ? await getClientById(db, ctx.scope.clinicId, plan.clientId)
+            : null
+          if (!plan || !canAccessClientRecord(client, { role: ctx.role, userId: ctx.user.id })) {
+            throw new Error('Planı güncelleme izniniz yok.')
+          }
+          await updatePlan(db, ctx.scope.clinicId, payload.planId, {
+            name: payload.name,
+            targetKcal: payload.targetKcal ?? null,
+            notes: payload.notes ?? null,
+            status: payload.status,
+          })
         }
 
         if (mutation.kind === 'appointment.create') {
