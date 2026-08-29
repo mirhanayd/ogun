@@ -401,7 +401,6 @@ pub async fn list_local_entities(
     }).await.map_err(|err| format!("Yerel sorgu tamamlanamadı: {err}"))?
 }
 
-#[allow(dead_code)] // wired into logout in the desktop-auth commit
 pub fn remove_scope_data(app: &AppHandle, user_id: &str) -> Result<(), String> {
     let connection = open_database(&database_path(app)?)?;
     connection

@@ -391,7 +391,10 @@ fn is_online_app(window: &WebviewWindow) -> bool {
     window.url().is_ok_and(|url| {
         matches!(
             url.host_str(),
-            Some("ogun-web.vercel.app") | Some("localhost") | Some("127.0.0.1")
+            Some("ogun-web.vercel.app")
+                | Some("tauri.localhost")
+                | Some("localhost")
+                | Some("127.0.0.1")
         )
     })
 }
@@ -557,6 +560,7 @@ fn remove_active_offline_profile_impl(
     let Some(user_id) = user_id else {
         return Ok(());
     };
+    crate::local_db::remove_scope_data(app, &user_id)?;
     let mut document = load_document(app)?;
     document
         .profiles

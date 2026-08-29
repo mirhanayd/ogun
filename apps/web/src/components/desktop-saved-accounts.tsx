@@ -5,11 +5,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { ChevronRight, KeyRound, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { authClient } from '@/lib/auth-client'
-import { desktopPinDestination, type DesktopOfflineProfile } from '@/lib/desktop-offline'
+import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
 import { isNativeShell } from '@/lib/native-shell'
 
-export function DesktopSavedAccounts() {
+export function DesktopSavedAccounts({
+  onUnlocked,
+}: {
+  onUnlocked?: (profile: DesktopOfflineProfile) => void | Promise<void>
+} = {}) {
   const [profiles, setProfiles] = useState<DesktopOfflineProfile[]>([])
   const [selected, setSelected] = useState<DesktopOfflineProfile | null>(null)
   const [pin, setPin] = useState('')
@@ -31,22 +34,8 @@ export function DesktopSavedAccounts() {
     setError(null)
     try {
       await invoke('unlock_offline_profile', { userId: selected.userId, pin })
-      const online = await invoke<boolean>('desktop_network_available')
-      if (desktopPinDestination(online) === 'online-app') {
-        // PIN bir çalışma modu seçmez; yalnızca cihazdaki hesabın kilidini açar.
-        // Ağ varsa saklanan Better Auth oturumunu doğrulayıp her zamanki ortak
-        // uygulama kabuğuna geç. Yerel çalışma alanına yalnızca gerçekten ağ
-        // yoksa düşülür.
-        const { data: session, error: sessionError } = await authClient.getSession()
-        if (!session || sessionError) {
-          throw new Error(
-            'Sunucu oturumunuzun süresi dolmuş. Lütfen hesabınızla yeniden giriş yapın.',
-          )
-        }
-        window.location.assign('/panel')
-        return
-      }
-      await invoke('show_offline_workspace', { route: '/panel' })
+      await onUnlocked?.(selected)
+      window.dispatchEvent(new CustomEvent('ogun-local-workspace-unlocked', { detail: selected }))
     } catch (unlockError) {
       setError(String(unlockError))
       setPin('')

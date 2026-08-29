@@ -1,6 +1,7 @@
 import { createAuthClient } from 'better-auth/react'
 import { inferAdditionalFields, oneTimeTokenClient } from 'better-auth/client/plugins'
 import type { Auth } from './auth'
+import { getOgunCloudOrigin } from './cloud-origin'
 import {
   getCachedNativeSessionToken,
   isNativeShell,
@@ -23,12 +24,8 @@ import {
 //   TARAYICISINDA bu iki kanca da NO-OP'tur (isNativeShell() false) —
 //   çerez tabanlı oturum AYNEN mevcut haliyle çalışmaya devam eder.
 export const authClient = createAuthClient({
-  // Masaüstü kabuğunda çalışma zamanındaki loopback origin'i kullan;
-  // derleme zamanındaki web adresine güvenme.
-  baseURL:
-    isNativeShell() && typeof window !== 'undefined'
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+  // The packaged renderer stays local; only authentication talks to cloud.
+  baseURL: isNativeShell() ? getOgunCloudOrigin() : process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   plugins: [inferAdditionalFields<Auth>(), oneTimeTokenClient()],
   fetchOptions: {
     auth: {

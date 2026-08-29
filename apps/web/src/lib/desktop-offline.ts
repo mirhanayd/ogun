@@ -33,13 +33,6 @@ export interface DesktopSyncResult {
   error?: string
 }
 
-export type DesktopPinDestination = 'online-app' | 'local-workspace'
-
-/** PIN yalnızca hesabı açar; gösterilecek çalışma alanını bağlantı belirler. */
-export function desktopPinDestination(online: boolean): DesktopPinDestination {
-  return online ? 'online-app' : 'local-workspace'
-}
-
 export function remapOfflineMutation(
   mutation: DesktopOfflineMutation,
   idMap: Record<string, string>,

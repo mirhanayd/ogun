@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  desktopPinDestination,
-  remainingOfflineMutations,
-  remapOfflineMutation,
-} from './desktop-offline'
+import { remainingOfflineMutations, remapOfflineMutation } from './desktop-offline'
 
 const planMutation = {
   id: 'mutation-plan',
@@ -13,11 +9,6 @@ const planMutation = {
 }
 
 describe('desktop offline mutation reconciliation', () => {
-  it('PIN yöntemini değil bağlantıyı çalışma alanı seçimi için kullanır', () => {
-    expect(desktopPinDestination(true)).toBe('online-app')
-    expect(desktopPinDestination(false)).toBe('local-workspace')
-  })
-
   it('yerel ilişki kimliklerini sunucu kimliklerine dönüştürür', () => {
     expect(
       remapOfflineMutation(planMutation, { 'local-client': 'client-server' }).payload,

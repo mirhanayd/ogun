@@ -42,7 +42,13 @@ export const auth = betterAuth({
   // baseURL zaten örtük olarak güvenilir olduğundan web akışı ETKİLENMEZ.
   // Yalnızca loopback origin'lerine güven; LAN veya keyfî HTTP origin'lerine
   // izin verme.
-  trustedOrigins: ['ogun://auth/', 'http://127.0.0.1:*', 'http://localhost:*'],
+  trustedOrigins: [
+    'ogun://auth/',
+    'tauri://localhost',
+    'http://tauri.localhost',
+    'http://127.0.0.1:*',
+    'http://localhost:*',
+  ],
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

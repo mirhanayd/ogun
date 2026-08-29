@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { cloudUrl, getOgunCloudOrigin } from './cloud-origin'
 
 // GitHub issue #52 / Prompt 9.2 — apps/web AYNI JS paketi hem düz tarayıcıda
 // (web) hem de Tauri'nin masaüstü webview'i (apps/desktop) içinde çalışır
@@ -44,11 +45,7 @@ export function getGoogleSignInRedirects(): { callbackURL: string; errorCallback
  * arriving in the browser cannot validate the state.
  */
 export function getNativeGoogleSignInURL(): string {
-  const configuredBaseURL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.trim()
-  const baseURL =
-    isNativeShell() && typeof window !== 'undefined'
-      ? window.location.origin
-      : configuredBaseURL || 'http://localhost'
+  const baseURL = isNativeShell() ? getOgunCloudOrigin() : window.location.origin
   return new URL('/api/auth/native/google', baseURL).toString()
 }
 
@@ -140,7 +137,7 @@ export async function exchangeNativeOneTimeToken(
   oneTimeToken: string,
 ): Promise<NativeSessionExchangeResult> {
   try {
-    const response = await fetch('/api/auth/one-time-token/verify', {
+    const response = await fetch(cloudUrl('/api/auth/one-time-token/verify'), {
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',
