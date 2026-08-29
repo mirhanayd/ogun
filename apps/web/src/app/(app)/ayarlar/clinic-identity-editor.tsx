@@ -1,16 +1,22 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Building2, ImagePlus, Loader2, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  applyClinicBrandingVariables,
+  isValidBrandColor,
+  readableBrandForeground,
+  resolveBrandColor,
+} from '@/lib/clinic-branding'
 import { MAX_LOGO_BYTES } from '@/lib/validation/onboarding-schemas'
 import {
   clinicIdentitySchema,
@@ -47,9 +53,11 @@ export function ClinicIdentityEditor({
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const persistedBrandColorRef = useRef(identity.primaryColor)
   const [formError, setFormError] = useState<string | null>(null)
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     watch,
@@ -60,6 +68,32 @@ export function ClinicIdentityEditor({
     defaultValues: toFormValues(identity),
   })
   const logoUrl = watch('logoUrl')
+  const primaryColor = watch('primaryColor')
+  const previewColor =
+    primaryColor === '' || isValidBrandColor(primaryColor)
+      ? resolveBrandColor(primaryColor)
+      : resolveBrandColor(persistedBrandColorRef.current)
+  const previewForeground = readableBrandForeground(previewColor)
+
+  useEffect(() => {
+    const brandingRoot = document.querySelector<HTMLElement>('[data-clinic-branding]')
+    if (!brandingRoot) return
+    applyClinicBrandingVariables(
+      brandingRoot.style,
+      primaryColor === '' || isValidBrandColor(primaryColor)
+        ? primaryColor
+        : persistedBrandColorRef.current,
+    )
+  }, [primaryColor])
+
+  useEffect(() => {
+    return () => {
+      const brandingRoot = document.querySelector<HTMLElement>('[data-clinic-branding]')
+      if (brandingRoot) {
+        applyClinicBrandingVariables(brandingRoot.style, persistedBrandColorRef.current)
+      }
+    }
+  }, [])
 
   function resetForm() {
     reset(toFormValues(identity))
@@ -91,9 +125,16 @@ export function ClinicIdentityEditor({
     setFormError(null)
     const result = await updateClinicIdentityAction(values)
     if (!result.success || !result.identity) {
+      const brandingRoot = document.querySelector<HTMLElement>('[data-clinic-branding]')
+      if (brandingRoot) {
+        applyClinicBrandingVariables(brandingRoot.style, persistedBrandColorRef.current)
+      }
       setFormError(result.error ?? 'Klinik kimliği güncellenemedi.')
       return
     }
+    persistedBrandColorRef.current = result.identity.primaryColor
+    const brandingRoot = document.querySelector<HTMLElement>('[data-clinic-branding]')
+    if (brandingRoot) applyClinicBrandingVariables(brandingRoot.style, result.identity.primaryColor)
     reset(toFormValues(result.identity))
     if (fileInputRef.current) fileInputRef.current.value = ''
     toast.success('Klinik kimliği güncellendi.')
@@ -122,6 +163,25 @@ export function ClinicIdentityEditor({
               Klinik kimliğini yalnız klinik sahibi düzenleyebilir.
             </p>
           )}
+
+          <div
+            className="flex min-h-20 items-center gap-3 rounded-xl border border-current/15 px-4 py-3 transition-colors"
+            style={{ backgroundColor: previewColor, color: previewForeground }}
+            aria-label="Marka rengi önizlemesi"
+          >
+            <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-current/20 bg-white/10">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- logo data URI veya mevcut HTTPS URL olabilir.
+                <img src={logoUrl} alt="" className="size-full object-contain" />
+              ) : (
+                <Building2 className="size-5" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{watch('name') || 'Klinik adı'}</p>
+              <p className="text-xs opacity-80">Web uygulaması marka önizlemesi</p>
+            </div>
+          </div>
 
           <fieldset disabled={!canEdit || isSubmitting} className="grid gap-5 disabled:opacity-70">
             <div className="grid gap-4 sm:grid-cols-[7rem_minmax(0,1fr)]">
@@ -198,10 +258,27 @@ export function ClinicIdentityEditor({
                   htmlFor="clinic-primary-color"
                   error={errors.primaryColor?.message}
                 >
-                  <Input
-                    id="clinic-primary-color"
-                    placeholder="#1B7A5A"
-                    {...register('primaryColor')}
+                  <Controller
+                    control={control}
+                    name="primaryColor"
+                    render={({ field }) => (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={resolveBrandColor(field.value)}
+                          onChange={(event) => field.onChange(event.target.value)}
+                          aria-label="Marka rengini seç"
+                          className="size-9 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-1"
+                        />
+                        <Input
+                          {...field}
+                          value={field.value ?? ''}
+                          id="clinic-primary-color"
+                          placeholder="#1B7A5A"
+                          autoComplete="off"
+                        />
+                      </div>
+                    )}
                   />
                 </Field>
                 <Field

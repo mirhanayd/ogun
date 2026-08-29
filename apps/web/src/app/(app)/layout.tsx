@@ -16,6 +16,7 @@ import {
 } from '@/lib/authz'
 import { OfflineIndicator } from '@/components/offline-indicator'
 import { requiresSubscriptionPayment } from '@/lib/subscription/access'
+import { getClinicBrandingVariables } from '@/lib/clinic-branding'
 import { BottomNav } from './_components/bottom-nav'
 import { DesktopTitlebar } from './_components/desktop-titlebar'
 import { ProductTour } from './_components/product-tour'
@@ -70,7 +71,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ConnectivityStatusProvider>
-      <div className="flex h-svh min-h-0 flex-col overflow-hidden bg-background" data-app-shell>
+      <div
+        className="flex h-svh min-h-0 flex-col overflow-hidden bg-background"
+        data-app-shell
+        data-clinic-branding
+        style={getClinicBrandingVariables(clinic?.primaryColor)}
+      >
         <DesktopTitlebar role={ctx.role} userName={ctx.user.name} userEmail={ctx.user.email} />
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
