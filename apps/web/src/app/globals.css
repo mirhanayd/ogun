@@ -375,6 +375,22 @@
   display: none;
 }
 
+.clinic-desktop-titlebar {
+  color: var(--clinic-brand-foreground, white);
+  background-color: var(--clinic-brand-color, var(--desktop-chrome));
+  border-color: color-mix(in oklch, currentColor 12%, transparent);
+  transition:
+    color 200ms ease-in-out,
+    background-color 200ms ease-in-out,
+    border-color 200ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clinic-desktop-titlebar {
+    transition: none;
+  }
+}
+
 html[data-native-shell] .desktop-titlebar {
   display: flex;
 }
