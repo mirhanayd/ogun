@@ -1,10 +1,11 @@
 import Link from 'next/link'
-import { ClipboardList, Upload, UserPlus, UsersRound } from 'lucide-react'
+import { ClipboardList, Upload, UserPlus } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import type { ClientStatus } from '@ogun/db/schema'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
+import { ClientsScreen } from '@/screens/clients-screen'
 import { requireClinic } from '@/lib/authz'
 import { STATUS_OPTIONS } from '@/lib/validation/client-schemas'
 import { ClientsTable } from './clients-table'
@@ -49,21 +50,10 @@ export default async function DanisanlarPage({
   ])
 
   return (
-    <div className="flex flex-col gap-6 pb-8">
-      <header className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-            <UsersRound className="size-3.5" />
-            Danışan operasyonu
-          </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Danışanlar</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            {role === 'dietitian'
-              ? 'Size atanan danışanların takip, ölçüm ve beslenme planlarına ulaşın.'
-              : 'Kliniğinizdeki tüm danışanları, atamaları ve bakım akışlarını yönetin.'}
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+    <ClientsScreen
+      role={role}
+      actions={
+        <>
           <Button asChild variant="outline" size="lg" className="rounded-xl bg-background/80 px-4">
             <Link href="/danisanlar/ice-aktar">
               <Upload data-icon="inline-start" />
@@ -76,8 +66,9 @@ export default async function DanisanlarPage({
               Yeni danışan
             </Link>
           </Button>
-        </div>
-      </header>
+        </>
+      }
+    >
       {/* GitHub issue #47 / Prompt 8.3, GÖREV 1 — klinikte HİÇ danışan yoksa
           (herhangi bir filtre uygulanmamışken) EmptyState + "örnek danışan ve
           plan oluştur" kısayolu (bkz. create-sample-plan-button.tsx). Bir
@@ -106,6 +97,6 @@ export default async function DanisanlarPage({
           }}
         />
       )}
-    </div>
+    </ClientsScreen>
   )
 }
