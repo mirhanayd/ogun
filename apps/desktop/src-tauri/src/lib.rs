@@ -125,6 +125,7 @@ pub fn run() {
             local_db::desktop_db_info,
             local_db::initialize_local_scope,
             local_db::replace_local_entities,
+            local_db::replace_local_workspace,
             local_db::list_local_entities,
             local_db::apply_local_mutation,
             local_db::load_local_outbox,

@@ -26,6 +26,7 @@ fn main() {
         "desktop_db_info",
         "initialize_local_scope",
         "replace_local_entities",
+        "replace_local_workspace",
         "list_local_entities",
         "apply_local_mutation",
         "load_local_outbox",

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-replace-local-workspace"
+description = "Enables the replace_local_workspace command without any pre-configured scope."
+commands.allow = ["replace_local_workspace"]
+
+[[permission]]
+identifier = "deny-replace-local-workspace"
+description = "Denies the replace_local_workspace command without any pre-configured scope."
+commands.deny = ["replace_local_workspace"]

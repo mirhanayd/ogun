@@ -12,7 +12,10 @@ use rand::{rngs::OsRng, RngCore};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, Manager, State};
 
 use crate::offline_vault::OfflineVaultState;
@@ -131,6 +134,13 @@ pub struct LocalEntityInput {
     pub id: String,
     pub payload: Value,
     pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalWorkspaceInput {
+    pub domains: HashMap<String, Vec<LocalEntityInput>>,
+    pub synced_at: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -421,6 +431,39 @@ pub async fn replace_local_entities(
         }
         transaction.commit().map_err(|err| format!("Yerel veri kaydedilemedi: {err}"))
     }).await.map_err(|err| format!("Yerel veri işlemi tamamlanamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn replace_local_workspace(
+    app: AppHandle,
+    state: State<'_, OfflineVaultState>,
+    scope: LocalScope,
+    workspace: LocalWorkspaceInput,
+) -> Result<(), String> {
+    authorize(&app, &state, &scope)?;
+    let total = workspace.domains.values().map(Vec::len).sum::<usize>();
+    if total > 150_000 {
+        return Err("Yerel çalışma alanı beklenen sınırı aşıyor.".to_string());
+    }
+    for entity_type in workspace.domains.keys() {
+        validate_entity_type(entity_type)?;
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = load_or_create_key(&app)?;
+        let mut connection = open_database(&database_path(&app)?)?;
+        let scope_key = scope_key(&scope);
+        let transaction = connection.transaction().map_err(|err| format!("Çalışma alanı işlemi başlatılamadı: {err}"))?;
+        for (entity_type, entities) in workspace.domains {
+            transaction.execute("DELETE FROM entities WHERE scope_key=?1 AND entity_type=?2", params![scope_key, entity_type]).map_err(|err| format!("Eski çalışma alanı temizlenemedi: {err}"))?;
+            for entity in entities {
+                let aad = format!("{scope_key}\u{1f}{entity_type}\u{1f}{}", entity.id);
+                let encrypted = encrypt_json(&key, aad.as_bytes(), &entity.payload)?;
+                transaction.execute("INSERT INTO entities(scope_key,entity_type,entity_id,encrypted_payload,updated_at) VALUES(?1,?2,?3,?4,?5)", params![scope_key, entity_type, entity.id, encrypted, entity.updated_at]).map_err(|err| format!("Çalışma alanı verisi yazılamadı: {err}"))?;
+            }
+        }
+        transaction.execute("INSERT INTO sync_state(scope_key,last_synced_at,updated_at) VALUES(?1,?2,CURRENT_TIMESTAMP) ON CONFLICT(scope_key) DO UPDATE SET last_synced_at=excluded.last_synced_at,last_error=NULL,updated_at=CURRENT_TIMESTAMP", params![scope_key, workspace.synced_at]).map_err(|err| format!("Sync durumu yazılamadı: {err}"))?;
+        transaction.commit().map_err(|err| format!("Çalışma alanı kaydedilemedi: {err}"))
+    }).await.map_err(|err| format!("Çalışma alanı işlemi tamamlanamadı: {err}"))?
 }
 
 #[tauri::command]

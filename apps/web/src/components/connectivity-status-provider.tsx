@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { cloudUrl } from '@/lib/cloud-origin'
+import { isNativeShell } from '@/lib/native-shell'
 
 export type ConnectivityStatus = 'checking' | 'online' | 'offline'
 
@@ -28,7 +30,7 @@ export function ConnectivityStatusProvider({ children }: { children: React.React
       const timeout = window.setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS)
 
       try {
-        const response = await fetch('/api/connectivity', {
+        const response = await fetch(isNativeShell() ? cloudUrl('/api/connectivity') : '/api/connectivity', {
           cache: 'no-store',
           signal: controller.signal,
         })

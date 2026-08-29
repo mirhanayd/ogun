@@ -15,6 +15,8 @@ import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
 import { getCachedNativeSessionToken, loadNativeSessionToken } from '@/lib/native-shell'
 import { cn } from '@/lib/utils'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
+import { replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
+import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 
 type Route = '/panel' | '/danisanlar' | '/randevular' | '/planlar' | '/tarifler' | '/finans' | '/ayarlar'
 
@@ -69,7 +71,7 @@ function DesktopWorkspace({ identity }: { identity: DesktopIdentity }) {
   const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === route)?.label ?? 'Panel', [identity.role, route])
   const initials = identity.clinicName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
   return (
-    <AppShellFrame clinicName={identity.clinicName} clinicInitials={initials} userName={identity.displayName} desktopTitlebar={<DesktopTitlebar clinicName={identity.clinicName} />} navigation={<DesktopNavigation identity={identity} route={route} onNavigate={setRoute} />} topbar={<header className="app-topbar flex h-[4.5rem] shrink-0 items-center border-b border-border/80 bg-background/90 px-6"><span className="font-semibold">{title}</span></header>} bottomNavigation={null} overlays={<OfflineIndicator />}>
+    <AppShellFrame clinicName={identity.clinicName} clinicInitials={initials} userName={identity.displayName} desktopTitlebar={<DesktopTitlebar clinicName={identity.clinicName} />} navigation={<DesktopNavigation identity={identity} route={route} onNavigate={setRoute} />} topbar={<header className="app-topbar flex h-[4.5rem] shrink-0 items-center border-b border-border/80 bg-background/90 px-6"><span className="font-semibold">{title}</span></header>} bottomNavigation={null} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
     </AppShellFrame>
   )
@@ -103,13 +105,14 @@ function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: Desktop
     if (!session || sessionError || !session.session.activeClinicId || !session.session.role) throw new Error('Aktif klinik oturumu bulunamadı.')
     const response = await fetch(cloudUrl('/api/desktop/workspace'), { cache: 'no-store', credentials: 'include', headers: authHeaders() })
     if (!response.ok) throw new Error('Klinik çalışma alanı indirilemedi.')
-    const workspace = await response.json() as { clinic: { id: string; name: string } }
+    const workspace = await response.json() as DesktopWorkspacePayload
     if (!['owner', 'dietitian', 'assistant'].includes(session.session.role)) throw new Error('Klinik rolü yerel çalışma için desteklenmiyor.')
     const identity: DesktopIdentity = { userId: session.user.id, email: session.user.email, displayName: session.user.name, clinicId: workspace.clinic.id, clinicName: workspace.clinic.name, role: session.session.role as DesktopIdentity['role'] }
     const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
     const previous = profiles.find((profile) => profile.userId === identity.userId && profile.clinicId === identity.clinicId)
     await invoke('upsert_offline_profile', { profile: { ...identity, lastSyncedAt: new Date().toISOString() } })
     await invoke('initialize_local_scope', { scope: scopeOf(identity) })
+    await replaceLocalWorkspace(scopeOf(identity), workspace)
     onAuthenticated(identity, !previous?.pinConfigured)
   }
 
@@ -139,5 +142,5 @@ export function DesktopApp() {
   if (checking) return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Öğün açılıyor…</div></AuthSurface>
   if (!identity) return <DesktopLogin onAuthenticated={(next, pinRequired) => { setIdentity(next); setNeedsPin(pinRequired) }} />
   if (needsPin) return <PinSetup identity={identity} onComplete={() => setNeedsPin(false)} />
-  return <ConnectivityStatusProvider><DesktopWorkspace identity={identity} /></ConnectivityStatusProvider>
+  return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} /></DesktopSyncProvider></ConnectivityStatusProvider>
 }
