@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fail-local-outbox-mutation"
+description = "Enables the fail_local_outbox_mutation command without any pre-configured scope."
+commands.allow = ["fail_local_outbox_mutation"]
+
+[[permission]]
+identifier = "deny-fail-local-outbox-mutation"
+description = "Denies the fail_local_outbox_mutation command without any pre-configured scope."
+commands.deny = ["fail_local_outbox_mutation"]

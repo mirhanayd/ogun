@@ -141,6 +141,34 @@ pub struct LocalEntity {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalMutationInput {
+    pub mutation_id: String,
+    pub kind: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub operation: String,
+    pub payload: Value,
+    pub projection: Value,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalOutboxMutation {
+    pub mutation_id: String,
+    pub kind: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub operation: String,
+    pub payload: Value,
+    pub created_at: String,
+    pub attempt_count: i64,
+    pub sync_status: String,
+    pub last_error: Option<String>,
+}
+
 fn validate_scope(scope: &LocalScope) -> Result<(), String> {
     if scope.user_id.trim().is_empty() || scope.clinic_id.trim().is_empty() {
         return Err("Kullanıcı ve klinik kapsamı zorunludur.".to_string());
@@ -168,6 +196,25 @@ fn validate_entity_type(entity_type: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err("Desteklenmeyen yerel veri alanı.".to_string())
+    }
+}
+
+fn can_mutate(scope: &LocalScope, entity_type: &str) -> bool {
+    match scope.role.as_str() {
+        "owner" => true,
+        "dietitian" => matches!(
+            entity_type,
+            "clients"
+                | "anamneses"
+                | "measurements"
+                | "labResults"
+                | "goals"
+                | "plans"
+                | "appointments"
+                | "customFoods"
+        ),
+        "assistant" => entity_type == "appointments",
+        _ => false,
     }
 }
 
@@ -401,6 +448,166 @@ pub async fn list_local_entities(
     }).await.map_err(|err| format!("Yerel sorgu tamamlanamadı: {err}"))?
 }
 
+/// Applies the optimistic entity projection and inserts its encrypted outbox
+/// envelope in one SQLite transaction. Reusing a mutation id is a no-op.
+#[tauri::command]
+pub async fn apply_local_mutation(
+    app: AppHandle,
+    state: State<'_, OfflineVaultState>,
+    scope: LocalScope,
+    mutation: LocalMutationInput,
+) -> Result<(), String> {
+    authorize(&app, &state, &scope)?;
+    validate_entity_type(&mutation.entity_type)?;
+    if !can_mutate(&scope, &mutation.entity_type) {
+        return Err("Rolünüz bu değişikliği çevrimdışı yapmaya izin vermiyor.".to_string());
+    }
+    if mutation.mutation_id.is_empty()
+        || mutation.mutation_id.len() > 160
+        || mutation.kind.is_empty()
+        || mutation.entity_id.is_empty()
+        || !matches!(
+            mutation.operation.as_str(),
+            "create" | "update" | "upsert" | "delete" | "replace"
+        )
+    {
+        return Err("Yerel mutasyon zarfı geçersiz.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = load_or_create_key(&app)?;
+        let mut connection = open_database(&database_path(&app)?)?;
+        let scope_key = scope_key(&scope);
+        let transaction = connection
+            .transaction()
+            .map_err(|err| format!("Yerel mutasyon başlatılamadı: {err}"))?;
+        let duplicate: bool = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE mutation_id=?1)",
+                params![mutation.mutation_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("Yerel mutasyon kimliği denetlenemedi: {err}"))?;
+        if duplicate {
+            return transaction
+                .commit()
+                .map_err(|err| format!("Yerel mutasyon doğrulanamadı: {err}"));
+        }
+        let entity_aad = format!(
+            "{scope_key}\u{1f}{}\u{1f}{}",
+            mutation.entity_type, mutation.entity_id
+        );
+        let projection = encrypt_json(&key, entity_aad.as_bytes(), &mutation.projection)?;
+        transaction
+            .execute(
+                "INSERT INTO entities(scope_key,entity_type,entity_id,encrypted_payload,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(scope_key,entity_type,entity_id) DO UPDATE SET encrypted_payload=excluded.encrypted_payload,updated_at=excluded.updated_at,deleted=excluded.deleted",
+                params![scope_key, mutation.entity_type, mutation.entity_id, projection, mutation.created_at, i64::from(mutation.operation == "delete")],
+            )
+            .map_err(|err| format!("Yerel görünüm güncellenemedi: {err}"))?;
+        let outbox_aad = format!("{scope_key}\u{1f}outbox\u{1f}{}", mutation.mutation_id);
+        let envelope = serde_json::json!({ "kind": mutation.kind, "payload": mutation.payload });
+        let payload = encrypt_json(&key, outbox_aad.as_bytes(), &envelope)?;
+        transaction
+            .execute(
+                "INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![mutation.mutation_id, scope_key, mutation.entity_type, mutation.entity_id, mutation.operation, payload, mutation.created_at],
+            )
+            .map_err(|err| format!("Yerel outbox kaydedilemedi: {err}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("Yerel mutasyon kalıcılaştırılamadı: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Yerel mutasyon işlemi tamamlanamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn load_local_outbox(
+    app: AppHandle,
+    state: State<'_, OfflineVaultState>,
+    scope: LocalScope,
+    limit: usize,
+) -> Result<Vec<LocalOutboxMutation>, String> {
+    authorize(&app, &state, &scope)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = load_or_create_key(&app)?;
+        let connection = open_database(&database_path(&app)?)?;
+        let scope_key = scope_key(&scope);
+        let mut statement = connection
+            .prepare("SELECT mutation_id,entity_type,entity_id,operation,encrypted_payload,created_at,attempt_count,sync_status,last_error FROM outbox WHERE scope_key=?1 AND sync_status IN ('pending','failed') AND (next_attempt_at IS NULL OR datetime(next_attempt_at) <= datetime('now')) ORDER BY created_at LIMIT ?2")
+            .map_err(|err| format!("Outbox sorgusu hazırlanamadı: {err}"))?;
+        let rows = statement
+            .query_map(params![scope_key, limit.clamp(1, 500)], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, Vec<u8>>(4)?, row.get::<_, String>(5)?, row.get::<_, i64>(6)?, row.get::<_, String>(7)?, row.get::<_, Option<String>>(8)?))
+            })
+            .map_err(|err| format!("Outbox okunamadı: {err}"))?;
+        let mut result = Vec::new();
+        for row in rows {
+            let (mutation_id, entity_type, entity_id, operation, encrypted, created_at, attempt_count, sync_status, last_error) = row.map_err(|err| format!("Outbox satırı okunamadı: {err}"))?;
+            let aad = format!("{scope_key}\u{1f}outbox\u{1f}{mutation_id}");
+            let payload = decrypt_json(&key, aad.as_bytes(), &encrypted)?;
+            let kind = payload.get("kind").and_then(Value::as_str).unwrap_or(&operation).to_string();
+            let payload = payload.get("payload").cloned().unwrap_or(payload);
+            result.push(LocalOutboxMutation { mutation_id, kind, entity_type, entity_id, operation, payload, created_at, attempt_count, sync_status, last_error });
+        }
+        Ok(result)
+    })
+    .await
+    .map_err(|err| format!("Outbox işlemi tamamlanamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn acknowledge_local_outbox(
+    app: AppHandle,
+    state: State<'_, OfflineVaultState>,
+    scope: LocalScope,
+    mutation_ids: Vec<String>,
+) -> Result<(), String> {
+    authorize(&app, &state, &scope)?;
+    if mutation_ids.len() > 500 {
+        return Err("Tek seferde en fazla 500 mutasyon onaylanabilir.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut connection = open_database(&database_path(&app)?)?;
+        let transaction = connection
+            .transaction()
+            .map_err(|err| format!("Outbox onayı başlatılamadı: {err}"))?;
+        let scope_key = scope_key(&scope);
+        for mutation_id in mutation_ids {
+            transaction
+                .execute(
+                    "DELETE FROM outbox WHERE scope_key=?1 AND mutation_id=?2",
+                    params![scope_key, mutation_id],
+                )
+                .map_err(|err| format!("Outbox onaylanamadı: {err}"))?;
+        }
+        transaction
+            .commit()
+            .map_err(|err| format!("Outbox onayı kaydedilemedi: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Outbox onayı tamamlanamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn fail_local_outbox_mutation(
+    app: AppHandle,
+    state: State<'_, OfflineVaultState>,
+    scope: LocalScope,
+    mutation_id: String,
+    error: String,
+) -> Result<(), String> {
+    authorize(&app, &state, &scope)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = open_database(&database_path(&app)?)?;
+        let scope_key = scope_key(&scope);
+        connection.execute(
+            "UPDATE outbox SET sync_status='failed',attempt_count=attempt_count+1,last_error=?3,next_attempt_at=datetime('now','+' || MIN(3600, 2 << MIN(attempt_count,10)) || ' seconds') WHERE scope_key=?1 AND mutation_id=?2",
+            params![scope_key, mutation_id, error.chars().take(1000).collect::<String>()],
+        ).map_err(|err| format!("Outbox hata durumu kaydedilemedi: {err}"))?;
+        Ok(())
+    }).await.map_err(|err| format!("Outbox hata işlemi tamamlanamadı: {err}"))?
+}
+
 pub fn remove_scope_data(app: &AppHandle, user_id: &str) -> Result<(), String> {
     let connection = open_database(&database_path(app)?)?;
     connection
@@ -465,5 +672,20 @@ mod tests {
         };
         assert_ne!(scope_key(&a), scope_key(&b));
         assert_ne!(scope_key(&a), scope_key(&c));
+    }
+
+    #[test]
+    fn outbox_mutation_ids_are_unique() {
+        let connection = Connection::open_in_memory().unwrap();
+        let mut connection = connection;
+        apply_migrations(&mut connection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO scopes(scope_key,user_id,clinic_id,role) VALUES('s','u','c','owner')",
+                [],
+            )
+            .unwrap();
+        connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clients','c1','update',X'01','2026-08-29T00:00:00Z')", []).unwrap();
+        assert!(connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clients','c1','update',X'01','2026-08-29T00:00:00Z')", []).is_err());
     }
 }

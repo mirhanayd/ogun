@@ -15,6 +15,7 @@ import {
   createPlan,
   getClientById,
   getDesktopClinicalWorkspace,
+  getDesktopMutationReceipt,
   getGoalClientId,
   getClinicById,
   getAppointmentById,
@@ -36,6 +37,7 @@ import {
   updateMeal,
   updatePlan,
   upsertClientHealth,
+  recordDesktopMutationReceipt,
 } from '@ogun/db/queries'
 import { requireClinic, UnauthenticatedError } from '@/lib/authz'
 import { canAccessClientRecord } from '@/lib/client-access'
@@ -468,6 +470,18 @@ export async function POST(request: Request) {
 
     for (const mutation of parsed.data.mutations) {
       try {
+        const receipt = await getDesktopMutationReceipt(
+          db,
+          ctx.scope.clinicId,
+          ctx.user.id,
+          mutation.id,
+        )
+        if (receipt) {
+          Object.assign(idMap, receipt.result.idMap)
+          appliedIds.push(mutation.id)
+          continue
+        }
+        const idMapBeforeMutation = new Set(Object.keys(idMap))
         if (mutation.kind === 'client.create') {
           const payload = clientCreateSchema.parse(mutation.payload)
           const existing = await getClientById(db, ctx.scope.clinicId, payload.id)
@@ -696,6 +710,16 @@ export async function POST(request: Request) {
           await reconcilePlanDraft(ctx.scope.clinicId, payload)
         }
 
+        const receiptIdMap = Object.fromEntries(
+          Object.entries(idMap).filter(([key]) => !idMapBeforeMutation.has(key)),
+        )
+        await recordDesktopMutationReceipt(db, {
+          clinicId: ctx.scope.clinicId,
+          userId: ctx.user.id,
+          mutationId: mutation.id,
+          kind: mutation.kind,
+          idMap: receiptIdMap,
+        })
         appliedIds.push(mutation.id)
       } catch (error) {
         return NextResponse.json({

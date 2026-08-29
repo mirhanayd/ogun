@@ -126,6 +126,10 @@ pub fn run() {
             local_db::initialize_local_scope,
             local_db::replace_local_entities,
             local_db::list_local_entities,
+            local_db::apply_local_mutation,
+            local_db::load_local_outbox,
+            local_db::acknowledge_local_outbox,
+            local_db::fail_local_outbox_mutation,
             deep_link::notify_frontend_ready,
             // GitHub issue #53 / Prompt 9.3 — dar kapsamlı, tek-amaçlı
             // komutlar (bkz. Cargo.toml/PR'daki genel prensip: sadece
