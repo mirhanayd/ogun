@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { DomainEntity, LocalScope } from '@/data/repositories'
+import type { DomainEntity, LocalScope, OgunRepositories } from '@/data/repositories'
 
 export type DesktopLocalScope = LocalScope & { capabilities: string[] }
 
@@ -152,3 +152,142 @@ export const failLocalOutboxMutation = (
   mutationId: string,
   error: string,
 ) => invoke<void>('fail_local_outbox_mutation', { scope, mutationId, error })
+
+function nullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function clientMutationPayload(client: DomainEntity) {
+  return {
+    clientId: client.id,
+    firstName: String(client.firstName ?? ''),
+    lastName: String(client.lastName ?? ''),
+    birthDate: nullableString(client.birthDate),
+    sex: client.sex === 'male' || client.sex === 'female' ? client.sex : null,
+    phone: nullableString(client.phone),
+    email: nullableString(client.email),
+    occupation: nullableString(client.occupation),
+    referralSource: nullableString(client.referralSource),
+    notes: nullableString(client.notes),
+    status: client.status === 'pasif' || client.status === 'arşiv' ? client.status : 'aktif',
+  }
+}
+
+/** Repository implementation consumed by shared Ogun screens in the packaged renderer. */
+export function createNativeRepositories(scope: DesktopLocalScope): OgunRepositories {
+  const read = <T extends DomainEntity>(entityType: string) => listLocalEntities<T>(scope, entityType)
+
+  return {
+    clients: {
+      list: () => read('clients'),
+      async get(id) {
+        return (await read('clients')).find((client) => client.id === id) ?? null
+      },
+      async create(input) {
+        const now = new Date().toISOString()
+        const projection = { ...input, status: 'aktif', createdAt: now, updatedAt: now }
+        await applyLocalMutation(scope, {
+          kind: 'client.create',
+          entityType: 'clients',
+          entityId: input.id,
+          operation: 'create',
+          payload: {
+            id: input.id,
+            firstName: String(input.firstName ?? ''),
+            lastName: String(input.lastName ?? ''),
+            birthDate: nullableString(input.birthDate),
+            sex: input.sex === 'male' || input.sex === 'female' ? input.sex : null,
+            phone: nullableString(input.phone),
+            email: nullableString(input.email),
+            occupation: nullableString(input.occupation),
+            referralSource: nullableString(input.referralSource),
+            notes: nullableString(input.notes),
+            kvkkConsentChecked: true,
+            explicitConsentChecked: true,
+          },
+          projection,
+        })
+      },
+      async update(id, patch) {
+        const current = (await read('clients')).find((client) => client.id === id)
+        if (!current) throw new Error('Danışan yerel veritabanında bulunamadı.')
+        const projection = { ...current, ...patch, id, updatedAt: new Date().toISOString() }
+        await applyLocalMutation(scope, {
+          kind: 'client.update',
+          entityType: 'clients',
+          entityId: id,
+          operation: 'update',
+          payload: clientMutationPayload(projection),
+          projection,
+        })
+      },
+      async archive(id) {
+        await this.update(id, { status: 'arşiv' })
+      },
+    },
+    clinical: {
+      async listForClient(domain, clientId) {
+        return (await read(domain)).filter((entity) => entity.clientId === clientId)
+      },
+      async upsert(domain, entity) {
+        const kind = {
+          anamneses: 'anamnesis.upsert',
+          measurements: 'measurement.create',
+          labResults: 'labResult.create',
+          goals: 'goal.create',
+        }[domain]
+        await applyLocalMutation(scope, {
+          kind,
+          entityType: domain,
+          entityId: entity.id,
+          operation: domain === 'anamneses' ? 'upsert' : 'create',
+          payload: entity,
+          projection: entity,
+        })
+      },
+    },
+    plans: {
+      list: async (clientId) =>
+        (await read('plans')).filter((plan) => !clientId || plan.clientId === clientId),
+      async get(id) {
+        return (await read('plans')).find((plan) => plan.id === id) ?? null
+      },
+      async upsert(plan) {
+        await applyLocalMutation(scope, {
+          kind: 'plan.create',
+          entityType: 'plans',
+          entityId: plan.id,
+          operation: 'create',
+          payload: plan,
+          projection: plan,
+        })
+      },
+    },
+    appointments: {
+      async list(range) {
+        return (await read('appointments')).filter((appointment) => {
+          const startsAt = String(appointment.startsAt ?? '')
+          return (!range?.from || startsAt >= range.from) && (!range?.to || startsAt <= range.to)
+        })
+      },
+      async upsert(appointment) {
+        await applyLocalMutation(scope, {
+          kind: 'appointment.create',
+          entityType: 'appointments',
+          entityId: appointment.id,
+          operation: 'create',
+          payload: appointment,
+          projection: appointment,
+        })
+      },
+    },
+    foods: {
+      async search() {
+        return []
+      },
+      async get() {
+        return null
+      },
+    },
+  }
+}

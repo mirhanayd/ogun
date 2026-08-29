@@ -15,10 +15,11 @@ import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
 import { getCachedNativeSessionToken, loadNativeSessionToken } from '@/lib/native-shell'
 import { cn } from '@/lib/utils'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
-import { replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
+import { ClientCollectionScreen, ClientDetailScreen } from '@/screens/client-workspace-screen'
+import { createNativeRepositories, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 
-type Route = '/panel' | '/danisanlar' | '/randevular' | '/planlar' | '/tarifler' | '/finans' | '/ayarlar'
+type Route = string
 
 interface DesktopIdentity {
   userId: string
@@ -60,7 +61,7 @@ function DesktopNavigation({ identity, route, onNavigate }: { identity: DesktopI
   return (
     <nav className="flex min-h-0 flex-1 flex-col px-3 pb-4" aria-label="Ana gezinme">
       <p className="mb-2 px-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground/80 uppercase">Klinik yönetimi</p>
-      <div className="flex flex-col gap-1">{visibleNavItems(identity.role).map((item) => { const active = route === item.href; return <button key={item.href} type="button" onClick={() => onNavigate(item.href as Route)} className={cn('group relative flex h-10 items-center gap-3 rounded-xl px-3 text-[0.82rem] font-medium text-sidebar-foreground/65 transition-all hover:bg-sidebar-accent/60 hover:text-sidebar-foreground', active && 'bg-sidebar-accent text-sidebar-accent-foreground')}><span className={cn('grid size-7 place-items-center rounded-lg text-muted-foreground', active && 'bg-sidebar-primary/10 text-sidebar-primary')}><item.icon className="size-4" /></span>{item.label}</button> })}</div>
+      <div className="flex flex-col gap-1">{visibleNavItems(identity.role).map((item) => { const active = route === item.href || route.startsWith(`${item.href}/`); return <button key={item.href} type="button" onClick={() => onNavigate(item.href)} className={cn('group relative flex h-10 items-center gap-3 rounded-xl px-3 text-[0.82rem] font-medium text-sidebar-foreground/65 transition-all hover:bg-sidebar-accent/60 hover:text-sidebar-foreground', active && 'bg-sidebar-accent text-sidebar-accent-foreground')}><span className={cn('grid size-7 place-items-center rounded-lg text-muted-foreground', active && 'bg-sidebar-primary/10 text-sidebar-primary')}><item.icon className="size-4" /></span>{item.label}</button> })}</div>
       <div className="mt-auto rounded-xl border border-sidebar-border bg-background/45 p-3 text-xs"><span className={cn('mr-2 inline-block size-1.5 rounded-full', connectivity === 'online' ? 'bg-emerald-500' : connectivity === 'offline' ? 'bg-destructive' : 'bg-amber-500')} />{connectivity === 'online' ? 'Güncel' : connectivity === 'offline' ? 'Çevrimdışı' : 'Bağlantı kontrol ediliyor'}</div>
     </nav>
   )
@@ -68,11 +69,15 @@ function DesktopNavigation({ identity, route, onNavigate }: { identity: DesktopI
 
 function DesktopWorkspace({ identity }: { identity: DesktopIdentity }) {
   const [route, setRoute] = useState<Route>('/panel')
-  const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === route)?.label ?? 'Panel', [identity.role, route])
+  const repositories = useMemo(() => createNativeRepositories(scopeOf(identity)), [identity])
+  const routeRoot = `/${route.split('/').filter(Boolean)[0] ?? 'panel'}`
+  const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === routeRoot)?.label ?? 'Panel', [identity.role, routeRoot])
   const initials = identity.clinicName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
+  const clientId = route.startsWith('/danisanlar/') ? route.slice('/danisanlar/'.length) : null
+  const content = clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
   return (
     <AppShellFrame clinicName={identity.clinicName} clinicInitials={initials} userName={identity.displayName} desktopTitlebar={<DesktopTitlebar clinicName={identity.clinicName} />} navigation={<DesktopNavigation identity={identity} route={route} onNavigate={setRoute} />} topbar={<header className="app-topbar flex h-[4.5rem] shrink-0 items-center border-b border-border/80 bg-background/90 px-6"><span className="font-semibold">{title}</span></header>} bottomNavigation={null} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
-      <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
+      {content}
     </AppShellFrame>
   )
 }
