@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-initialize-local-scope"
+description = "Enables the initialize_local_scope command without any pre-configured scope."
+commands.allow = ["initialize_local_scope"]
+
+[[permission]]
+identifier = "deny-initialize-local-scope"
+description = "Denies the initialize_local_scope command without any pre-configured scope."
+commands.deny = ["initialize_local_scope"]

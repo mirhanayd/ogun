@@ -18,6 +18,7 @@
 mod deep_link;
 mod menu;
 mod menu_actions;
+mod local_db;
 mod navigation;
 mod notifications;
 mod offline_vault;
@@ -121,6 +122,10 @@ pub fn run() {
             offline_vault::get_offline_food_entries,
             offline_vault::desktop_network_available,
             offline_vault::show_offline_workspace,
+            local_db::desktop_db_info,
+            local_db::initialize_local_scope,
+            local_db::replace_local_entities,
+            local_db::list_local_entities,
             deep_link::notify_frontend_ready,
             // GitHub issue #53 / Prompt 9.3 — dar kapsamlı, tek-amaçlı
             // komutlar (bkz. Cargo.toml/PR'daki genel prensip: sadece

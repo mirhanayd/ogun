@@ -431,6 +431,39 @@ fn require_unlocked(state: &OfflineVaultState, user_id: &str) -> Result<(), Stri
     }
 }
 
+/// Authorizes a structured local database scope. The active verified cloud
+/// account or the PIN-unlocked profile must match the exact user, clinic and
+/// role tuple; opening a second account can never inherit another cache.
+pub fn authorize_local_scope(
+    app: &AppHandle,
+    state: &OfflineVaultState,
+    user_id: &str,
+    clinic_id: &str,
+    role: &str,
+) -> Result<(), String> {
+    let runtime = state
+        .0
+        .lock()
+        .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
+    let active = runtime.unlocked_user_id.as_deref() == Some(user_id)
+        || runtime.active_online_user_id.as_deref() == Some(user_id);
+    drop(runtime);
+    if !active {
+        return Err("Yerel çalışma alanı bu hesap için açık değil.".to_string());
+    }
+    let document = load_document(app)?;
+    let matches_scope = document.profiles.iter().any(|profile| {
+        profile.summary.user_id == user_id
+            && profile.summary.clinic_id == clinic_id
+            && profile.summary.role == role
+    });
+    if matches_scope {
+        Ok(())
+    } else {
+        Err("Yerel çalışma alanı kapsamı cihaz profiliyle eşleşmiyor.".to_string())
+    }
+}
+
 // Aşağıdaki *_impl fonksiyonları senkron gövdelidir; #[tauri::command]
 // sarmalayıcıları bunları spawn_blocking içinde çalıştırır. Böylece hem
 // mantık doğrudan okunup test edilebilir kalır hem de ana iş parçacığı

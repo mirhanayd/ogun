@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-replace-local-entities"
+description = "Enables the replace_local_entities command without any pre-configured scope."
+commands.allow = ["replace_local_entities"]
+
+[[permission]]
+identifier = "deny-replace-local-entities"
+description = "Denies the replace_local_entities command without any pre-configured scope."
+commands.deny = ["replace_local_entities"]
