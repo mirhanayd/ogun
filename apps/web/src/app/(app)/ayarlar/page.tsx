@@ -1,12 +1,8 @@
 import Link from 'next/link'
 import {
   ArrowRight,
-  Building2,
   Clock3,
-  MapPin,
   MessageSquareText,
-  Palette,
-  Phone,
   Settings2,
   Share2,
   ShieldCheck,
@@ -14,18 +10,19 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { db } from '@ogun/db'
-import { getClinicById, getWorkingHoursForClinic } from '@ogun/db/queries'
+import { getClinicIdentityById, getWorkingHoursForClinic } from '@ogun/db/queries'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { requireClinic } from '@/lib/authz'
 import { WEEKDAYS_TR } from '@/lib/onboarding'
+import { ClinicIdentityEditor } from './clinic-identity-editor'
 import { DesktopSettingsCard } from './desktop-settings-card'
 
 export default async function AyarlarPage() {
   const { scope, role, user } = await requireClinic()
   const [clinic, workingHours] = await Promise.all([
-    getClinicById(db, scope.clinicId),
+    getClinicIdentityById(db, scope.clinicId),
     getWorkingHoursForClinic(db, scope.clinicId),
   ])
 
@@ -50,63 +47,7 @@ export default async function AyarlarPage() {
 
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <div className="grid min-w-0 content-start gap-4">
-          <Card className="border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
-            <CardHeader className="border-b border-border/60 px-5 py-5 sm:px-6">
-              <div className="flex items-start gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/9 text-primary ring-1 ring-primary/12">
-                  <Building2 className="size-4.5" />
-                </span>
-                <div>
-                  <CardTitle className="tracking-tight">Klinik kimliği</CardTitle>
-                  <CardDescription className="mt-1">
-                    Danışan iletişiminde ve klinik belgelerinde kullanılan bilgiler
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-6">
-              <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-muted/45 shadow-inner">
-                {clinic.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- data URI'ler next/image ile optimize edilemez.
-                  <img
-                    src={clinic.logoUrl}
-                    alt={`${clinic.name} logosu`}
-                    className="size-full object-contain"
-                  />
-                ) : (
-                  <span className="text-xl font-semibold text-primary">
-                    {clinic.name
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((part) => part[0])
-                      .join('')
-                      .toLocaleUpperCase('tr-TR')}
-                  </span>
-                )}
-              </div>
-              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                <SettingsField
-                  icon={Building2}
-                  label="Klinik adı"
-                  value={clinic.name}
-                  className="sm:col-span-2"
-                />
-                <SettingsField icon={Phone} label="Telefon" value={clinic.phone} />
-                <SettingsField
-                  icon={Palette}
-                  label="Marka rengi"
-                  value={clinic.primaryColor}
-                  color={clinic.primaryColor}
-                />
-                <SettingsField
-                  icon={MapPin}
-                  label="Adres"
-                  value={clinic.address}
-                  className="sm:col-span-2"
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <ClinicIdentityEditor identity={clinic} canEdit={role === 'owner'} />
 
           <Card className="border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
             <CardHeader className="border-b border-border/60 px-5 py-5 sm:px-6">
@@ -189,38 +130,6 @@ export default async function AyarlarPage() {
           />
         </div>
       </section>
-    </div>
-  )
-}
-
-function SettingsField({
-  icon: Icon,
-  label,
-  value,
-  color,
-  className,
-}: {
-  icon: LucideIcon
-  label: string
-  value: string | null
-  color?: string | null
-  className?: string
-}) {
-  return (
-    <div className={className}>
-      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Icon className="size-3.5" />
-        {label}
-      </p>
-      <div className="mt-1.5 flex min-w-0 items-center gap-2">
-        {color && (
-          <span
-            className="size-3.5 shrink-0 rounded-full ring-1 ring-border"
-            style={{ backgroundColor: color }}
-          />
-        )}
-        <p className="truncate text-sm font-medium">{value || 'Belirtilmedi'}</p>
-      </div>
     </div>
   )
 }
