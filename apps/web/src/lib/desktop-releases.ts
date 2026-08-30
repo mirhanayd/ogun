@@ -37,6 +37,37 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.3.2',
+    publishedAt: '2026-08-30',
+    notes: [
+      'Desktop production CSS artık web ile paylaşılan tüm Tailwind kaynaklarını tarar; sidebar, grid, spacing ve responsive utility sınıfları installer içinde eksiksizdir.',
+      'Panel, danışanlar, danışan detayı, planlar, plan editörü, randevular ve besin arama ekranları web ve desktop tarafından aynı presentation component implementation üzerinden render edilir.',
+      'Şifreli SQLite, PIN cold-start, durable outbox ve reconnect sync korunurken yalnız veri/repository adapter’ları runtime’a göre değişir.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: '/api/desktop/download?platform=windows&format=exe&version=0.3.2',
+        fileName: 'Ogun_0.3.2_x64-setup.exe',
+        sha256: '63e84a514561a270253486d7595073ac8e292988468a91fb28159b1b04ff0668',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: '/api/desktop/download?platform=windows&format=msi&version=0.3.2',
+        fileName: 'Ogun_0.3.2_x64_tr-TR.msi',
+        sha256: '307be496ed2b396da042569d16686b204ce5d35a96626bbb451635e793a8187d',
+      },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: '/api/desktop/download?platform=macos&format=dmg&version=0.3.2',
+        fileName: 'Ogun_0.3.2_universal.dmg',
+      },
+    ],
+  },
+  {
     version: '0.3.1',
     publishedAt: '2026-08-30',
     notes: [

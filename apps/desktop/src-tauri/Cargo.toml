@@ -1,6 +1,6 @@
 [package]
 name = "ogun-desktop"
-version = "0.3.1"
+version = "0.3.2"
 description = "Öğün local-first desktop application"
 authors = ["Öğün"]
 edition = "2021"
