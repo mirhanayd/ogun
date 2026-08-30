@@ -1,19 +1,8 @@
-//! Öğün masaüstü kabuğu — GitHub issue #51 / Prompt 9.1, #52 / Prompt 9.2.
+//! Öğün'ün tek, paketlenmiş React renderer'ını barındıran native kabuk.
 //!
-//! Bu crate apps/web'in kodunu İÇERMEZ ve DEĞİŞTİRMEZ (mimari kural, bkz.
-//! faz-9-masaustu-kabugu.md): sadece onu saran, kendi penceresi, pencere
-//! durumu kalıcılığı ve dış link davranışı olan native bir kabuk.
-//!
-//! - Geliştirmede pencere doğrudan `http://localhost:3000`'e (apps/web'in
-//!   `next dev` sunucusu — kök `pnpm dev`, turbo aracılığıyla bunu apps/web
-//!   ile PARALEL başlatır) işaret eder. Hot reload apps/web'in kendi dev
-//!   sunucusundan geldiği için burada YAPACAK bir şey yok.
-//! - Üretimde pencere doğrudan `https://ogun-web.vercel.app` adresini açar.
-//!   Sunucu secret'ları ve veritabanı bağlantı bilgileri installer'a konmaz;
-//!   masaüstü paketi yalnızca güvenli bir native istemci kabuğudur.
-//! - GitHub issue #52 — `ogun://` deep link'leri (bkz. deep_link.rs) ve
-//!   native oturum kalıcılığı (bkz. secure_storage.rs) burada bir araya
-//!   getirilir.
+//! Üretimde WebView hiçbir uzak UI açmaz. Ağ yalnız Better Auth, push/pull
+//! senkronizasyonu ve katalog güncellemesi için kullanılır; çevrimdışı olmak
+//! pencere URL'sini veya component ağacını değiştirmez.
 
 mod deep_link;
 mod menu;
@@ -22,7 +11,6 @@ mod local_db;
 mod navigation;
 mod notifications;
 mod offline_vault;
-mod online_preload;
 mod secure_storage;
 mod settings;
 mod startup;
@@ -111,17 +99,6 @@ pub fn run() {
             offline_vault::configure_offline_pin,
             offline_vault::unlock_offline_profile,
             offline_vault::lock_offline_profile,
-            offline_vault::get_unlocked_offline_workspace,
-            offline_vault::save_offline_workspace,
-            offline_vault::save_offline_plan_draft,
-            offline_vault::queue_offline_mutation,
-            offline_vault::load_pending_offline_mutations,
-            offline_vault::acknowledge_offline_mutations,
-            offline_vault::save_offline_food_catalog,
-            offline_vault::search_offline_food_catalog,
-            offline_vault::get_offline_food_entries,
-            offline_vault::desktop_network_available,
-            offline_vault::show_offline_workspace,
             local_db::desktop_db_info,
             local_db::initialize_local_scope,
             local_db::replace_local_entities,
@@ -148,10 +125,6 @@ pub fn run() {
             tray::update_tray_today_appointments_summary,
             startup::is_autostart_launch,
             startup::complete_startup_launch,
-            // Kullanıcı raporu: "ilk açtığımda 4-5 saniyelik full beyaz ekran
-            // geliyor" — splash görünürken çevrimiçi uygulamayı gizli pencerede
-            // ön yükleyip hazır olunca geçen akış (bkz. online_preload.rs).
-            online_preload::open_online_app,
         ])
         .setup(|app| {
             let is_dev = tauri::is_dev();
@@ -174,7 +147,7 @@ pub fn run() {
             // bilmeye ihtiyaç duyar: dev'de localhost, üretimde sabit ve
             // güvenilir web origin'i kullanılır. Pencereyi
             // oluşturmadan ÖNCE yönetime alınmalı — ilk navigasyon olayı
-            // (splash/dev sayfasının kendisi) daha pencere `build()`
+            // (paketlenmiş/dev sayfasının kendisi) daha pencere `build()`
             // dönmeden tetiklenebilir.
             let app_origin = if is_dev {
                 DEV_ORIGIN
@@ -214,9 +187,6 @@ pub fn run() {
                     startup::set_enabled_for_saved_profiles(&deferred_handle, has_profiles);
                 });
             }
-            // Splash'in çevrimiçi geçişi için tek uçuş durumu (bkz.
-            // online_preload.rs).
-            app.manage(online_preload::OnlinePreloadState::default());
 
             // GÖREV 1 — native menü çubuğu. GÖREV 2 — tray simgesi. İkisi de
             // "main" penceresinin VAR OLMASINI gerektirmez (bkz. menu.rs/

@@ -1,19 +1,11 @@
 //! Süreç ömrü boyunca TEK bir Stronghold kasa (vault) örneği paylaşımı.
 //!
-//! NEDEN BU MODÜL VAR: secure_storage.rs ve offline_vault.rs aynı snapshot
-//! dosyasını (native-session.stronghold) kullanıyor. Eski kod her komutta
-//! YENİ bir `Stronghold` örneği açıyordu; bu her seferinde (1) Argon2
-//! anahtar türetimi ve (2) snapshot'ın diskten okunup şifresinin çözülmesi
-//! demekti. Komutlar senkron olduğu için bu maliyet ANA İŞ PARÇACIĞINDA
-//! ödeniyordu — girişten hemen sonra art arda çağrılan kasa komutları
-//! (upsert_offline_profile → list_offline_profiles →
-//! load_pending_offline_mutations → save_offline_workspace → ...) pencereyi
-//! saniyelerce donduruyordu (kullanıcı raporu: "giriş yaptıktan sonra arayüz
-//! çok kasıyor"). Ayrıca save_document yazmadan ÖNCE kasayı İKİNCİ kez
-//! açıyordu — yani tek bir yazım iki Argon2 türetimi yapıyordu.
+//! NEDEN BU MODÜL VAR: secure_storage.rs, local DB anahtarı ve PIN profilleri
+//! aynı snapshot dosyasını (native-session.stronghold) kullanır. Her komutta
+//! yeni bir kasa açmak Argon2 türetimini ve snapshot çözümünü tekrarlar.
 //!
 //! Çözüm: örneği bir kez açıp süreç boyunca yeniden kullanmak. Bir Stronghold
-//! snapshot'ı birden fazla client'ı (ogun-native-auth + ogun-offline-workspace)
+//! snapshot'ı birden fazla client'ı (auth, DB secret ve PIN profilleri)
 //! aynı anda tutabilir; `save()` hepsini birlikte diske yazar. Tek örnek,
 //! eski "her çağrıda taze örnek" davranışının veri yönünden aynısıdır —
 //! sadece tekrarlanan açma maliyeti ortadan kalkar.

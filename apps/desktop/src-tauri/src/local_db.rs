@@ -193,6 +193,14 @@ pub struct LocalFoodCatalogInfo {
     pub entry_count: i64,
 }
 
+#[derive(Debug, Clone)]
+pub struct LegacyLocalMutation {
+    pub id: String,
+    pub kind: String,
+    pub payload: Value,
+    pub created_at: String,
+}
+
 fn validate_scope(scope: &LocalScope) -> Result<(), String> {
     if scope.user_id.trim().is_empty() || scope.clinic_id.trim().is_empty() {
         return Err("Kullanıcı ve klinik kapsamı zorunludur.".to_string());
@@ -247,6 +255,200 @@ fn scope_key(scope: &LocalScope) -> String {
         "{}\u{1f}{}\u{1f}{}",
         scope.user_id, scope.clinic_id, scope.role
     )
+}
+
+fn legacy_mutation_target(
+    mutation: &LegacyLocalMutation,
+) -> Option<(&'static str, String, &'static str)> {
+    let payload_id = |key: &str| {
+        mutation
+            .payload
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+    match mutation.kind.as_str() {
+        "client.create" => payload_id("id").map(|id| ("clients", id, "create")),
+        "client.update" => payload_id("clientId").map(|id| ("clients", id, "update")),
+        "anamnesis.upsert" => payload_id("clientId").map(|id| ("anamneses", id, "upsert")),
+        "measurement.create" => payload_id("id").map(|id| ("measurements", id, "create")),
+        "goal.create" => payload_id("id").map(|id| ("goals", id, "create")),
+        "labResult.create" => payload_id("id").map(|id| ("labResults", id, "create")),
+        "payment.create" => payload_id("id").map(|id| ("payments", id, "create")),
+        "plan.create" => payload_id("id").map(|id| ("plans", id, "create")),
+        "plan.update" | "plan.draft.replace" => {
+            payload_id("planId").map(|id| ("plans", id, "replace"))
+        }
+        "appointment.create" => payload_id("id").map(|id| ("appointments", id, "create")),
+        _ => None,
+    }
+}
+
+/// One-time compatibility import for pre-0.3 Stronghold JSON snapshots.
+/// Existing SQLite data wins; legacy outbox ids are inserted idempotently.
+pub fn migrate_legacy_profile_data(
+    app: &AppHandle,
+    scope: &LocalScope,
+    workspace: &Value,
+    mutations: &[LegacyLocalMutation],
+) -> Result<(), String> {
+    if !workspace.is_object() && mutations.is_empty() {
+        return Ok(());
+    }
+    let key = load_or_create_key(app)?;
+    let mut connection = open_database(&database_path(app)?)?;
+    let transaction = connection
+        .transaction()
+        .map_err(|err| format!("Eski yerel veri aktarımı başlatılamadı: {err}"))?;
+    let scope_key = scope_key(scope);
+    transaction.execute(
+        "INSERT INTO scopes(scope_key,user_id,clinic_id,role,capabilities_json) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(scope_key) DO NOTHING",
+        params![scope_key, scope.user_id, scope.clinic_id, scope.role, serde_json::to_string(&scope.capabilities).unwrap_or_else(|_| "[]".into())],
+    ).map_err(|err| format!("Eski yerel kapsam aktarılamadı: {err}"))?;
+
+    let existing_count: i64 = transaction
+        .query_row(
+            "SELECT COUNT(*) FROM entities WHERE scope_key=?1",
+            params![scope_key],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("Yerel aktarım durumu okunamadı: {err}"))?;
+    let captured_at = workspace
+        .get("capturedAt")
+        .and_then(Value::as_str)
+        .unwrap_or("1970-01-01T00:00:00Z");
+    if existing_count == 0 {
+        let domains = [
+            "clients",
+            "anamneses",
+            "measurements",
+            "goals",
+            "labResults",
+            "payments",
+            "plans",
+            "appointments",
+            "customFoods",
+        ];
+        if let Some(clinic) = workspace.get("clinic").filter(|value| value.is_object()) {
+            if let Some(id) = clinic.get("id").and_then(Value::as_str) {
+                let aad = format!("{scope_key}\u{1f}clinic\u{1f}{id}");
+                let encrypted = encrypt_json(&key, aad.as_bytes(), clinic)?;
+                transaction.execute("INSERT INTO entities(scope_key,entity_type,entity_id,encrypted_payload,updated_at) VALUES(?1,'clinic',?2,?3,?4)", params![scope_key, id, encrypted, captured_at]).map_err(|err| format!("Eski klinik verisi aktarılamadı: {err}"))?;
+            }
+        }
+        for domain in domains {
+            for entity in workspace
+                .get(domain)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let id = entity
+                    .get("id")
+                    .or_else(|| {
+                        (domain == "anamneses")
+                            .then(|| entity.get("clientId"))
+                            .flatten()
+                    })
+                    .and_then(Value::as_str);
+                let Some(id) = id else { continue };
+                let updated_at = entity
+                    .get("updatedAt")
+                    .or_else(|| entity.get("createdAt"))
+                    .or_else(|| entity.get("measuredAt"))
+                    .or_else(|| entity.get("testedAt"))
+                    .and_then(Value::as_str)
+                    .unwrap_or(captured_at);
+                let aad = format!("{scope_key}\u{1f}{domain}\u{1f}{id}");
+                let encrypted = encrypt_json(&key, aad.as_bytes(), entity)?;
+                transaction.execute("INSERT INTO entities(scope_key,entity_type,entity_id,encrypted_payload,updated_at) VALUES(?1,?2,?3,?4,?5)", params![scope_key, domain, id, encrypted, updated_at]).map_err(|err| format!("Eski {domain} verisi aktarılamadı: {err}"))?;
+            }
+        }
+    }
+
+    for mutation in mutations {
+        let Some((entity_type, entity_id, operation)) = legacy_mutation_target(mutation) else {
+            continue;
+        };
+        let duplicate: bool = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE mutation_id=?1)",
+                params![mutation.id],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("Eski mutasyon denetlenemedi: {err}"))?;
+        if duplicate {
+            continue;
+        }
+        let aad = format!("{scope_key}\u{1f}outbox\u{1f}{}", mutation.id);
+        let envelope = serde_json::json!({ "kind": mutation.kind, "payload": mutation.payload });
+        let encrypted = encrypt_json(&key, aad.as_bytes(), &envelope)?;
+        transaction.execute(
+            "INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+            params![mutation.id, scope_key, entity_type, entity_id, operation, encrypted, mutation.created_at],
+        ).map_err(|err| format!("Eski mutasyon aktarılamadı: {err}"))?;
+    }
+    transaction
+        .commit()
+        .map_err(|err| format!("Eski yerel veri aktarımı tamamlanamadı: {err}"))
+}
+
+pub fn migrate_legacy_food_catalog(app: &AppHandle, catalog: &Value) -> Result<(), String> {
+    let Some(version) = catalog.get("version").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let Some(entries) = catalog.get("entries").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let connection = open_database(&database_path(app)?)?;
+    let existing: i64 = connection
+        .query_row("SELECT COUNT(*) FROM foods", [], |row| row.get(0))
+        .map_err(|err| format!("Besin aktarım durumu okunamadı: {err}"))?;
+    if existing > 0 {
+        return Ok(());
+    }
+    drop(connection);
+    let mut connection = open_database(&database_path(app)?)?;
+    let transaction = connection
+        .transaction()
+        .map_err(|err| format!("Eski besin aktarımı başlatılamadı: {err}"))?;
+    for original in entries {
+        let mut entry = original.clone();
+        if entry.get("defaultPortion").is_none() {
+            if let (Some(label), Some(grams)) = (
+                entry.get("defaultPortionLabel").cloned(),
+                entry.get("defaultPortionGrams").cloned(),
+            ) {
+                entry.as_object_mut().map(|object| {
+                    object.insert(
+                        "defaultPortion".into(),
+                        serde_json::json!({ "label": label, "grams": grams }),
+                    )
+                });
+            }
+        }
+        let Some(id) = entry.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(name) = entry.get("nameTr").and_then(Value::as_str) else {
+            continue;
+        };
+        let search_text = entry
+            .get("searchText")
+            .and_then(Value::as_str)
+            .map(normalize_food_query)
+            .unwrap_or_else(|| normalize_food_query(name));
+        let payload = serde_json::to_string(&entry)
+            .map_err(|err| format!("Eski besin kaydı kodlanamadı: {err}"))?;
+        transaction.execute("INSERT INTO foods(food_id,catalog_version,name_tr,normalized_name,search_text,group_name_tr,payload_json) VALUES(?1,?2,?3,?4,?5,?6,?7)", params![id, version, name, normalize_food_query(name), search_text, entry.get("groupNameTr").and_then(Value::as_str), payload]).map_err(|err| format!("Eski besin kaydı aktarılamadı: {err}"))?;
+    }
+    transaction.execute("INSERT INTO local_db_metadata(key,value) VALUES('food_catalog_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![version]).map_err(|err| format!("Eski katalog sürümü aktarılamadı: {err}"))?;
+    transaction
+        .commit()
+        .map_err(|err| format!("Eski besin kataloğu aktarılamadı: {err}"))
 }
 
 fn database_path(app: &AppHandle) -> Result<PathBuf, String> {

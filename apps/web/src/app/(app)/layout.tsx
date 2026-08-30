@@ -7,7 +7,6 @@ import {
 } from '@ogun/db/queries'
 import { NativeNotificationBridge } from '@/components/native-notification-bridge'
 import { AppShellFrame } from '@/components/app-shell-frame'
-import { DesktopOfflineBridge } from '@/components/desktop-offline-bridge'
 import { ConnectivityStatusProvider } from '@/components/connectivity-status-provider'
 import {
   ClinicSelectionRequiredError,
@@ -108,14 +107,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           gibi genel sayfalarda klinik bağlamı yok, bildirim özeti anlamsız
           olurdu. Web tarayıcısında (isNativeShell() false) bu bileşen NO-OP. */}
             <NativeNotificationBridge />
-            <DesktopOfflineBridge
-              userId={ctx.user.id}
-              email={ctx.user.email}
-              displayName={ctx.user.name}
-              clinicId={ctx.scope.clinicId}
-              clinicName={clinicName}
-              role={ctx.role}
-            />
           </>
         }
       >

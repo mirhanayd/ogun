@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
@@ -47,8 +46,6 @@ import { computeDragEndPlan } from '@/lib/dnd-reorder'
 import { cn } from '@/lib/utils'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import { initFoodIndex } from '@/lib/food-index'
-import { isNativeShell } from '@/lib/native-shell'
-import type { DesktopOfflineMutation } from '@/lib/desktop-offline'
 import type { PlanTree } from '@ogun/db/queries'
 import type { ClientAllergenEntry, ClientSex, PdfDensity, PlanOutputFormat } from '@ogun/db/schema'
 import { PLAN_OUTPUT_FORMAT_OPTIONS } from '@/lib/validation/plan-schemas'
@@ -62,7 +59,6 @@ import { PlanPdfDialog } from './plan-pdf-dialog'
 import { ShareDialog } from './share-dialog'
 
 export interface PlanEditorProps {
-  userId: string
   planId: string
   clientId: string
   planName: string
@@ -113,7 +109,6 @@ export interface PlanEditorProps {
 // HİÇBİR İŞLEV KALDIRILMADI — hepsi bir tık ötede ve AYNI store action'larına
 // bağlı (bkz. plan-editor-store.ts setPlanMeta).
 export function PlanEditor({
-  userId,
   planId,
   clientId,
   planName,
@@ -156,7 +151,6 @@ export function PlanEditor({
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-  const previousNativeDraft = useRef<string | null>(null)
 
   useEffect(() => {
     initialize({
@@ -199,52 +193,6 @@ export function PlanEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId])
-
-  useEffect(() => {
-    if (!isNativeShell() || !currentPlanName) return
-    const draft = {
-      planId,
-      planName: currentPlanName,
-      targetKcal: currentTargetKcal,
-      startDate: currentStartDate?.toISOString() ?? null,
-      endDate: currentEndDate?.toISOString() ?? null,
-      outputFormat: currentOutputFormat,
-      days,
-    }
-    const serialized = JSON.stringify(draft)
-    if (previousNativeDraft.current === null) {
-      previousNativeDraft.current = serialized
-      return
-    }
-    if (previousNativeDraft.current === serialized) return
-    previousNativeDraft.current = serialized
-
-    const timer = window.setTimeout(() => {
-      const mutation: DesktopOfflineMutation = {
-        id: `plan-draft:${planId}`,
-        kind: 'plan.draft.replace',
-        payload: draft,
-        createdAt: new Date().toISOString(),
-      }
-      void (async () => {
-        await invoke('save_offline_plan_draft', { userId, planId, draft })
-        await invoke('queue_offline_mutation', { userId, mutation })
-        window.dispatchEvent(new Event('ogun-offline-mutation-queued'))
-      })().catch((error) => {
-        console.warn('[plan-editor] yerel plan taslağı kaydedilemedi', error)
-      })
-    }, 500)
-    return () => window.clearTimeout(timer)
-  }, [
-    currentEndDate,
-    currentOutputFormat,
-    currentPlanName,
-    currentStartDate,
-    currentTargetKcal,
-    days,
-    planId,
-    userId,
-  ])
 
   // GitHub issue #61 / GÖREV 4 — DOKUNMATİK SÜRÜKLE-BIRAK DOĞRULAMASI.
   // dnd-kit'in PointerSensor'ü Pointer Events üzerinden çalışır, yani fare VE

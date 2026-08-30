@@ -65,7 +65,7 @@ pub fn should_open_externally(url: &Url, app_origin: &AppOrigin) -> bool {
     // farklı biçimde gelir: macOS'ta özel şema `tauri://localhost`,
     // Windows/Linux'ta ise WebView2/WebKitGTK kısıtları yüzünden
     // `http://tauri.localhost` (GERÇEK http şeması, host'a bakmak şart).
-    // İkisi de her zaman pencere İÇİNDE kalmalı (splash sayfası, vb.).
+    // İkisi de paketlenmiş renderer için her zaman pencere İÇİNDE kalmalı.
     if scheme == "tauri" || url.host_str() == Some("tauri.localhost") {
         return false;
     }

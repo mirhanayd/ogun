@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { KeyRound, Leaf, LockKeyhole, Mail, Maximize2, Minus, X } from 'lucide-react'
+import { KeyRound, Leaf, LockKeyhole, LogOut, Mail, Maximize2, Minus, X } from 'lucide-react'
 import { AppShellFrame } from '@/components/app-shell-frame'
 import { AuthCard, AuthError } from '@/app/(auth)/_components/auth-card'
 import { DesktopSavedAccounts } from '@/components/desktop-saved-accounts'
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
 import { cloudUrl } from '@/lib/cloud-origin'
 import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
-import { getCachedNativeSessionToken, loadNativeSessionToken } from '@/lib/native-shell'
+import { clearNativeSessionToken, getCachedNativeSessionToken, loadNativeSessionToken } from '@/lib/native-shell'
 import { cn } from '@/lib/utils'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
 import { ClientCollectionScreen, ClientDetailScreen } from '@/screens/client-workspace-screen'
@@ -69,16 +69,21 @@ function DesktopNavigation({ identity, route, onNavigate }: { identity: DesktopI
   )
 }
 
-function DesktopWorkspace({ identity }: { identity: DesktopIdentity }) {
+function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; onLogout: () => void }) {
   const [route, setRoute] = useState<Route>('/panel')
   const repositories = useMemo(() => createNativeRepositories(scopeOf(identity)), [identity])
   const routeRoot = `/${route.split('/').filter(Boolean)[0] ?? 'panel'}`
   const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === routeRoot)?.label ?? 'Panel', [identity.role, routeRoot])
   const initials = identity.clinicName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
   const clientId = route.startsWith('/danisanlar/') ? route.slice('/danisanlar/'.length) : null
+  async function logout() {
+    await authClient.signOut().catch(() => undefined)
+    await clearNativeSessionToken()
+    onLogout()
+  }
   const content = clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : route === '/panel' ? <WorkspaceDashboardScreen repository={repositories} /> : route === '/planlar' ? <PlansWorkspaceScreen repository={repositories} readOnly={identity.role === 'assistant'} /> : route === '/randevular' ? <AppointmentsWorkspaceScreen repository={repositories} /> : route === '/tarifler' ? <FoodCatalogScreen /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
   return (
-    <AppShellFrame clinicName={identity.clinicName} clinicInitials={initials} userName={identity.displayName} desktopTitlebar={<DesktopTitlebar clinicName={identity.clinicName} />} navigation={<DesktopNavigation identity={identity} route={route} onNavigate={setRoute} />} topbar={<header className="app-topbar flex h-[4.5rem] shrink-0 items-center border-b border-border/80 bg-background/90 px-6"><span className="font-semibold">{title}</span></header>} bottomNavigation={null} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
+    <AppShellFrame clinicName={identity.clinicName} clinicInitials={initials} userName={identity.displayName} desktopTitlebar={<DesktopTitlebar clinicName={identity.clinicName} />} navigation={<DesktopNavigation identity={identity} route={route} onNavigate={setRoute} />} topbar={<header className="app-topbar flex h-[4.5rem] shrink-0 items-center justify-between border-b border-border/80 bg-background/90 px-6"><span className="font-semibold">{title}</span><Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button></header>} bottomNavigation={null} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       {content}
     </AppShellFrame>
   )
@@ -149,5 +154,5 @@ export function DesktopApp() {
   if (checking) return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Öğün açılıyor…</div></AuthSurface>
   if (!identity) return <DesktopLogin onAuthenticated={(next, pinRequired) => { setIdentity(next); setNeedsPin(pinRequired) }} />
   if (needsPin) return <PinSetup identity={identity} onComplete={() => setNeedsPin(false)} />
-  return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} /></DesktopSyncProvider></ConnectivityStatusProvider>
+  return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} onLogout={() => { setIdentity(null); setNeedsPin(false) }} /></DesktopSyncProvider></ConnectivityStatusProvider>
 }

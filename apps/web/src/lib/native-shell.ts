@@ -162,8 +162,8 @@ export async function exchangeNativeOneTimeToken(
 }
 
 /**
- * Çıkış yapıldığında (bkz. gelecekteki "çıkış yap" akışı) saklanan token'ı
- * temizler. Native kabuk DIŞINDA no-op.
+ * Explicit logout removes both the native token and the active local profile.
+ * Closing the application does not invoke this path, so offline access persists.
  */
 export async function clearNativeSessionToken(): Promise<void> {
   cachedSessionToken = undefined

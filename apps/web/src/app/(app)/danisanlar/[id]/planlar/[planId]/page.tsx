@@ -89,7 +89,6 @@ export default async function PlanEditorPage({
 
   return (
     <PlanEditor
-      userId={user.id}
       planId={tree.plan.id}
       clientId={id}
       planName={tree.plan.name}
