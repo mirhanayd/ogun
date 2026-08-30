@@ -5,6 +5,7 @@ import {
   medicationSubstanceMappings,
   medicationSubstances,
 } from '@ogun/db/schema'
+import { registerClinicalTerminologySources } from '../clinical-source-registry'
 import {
   DEFAULT_RXNORM_PACKAGE_DIR,
   buildSubstanceResolver,
@@ -48,6 +49,7 @@ async function main() {
   verifyRxNormPackage(packageDir)
 
   const { db } = await import('@ogun/db')
+  if (!dryRun) await registerClinicalTerminologySources(db)
   const [substances, aliases] = await Promise.all([
     db
       .select({
