@@ -37,7 +37,7 @@ export function AppShellFrame({
     >
       {desktopTitlebar}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+        <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex" data-app-sidebar>
           <div className="flex h-[4.5rem] items-center gap-3 px-4">
             <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
               {clinicLogoUrl ? (
@@ -67,7 +67,7 @@ export function AppShellFrame({
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           {topbar}
-          <main className="app-main flex-1 overflow-y-auto px-4 py-5 pb-20 sm:px-6 md:pb-7 lg:px-8">
+          <main className="app-main flex-1 overflow-y-auto px-4 py-5 pb-20 sm:px-6 md:pb-7 lg:px-8" data-app-main>
             <div className="mx-auto w-full max-w-[1500px]">{children}</div>
           </main>
         </div>

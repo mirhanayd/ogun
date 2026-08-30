@@ -492,7 +492,12 @@ export async function GET() {
     return NextResponse.json({
       version: 2,
       capturedAt: new Date().toISOString(),
-      clinic: { id: clinic.id, name: clinic.name },
+      clinic: {
+        id: clinic.id,
+        name: clinic.name,
+        logoUrl: clinic.logoUrl,
+        primaryColor: clinic.primaryColor,
+      },
       clients: clientRows,
       ...clinicalWorkspace,
       plans: plansWithDrafts,

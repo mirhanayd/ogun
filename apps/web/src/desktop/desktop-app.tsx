@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { KeyRound, Leaf, LockKeyhole, LogOut, Mail, Maximize2, Minus, X } from 'lucide-react'
+import { KeyRound, Leaf, LockKeyhole, LogOut, Mail, Search } from 'lucide-react'
 import { AppShellFrame } from '@/components/app-shell-frame'
+import { BottomNavView, DesktopTitlebarView, SidebarNavView, TopBarView } from '@/components/app-shell-views'
 import { AuthCard, AuthError } from '@/app/(auth)/_components/auth-card'
 import { DesktopSavedAccounts } from '@/components/desktop-saved-accounts'
 import { ConnectivityStatusProvider, useConnectivityStatus } from '@/components/connectivity-status-provider'
@@ -13,12 +14,13 @@ import { authClient } from '@/lib/auth-client'
 import { cloudUrl } from '@/lib/cloud-origin'
 import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
 import { clearNativeSessionToken, getCachedNativeSessionToken, loadNativeSessionToken } from '@/lib/native-shell'
-import { cn } from '@/lib/utils'
+import { getClinicBrandingVariables } from '@/lib/clinic-branding'
+import { useDesktopWindowControls } from '@/components/use-desktop-window-controls'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
 import { ClientCollectionScreen, ClientDetailScreen } from '@/screens/client-workspace-screen'
 import { AppointmentsWorkspaceScreen, PlansWorkspaceScreen, WorkspaceDashboardScreen } from '@/screens/workspace-operations-screen'
 import { FoodCatalogScreen } from '@/screens/food-catalog-screen'
-import { createNativeRepositories, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
+import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 
 type Route = string
@@ -29,6 +31,8 @@ interface DesktopIdentity {
   displayName: string
   clinicId: string
   clinicName: string
+  clinicLogoUrl?: string | null
+  clinicPrimaryColor?: string | null
   role: 'owner' | 'dietitian' | 'assistant'
 }
 
@@ -46,32 +50,25 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-function DesktopTitlebar({ clinicName }: { clinicName: string }) {
-  const control = (action: 'minimize' | 'toggleMaximize' | 'close') =>
-    void invoke('control_main_window', { action })
-  return (
-    <header className="clinic-desktop-titlebar desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b">
-      <div className="flex w-60 items-center gap-2.5 px-4"><span className="grid size-7 place-items-center rounded-lg bg-white/15"><Leaf className="size-4" /></span><span className="text-sm font-semibold">öğün</span><span className="rounded-full border border-current/15 bg-current/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em] uppercase">Desktop</span></div>
-      <div className="flex-1 truncate text-center text-xs font-medium opacity-75">{clinicName}</div>
-      <div className="flex h-full border-l border-current/10"><button type="button" aria-label="Küçült" onClick={() => control('minimize')} className="grid h-full w-11 place-items-center hover:bg-current/10"><Minus className="size-3.5" /></button><button type="button" aria-label="Büyüt" onClick={() => control('toggleMaximize')} className="grid h-full w-11 place-items-center hover:bg-current/10"><Maximize2 className="size-3.5" /></button><button type="button" aria-label="Kapat" onClick={() => control('close')} className="grid h-full w-11 place-items-center hover:bg-red-500 hover:text-white"><X className="size-3.5" /></button></div>
-    </header>
-  )
-}
-
-function DesktopNavigation({ identity, route, onNavigate }: { identity: DesktopIdentity; route: Route; onNavigate: (route: Route) => void }) {
-  const connectivity = useConnectivityStatus()
-  return (
-    <nav className="flex min-h-0 flex-1 flex-col px-3 pb-4" aria-label="Ana gezinme">
-      <p className="mb-2 px-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground/80 uppercase">Klinik yönetimi</p>
-      <div className="flex flex-col gap-1">{visibleNavItems(identity.role).map((item) => { const active = route === item.href || route.startsWith(`${item.href}/`); return <button key={item.href} type="button" onClick={() => onNavigate(item.href)} className={cn('group relative flex h-10 items-center gap-3 rounded-xl px-3 text-[0.82rem] font-medium text-sidebar-foreground/65 transition-all hover:bg-sidebar-accent/60 hover:text-sidebar-foreground', active && 'bg-sidebar-accent text-sidebar-accent-foreground')}><span className={cn('grid size-7 place-items-center rounded-lg text-muted-foreground', active && 'bg-sidebar-primary/10 text-sidebar-primary')}><item.icon className="size-4" /></span>{item.label}</button> })}</div>
-      <div className="mt-auto rounded-xl border border-sidebar-border bg-background/45 p-3 text-xs"><span className={cn('mr-2 inline-block size-1.5 rounded-full', connectivity === 'online' ? 'bg-emerald-500' : connectivity === 'offline' ? 'bg-destructive' : 'bg-amber-500')} />{connectivity === 'online' ? 'Güncel' : connectivity === 'offline' ? 'Çevrimdışı' : 'Bağlantı kontrol ediliyor'}</div>
-    </nav>
-  )
+function NativeDesktopTitlebar() {
+  const { maximized, titlebarHandlers, withWindow } = useDesktopWindowControls()
+  return <DesktopTitlebarView maximized={maximized} titlebarProps={titlebarHandlers} search={<button type="button" disabled className="flex w-full items-center gap-2 rounded-lg border px-3 text-xs opacity-70"><Search className="size-3.5" />Ara veya komut çalıştır</button>} onMinimize={() => void withWindow('minimize')} onToggleMaximize={() => void withWindow('toggleMaximize')} onClose={() => void withWindow('close')} />
 }
 
 function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; onLogout: () => void }) {
   const [route, setRoute] = useState<Route>('/panel')
   const repositories = useMemo(() => createNativeRepositories(scopeOf(identity)), [identity])
+  const [branding, setBranding] = useState({ logoUrl: identity.clinicLogoUrl ?? null, primaryColor: identity.clinicPrimaryColor ?? null })
+  const connectivity = useConnectivityStatus()
+  useEffect(() => {
+    void listLocalEntities(scopeOf(identity), 'clinic').then(([clinic]) => {
+      if (!clinic) return
+      setBranding({
+        logoUrl: typeof clinic.logoUrl === 'string' ? clinic.logoUrl : null,
+        primaryColor: typeof clinic.primaryColor === 'string' ? clinic.primaryColor : null,
+      })
+    })
+  }, [identity])
   const routeRoot = `/${route.split('/').filter(Boolean)[0] ?? 'panel'}`
   const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === routeRoot)?.label ?? 'Panel', [identity.role, routeRoot])
   const initials = identity.clinicName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
@@ -83,7 +80,7 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
   }
   const content = clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : route === '/panel' ? <WorkspaceDashboardScreen repository={repositories} /> : route === '/planlar' ? <PlansWorkspaceScreen repository={repositories} readOnly={identity.role === 'assistant'} /> : route === '/randevular' ? <AppointmentsWorkspaceScreen repository={repositories} /> : route === '/tarifler' ? <FoodCatalogScreen /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
   return (
-    <AppShellFrame clinicName={identity.clinicName} clinicInitials={initials} userName={identity.displayName} desktopTitlebar={<DesktopTitlebar clinicName={identity.clinicName} />} navigation={<DesktopNavigation identity={identity} route={route} onNavigate={setRoute} />} topbar={<header className="app-topbar flex h-[4.5rem] shrink-0 items-center justify-between border-b border-border/80 bg-background/90 px-6"><span className="font-semibold">{title}</span><Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button></header>} bottomNavigation={null} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
+    <AppShellFrame clinicName={identity.clinicName} clinicLogoUrl={branding.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(branding.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{identity.clinicName}</span>} search={<button type="button" disabled className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Ara veya komut çalıştır</button>} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       {content}
     </AppShellFrame>
   )
@@ -103,7 +100,7 @@ function PinSetup({ identity, onComplete }: { identity: DesktopIdentity; onCompl
 }
 
 function AuthSurface({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-svh bg-background text-foreground"><DesktopTitlebar clinicName="Öğün" /><main className="mx-auto grid min-h-[calc(100svh-3rem)] max-w-6xl items-center px-6 py-12"><div className="mx-auto w-full max-w-lg rounded-3xl border border-border/70 bg-card p-8 shadow-xl">{children}</div></main></div>
+  return <div className="min-h-svh bg-background text-foreground"><NativeDesktopTitlebar /><main className="mx-auto grid min-h-[calc(100svh-3rem)] max-w-6xl items-center px-6 py-12"><div className="mx-auto w-full max-w-lg rounded-3xl border border-border/70 bg-card p-8 shadow-xl">{children}</div></main></div>
 }
 
 function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: DesktopIdentity, needsPin: boolean) => void }) {
@@ -119,7 +116,7 @@ function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: Desktop
     if (!response.ok) throw new Error('Klinik çalışma alanı indirilemedi.')
     const workspace = await response.json() as DesktopWorkspacePayload
     if (!['owner', 'dietitian', 'assistant'].includes(session.session.role)) throw new Error('Klinik rolü yerel çalışma için desteklenmiyor.')
-    const identity: DesktopIdentity = { userId: session.user.id, email: session.user.email, displayName: session.user.name, clinicId: workspace.clinic.id, clinicName: workspace.clinic.name, role: session.session.role as DesktopIdentity['role'] }
+    const identity: DesktopIdentity = { userId: session.user.id, email: session.user.email, displayName: session.user.name, clinicId: workspace.clinic.id, clinicName: workspace.clinic.name, clinicLogoUrl: typeof workspace.clinic.logoUrl === 'string' ? workspace.clinic.logoUrl : null, clinicPrimaryColor: typeof workspace.clinic.primaryColor === 'string' ? workspace.clinic.primaryColor : null, role: session.session.role as DesktopIdentity['role'] }
     const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
     const previous = profiles.find((profile) => profile.userId === identity.userId && profile.clinicId === identity.clinicId)
     await invoke('upsert_offline_profile', { profile: { ...identity, lastSyncedAt: new Date().toISOString() } })
