@@ -28,19 +28,15 @@ import { LocalPlanEditor } from './local-plan-editor'
 import { DesktopLayoutSmokeApp } from './layout-smoke-app'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
+import {
+  profileIdentity,
+  stateAfterOnlineSetup,
+  stateAfterProfileDetection,
+  type DesktopAuthState,
+  type DesktopIdentity,
+} from './desktop-auth-state'
 
 type Route = string
-
-interface DesktopIdentity {
-  userId: string
-  email: string
-  displayName: string
-  clinicId: string
-  clinicName: string
-  clinicLogoUrl?: string | null
-  clinicPrimaryColor?: string | null
-  role: 'owner' | 'dietitian' | 'assistant'
-}
 
 function scopeOf(identity: DesktopIdentity) {
   return {
@@ -177,7 +173,7 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
   return <div className="min-h-svh bg-background text-foreground"><NativeDesktopTitlebar /><main className="mx-auto grid min-h-[calc(100svh-3rem)] max-w-6xl items-center px-6 py-12"><div className="mx-auto w-full max-w-lg rounded-3xl border border-border/70 bg-card p-8 shadow-xl">{children}</div></main></div>
 }
 
-function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: DesktopIdentity, needsPin: boolean) => void }) {
+function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: DesktopIdentity, pinConfigured: boolean) => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -196,36 +192,38 @@ function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: Desktop
     await invoke('upsert_offline_profile', { profile: { ...identity, lastSyncedAt: new Date().toISOString() } })
     await invoke('initialize_local_scope', { scope: scopeOf(identity) })
     await replaceLocalWorkspace(scopeOf(identity), workspace)
-    onAuthenticated(identity, !previous?.pinConfigured)
+    onAuthenticated(identity, previous?.pinConfigured === true)
   }
-
-  useEffect(() => {
-    if (!getCachedNativeSessionToken() || !navigator.onLine) return
-    setBusy(true)
-    void finishOnlineAuthentication()
-      .catch(() => undefined)
-      .finally(() => setBusy(false))
-    // Run once for the bearer token loaded by DesktopApp.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(null)
     try { const result = await authClient.signIn.email({ email, password }); if (result.error) throw new Error(result.error.message ?? 'Giriş yapılamadı.'); await finishOnlineAuthentication() } catch (reason) { setError(String(reason)) } finally { setBusy(false) }
   }
 
-  return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="İlk cihaz kurulumu normal Öğün hesabıyla çevrimiçi yapılır. Daha sonraki çevrimdışı açılışlarda PIN yalnızca yerel kasayı açar."><DesktopSavedAccounts onUnlocked={(profile) => onAuthenticated({ userId: profile.userId, email: profile.email, displayName: profile.displayName, clinicId: profile.clinicId, clinicName: profile.clinicName, role: profile.role as DesktopIdentity['role'] }, false)} /><form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy}>{busy ? 'Giriş yapılıyor…' : 'Giriş yap'}</Button></form></AuthCard></AuthSurface>
+  return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="İlk cihaz kurulumu normal Öğün hesabıyla çevrimiçi yapılır. Sonraki her uygulama açılışında yerel kasa PIN ile açılır."><form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy}>{busy ? 'Giriş yapılıyor…' : 'Giriş yap'}</Button></form></AuthCard></AuthSurface>
 }
 
 function DesktopRuntimeApp() {
-  const [identity, setIdentity] = useState<DesktopIdentity | null>(null)
-  const [needsPin, setNeedsPin] = useState(false)
-  const [checking, setChecking] = useState(true)
-  useEffect(() => { void loadNativeSessionToken().finally(() => setChecking(false)) }, [])
-  if (checking) return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Öğün açılıyor…</div></AuthSurface>
-  if (!identity) return <DesktopLogin onAuthenticated={(next, pinRequired) => { setIdentity(next); setNeedsPin(pinRequired) }} />
-  if (needsPin) return <PinSetup identity={identity} onComplete={() => setNeedsPin(false)} />
-  return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} onLogout={() => { setIdentity(null); setNeedsPin(false) }} /></DesktopSyncProvider></ConnectivityStatusProvider>
+  const [authState, setAuthState] = useState<DesktopAuthState>({ phase: 'booting' })
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([
+      loadNativeSessionToken(),
+      invoke<DesktopOfflineProfile[]>('list_offline_profiles'),
+    ]).then(([, profiles]) => {
+      if (!cancelled) setAuthState(stateAfterProfileDetection(profiles))
+    }).catch(() => {
+      if (!cancelled) setAuthState({ phase: 'online_login_required' })
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  if (authState.phase === 'booting') return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Öğün açılıyor…</div></AuthSurface>
+  if (authState.phase === 'locked') return <AuthSurface><AuthCard eyebrow="Cihaz kilitli" title="Yerel çalışma alanınızı açın." description="İnternet bağlantısı ve kayıtlı bulut oturumu bu cihaz PIN’ini atlayamaz."><DesktopSavedAccounts profiles={authState.profiles} autoSelectSingle onUnlocked={(profile) => setAuthState({ phase: 'unlocked', identity: profileIdentity(profile) })} /></AuthCard></AuthSurface>
+  if (authState.phase === 'online_login_required') return <DesktopLogin onAuthenticated={(identity, pinConfigured) => setAuthState(stateAfterOnlineSetup(identity, pinConfigured))} />
+  if (authState.phase === 'pin_setup') return <PinSetup identity={authState.identity} onComplete={() => setAuthState({ phase: 'unlocked', identity: authState.identity })} />
+  const identity = authState.identity
+  return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} onLogout={() => setAuthState({ phase: 'online_login_required' })} /></DesktopSyncProvider></ConnectivityStatusProvider>
 }
 
 export function DesktopApp() {

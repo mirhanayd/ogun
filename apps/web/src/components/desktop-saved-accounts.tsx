@@ -10,21 +10,32 @@ import { isNativeShell } from '@/lib/native-shell'
 
 export function DesktopSavedAccounts({
   onUnlocked,
+  profiles: suppliedProfiles,
+  autoSelectSingle = false,
 }: {
   onUnlocked?: (profile: DesktopOfflineProfile) => void | Promise<void>
+  profiles?: DesktopOfflineProfile[]
+  autoSelectSingle?: boolean
 } = {}) {
-  const [profiles, setProfiles] = useState<DesktopOfflineProfile[]>([])
-  const [selected, setSelected] = useState<DesktopOfflineProfile | null>(null)
+  const [loadedProfiles, setProfiles] = useState<DesktopOfflineProfile[]>(suppliedProfiles ?? [])
+  const profiles = suppliedProfiles ?? loadedProfiles
+  const [selected, setSelected] = useState<DesktopOfflineProfile | null>(
+    autoSelectSingle && profiles.length === 1 ? profiles[0]! : null,
+  )
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!isNativeShell()) return
+    if (suppliedProfiles || !isNativeShell()) return
     void invoke<DesktopOfflineProfile[]>('list_offline_profiles')
       .then((items) => setProfiles(items.filter((item) => item.pinConfigured)))
       .catch(() => setProfiles([]))
-  }, [])
+  }, [suppliedProfiles])
+
+  useEffect(() => {
+    if (autoSelectSingle && profiles.length === 1) setSelected(profiles[0]!)
+  }, [autoSelectSingle, profiles])
 
   if (profiles.length === 0) return null
 
