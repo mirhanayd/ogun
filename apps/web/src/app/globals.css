@@ -2,6 +2,15 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
+/*
+ * The same stylesheet is compiled by Next (apps/web) and by the desktop Vite
+ * build whose root lives in apps/desktop/ui. Tailwind v4's automatic source
+ * detection follows the build root, so the Vite build cannot discover the
+ * shared React tree under apps/web/src without an explicit source boundary.
+ * Paths in @source are relative to this stylesheet.
+ */
+@source '../';
+
 @custom-variant dark (&:is(.dark *));
 
 /* ===========================================================================

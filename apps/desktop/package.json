@@ -8,6 +8,7 @@
     "dev": "tauri dev",
     "ui:dev": "vite --host 127.0.0.1 --port 1420",
     "ui:build": "vite build",
+    "test:production-css": "pnpm ui:build && node --test scripts/production-css.test.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "build": "tauri build",
     "signer:generate": "tauri signer generate -w ~/.tauri/ogun-updater.key",
