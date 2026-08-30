@@ -14,6 +14,7 @@ import {
   verifyRxNormPackage,
   type CandidateMapping,
 } from '../rxnorm-mapping'
+import { buildReviewExports, writeReviewExports } from '../rxnorm-review'
 
 const BATCH_SIZE = 500
 
@@ -69,6 +70,10 @@ async function main() {
   const prepared = prepareMappings(
     loadWorklist(packageDir),
     buildSubstanceResolver(substances, aliases),
+  )
+  const reviewCounts = writeReviewExports(
+    await buildReviewExports(prepared, substances, packageDir),
+    path.join(packageDir, 'review'),
   )
   const candidates = selectDeterministicCandidates(prepared)
   const existing = await db
@@ -151,6 +156,7 @@ async function main() {
     ambiguousCanonicalJoin: prepared.filter((item) => item.resolution.kind === 'ambiguous').length,
     unmappedCanonicalJoin: prepared.filter((item) => item.resolution.kind === 'unmapped').length,
     packageUnmapped: prepared.filter((item) => item.row.review_tier === 'unmapped').length,
+    reviewExports: reviewCounts,
     distinctCandidates: candidates.length,
     inserted: dryRun ? 0 : inserted,
     updated: dryRun ? 0 : updated,
