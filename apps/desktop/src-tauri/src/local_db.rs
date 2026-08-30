@@ -975,8 +975,9 @@ pub async fn search_local_foods(
         if normalized.is_empty() {
             return Ok(Vec::new());
         }
-        let pattern = format!("%{}%", normalized.replace('%', "").replace('_', ""));
-        let prefix = format!("{}%", normalized.replace('%', "").replace('_', ""));
+        let escaped = normalized.replace(['%', '_'], "");
+        let pattern = format!("%{escaped}%");
+        let prefix = format!("{escaped}%");
         let mut statement = connection.prepare(
             "SELECT payload_json FROM foods WHERE search_text LIKE ?1 ORDER BY CASE WHEN normalized_name LIKE ?2 THEN 0 ELSE 1 END, name_tr LIMIT ?3",
         ).map_err(|err| format!("Besin araması hazırlanamadı: {err}"))?;

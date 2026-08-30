@@ -30,11 +30,11 @@ pnpm + Turborepo ile yönetilen monorepo.
 
 ## Masaüstü geliştirme (Tauri)
 
-`apps/desktop`, ortak web arayüzünü kullanan bir Tauri 2.x istemcisidir.
-Üretimde önce paketlenmiş yerel çalışma alanı açılır: bağlantı varsa canlı
-web uygulamasına geçer, bağlantı yoksa kayıtlı cihaz hesabı + PIN ile
-şifreli çevrimdışı çalışma alanını açar. Klinik verisinin merkezi kaynağı
-Postgres olarak kalır; cihaz değişiklikleri bağlantı gelince uzlaştırılır.
+`apps/desktop`, `apps/web/src` içindeki ortak Öğün ekranlarını Vite ile
+paketleyen local-first bir Tauri 2.x istemcisidir. Çevrimiçi ve çevrimdışı
+durum aynı React component ağacını kullanır; yalnızca SQLite ile bulut
+arasındaki senkronizasyon durumu değişir. Klinik verisinin authoritative
+kaynağı Postgres olarak kalır.
 
 ### Gereksinimler
 
@@ -48,17 +48,13 @@ Postgres olarak kalır; cihaz değişiklikleri bağlantı gelince uzlaştırıl�
 ### Geliştirme
 
 ```bash
-# Web dev sunucusunu (next dev, :3000) ve Tauri penceresini birlikte başlat:
-pnpm dev
-
-# Ya da sadece masaüstü kabuğunu (apps/web'in ayrı bir terminalde
-# `pnpm --filter web dev` ile zaten çalışıyor olması gerekir):
-cd apps/desktop && pnpm tauri dev
+# Paketlenebilir Vite renderer ile Tauri geliştirme sürecini başlat:
+pnpm --filter desktop dev
 ```
 
-Geliştirmede pencere doğrudan `http://localhost:3000`'e işaret eder — hot
-reload apps/web'in kendi `next dev` sunucusundan gelir, kabuk tarafında
-EK bir şey gerekmez.
+Geliştirmede Tauri `http://127.0.0.1:1420` Vite renderer'ını açar. Aynı
+renderer üretimde `apps/desktop/dist` olarak pakete girer; uzak bir web UI
+hiçbir bağlantı durumunda pencereye yüklenmez.
 
 ### Üretim paketleme
 
@@ -67,21 +63,18 @@ cd apps/desktop
 pnpm build   # Tauri uygulamasını ve platform installer'larını derler
 ```
 
-Üretim paketi yerel başlangıç/çevrimdışı arayüzü içerir ve bağlantı varken
-`https://ogun-web.vercel.app` adresine geçer. Neon bağlantı bilgisi, Better
-Auth secret'ı veya başka bir sunucu `.env` değeri installer'a konmaz. API
-route'ları ve server action'lar Vercel'deki web sunucusunda çalışır.
+Üretim paketi tek Öğün renderer'ını içerir. Neon bağlantı bilgisi, Better
+Auth secret'ı veya başka bir sunucu `.env` değeri installer'a konmaz. Bulut
+yalnızca Better Auth, push/pull sync ve besin kataloğu API'leri için kullanılır.
 
 ### Çevrimdışı çalışma ve cihaz PIN'i
 
 İlk başarılı masaüstü girişinde kullanıcıdan 4-8 rakamlı bir cihaz PIN'i
-istenir. PIN Argon2id ile özetlenir; profil, klinik snapshot'ı ve bekleyen
-mutasyon günlüğü Tauri Stronghold kasasında tutulur. Uygulama kapatılsa bile
-kuyruk kaybolmaz. İnternet geldiğinde danışan, plan ve randevu oluşturma
-kayıtları idempotent kimliklerle sunucuya aktarılır; plan editörünün son
-taslağı da kapanışlar arasında kalıcıdır. Açıkça "Çıkış yap" seçilirse cihaz
-profili ve ona ait çevrimdışı snapshot kaldırılır; yalnızca pencereyi veya
-uygulamayı kapatmak bunları silmez.
+istenir. Stronghold yalnız Argon2id PIN özeti, profil ve native session gibi
+küçük sırları tutar. Klinik entity'leri ve durable mutation outbox, payload
+başına XChaCha20-Poly1305 şifreli SQLite tablolarındadır. Uygulama kapatılsa
+bile kuyruk kaybolmaz. Açıkça "Çıkış yap" seçilirse cihaz profili ve o
+kullanıcının yerel klinik kapsamı kaldırılır; pencereyi kapatmak bunları silmez.
 
 E-posta/WhatsApp gönderimi, buluta belge yükleme ve başka bir harici servise
 ulaşmayı gerektiren işlemler doğal olarak bağlantı bekler. Mimari ve senkron

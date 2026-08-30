@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  clearNativeSessionToken,
   exchangeNativeOneTimeToken,
   getGoogleSignInRedirects,
   getNativeGoogleSignInURL,
   isNativeShell,
+  persistNativeSessionToken,
   saveFileNatively,
 } from './native-shell'
 
@@ -52,27 +54,30 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
       __TAURI_INTERNALS__: {},
       location: { origin: 'http://127.0.0.1:51374' },
     })
-    expect(getNativeGoogleSignInURL()).toBe('http://127.0.0.1:51374/api/auth/native/google')
+    expect(getNativeGoogleSignInURL()).toBe('https://ogun-web.vercel.app/api/auth/native/google')
   })
 
   it('OAuth token değişiminde eski bearer göndermeden yeni oturumu kalıcılaştırır', async () => {
     vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
     invoke.mockResolvedValue(undefined)
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json(
-        { session: {}, user: {} },
-        { headers: { 'set-auth-token': 'new-signed-session' } },
-      ),
-    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { session: {}, user: {} },
+          { headers: { 'set-auth-token': 'new-signed-session' } },
+        ),
+      )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(exchangeNativeOneTimeToken('short-lived-ott')).resolves.toEqual({ ok: true })
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/auth/one-time-token/verify',
+      'https://ogun-web.vercel.app/api/auth/one-time-token/verify',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'short-lived-ott' }),
       }),
     )
     expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Authorization')
@@ -90,6 +95,17 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
       reason: 'invalid-or-expired-token',
     })
     expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('açık çıkışta yerel kapsamı ve native oturum anahtarını birlikte temizler', async () => {
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
+    invoke.mockResolvedValue(undefined)
+
+    await persistNativeSessionToken('signed-session')
+    invoke.mockClear()
+    await clearNativeSessionToken()
+
+    expect(invoke.mock.calls).toEqual([['remove_active_offline_profile'], ['clear_session_token']])
   })
 
   // GitHub issue #53 / Prompt 9.3, GÖREV 4 — `saveFileNatively`'nin

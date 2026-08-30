@@ -59,7 +59,7 @@ export default async function PlanEditorPage({
   // diyalogda İSTEDİĞİ an override edebilir ama açılış hâli klinik
   // tercihini yansıtır (bkz. GÖREV: "klinik seviyesinde bir varsayılanı
   // OLMALI").
-  const { scope, user } = await requireClinic()
+  const { scope } = await requireClinic()
 
   // Önce danışan atama kapsamını doğrula; yetkisiz bir URL hiçbir plan okuma
   // veya bootstrap yan etkisini başlatmasın.

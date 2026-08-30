@@ -1,171 +1,138 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const htmlUrl = new URL('../splash/index.html', import.meta.url)
-const scriptUrl = new URL('../splash/offline.js', import.meta.url)
-const searchModuleUrl = new URL('../splash/offline-search.mjs', import.meta.url)
+const root = new URL('../../../', import.meta.url)
+const file = (path) => new URL(path, root)
+const read = (path) => readFile(file(path), 'utf8')
+const missing = async (path) =>
+  access(file(path)).then(
+    () => false,
+    () => true,
+  )
 
-test('packaged desktop page loads the maintainable offline client', async () => {
-  const html = await readFile(htmlUrl, 'utf8')
-  assert.match(html, /<script type="module" src="offline\.js"><\/script>/)
-  assert.match(html, /ogun-uygulama-ikonu\.svg/)
-  assert.match(html, /Hızlı giriş PIN’i/)
-  assert.match(html, /<button data-page="foods">/)
-  assert.match(html, /<button data-page="finance">/)
-  assert.match(html, /id="page-client-detail"/)
-  assert.match(html, /class="desktop-pill">Desktop</)
-  assert.match(html, /id="clinic-initials"/)
-  assert.match(html, /class="offline-chip"/)
-  assert.match(html, /<h1>Panel<\/h1>/)
-  assert.match(html, /data-modal="anamnesis"/)
-  assert.match(html, /data-modal="measurement"/)
-  assert.match(html, /data-modal="labResult"/)
-  assert.match(html, /data-modal="payment"/)
-  assert.match(html, /id="page-plan-editor"/)
-  assert.match(html, /id="offline-food-search"/)
+test('Scenario A — initial online login seeds SQLite before PIN and dashboard', async () => {
+  const app = await read('apps/web/src/desktop/desktop-app.tsx')
+  assert.ok(app.indexOf("invoke('initialize_local_scope'") < app.indexOf('replaceLocalWorkspace('))
+  assert.ok(app.indexOf('replaceLocalWorkspace(') < app.indexOf('onAuthenticated(identity'))
+  assert.match(app, /<PinSetup identity=\{identity\}/)
+  assert.match(app, /<WorkspaceDashboardScreen repository=\{repositories\}/)
 })
 
-test('offline startup keeps the standard shell behind the saved-account PIN lock', async () => {
-  const html = await readFile(htmlUrl, 'utf8')
-  const script = await readFile(scriptUrl, 'utf8')
-  assert.match(html, /#boot \{[\s\S]*position: fixed;[\s\S]*backdrop-filter: blur/)
-  assert.match(script, /function showLockedShell/)
+test('Scenario B — cold offline start unlocks the packaged shared UI and local domains', async () => {
+  const [entry, app, repository] = await Promise.all([
+    read('apps/desktop/ui/main.tsx'),
+    read('apps/web/src/desktop/desktop-app.tsx'),
+    read('apps/web/src/desktop/native-workspace-repository.ts'),
+  ])
+  assert.match(entry, /import \{ DesktopApp \} from '@\/desktop\/desktop-app'/)
+  assert.match(app, /<DesktopSavedAccounts onUnlocked=/)
+  assert.match(app, /ClientCollectionScreen|PlansWorkspaceScreen|FoodCatalogScreen/)
+  assert.match(repository, /list_local_entities/)
+  assert.match(repository, /search_local_foods/)
+})
+
+test('Scenario C — losing connectivity cannot switch renderer, route, or page', async () => {
+  const [sync, app] = await Promise.all([
+    read('apps/web/src/desktop/sync-engine.tsx'),
+    read('apps/web/src/desktop/desktop-app.tsx'),
+  ])
+  assert.match(sync, /addEventListener\('offline', handleOffline\)/)
+  assert.doesNotMatch(sync + app, /\.navigate\(|location\.reload|location\.replace/)
+  assert.equal(await missing('apps/desktop/splash/offline.js'), true)
+  assert.equal(await missing('apps/desktop/src-tauri/src/online_preload.rs'), true)
+})
+
+test('Scenario D — mutation projection and durable outbox share one SQLite transaction', async () => {
+  const [database, repository] = await Promise.all([
+    read('apps/desktop/src-tauri/src/local_db.rs'),
+    read('apps/web/src/desktop/native-workspace-repository.ts'),
+  ])
+  const body = database.slice(database.indexOf('pub async fn apply_local_mutation'))
+  assert.ok(body.indexOf('.transaction()') < body.indexOf('INSERT INTO entities'))
+  assert.ok(body.indexOf('INSERT INTO entities') < body.indexOf('INSERT INTO outbox'))
+  assert.ok(body.indexOf('INSERT INTO outbox') < body.lastIndexOf('.commit()'))
   assert.ok(
-    script.indexOf('showLockedShell()') <
-      script.indexOf("invoke('get_unlocked_offline_workspace')"),
-  )
-  assert.match(script, /window\.addEventListener\('online'/)
-  assert.match(script, /goOnline\(current \? '\/panel' : '\/giris'\)/)
-})
-
-test('offline plan editor searches the encrypted food catalog and journals one replace draft', async () => {
-  const script = await readFile(scriptUrl, 'utf8')
-  assert.match(script, /search_offline_food_catalog/)
-  assert.match(script, /get_offline_food_entries/)
-  assert.match(script, /save_offline_plan_draft/)
-  assert.match(script, /id: `plan-draft-\$\{editingPlanId\}`/)
-  assert.match(script, /kind: 'plan\.draft\.replace'/)
-  assert.match(script, /skeleton/)
-})
-
-test('offline header search finds device records with Turkish-insensitive matching', async () => {
-  const { buildOfflineSearchResults, normalizeOfflineSearchText } = await import(
-    searchModuleUrl.href
-  )
-  const workspace = {
-    clients: [
-      {
-        id: 'client-1',
-        firstName: 'Işıl',
-        lastName: 'Öztürk',
-        phone: '0555 111 22 33',
-        email: 'isil@example.com',
-      },
-    ],
-    plans: [{ id: 'plan-1', clientId: 'client-1', name: 'Glütensiz plan', status: 'taslak' }],
-    appointments: [
-      {
-        id: 'appointment-1',
-        clientId: 'client-1',
-        type: 'kontrol',
-        startsAt: '2026-08-28T09:00:00.000Z',
-      },
-    ],
-  }
-
-  assert.equal(normalizeOfflineSearchText('ÖLÇÜM IŞIL'), 'olcum isil')
-  assert.equal(buildOfflineSearchResults(workspace, 'isil')[0]?.recordId, 'client-1')
-  assert.equal(buildOfflineSearchResults(workspace, 'glutensiz')[0]?.recordId, 'plan-1')
-  assert.equal(buildOfflineSearchResults(workspace, 'kontrol')[0]?.recordId, 'appointment-1')
-  assert.equal(buildOfflineSearchResults(workspace, 'ayar')[0]?.targetPage, 'settings')
-  assert.deepEqual(
-    buildOfflineSearchResults(workspace, '').map((result) => result.kind),
-    ['page', 'page', 'page', 'page', 'page'],
+    repository.indexOf("invoke('apply_local_mutation'") <
+      repository.indexOf("detail: { source: 'mutation'"),
   )
 })
 
-test('offline header search is keyboard accessible and avoids native titlebar drag', async () => {
-  const html = await readFile(htmlUrl, 'utf8')
-  const script = await readFile(scriptUrl, 'utf8')
-  assert.match(html, /id="global-search-trigger"/)
-  assert.match(html, /id="global-search-input"/)
-  assert.match(script, /event\.target\.closest\('\.title-search'\)/)
-  assert.match(script, /event\.key === 'ArrowDown'/)
-  assert.match(script, /event\.key === 'Enter'/)
-  assert.match(script, /event\.key === 'Escape'/)
-  assert.match(script, /event\.ctrlKey \|\| event\.metaKey/)
+test('Scenario E — reconnect wakes push/pull sync without navigation or reload', async () => {
+  const sync = await read('apps/web/src/desktop/sync-engine.tsx')
+  assert.match(sync, /addEventListener\('online', handleOnline\)/)
+  assert.match(sync, /outbox\.map\(outboxToSyncMutation\)/)
+  assert.match(sync, /replaceLocalWorkspace\(scope/)
+  assert.doesNotMatch(sync, /navigate|reload|\/panel/)
 })
 
-test('offline workspace remains backward compatible and journals every clinical record', async () => {
-  const script = await readFile(scriptUrl, 'utf8')
-  assert.ok(
-    script.indexOf('const online = await networkAvailable()') <
-      script.indexOf("invoke('get_unlocked_offline_workspace')"),
-    'network must be checked before deciding which workspace to show',
-  )
-  for (const collection of [
-    'clients',
-    'anamneses',
-    'measurements',
-    'goals',
-    'labResults',
-    'payments',
-    'plans',
-    'appointments',
-  ]) {
-    assert.match(script, new RegExp(`'${collection}'`))
-  }
-  for (const mutation of [
-    'client.create',
-    'client.update',
-    'anamnesis.upsert',
-    'measurement.create',
-    'goal.create',
-    'labResult.create',
-    'payment.create',
-    'plan.create',
-    'appointment.create',
-  ]) {
-    assert.ok(script.includes(`persist('${mutation}'`), `${mutation} must be journaled`)
-  }
-  assert.ok(
-    script.indexOf("invoke('queue_offline_mutation'") <
-      script.indexOf("invoke('save_offline_workspace'"),
-    'mutation journal must be durable before the workspace projection is saved',
-  )
+test('Scenario F — restart-safe retry metadata is stored in SQLite', async () => {
+  const database = await read('apps/desktop/src-tauri/src/local_db.rs')
+  assert.match(database, /CREATE TABLE IF NOT EXISTS outbox/)
+  assert.match(database, /attempt_count INTEGER NOT NULL DEFAULT 0/)
+  assert.match(database, /next_attempt_at TEXT/)
+  assert.match(database, /sync_status IN \('pending','failed'\)/)
+  assert.match(database, /2 << MIN\(attempt_count,10\)/)
 })
 
-test('offline autostart reveals the window only after device profiles are ready', async () => {
-  const script = await readFile(scriptUrl, 'utf8')
-  assert.ok(
-    script.indexOf("profiles = await invoke('list_offline_profiles')") <
-      script.indexOf("invoke('complete_startup_launch')"),
-    'hidden autostart window must wait until saved profiles are loaded',
-  )
-})
-
-test('titlebar drag detects double-click manually instead of relying on DOM dblclick', async () => {
-  // Native sürükleme (DragMove) modal döngüsü tarayıcının click/dblclick
-  // zincirini yuttuğu için dblclick olayı güvenilir ulaşmaz; ikinci hızlı
-  // basış mousedown içinde yakalanmalı. Geri dönüşte dblclick dinleyicisi
-  // kalmasın — ilk sürükleme ile birlikte çift geçiş (toggle+untoggle)
-  // riskini yeniden yaratır.
-  const script = await readFile(scriptUrl, 'utf8')
-  assert.match(script, /DOUBLE_CLICK_TIME_MS/)
-  assert.match(script, /action: 'toggleMaximize'/)
-  assert.doesNotMatch(script, /addEventListener\('dblclick'/)
-})
-
-test('offline shell derives the same clinic and user identity marks as the live shell', async () => {
-  const script = await readFile(scriptUrl, 'utf8')
+test('Scenario G — duplicate retries use a scoped server receipt', async () => {
+  const [schema, query, route] = await Promise.all([
+    read('packages/db/src/schema/desktop-sync.ts'),
+    read('packages/db/src/queries/desktop-sync.ts'),
+    read('apps/web/src/app/api/desktop/workspace/route.ts'),
+  ])
   assert.match(
-    script,
-    /\$\('clinic-initials'\)\.textContent = initials\(current\.profile\.clinicName\)/,
+    schema,
+    /primaryKey\(\{ columns: \[table\.clinicId, table\.userId, table\.mutationId\] \}\)/,
   )
+  assert.match(query, /onConflictDoNothing\(\)/)
+  assert.ok(
+    route.indexOf('getDesktopMutationReceipt(') < route.indexOf('recordDesktopMutationReceipt('),
+  )
+})
+
+test('Scenario H — local data is isolated by user, clinic, role and authorization', async () => {
+  const [database, vault] = await Promise.all([
+    read('apps/desktop/src-tauri/src/local_db.rs'),
+    read('apps/desktop/src-tauri/src/offline_vault.rs'),
+  ])
   assert.match(
-    script,
-    /\$\('title-avatar'\)\.textContent = initials\(current\.profile\.displayName\)/,
+    database,
+    /"\{\}\\u\{1f\}\{\}\\u\{1f\}\{\}"[\s\S]*scope\.user_id, scope\.clinic_id, scope\.role/,
   )
-  assert.match(script, /\.toLocaleUpperCase\('tr-TR'\)/)
+  assert.match(database, /authorize_local_scope/)
+  assert.match(
+    vault,
+    /record\.summary\.user_id == user_id[\s\S]*record\.summary\.clinic_id == clinic_id[\s\S]*record\.summary\.role == role/,
+  )
+})
+
+test('Scenario I — explicit logout removes the unlocked profile and its local scope', async () => {
+  const [vault, shell, app] = await Promise.all([
+    read('apps/desktop/src-tauri/src/offline_vault.rs'),
+    read('apps/web/src/lib/native-shell.ts'),
+    read('apps/web/src/desktop/desktop-app.tsx'),
+  ])
+  assert.match(
+    vault,
+    /active_online_user_id[\s\S]*or_else\(\|\| runtime\.unlocked_user_id\.clone\(\)\)/,
+  )
+  assert.match(vault, /remove_scope_data\(&app, &user_id\)/)
+  assert.ok(
+    shell.indexOf("invoke('remove_active_offline_profile'") <
+      shell.indexOf("invoke('clear_session_token'"),
+  )
+  assert.match(app, /clearNativeSessionToken\(\)/)
+})
+
+test('Scenario J — browser UI remains server-backed while desktop bundles shared sources', async () => {
+  const [config, webLayout, tauri] = await Promise.all([
+    read('apps/desktop/vite.config.mts'),
+    read('apps/web/src/app/(app)/layout.tsx'),
+    read('apps/desktop/src-tauri/tauri.conf.json'),
+  ])
+  assert.match(config, /'@': fileURLToPath\(new URL\('\.\.\/web\/src'/)
+  assert.match(webLayout, /AppShell/)
+  assert.equal(JSON.parse(tauri).build.frontendDist, '../dist')
+  assert.doesNotMatch(tauri, /ogun-web\.vercel\.app/)
 })

@@ -119,7 +119,7 @@ Aşağıdaki checklist bunun yerine kullanılacak.
       YAPILABİLDİĞİNİ doğrula.
 - [ ] **Soğuk başlangıç varyantı** (üretim paketinde, ideal olarak): aynı
       adımları uygulama TAMAMEN KAPALIYKEN tekrarla — linke tıklamak
-      uygulamayı BAŞLATMALI (splash → sidecar hazır → doğrudan
+      uygulamayı BAŞLATMALI (paketlenmiş renderer hazır → doğrudan
       `/sifre-sifirla`), ara bir kök sayfaya SIÇRAMAMALI.
 
 ## 5 — Web (tarayıcı) regresyon kontrolü

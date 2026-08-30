@@ -27,6 +27,20 @@ interface SyncResponse {
   error?: string
 }
 
+export function outboxToSyncMutation(mutation: {
+  mutationId: string
+  kind: string
+  payload: Record<string, unknown>
+  createdAt: string
+}) {
+  return {
+    id: mutation.mutationId,
+    kind: mutation.kind,
+    payload: mutation.payload,
+    createdAt: mutation.createdAt,
+  }
+}
+
 const SyncContext = createContext<SyncContextValue | null>(null)
 const SYNC_INTERVAL_MS = 30_000
 
@@ -53,12 +67,7 @@ export async function synchronizeDesktopWorkspace(scope: DesktopLocalScope): Pro
         credentials: 'include',
         headers: bearerHeaders(true),
         body: JSON.stringify({
-          mutations: outbox.map((mutation) => ({
-            id: mutation.mutationId,
-            kind: mutation.kind,
-            payload: mutation.payload,
-            createdAt: mutation.createdAt,
-          })),
+          mutations: outbox.map(outboxToSyncMutation),
         }),
       })
     } catch (reason) {
@@ -164,8 +173,22 @@ export function useDesktopSync(): SyncContextValue {
 
 export function DesktopSyncIndicator() {
   const { status, error, syncNow } = useDesktopSync()
-  const Icon = status === 'syncing' ? LoaderCircle : status === 'offline' ? CloudOff : status === 'error' ? TriangleAlert : Cloud
-  const label = status === 'syncing' ? 'Eşitleniyor…' : status === 'offline' ? 'Çevrimdışı · cihazda kayıtlı' : status === 'error' ? 'Eşitleme bekliyor' : 'Güncel'
+  const Icon =
+    status === 'syncing'
+      ? LoaderCircle
+      : status === 'offline'
+        ? CloudOff
+        : status === 'error'
+          ? TriangleAlert
+          : Cloud
+  const label =
+    status === 'syncing'
+      ? 'Eşitleniyor…'
+      : status === 'offline'
+        ? 'Çevrimdışı · cihazda kayıtlı'
+        : status === 'error'
+          ? 'Eşitleme bekliyor'
+          : 'Güncel'
   return (
     <button
       type="button"
