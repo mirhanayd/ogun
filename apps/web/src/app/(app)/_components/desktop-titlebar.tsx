@@ -3,7 +3,7 @@
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import { DesktopTitlebarView } from '@/components/app-shell-views'
 import { useDesktopWindowControls } from '@/components/use-desktop-window-controls'
-import { CommandPalette } from './command-palette'
+import { CommandPalette } from './web-command-palette'
 import { FeedbackButton } from './feedback-button'
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help'
 import { UserMenu } from './user-menu'

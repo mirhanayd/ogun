@@ -14,6 +14,11 @@ export interface DesktopWorkspacePayload {
   goals?: DomainEntity[]
   labResults?: DomainEntity[]
   payments?: DomainEntity[]
+  documents?: DomainEntity[]
+  billingPackages?: DomainEntity[]
+  clientPackages?: DomainEntity[]
+  expenses?: DomainEntity[]
+  workingHours?: DomainEntity[]
   plans?: DomainEntity[]
   appointments?: DomainEntity[]
   customFoods?: DomainEntity[]
@@ -50,6 +55,11 @@ const WORKSPACE_DOMAINS = [
   'goals',
   'labResults',
   'payments',
+  'documents',
+  'billingPackages',
+  'clientPackages',
+  'expenses',
+  'workingHours',
   'plans',
   'appointments',
   'customFoods',
@@ -357,6 +367,31 @@ export function createNativeRepositories(scope: DesktopLocalScope): OgunReposito
       async get(id) {
         const rows = await invoke<DomainEntity[]>('get_local_food_entries', { ids: [id] })
         return rows[0] ?? null
+      },
+    },
+    records: {
+      list: (entityType) => read(entityType),
+      async upsert(entityType, entity, kind) {
+        await applyLocalMutation(scope, {
+          kind,
+          entityType,
+          entityId: entity.id,
+          operation: 'upsert',
+          payload: entity,
+          projection: entity,
+        })
+      },
+      async remove(entityType, entityId, kind) {
+        const existing = (await read(entityType)).find((entity) => entity.id === entityId)
+        if (!existing) return
+        await applyLocalMutation(scope, {
+          kind,
+          entityType,
+          entityId,
+          operation: 'delete',
+          payload: { id: entityId },
+          projection: existing,
+        })
       },
     },
   }

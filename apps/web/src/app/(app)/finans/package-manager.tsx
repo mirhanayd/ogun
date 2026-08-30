@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarClock, CircleDollarSign, Package, PackageCheck, Plus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -23,7 +22,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toastActionError } from '@/lib/action-toast'
 import { packageFormSchema, type PackageFormValues } from '@/lib/validation/billing-schemas'
-import { createPackageAction, setPackageActiveAction } from './actions'
 
 export interface BillingPackageRow {
   id: string
@@ -36,8 +34,7 @@ export interface BillingPackageRow {
 
 // Paket tanımları burada yönetilir; danışana paket satışı danışan detayındaki
 // Ödemeler sekmesinde kalır. Bu ayrım finans ekranını katalog yönetiminde tutar.
-export function PackageManager({ packages }: { packages: BillingPackageRow[] }) {
-  const router = useRouter()
+export function PackageManager({ packages, onCreate, onSetActive }: { packages: BillingPackageRow[]; onCreate: (values: PackageFormValues) => Promise<{ success: boolean; error?: string }>; onSetActive: (id: string, active: boolean) => Promise<{ success: boolean; error?: string }> }) {
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const activeCount = packages.filter((item) => item.isActive).length
@@ -53,7 +50,7 @@ export function PackageManager({ packages }: { packages: BillingPackageRow[] }) 
   })
 
   async function onSubmit(values: PackageFormValues) {
-    const result = await createPackageAction(values)
+    const result = await onCreate(values)
     if (!result.success) {
       toastActionError(
         result.error ?? 'Paket oluşturulamadı.',
@@ -64,12 +61,11 @@ export function PackageManager({ packages }: { packages: BillingPackageRow[] }) 
     toast.success('Paket oluşturuldu')
     reset()
     setOpen(false)
-    router.refresh()
   }
 
   async function toggleActive(packageId: string, nextActive: boolean) {
     setBusyId(packageId)
-    const result = await setPackageActiveAction(packageId, nextActive)
+    const result = await onSetActive(packageId, nextActive)
     setBusyId(null)
     if (!result.success) {
       toastActionError(
@@ -78,7 +74,6 @@ export function PackageManager({ packages }: { packages: BillingPackageRow[] }) 
       )
       return
     }
-    router.refresh()
   }
 
   return (

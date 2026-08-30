@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Building2, ImagePlus, Loader2, RotateCcw, Save, Trash2 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -22,9 +21,8 @@ import {
   clinicIdentitySchema,
   type ClinicIdentityFormValues,
 } from '@/lib/validation/clinic-identity-schemas'
-import { updateClinicIdentityAction } from './clinic-identity-actions'
 
-interface ClinicIdentity {
+export interface ClinicIdentity {
   name: string
   logoUrl: string | null
   primaryColor: string | null
@@ -47,11 +45,12 @@ function toFormValues(identity: ClinicIdentity): ClinicIdentityFormValues {
 export function ClinicIdentityEditor({
   identity,
   canEdit,
+  onSave,
 }: {
   identity: ClinicIdentity
   canEdit: boolean
+  onSave: (values: ClinicIdentityFormValues) => Promise<{ success: boolean; error?: string; identity?: ClinicIdentity }>
 }) {
-  const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const persistedBrandColorRef = useRef(identity.primaryColor)
   const [formError, setFormError] = useState<string | null>(null)
@@ -123,7 +122,7 @@ export function ClinicIdentityEditor({
 
   async function onSubmit(values: ClinicIdentityFormValues) {
     setFormError(null)
-    const result = await updateClinicIdentityAction(values)
+    const result = await onSave(values)
     if (!result.success || !result.identity) {
       const brandingRoot = document.querySelector<HTMLElement>('[data-clinic-branding]')
       if (brandingRoot) {
@@ -138,7 +137,6 @@ export function ClinicIdentityEditor({
     reset(toFormValues(result.identity))
     if (fileInputRef.current) fileInputRef.current.value = ''
     toast.success('Klinik kimliği güncellendi.')
-    router.refresh()
   }
 
   return (

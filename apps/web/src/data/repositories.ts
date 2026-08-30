@@ -62,10 +62,17 @@ export interface FoodsRepository {
   get(id: string): Promise<DomainEntity | null>
 }
 
+export interface LocalRecordsRepository {
+  list(entityType: string): Promise<DomainEntity[]>
+  upsert(entityType: string, entity: DomainEntity, kind: string): Promise<void>
+  remove(entityType: string, entityId: string, kind: string): Promise<void>
+}
+
 export interface OgunRepositories {
   clients: ClientsRepository
   clinical: ClinicalRepository
   plans: PlansRepository
   appointments: AppointmentsRepository
   foods: FoodsRepository
+  records: LocalRecordsRepository
 }

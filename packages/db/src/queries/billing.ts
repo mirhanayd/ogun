@@ -33,6 +33,7 @@ export async function getBillingPackageById(db: Database, clinicId: string, pack
 }
 
 export interface CreateBillingPackageInput {
+  id?: string
   name: string
   sessionCount: number
   price: string
@@ -355,6 +356,7 @@ export async function deletePayment(db: Database, clinicId: string, paymentId: s
 // --- expenses (basit gider takibi) ------------------------------------------
 
 export interface CreateExpenseInput {
+  id?: string
   category: string
   amount: string
   date: string
@@ -368,6 +370,15 @@ export async function createExpense(db: Database, clinicId: string, input: Creat
     .returning()
   if (!row) throw new Error('Gider kaydedilemedi.')
   return row
+}
+
+export async function getExpenseById(db: Database, clinicId: string, expenseId: string) {
+  const [row] = await db
+    .select()
+    .from(expenses)
+    .where(and(eq(expenses.id, expenseId), eq(expenses.clinicId, clinicId)))
+    .limit(1)
+  return row ?? null
 }
 
 export async function listExpensesForClinicInRange(db: Database, clinicId: string, range: { from: string; to: string }) {

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Search, UserPlus, UserRound, UtensilsCrossed, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClinicMemberRole } from '@ogun/db/schema'
@@ -17,7 +16,7 @@ import {
 } from '@/components/ui/command'
 import { initFoodIndex, searchFoodsOffline, type FoodSearchHit } from '@/lib/food-index'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
-import { searchClientsAction, type ClientPickerOption } from '@/app/(app)/randevular/actions'
+import type { ClientPickerOption } from '@/app/(app)/randevular/actions'
 import { visibleNavItems } from './nav-items'
 import { visibleSettingsEntries } from './settings-search'
 
@@ -256,8 +255,7 @@ function FooterHint({ keys, children }: { keys: string[]; children: string }) {
   )
 }
 
-export function CommandPalette({ role }: { role: ClinicMemberRole }) {
-  const router = useRouter()
+export function CommandPaletteView({ role, onNavigate, searchClients }: { role: ClinicMemberRole; onNavigate: (href: string) => void; searchClients: (query: string) => Promise<ClientPickerOption[]> }) {
   const [open, setOpen] = useState(false)
   const [foodIndexReady, setFoodIndexReady] = useState(false)
   const [query, setQuery] = useState('')
@@ -311,7 +309,7 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
     }
     let cancelled = false
     const timeout = setTimeout(() => {
-      searchClientsAction(query).then((hits) => {
+      searchClients(query).then((hits) => {
         if (!cancelled) setClientHits(hits)
       })
     }, 200)
@@ -319,7 +317,7 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
       cancelled = true
       clearTimeout(timeout)
     }
-  }, [query])
+  }, [query, searchClients])
 
   // Palet kapanınca sorgu sıfırlanır — bir sonraki açılışta önceki aramanın
   // kalıntısı görünmesin diye.
@@ -330,9 +328,9 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
   const navigate = useCallback(
     (href: string) => {
       setOpen(false)
-      router.push(href)
+      onNavigate(href)
     },
-    [router],
+    [onNavigate],
   )
 
   const addFoodToActiveMeal = useActiveMealStore((state) => state.addFoodToActiveMeal)
@@ -360,9 +358,9 @@ export function CommandPalette({ role }: { role: ClinicMemberRole }) {
   const onSelectClient = useCallback(
     (client: ClientPickerOption) => {
       setOpen(false)
-      router.push(`/danisanlar/${client.id}`)
+      onNavigate(`/danisanlar/${client.id}`)
     },
-    [router],
+    [onNavigate],
   )
 
   const trimmedQuery = query.trim()

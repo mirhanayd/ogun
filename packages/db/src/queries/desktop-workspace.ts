@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { payments } from '../schema/billing'
 import { clientHealth } from '../schema/clients'
-import { labResults } from '../schema/health-records'
+import { documents, labResults } from '../schema/health-records'
 import { clientGoals, measurements } from '../schema/measurements'
 import type { Database } from '../client'
 
@@ -11,6 +11,7 @@ export interface DesktopClinicalWorkspace {
   goals: (typeof clientGoals.$inferSelect)[]
   labResults: (typeof labResults.$inferSelect)[]
   payments: (typeof payments.$inferSelect)[]
+  documents: (typeof documents.$inferSelect)[]
 }
 
 export async function getDesktopClinicalWorkspace(
@@ -19,10 +20,10 @@ export async function getDesktopClinicalWorkspace(
   clientIds: string[],
 ): Promise<DesktopClinicalWorkspace> {
   if (clientIds.length === 0) {
-    return { anamneses: [], measurements: [], goals: [], labResults: [], payments: [] }
+    return { anamneses: [], measurements: [], goals: [], labResults: [], payments: [], documents: [] }
   }
 
-  const [anamneses, measurementRows, goals, labResultRows, paymentRows] = await Promise.all([
+  const [anamneses, measurementRows, goals, labResultRows, paymentRows, documentRows] = await Promise.all([
     db.select().from(clientHealth).where(inArray(clientHealth.clientId, clientIds)),
     db.select().from(measurements).where(inArray(measurements.clientId, clientIds)),
     db.select().from(clientGoals).where(inArray(clientGoals.clientId, clientIds)),
@@ -31,6 +32,7 @@ export async function getDesktopClinicalWorkspace(
       .select()
       .from(payments)
       .where(and(eq(payments.clinicId, clinicId), inArray(payments.clientId, clientIds))),
+    db.select().from(documents).where(inArray(documents.clientId, clientIds)),
   ])
 
   return {
@@ -39,6 +41,7 @@ export async function getDesktopClinicalWorkspace(
     goals,
     labResults: labResultRows,
     payments: paymentRows,
+    documents: documentRows,
   }
 }
 

@@ -7,20 +7,26 @@ import {
   addItem,
   addMeal,
   createAppointment,
+  createBillingPackage,
   createClient,
+  createExpense,
   createGoal,
   createLabResult,
   createMeasurement,
   createPayment,
   createPlan,
+  deleteExpense,
+  deleteLabResult,
   getClientById,
   getDesktopClinicalWorkspace,
   getDesktopMutationReceipt,
   getGoalClientId,
   getClinicById,
   getAppointmentById,
+  getBillingPackageById,
   getLabResultClientId,
   getMeasurementClientId,
+  getExpenseById,
   getPaymentClientId,
   getPlanById,
   getPlanTree,
@@ -28,11 +34,19 @@ import {
   listAppointmentIntervalsInRange,
   listClients,
   listPlans,
+  listBillingPackages,
+  listClientPackagesForClinic,
+  listExpensesForClinicInRange,
+  getWorkingHoursForClinic,
   moveItem,
+  markGoalAchieved,
   removeAlternative,
   removeItem,
   reorderItems,
   updateClientGeneralInfo,
+  updateAppointment,
+  updateBillingPackage,
+  updateClinicIdentity,
   updateItem,
   updateMeal,
   updatePlan,
@@ -53,12 +67,19 @@ const mutationEnvelopeSchema = z.object({
     'anamnesis.upsert',
     'measurement.create',
     'goal.create',
+    'goal.achieve',
     'labResult.create',
+    'labResult.delete',
     'payment.create',
     'plan.create',
     'plan.update',
     'appointment.create',
     'plan.draft.replace',
+    'expense.create',
+    'expense.delete',
+    'billingPackage.create',
+    'billingPackage.update',
+    'clinic.update',
   ]),
   payload: z.record(z.unknown()),
   createdAt: z.string().datetime(),
@@ -182,6 +203,37 @@ const paymentCreateSchema = z.object({
   notes: z.string().max(500).nullable().optional(),
 })
 
+const entityIdSchema = z.object({ id: z.string().min(1) })
+
+const expenseCreateSchema = z.object({
+  id: z.string().min(1),
+  category: z.string().trim().min(1).max(80),
+  amount: z.coerce.number().positive().max(1_000_000),
+  date: z.string().date(),
+  description: z.string().trim().max(500).nullable().optional(),
+})
+
+const billingPackageCreateSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(120),
+  sessionCount: z.coerce.number().int().min(1).max(365),
+  price: z.coerce.number().positive().max(1_000_000),
+  validityDays: z.coerce.number().int().positive().nullable().optional(),
+})
+
+const billingPackageUpdateSchema = billingPackageCreateSchema.extend({
+  isActive: z.boolean(),
+})
+
+const clinicIdentityMutationSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().trim().max(30).nullable().optional(),
+  address: z.string().trim().max(500).nullable().optional(),
+  taxId: z.string().trim().max(50).nullable().optional(),
+  logoUrl: z.string().max(700_000).nullable().optional(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+})
+
 const planCreateSchema = z.object({
   id: z.string().min(1),
   clientId: z.string().min(1),
@@ -229,6 +281,8 @@ const appointmentCreateSchema = z
     startsAt: z.string().datetime(),
     endsAt: z.string().datetime(),
     type: z.enum(['ilk_görüşme', 'kontrol', 'online', 'ölçüm']),
+    status: z.enum(['planlandı', 'geldi', 'gelmedi', 'iptal', 'ertelendi']).optional(),
+    location: z.string().max(500).nullable().optional(),
     notes: z.string().max(5_000).nullable().optional(),
   })
   .refine((value) => new Date(value.endsAt) > new Date(value.startsAt), {
@@ -439,6 +493,14 @@ export async function GET() {
       ctx.scope.clinicId,
       clientRows.map((client) => client.id),
     )
+    const [billingPackages, clientPackages, expenses, workingHours] = await Promise.all([
+      ctx.role === 'owner' ? listBillingPackages(db, ctx.scope.clinicId) : Promise.resolve([]),
+      ctx.role === 'owner' ? listClientPackagesForClinic(db, ctx.scope.clinicId) : Promise.resolve([]),
+      ctx.role === 'owner'
+        ? listExpensesForClinicInRange(db, ctx.scope.clinicId, { from: '2000-01-01', to: '2100-12-31' })
+        : Promise.resolve([]),
+      getWorkingHoursForClinic(db, ctx.scope.clinicId),
+    ])
 
     const plansWithDrafts = await Promise.all(
       planRows.map(async (plan) => {
@@ -500,6 +562,10 @@ export async function GET() {
       },
       clients: clientRows,
       ...clinicalWorkspace,
+      billingPackages,
+      clientPackages,
+      expenses,
+      workingHours,
       plans: plansWithDrafts,
       appointments: appointmentRows,
     })
@@ -632,6 +698,14 @@ export async function POST(request: Request) {
           idMap[payload.id] = payload.id
         }
 
+        if (mutation.kind === 'goal.achieve') {
+          const { id } = entityIdSchema.parse(mutation.payload)
+          const clientId = await getGoalClientId(db, id)
+          if (!clientId) throw new Error('Hedef bulunamadı.')
+          await requireAccessibleClient(clientId, 'Hedef güncellemesi')
+          await markGoalAchieved(db, ctx.scope.clinicId, id)
+        }
+
         if (mutation.kind === 'labResult.create') {
           const payload = labResultCreateSchema.parse(mutation.payload)
           const clientId = idMap[payload.clientId] ?? payload.clientId
@@ -648,6 +722,14 @@ export async function POST(request: Request) {
             })
           }
           idMap[payload.id] = payload.id
+        }
+
+        if (mutation.kind === 'labResult.delete') {
+          const { id } = entityIdSchema.parse(mutation.payload)
+          const clientId = await getLabResultClientId(db, id)
+          if (!clientId) throw new Error('Laboratuvar sonucu bulunamadı.')
+          await requireAccessibleClient(clientId, 'Laboratuvar sonucu silme')
+          await deleteLabResult(db, ctx.scope.clinicId, id)
         }
 
         if (mutation.kind === 'payment.create') {
@@ -773,8 +855,23 @@ export async function POST(request: Request) {
               startsAt,
               endsAt,
               type: payload.type,
+              location: payload.location ?? null,
               notes: payload.notes ?? null,
             }))
+          if (existing) {
+            if (ctx.role === 'dietitian' && existing.dietitianId !== ctx.user.id) {
+              throw new Error('Randevuyu güncelleme izniniz yok.')
+            }
+            await updateAppointment(db, ctx.scope.clinicId, existing.id, {
+              clientId,
+              startsAt,
+              endsAt,
+              type: payload.type,
+              status: payload.status,
+              location: payload.location ?? null,
+              notes: payload.notes ?? null,
+            })
+          }
           if (created) idMap[payload.id] = created.id
         }
 
@@ -788,6 +885,71 @@ export async function POST(request: Request) {
             throw new Error('Planı eşitleme izniniz yok.')
           }
           await reconcilePlanDraft(ctx.scope.clinicId, payload)
+        }
+
+        if (mutation.kind === 'expense.create') {
+          if (ctx.role !== 'owner') throw new Error('Finans kaydı için yetkiniz yok.')
+          const payload = expenseCreateSchema.parse(mutation.payload)
+          const existing = await getExpenseById(db, ctx.scope.clinicId, payload.id)
+          if (!existing) {
+            await createExpense(db, ctx.scope.clinicId, {
+              id: payload.id,
+              category: payload.category,
+              amount: payload.amount.toFixed(2),
+              date: payload.date,
+              description: payload.description ?? null,
+            })
+          }
+          idMap[payload.id] = payload.id
+        }
+
+        if (mutation.kind === 'expense.delete') {
+          if (ctx.role !== 'owner') throw new Error('Finans kaydı için yetkiniz yok.')
+          const { id } = entityIdSchema.parse(mutation.payload)
+          await deleteExpense(db, ctx.scope.clinicId, idMap[id] ?? id)
+        }
+
+        if (mutation.kind === 'billingPackage.create') {
+          if (ctx.role !== 'owner') throw new Error('Paket yönetimi için yetkiniz yok.')
+          const payload = billingPackageCreateSchema.parse(mutation.payload)
+          const existing = await getBillingPackageById(db, ctx.scope.clinicId, payload.id)
+          if (!existing) {
+            await createBillingPackage(db, ctx.scope.clinicId, {
+              id: payload.id,
+              name: payload.name,
+              sessionCount: payload.sessionCount,
+              price: payload.price.toFixed(2),
+              validityDays: payload.validityDays ?? null,
+            })
+          }
+          idMap[payload.id] = payload.id
+        }
+
+        if (mutation.kind === 'billingPackage.update') {
+          if (ctx.role !== 'owner') throw new Error('Paket yönetimi için yetkiniz yok.')
+          const payload = billingPackageUpdateSchema.parse(mutation.payload)
+          const id = idMap[payload.id] ?? payload.id
+          const updated = await updateBillingPackage(db, ctx.scope.clinicId, id, {
+            name: payload.name,
+            sessionCount: payload.sessionCount,
+            price: payload.price.toFixed(2),
+            validityDays: payload.validityDays ?? null,
+            isActive: payload.isActive,
+          })
+          if (!updated) throw new Error('Paket bulunamadı.')
+        }
+
+        if (mutation.kind === 'clinic.update') {
+          if (ctx.role !== 'owner') throw new Error('Klinik ayarları için yetkiniz yok.')
+          const payload = clinicIdentityMutationSchema.parse(mutation.payload)
+          await updateClinicIdentity(db, ctx.scope.clinicId, {
+            name: payload.name,
+            phone: payload.phone ?? null,
+            address: payload.address ?? null,
+            taxId: payload.taxId ?? null,
+            logoUrl: payload.logoUrl ?? null,
+            primaryColor: payload.primaryColor?.toLowerCase() ?? null,
+          })
         }
 
         const receiptIdMap = Object.fromEntries(

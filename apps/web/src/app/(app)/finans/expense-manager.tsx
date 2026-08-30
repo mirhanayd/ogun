@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarDays, Plus, Receipt, Tag, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -22,7 +21,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toastActionError } from '@/lib/action-toast'
 import { expenseFormSchema, type ExpenseFormValues } from '@/lib/validation/billing-schemas'
-import { createExpenseAction, deleteExpenseAction } from './actions'
 
 export interface ExpenseRow {
   id: string
@@ -37,11 +35,14 @@ export interface ExpenseRow {
 export function ExpenseManager({
   expenses,
   monthLabel,
+  onCreate,
+  onDelete,
 }: {
   expenses: ExpenseRow[]
   monthLabel: string
+  onCreate: (values: ExpenseFormValues) => Promise<{ success: boolean; error?: string }>
+  onDelete: (id: string) => Promise<{ success: boolean; error?: string }>
 }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const totalExpense = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
@@ -62,7 +63,7 @@ export function ExpenseManager({
   })
 
   async function onSubmit(values: ExpenseFormValues) {
-    const result = await createExpenseAction(values)
+    const result = await onCreate(values)
     if (!result.success) {
       toastActionError(
         result.error ?? 'Gider kaydedilemedi.',
@@ -78,12 +79,11 @@ export function ExpenseManager({
       description: '',
     })
     setOpen(false)
-    router.refresh()
   }
 
   async function handleDelete(expenseId: string) {
     setBusyId(expenseId)
-    const result = await deleteExpenseAction(expenseId)
+    const result = await onDelete(expenseId)
     setBusyId(null)
     if (!result.success) {
       toastActionError(
@@ -92,7 +92,6 @@ export function ExpenseManager({
       )
       return
     }
-    router.refresh()
   }
 
   return (
