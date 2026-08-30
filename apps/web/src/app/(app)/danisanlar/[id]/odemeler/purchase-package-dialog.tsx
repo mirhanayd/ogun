@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -20,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { purchasePackageFormSchema, type PurchasePackageFormValues } from '@/lib/validation/billing-schemas'
-import { purchasePackageAction } from './actions'
 
 export interface AvailablePackageOption {
   id: string
@@ -30,13 +28,12 @@ export interface AvailablePackageOption {
 }
 
 export function PurchasePackageDialog({
-  clientId,
   packages,
+  onSave,
 }: {
-  clientId: string
   packages: AvailablePackageOption[]
+  onSave: (values: PurchasePackageFormValues) => Promise<{ success: boolean; error?: string }>
 }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   const {
@@ -59,14 +56,13 @@ export function PurchasePackageDialog({
   }, [selectedPackageId, packages, setValue])
 
   async function onSubmit(values: PurchasePackageFormValues) {
-    const result = await purchasePackageAction(clientId, values)
+    const result = await onSave(values)
     if (!result.success) {
       toastActionError(result.error ?? 'Paket satın alma kaydedilemedi.', 'Paketin hâlâ etkin olduğunu doğrulayıp tekrar deneyin; danışana bir seans yazılmadı.')
       return
     }
     toast.success('Paket satışı kaydedildi')
     setOpen(false)
-    router.refresh()
   }
 
   if (packages.length === 0) {

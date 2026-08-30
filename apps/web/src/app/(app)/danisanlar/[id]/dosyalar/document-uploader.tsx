@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -19,7 +18,12 @@ import {
   type UploadableDocumentCategory,
 } from '@/lib/validation/document-schemas'
 import { isNativeShell } from '@/lib/native-shell'
-import { confirmDocumentUploadAction, presignDocumentUploadAction } from './actions'
+import type { confirmDocumentUploadAction, presignDocumentUploadAction } from './actions'
+
+export interface DocumentUploadPersistence {
+  presign: (...args: Parameters<typeof presignDocumentUploadAction>) => ReturnType<typeof presignDocumentUploadAction>
+  confirm: (...args: Parameters<typeof confirmDocumentUploadAction>) => ReturnType<typeof confirmDocumentUploadAction>
+}
 
 // GitHub issue #53 / Prompt 9.3, GÖREV 4 — tauri-plugin-dialog'un native
 // seçici VE pencere geneli sürükle-bırak İKİSİ de bize SADECE bir dosya
@@ -52,6 +56,7 @@ export function DocumentUploader({
   clientId,
   fixedCategory,
   onUploaded,
+  persistence,
 }: {
   clientId: string
   // BİA içe aktarma paneli (GÖREV 4) kategori seçimini gizleyip her zaman
@@ -59,8 +64,8 @@ export function DocumentUploader({
   // UNUTMASI riskini ortadan kaldırır.
   fixedCategory?: UploadableDocumentCategory
   onUploaded?: () => void
+  persistence: DocumentUploadPersistence
 }) {
-  const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [category, setCategory] = useState<UploadableDocumentCategory>(fixedCategory ?? 'diğer')
   const [status, setStatus] = useState<'idle' | 'uploading'>('idle')
@@ -115,7 +120,7 @@ export function DocumentUploader({
       category: activeCategory,
     }
 
-    const presign = await presignDocumentUploadAction(clientId, presignInput)
+    const presign = await persistence.presign(clientId, presignInput)
     if (!presign.success || !presign.uploadUrl || !presign.storageKey) {
       setError(presign.error ?? 'Yükleme başlatılamadı.')
       setStatus('idle')
@@ -133,7 +138,7 @@ export function DocumentUploader({
       return
     }
 
-    const confirm = await confirmDocumentUploadAction(clientId, {
+    const confirm = await persistence.confirm(clientId, {
       ...presignInput,
       storageKey: presign.storageKey,
     })
@@ -145,7 +150,6 @@ export function DocumentUploader({
 
     setStatus('idle')
     onUploaded?.()
-    router.refresh()
   }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -234,7 +238,7 @@ export function DocumentUploader({
     // fixedCategory'e kapanır (closure); bunlardan biri değiştiğinde
     // dinleyici TAZE bir kapanışla yeniden kurulmalı.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, category, fixedCategory, offline])
+  }, [clientId, category, fixedCategory, offline, persistence])
 
   return (
     <div className="flex flex-wrap items-end gap-3">

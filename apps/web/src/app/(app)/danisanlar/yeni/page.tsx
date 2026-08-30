@@ -1,4 +1,6 @@
 import { NewClientForm } from './new-client-form'
+import { createClientAction } from '../actions'
+import { redirect } from 'next/navigation'
 
 // /danisanlar/yeni — GitHub issue #17 / Prompt 4.1, GÖREV 3: "tek sayfalık,
 // hızlı" yeni danışan formu. Kimlik doğrulama/klinik kontrolü bu sayfada
@@ -14,7 +16,7 @@ export default function YeniDanisanPage() {
           Sadece ad, soyad ve rıza onayı zorunludur — gerisini daha sonra doldurabilirsiniz.
         </p>
       </div>
-      <NewClientForm />
+      <NewClientForm onSave={createClientAction} onCreated={async (clientId) => { 'use server'; redirect(`/danisanlar/${clientId}`) }} />
     </div>
   )
 }

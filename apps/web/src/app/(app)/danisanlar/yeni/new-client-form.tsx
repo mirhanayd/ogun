@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SEX_NOT_SPECIFIED, SEX_OPTIONS, newClientSchema, type NewClientFormValues } from '@/lib/validation/client-schemas'
-import { createClientAction } from '../actions'
 
 const DEFAULT_VALUES: NewClientFormValues = {
   firstName: '',
@@ -26,8 +24,13 @@ const DEFAULT_VALUES: NewClientFormValues = {
 // GÖREV 3 — "tek sayfalık, hızlı" yeni danışan formu. Kaydettikten sonra
 // doğrudan danışan detayına gider (router.push, aşağıda) — ayrı bir "başarılı"
 // ekranı YOK, roadmap'in "15 saniyeden kısa" hedefiyle çelişmesin diye.
-export function NewClientForm() {
-  const router = useRouter()
+export function NewClientForm({
+  onSave,
+  onCreated,
+}: {
+  onSave: (values: NewClientFormValues) => Promise<{ success: boolean; clientId?: string; error?: string }>
+  onCreated: (clientId: string) => void
+}) {
   const [formError, setFormError] = useState<string | null>(null)
   const {
     control,
@@ -41,12 +44,12 @@ export function NewClientForm() {
 
   async function onSubmit(values: NewClientFormValues) {
     setFormError(null)
-    const result = await createClientAction(values)
+    const result = await onSave(values)
     if (!result.success || !result.clientId) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
     }
-    router.push(`/danisanlar/${result.clientId}`)
+    onCreated(result.clientId)
   }
 
   return (

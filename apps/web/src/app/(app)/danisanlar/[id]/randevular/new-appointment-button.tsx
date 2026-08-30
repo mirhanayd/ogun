@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AppointmentDialog, type DietitianOption } from '../../../randevular/appointment-dialog'
+import { createAppointmentAction, getClientPackageWarningAction, searchClientsAction } from '../../../randevular/actions'
 
 // Danışan detayındaki "Randevu ver" hızlı eylemi (GitHub issue #39 / Prompt
 // 7.1) — NewPlanButton (planlar/new-plan-button.tsx) ile AYNI desen: takvim
@@ -21,6 +23,7 @@ export function NewAppointmentButton({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  const router = useRouter()
 
   return (
     <>
@@ -33,6 +36,10 @@ export function NewAppointmentButton({
         onOpenChange={setOpen}
         dietitians={dietitians}
         prefill={{ startsAt: new Date(), clientId, clientName }}
+        onSearchClients={searchClientsAction}
+        onGetPackageWarning={getClientPackageWarningAction}
+        onSave={async (_appointmentId, _originalClientId, values, acknowledgeWarning) => createAppointmentAction(values, acknowledgeWarning)}
+        onSaved={() => router.refresh()}
       />
     </>
   )

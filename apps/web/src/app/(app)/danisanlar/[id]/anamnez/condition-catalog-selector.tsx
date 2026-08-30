@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { appendUniqueBy, removeByKey } from './catalog-selection'
-import { searchConditionCatalogAction } from './catalog-actions'
+import type { searchConditionCatalogAction } from './catalog-actions'
 
 type ConditionResult = Awaited<ReturnType<typeof searchConditionCatalogAction>>[number]
 
@@ -31,10 +31,12 @@ export function ConditionCatalogSelector({
   value,
   onChange,
   disabled = false,
+  onSearch,
 }: {
   value: ConditionCatalogSelection[]
   onChange: (value: ConditionCatalogSelection[]) => void
   disabled?: boolean
+  onSearch: (query: string) => Promise<ConditionResult[]>
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -57,7 +59,7 @@ export function ConditionCatalogSelector({
     setLoading(true)
     setError(null)
     const timeoutId = window.setTimeout(() => {
-      void searchConditionCatalogAction(normalizedQuery)
+      void onSearch(normalizedQuery)
         .then((items) => {
           if (requestId === requestIdRef.current) setResults(items)
         })
@@ -73,7 +75,7 @@ export function ConditionCatalogSelector({
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
-  }, [query])
+  }, [onSearch, query])
 
   function selectCondition(condition: ConditionResult) {
     onChange(

@@ -11,7 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
-import { searchClientsAction, type ClientPickerOption } from './actions'
+import type { ClientPickerOption } from './actions'
 
 // GitHub issue #39 / Prompt 7.1, GÖREV 3 — "Danışan seç (komut paletiyle
 // hızlı arama)". Global CommandPalette (_components/command-palette.tsx)
@@ -25,9 +25,11 @@ import { searchClientsAction, type ClientPickerOption } from './actions'
 export function ClientPicker({
   value,
   onSelect,
+  onSearch,
 }: {
   value: ClientPickerOption | null
   onSelect: (client: ClientPickerOption) => void
+  onSearch: (query: string) => Promise<ClientPickerOption[]>
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -41,12 +43,12 @@ export function ClientPicker({
     }
     setLoading(true)
     const timeout = setTimeout(() => {
-      searchClientsAction(query)
+      onSearch(query)
         .then(setResults)
         .finally(() => setLoading(false))
     }, 200)
     return () => clearTimeout(timeout)
-  }, [query])
+  }, [query, onSearch])
 
   return (
     <>

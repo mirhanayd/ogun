@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { LabResultChartPoint } from './lab-results-tab'
+import type { LabResultChartPoint } from '@/screens/lab-results-view'
 
 function formatDateTr(ms: number): string {
   return new Date(ms).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })

@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { deleteLabResultAction } from './actions'
-import type { LabResultChartPoint } from './lab-results-tab'
+import type { LabResultChartPoint } from '@/screens/lab-results-view'
 
 function formatDateTr(iso: string): string {
   return new Date(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -16,16 +14,14 @@ function formatDateTr(iso: string): string {
 // da AYNI rozeti tekrarlar (grafik + özet kart dışında, en ayrıntılı görünüm
 // burası — diyetisyen hangi TARİHTEKİ hangi değerin anormal olduğunu tek tek
 // görebilmeli, sadece "en güncel" değil).
-export function LabResultsList({ clientId, results }: { clientId: string; results: LabResultChartPoint[] }) {
-  const router = useRouter()
+export function LabResultsList({ results, onDelete }: { results: LabResultChartPoint[]; onDelete: (id: string) => Promise<unknown> }) {
   const [isPending, startTransition] = useTransition()
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   function handleDelete(id: string) {
     setDeletingId(id)
     startTransition(async () => {
-      await deleteLabResultAction(id, clientId)
-      router.refresh()
+      await onDelete(id)
       setDeletingId(null)
     })
   }

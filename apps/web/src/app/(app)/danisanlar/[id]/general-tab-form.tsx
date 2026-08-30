@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import Link from 'next/link'
 import type { ClinicDietitianOption } from '@ogun/db/queries'
-import type { clients } from '@ogun/db/schema'
+import { NavigationLink } from '@/components/navigation-link'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -20,9 +18,21 @@ import {
   clientGeneralInfoSchema,
   type ClientGeneralInfoFormValues,
 } from '@/lib/validation/client-schemas'
-import { updateClientGeneralInfoAction } from '../actions'
-
-type ClientRow = typeof clients.$inferSelect
+export interface ClientGeneralInfoModel {
+  id: string
+  firstName: string
+  lastName: string
+  birthDate: string | null
+  sex: 'male' | 'female' | null
+  phone: string | null
+  email: string | null
+  occupation: string | null
+  referralSource: string | null
+  notes: string | null
+  status: 'aktif' | 'pasif' | 'arşiv'
+  smsConsentAt: Date | string | null
+  assignedDietitianId: string | null
+}
 
 // GÖREV 4 — "Genel" sekmesi, bu issue'nun kapsadığı gerçek alanları
 // (demografik/iletişim/durum/notlar) düzenler. client_health (bu issue'da
@@ -35,8 +45,15 @@ type ClientRow = typeof clients.$inferSelect
 // danışan listesinde var (bkz. clients-table.tsx); aynı işlemi iki farklı
 // yüzeyde (tekil + toplu) iki ayrı server action'la tutmak yerine tek bir
 // giriş noktası (liste sayfası) bırakıldı.
-export function GeneralTabForm({ client, dietitians }: { client: ClientRow; dietitians: ClinicDietitianOption[] }) {
-  const router = useRouter()
+export function GeneralTabForm({
+  client,
+  dietitians,
+  onSave,
+}: {
+  client: ClientGeneralInfoModel
+  dietitians: ClinicDietitianOption[]
+  onSave: (values: ClientGeneralInfoFormValues) => Promise<{ success: boolean; error?: string }>
+}) {
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const {
@@ -66,13 +83,12 @@ export function GeneralTabForm({ client, dietitians }: { client: ClientRow; diet
   async function onSubmit(values: ClientGeneralInfoFormValues) {
     setFormError(null)
     setSaved(false)
-    const result = await updateClientGeneralInfoAction(client.id, values)
+    const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
     }
     setSaved(true)
-    router.refresh()
   }
 
   return (
@@ -186,9 +202,9 @@ export function GeneralTabForm({ client, dietitians }: { client: ClientRow; diet
         <Label>Atanan diyetisyen</Label>
         <p className="text-sm text-muted-foreground">
           {assignedDietitianName ?? 'Henüz atanmadı'} —{' '}
-          <Link href="/danisanlar" className="underline underline-offset-2">
+          <NavigationLink href="/danisanlar" className="underline underline-offset-2">
             danışan listesinden
-          </Link>{' '}
+          </NavigationLink>{' '}
           toplu olarak değiştirilebilir.
         </p>
       </div>

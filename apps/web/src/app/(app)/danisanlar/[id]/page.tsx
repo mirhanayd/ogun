@@ -13,6 +13,8 @@ import { getClientActiveGoal, getClientLatestMeasurement } from './measurements/
 import { MeasurementsTab } from './measurements/measurements-tab'
 import { getClientHealthRecord } from './anamnez/queries'
 import { AnamnesisForm } from './anamnez/anamnesis-form'
+import { saveAnamnesisAction } from './anamnez/actions'
+import { searchConditionCatalogAction, searchMedicationCatalogAction, searchMedicationSubstanceCatalogAction } from './anamnez/catalog-actions'
 import { listClientAbnormalLabResults } from './laboratuvar/queries'
 import { LabResultsTab } from './laboratuvar/lab-results-tab'
 import { DocumentsTab } from './dosyalar/documents-tab'
@@ -22,6 +24,7 @@ import { AppointmentsTab } from './randevular/appointments-tab'
 import { NewAppointmentButton } from './randevular/new-appointment-button'
 import { OdemelerTab } from './odemeler/odemeler-tab'
 import { getClientNextAppointment } from '../../randevular/queries'
+import { updateClientGeneralInfoAction } from '../actions'
 
 // /danisanlar/[id] — GitHub issue #17 / Prompt 4.1, GÖREV 4: danışan detay
 // sayfası KABUĞU. Sadece "Genel" sekmesi gerçek içerik taşır (bu issue'nun
@@ -102,10 +105,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         { label: 'Sonraki randevu', value: nextAppointment ? nextAppointment.startsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : '—' },
       ]}
       tabs={[
-        { value: 'genel', label: 'Genel', content: <GeneralTabForm client={client} dietitians={dietitians} /> },
+        { value: 'genel', label: 'Genel', content: <GeneralTabForm client={client} dietitians={dietitians} onSave={updateClientGeneralInfoAction.bind(null, client.id)} /> },
         { value: 'olcumler', label: 'Ölçümler', content: <MeasurementsTab clientId={client.id} /> },
         { value: 'planlar', label: 'Planlar', content: <PlanlarTab clientId={client.id} /> },
-        { value: 'anamnez', label: 'Anamnez', content: <AnamnesisForm clientId={client.id} healthRecord={healthRecord} /> },
+        { value: 'anamnez', label: 'Anamnez', content: <AnamnesisForm healthRecord={healthRecord} onSave={saveAnamnesisAction.bind(null, client.id)} onSearchConditions={searchConditionCatalogAction} onSearchMedicationProducts={searchMedicationCatalogAction} onSearchMedicationSubstances={searchMedicationSubstanceCatalogAction} /> },
         { value: 'laboratuvar', label: 'Laboratuvar', content: <LabResultsTab clientId={client.id} /> },
         { value: 'dosyalar', label: 'Dosyalar', content: <DocumentsTab clientId={client.id} /> },
         { value: 'randevular', label: 'Randevular', content: <AppointmentsTab clientId={client.id} /> },

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LAB_ANALYTE_PRESETS } from '@ogun/nutrition-core'
@@ -15,7 +14,6 @@ import {
   labResultFormSchema,
   type LabResultFormValues,
 } from '@/lib/validation/lab-schemas'
-import { createLabResultAction } from './actions'
 
 const PRESET_SENTINEL_CUSTOM = '__custom__'
 
@@ -24,8 +22,11 @@ const PRESET_SENTINEL_CUSTOM = '__custom__'
 // analyte/unit/refMin/refMax alanlarını ÖNCEDEN DOLDURUR — form şemasının
 // bir parçası DEĞİL (analyte hâlâ serbest metin, bkz. lab-schemas.ts dosya
 // başı notu), diyetisyen seçtikten sonra istediği alanı elle değiştirebilir.
-export function LabResultForm({ clientId }: { clientId: string }) {
-  const router = useRouter()
+export function LabResultForm({
+  onSave,
+}: {
+  onSave: (values: LabResultFormValues) => Promise<{ success: boolean; error?: string }>
+}) {
   const [formError, setFormError] = useState<string | null>(null)
   const {
     register,
@@ -50,13 +51,12 @@ export function LabResultForm({ clientId }: { clientId: string }) {
 
   async function onSubmit(values: LabResultFormValues) {
     setFormError(null)
-    const result = await createLabResultAction(clientId, values)
+    const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
     }
     reset(LAB_RESULT_FORM_DEFAULT_VALUES)
-    router.refresh()
   }
 
   return (

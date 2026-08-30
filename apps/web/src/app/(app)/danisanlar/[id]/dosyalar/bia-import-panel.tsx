@@ -1,7 +1,8 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { MeasurementForm, type PreviousMeasurementSummary } from '../measurements/measurement-form'
-import { DocumentUploader } from './document-uploader'
+import { DocumentUploader, type DocumentUploadPersistence } from './document-uploader'
 import { DocumentList, type DocumentRow } from './document-list'
+import type { MeasurementFormValues } from '@/lib/validation/measurement-schemas'
 
 // GÖREV 4 — "BİA çıktısı içe aktarma (v1: yarı otomatik). InBody/Tanita PDF
 // veya fotoğrafını yükle. Şimdilik OCR YAPMA. Sadece dosyayı ekle ve yanına
@@ -18,10 +19,18 @@ export function BiaImportPanel({
   clientId,
   previousMeasurement,
   biaDocuments,
+  uploadPersistence,
+  onSaveMeasurement,
+  onViewDocument,
+  onDeleteDocument,
 }: {
   clientId: string
   previousMeasurement: PreviousMeasurementSummary | null
   biaDocuments: DocumentRow[]
+  uploadPersistence: DocumentUploadPersistence
+  onSaveMeasurement: (values: MeasurementFormValues) => Promise<{ success: boolean; error?: string }>
+  onViewDocument: (id: string) => Promise<{ success: boolean; url?: string; error?: string }>
+  onDeleteDocument: (id: string) => Promise<unknown>
 }) {
   return (
     <Card>
@@ -36,11 +45,11 @@ export function BiaImportPanel({
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-3">
-            <DocumentUploader clientId={clientId} fixedCategory="bia_çıktısı" />
-            <DocumentList clientId={clientId} documents={biaDocuments} />
+            <DocumentUploader clientId={clientId} fixedCategory="bia_çıktısı" persistence={uploadPersistence} />
+            <DocumentList documents={biaDocuments} onView={onViewDocument} onDelete={onDeleteDocument} />
           </div>
           <div className="rounded-lg border p-3">
-            <MeasurementForm clientId={clientId} previousMeasurement={previousMeasurement} />
+            <MeasurementForm clientId={clientId} previousMeasurement={previousMeasurement} onSave={onSaveMeasurement} />
           </div>
         </div>
       </CardContent>

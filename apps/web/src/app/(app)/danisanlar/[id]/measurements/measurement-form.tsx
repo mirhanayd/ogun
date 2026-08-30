@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { calculateBmi, classifyBmi } from '@ogun/nutrition-core'
@@ -24,7 +23,6 @@ import {
   measurementFormSchema,
   type MeasurementFormValues,
 } from '@/lib/validation/measurement-schemas'
-import { createMeasurementAction } from './actions'
 
 export interface PreviousMeasurementSummary {
   measuredAt: string // ISO
@@ -40,11 +38,12 @@ export interface PreviousMeasurementSummary {
 export function MeasurementForm({
   clientId,
   previousMeasurement,
+  onSave,
 }: {
   clientId: string
   previousMeasurement: PreviousMeasurementSummary | null
+  onSave: (values: MeasurementFormValues) => Promise<{ success: boolean; error?: string }>
 }) {
-  const router = useRouter()
   const [mode, setMode] = useState<'quick' | 'detailed'>('quick')
   const [formError, setFormError] = useState<string | null>(null)
   const {
@@ -74,13 +73,12 @@ export function MeasurementForm({
 
   async function onSubmit(values: MeasurementFormValues) {
     setFormError(null)
-    const result = await createMeasurementAction(clientId, values)
+    const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
     }
     reset({ ...MEASUREMENT_FORM_DEFAULT_VALUES, source: values.source })
-    router.refresh()
   }
 
   // Hızlı moddaki kilo alanında Enter'a basınca formu doğrudan gönderir —

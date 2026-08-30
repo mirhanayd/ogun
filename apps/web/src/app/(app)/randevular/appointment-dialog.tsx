@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -24,12 +23,7 @@ import {
   appointmentFormSchema,
   type AppointmentFormInput,
 } from '@/lib/validation/appointment-schemas'
-import {
-  createAppointmentAction,
-  getClientPackageWarningAction,
-  updateAppointmentAction,
-  type ClientPickerOption,
-} from './actions'
+import type { ClientPickerOption } from './actions'
 import { ClientPicker } from './client-picker'
 import type { AppointmentListRow } from './types'
 
@@ -55,6 +49,10 @@ export function AppointmentDialog({
   defaultDietitianId,
   prefill,
   appointment,
+  onSearchClients,
+  onGetPackageWarning,
+  onSave,
+  onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -62,8 +60,11 @@ export function AppointmentDialog({
   defaultDietitianId?: string
   prefill?: AppointmentDialogPrefill
   appointment?: AppointmentListRow
+  onSearchClients: (query: string) => Promise<ClientPickerOption[]>
+  onGetPackageWarning: (clientId: string, clientName: string) => Promise<string | null>
+  onSave: (appointmentId: string | null, originalClientId: string | null, values: AppointmentFormInput, acknowledgeWarning: boolean) => Promise<{ success: boolean; error?: string; warning?: string }>
+  onSaved?: () => void
 }) {
-  const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [selectedClient, setSelectedClient] = useState<ClientPickerOption | null>(null)
@@ -134,19 +135,17 @@ export function AppointmentDialog({
     }
     let cancelled = false
     const clientName = `${selectedClient.firstName} ${selectedClient.lastName}`.trim()
-    getClientPackageWarningAction(selectedClient.id, clientName).then((message) => {
+    onGetPackageWarning(selectedClient.id, clientName).then((message) => {
       if (!cancelled) setPackageWarning(message)
     })
     return () => {
       cancelled = true
     }
-  }, [open, selectedClient])
+  }, [open, selectedClient, onGetPackageWarning])
 
   async function onSubmit(values: AppointmentFormInput, acknowledgeWarning = false) {
     setFormError(null)
-    const result = appointment
-      ? await updateAppointmentAction(appointment.id, appointment.clientId, values, acknowledgeWarning)
-      : await createAppointmentAction(values, acknowledgeWarning)
+    const result = await onSave(appointment?.id ?? null, appointment?.clientId ?? null, values, acknowledgeWarning)
 
     if (result.warning) {
       setWarning(result.warning)
@@ -159,7 +158,7 @@ export function AppointmentDialog({
     setWarning(null)
     toast.success(appointment ? 'Randevu güncellendi' : 'Randevu oluşturuldu')
     onOpenChange(false)
-    router.refresh()
+    onSaved?.()
   }
 
   return (
@@ -184,6 +183,7 @@ export function AppointmentDialog({
               render={({ field }) => (
                 <ClientPicker
                   value={selectedClient}
+                  onSearch={onSearchClients}
                   onSelect={(client) => {
                     setSelectedClient(client)
                     field.onChange(client.id)

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -21,7 +20,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { PAYMENT_METHOD_OPTIONS, paymentFormSchema, type PaymentFormValues } from '@/lib/validation/billing-schemas'
-import { createPaymentAction } from './actions'
 
 export interface ClientPackageOption {
   id: string
@@ -32,13 +30,12 @@ export interface ClientPackageOption {
 // Seri/sıra no OPSİYONEL (bkz. billing-schemas.ts): girilirse actions.ts
 // lib/invoicing üzerinden "manuel" sağlayıcıya kesim tarihini damgalatır.
 export function PaymentDialog({
-  clientId,
   clientPackages,
+  onSave,
 }: {
-  clientId: string
   clientPackages: ClientPackageOption[]
+  onSave: (values: PaymentFormValues) => Promise<{ success: boolean; error?: string }>
 }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   const {
@@ -61,7 +58,7 @@ export function PaymentDialog({
   })
 
   async function onSubmit(values: PaymentFormValues) {
-    const result = await createPaymentAction(clientId, values)
+    const result = await onSave(values)
     if (!result.success) {
       toastActionError(result.error ?? 'Ödeme kaydedilemedi.', 'Tutar ve tarih alanlarını kontrol edip tekrar kaydedin; ödeme henüz işlenmedi.')
       return
@@ -77,7 +74,6 @@ export function PaymentDialog({
       receiptSequenceNumber: '',
     })
     setOpen(false)
-    router.refresh()
   }
 
   return (

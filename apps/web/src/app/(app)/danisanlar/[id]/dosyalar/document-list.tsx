@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Eye, FileText, Image as ImageIcon, Trash2 } from 'lucide-react'
 import type { DocumentCategory } from '@ogun/db/schema'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DOCUMENT_CATEGORY_LABELS_TR } from '@/lib/validation/document-schemas'
-import { deleteDocumentAction, getDocumentDownloadUrlAction } from './actions'
 
 export interface DocumentRow {
   id: string
@@ -36,13 +34,14 @@ function formatDateTr(iso: string): string {
 // (gerçek bir erişim anında) presigned URL istenir ve yeni sekmede açılır
 // — tarayıcı PDF/görseli native olarak render eder.
 export function DocumentList({
-  clientId,
   documents,
+  onView,
+  onDelete,
 }: {
-  clientId: string
   documents: DocumentRow[]
+  onView: (id: string) => Promise<{ success: boolean; url?: string; error?: string }>
+  onDelete: (id: string) => Promise<unknown>
 }) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -51,7 +50,7 @@ export function DocumentList({
     setBusyId(doc.id)
     setError(null)
     startTransition(async () => {
-      const result = await getDocumentDownloadUrlAction(doc.id)
+      const result = await onView(doc.id)
       setBusyId(null)
       if (!result.success || !result.url) {
         setError(result.error ?? 'Belge açılamadı.')
@@ -64,8 +63,7 @@ export function DocumentList({
   function handleDelete(doc: DocumentRow) {
     setBusyId(doc.id)
     startTransition(async () => {
-      await deleteDocumentAction(doc.id, clientId)
-      router.refresh()
+      await onDelete(doc.id)
       setBusyId(null)
     })
   }

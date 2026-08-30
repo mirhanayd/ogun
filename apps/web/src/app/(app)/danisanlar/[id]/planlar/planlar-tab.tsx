@@ -1,11 +1,8 @@
-import Link from 'next/link'
-import { CheckCircle2, ClipboardList, Eye, Send } from 'lucide-react'
+import { CheckCircle2, Eye, Send } from 'lucide-react'
 import { calculateDailyEnergyRequirement, type ActivityLevel } from '@ogun/nutrition-core'
 import type { PlanShareStatus } from '@ogun/db/queries'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { EmptyState } from '@/components/empty-state'
-import { PLAN_STATUS_LABELS_TR } from '@/lib/validation/plan-schemas'
+import { ClientPlansView } from '@/screens/client-plans-view'
 import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
 import { getClientHealthRecord } from '../anamnez/queries'
@@ -96,53 +93,14 @@ export async function PlanlarTab({ clientId }: { clientId: string }) {
   // ÖNLEMEK için, bkz. getShareStatusesForPlans dosya başı notu).
   const shareStatuses = await getClientPlanShareStatuses(plans.map((p) => p.id))
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium">Diyet planları</p>
-        <div className="flex items-center gap-2">
+  return <ClientPlansView
+    clientId={clientId}
+    plans={plans.map((plan) => ({ id: plan.id, name: plan.name, targetKcal: plan.targetKcal, status: plan.status, shareStatus: <ShareStatusBadge status={shareStatuses.get(plan.id) ?? 'not_shared'} /> }))}
+    actions={<>
           <GoalSkeletonButton clientId={clientId} defaultTargetKcal={defaultTargetKcal} />
           <NewPlanButton clientId={clientId} />
-        </div>
-      </div>
-
-      {plans.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Henüz plan yok"
-          description="Bu danışan için ilk diyet planını oluşturarak başlayın."
-        >
-          <div className="pt-1">
-            <CreateSamplePlanForClientButton clientId={clientId} />
-          </div>
-        </EmptyState>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {plans.map((plan) => (
-            <Card key={plan.id} className="transition-colors hover:bg-muted/50">
-              <CardContent className="flex items-center gap-3 py-3">
-                <Link
-                  href={`/danisanlar/${clientId}/planlar/${plan.id}`}
-                  className="flex flex-1 items-center gap-3 overflow-hidden"
-                >
-                  <ClipboardList className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 truncate text-sm font-medium">{plan.name}</span>
-                  {plan.targetKcal !== null && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {plan.targetKcal} kcal hedef
-                    </span>
-                  )}
-                  <Badge variant={plan.status === 'aktif' ? 'default' : 'secondary'}>
-                    {PLAN_STATUS_LABELS_TR[plan.status]}
-                  </Badge>
-                  <ShareStatusBadge status={shareStatuses.get(plan.id) ?? 'not_shared'} />
-                </Link>
-                <CopyPlanButton clientId={clientId} planId={plan.id} />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+    </>}
+    rowAction={(plan) => <CopyPlanButton clientId={clientId} planId={plan.id} />}
+    emptyAction={<div className="pt-1"><CreateSamplePlanForClientButton clientId={clientId} /></div>}
+  />
 }

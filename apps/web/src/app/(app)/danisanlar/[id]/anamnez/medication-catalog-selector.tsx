@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { appendUniqueBy, removeByKey } from './catalog-selection'
-import {
+import type {
   searchMedicationCatalogAction,
   searchMedicationSubstanceCatalogAction,
 } from './catalog-actions'
@@ -50,10 +50,14 @@ export function MedicationCatalogSelector({
   value,
   onChange,
   disabled = false,
+  onSearchProducts,
+  onSearchSubstances,
 }: {
   value: MedicationCatalogSelection[]
   onChange: (value: MedicationCatalogSelection[]) => void
   disabled?: boolean
+  onSearchProducts: (query: string) => Promise<MedicationProductResult[]>
+  onSearchSubstances: (query: string) => Promise<MedicationSubstanceResult[]>
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -79,8 +83,8 @@ export function MedicationCatalogSelector({
     setError(null)
     const timeoutId = window.setTimeout(() => {
       void Promise.all([
-        searchMedicationCatalogAction(normalizedQuery),
-        searchMedicationSubstanceCatalogAction(normalizedQuery),
+        onSearchProducts(normalizedQuery),
+        onSearchSubstances(normalizedQuery),
       ])
         .then(([productResults, substanceResults]) => {
           if (requestId !== requestIdRef.current) return
@@ -100,7 +104,7 @@ export function MedicationCatalogSelector({
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
-  }, [query])
+  }, [onSearchProducts, onSearchSubstances, query])
 
   function selectProduct(product: MedicationProductResult) {
     const selection: MedicationCatalogSelection = {

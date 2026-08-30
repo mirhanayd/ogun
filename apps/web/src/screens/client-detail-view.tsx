@@ -75,6 +75,10 @@ export function ClientDetailView({
   )
 }
 
+export function ClientDetailLoadingView() {
+  return <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-sm text-muted-foreground" role="status">Danışan yükleniyor…</div>
+}
+
 function SummaryStat({ label, value }: ClientSummaryStat) {
   return <div className="flex flex-col"><span className="text-xs text-muted-foreground">{label}</span><span className="font-medium">{value}</span></div>
 }

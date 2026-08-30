@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentProps } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Badge } from '@/components/ui/badge'
@@ -23,7 +24,6 @@ import {
   type AnamnesisFormValues,
 } from '@/lib/validation/anamnesis-schemas'
 import type { getClientHealthRecord } from './queries'
-import { saveAnamnesisAction } from './actions'
 import { AllergenListField } from './allergen-list-field'
 import {
   ConditionCatalogSelector,
@@ -34,7 +34,7 @@ import {
   type MedicationCatalogSelection,
 } from './medication-catalog-selector'
 
-type ClientHealthRow = Awaited<ReturnType<typeof getClientHealthRecord>>
+export type ClientHealthRow = Awaited<ReturnType<typeof getClientHealthRecord>>
 
 function initialConditionSelections(record: ClientHealthRow): ConditionCatalogSelection[] {
   return record.conditionSelections.map((condition) => ({
@@ -85,11 +85,17 @@ function initialMedicationSelections(record: ClientHealthRow): MedicationCatalog
 // tıpkı plan editörünün (roadmap Prompt 5.3) "Kaydet butonu OLMASIN"
 // kuralıyla aynı ruh: diyetisyen doldurdukça arka planda kaydedilir.
 export function AnamnesisForm({
-  clientId,
   healthRecord,
+  onSave,
+  onSearchConditions,
+  onSearchMedicationProducts,
+  onSearchMedicationSubstances,
 }: {
-  clientId: string
   healthRecord: ClientHealthRow
+  onSave: (values: AnamnesisFormValues) => Promise<{ success: boolean; error?: string }>
+  onSearchConditions: ComponentProps<typeof ConditionCatalogSelector>['onSearch']
+  onSearchMedicationProducts: ComponentProps<typeof MedicationCatalogSelector>['onSearchProducts']
+  onSearchMedicationSubstances: ComponentProps<typeof MedicationCatalogSelector>['onSearchSubstances']
 }) {
   const { control, register } = useForm<AnamnesisFormValues>({
     resolver: zodResolver(anamnesisFormSchema),
@@ -124,7 +130,7 @@ export function AnamnesisForm({
   const formValues = useWatch({ control })
 
   const { status } = useAutosave<AnamnesisFormValues>(formValues as AnamnesisFormValues, (values) =>
-    saveAnamnesisAction(clientId, values),
+    onSave(values),
   )
 
   return (
@@ -158,7 +164,7 @@ export function AnamnesisForm({
               control={control}
               name="conditionSelections"
               render={({ field }) => (
-                <ConditionCatalogSelector value={field.value} onChange={field.onChange} />
+                <ConditionCatalogSelector value={field.value} onChange={field.onChange} onSearch={onSearchConditions} />
               )}
             />
           </div>
@@ -193,6 +199,8 @@ export function AnamnesisForm({
               <MedicationCatalogSelector
                 value={field.value as MedicationCatalogSelection[]}
                 onChange={field.onChange}
+                onSearchProducts={onSearchMedicationProducts}
+                onSearchSubstances={onSearchMedicationSubstances}
               />
             )}
           />

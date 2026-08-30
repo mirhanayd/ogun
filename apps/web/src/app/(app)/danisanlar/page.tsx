@@ -1,11 +1,9 @@
-import Link from 'next/link'
-import { ClipboardList, Upload, UserPlus } from 'lucide-react'
+import { ClipboardList } from 'lucide-react'
 import { db } from '@ogun/db'
 import { listClinicDietitians } from '@ogun/db/queries'
 import type { ClientStatus } from '@ogun/db/schema'
-import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
-import { ClientsScreen } from '@/screens/clients-screen'
+import { ClientsActionsView, ClientsScreen } from '@/screens/clients-screen'
 import { requireClinic } from '@/lib/authz'
 import { STATUS_OPTIONS } from '@/lib/validation/client-schemas'
 import { ClientsTable } from './clients-table'
@@ -52,22 +50,7 @@ export default async function DanisanlarPage({
   return (
     <ClientsScreen
       role={role}
-      actions={
-        <>
-          <Button asChild variant="outline" size="lg" className="rounded-xl bg-background/80 px-4">
-            <Link href="/danisanlar/ice-aktar">
-              <Upload data-icon="inline-start" />
-              CSV içe aktar
-            </Link>
-          </Button>
-          <Button asChild size="lg" className="rounded-xl px-4 shadow-sm shadow-primary/15">
-            <Link href="/danisanlar/yeni">
-              <UserPlus data-icon="inline-start" />
-              Yeni danışan
-            </Link>
-          </Button>
-        </>
-      }
+      actions={<ClientsActionsView />}
     >
       {/* GitHub issue #47 / Prompt 8.3, GÖREV 1 — klinikte HİÇ danışan yoksa
           (herhangi bir filtre uygulanmamışken) EmptyState + "örnek danışan ve

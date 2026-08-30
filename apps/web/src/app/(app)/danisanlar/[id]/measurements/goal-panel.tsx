@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { TriangleAlert } from 'lucide-react'
@@ -22,7 +21,6 @@ import {
   goalFormSchema,
   type GoalFormValues,
 } from '@/lib/validation/measurement-schemas'
-import { achieveGoalAction, createGoalAction } from './actions'
 import type { ChartMeasurement } from './progress-charts'
 
 export interface ActiveGoalRow {
@@ -59,10 +57,14 @@ export function GoalPanel({
   clientId,
   activeGoals,
   measurements,
+  onCreateGoal,
+  onAchieveGoal,
 }: {
   clientId: string
   activeGoals: ActiveGoalRow[]
   measurements: ChartMeasurement[]
+  onCreateGoal: (values: GoalFormValues) => Promise<{ success: boolean; error?: string }>
+  onAchieveGoal: (goalId: string) => Promise<{ success: boolean; error?: string }>
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -75,6 +77,8 @@ export function GoalPanel({
             type={option.value}
             goal={goal}
             measurements={measurements}
+            onCreateGoal={onCreateGoal}
+            onAchieveGoal={onAchieveGoal}
           />
         )
       })}
@@ -87,13 +91,16 @@ function GoalCard({
   type,
   goal,
   measurements,
+  onCreateGoal,
+  onAchieveGoal,
 }: {
   clientId: string
   type: GoalType
   goal: ActiveGoalRow | null
   measurements: ChartMeasurement[]
+  onCreateGoal: (values: GoalFormValues) => Promise<{ success: boolean; error?: string }>
+  onAchieveGoal: (goalId: string) => Promise<{ success: boolean; error?: string }>
 }) {
-  const router = useRouter()
   const [creating, setCreating] = useState(false)
 
   const series: TimeSeriesPoint[] = useMemo(() => {
@@ -121,8 +128,7 @@ function GoalCard({
 
   async function handleAchieve() {
     if (!goal) return
-    await achieveGoalAction(goal.id, clientId)
-    router.refresh()
+    await onAchieveGoal(goal.id)
   }
 
   return (
@@ -172,7 +178,7 @@ function GoalCard({
             )}
           </div>
         ) : creating ? (
-          <NewGoalForm clientId={clientId} type={type} onDone={() => setCreating(false)} />
+          <NewGoalForm type={type} onCreateGoal={onCreateGoal} onDone={() => setCreating(false)} />
         ) : (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Aktif hedef yok.</p>
@@ -187,15 +193,14 @@ function GoalCard({
 }
 
 function NewGoalForm({
-  clientId,
   type,
+  onCreateGoal,
   onDone,
 }: {
-  clientId: string
   type: GoalType
+  onCreateGoal: (values: GoalFormValues) => Promise<{ success: boolean; error?: string }>
   onDone: () => void
 }) {
-  const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
   const {
     register,
@@ -208,12 +213,11 @@ function NewGoalForm({
 
   async function onSubmit(values: GoalFormValues) {
     setFormError(null)
-    const result = await createGoalAction(clientId, values)
+    const result = await onCreateGoal(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
     }
-    router.refresh()
     onDone()
   }
 

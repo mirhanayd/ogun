@@ -9,7 +9,7 @@ import { AppointmentsView, type AppointmentsViewMode } from '@/screens/appointme
 import { AppointmentDialog, type DietitianOption } from './appointment-dialog'
 import { AppointmentDetailSheet } from './appointment-detail-sheet'
 import { HolidayManagerDialog, type HolidayRow as HolidayManagerRow } from './holiday-manager-dialog'
-import { rescheduleAppointmentAction } from './actions'
+import { createAppointmentAction, getClientPackageWarningAction, rescheduleAppointmentAction, searchClientsAction, updateAppointmentAction } from './actions'
 import type { AppointmentListRow } from './types'
 
 export type CalendarViewMode = AppointmentsViewMode
@@ -54,8 +54,8 @@ export function CalendarView({ view, currentDate, dietitians, selectedDietitianI
     return currentDate.toLocaleDateString('tr-TR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
   }, [view, currentDate, days])
   return <AppointmentsView view={view} currentDate={currentDate} title={title} days={days} dietitians={dietitians} selectedDietitianIds={selectedDietitianIds} appointments={appointments} canManageHolidays={canManageHolidays} isDayOpen={isDayOpen} onNavigate={navigate} onStep={step} onToggleDietitian={toggleDietitian} onCreate={(startsAt) => setCreateDialog({ startsAt })} onOpenHolidays={() => setHolidayDialogOpen(true)} onOpenAppointment={(appointment) => setDetailAppointmentId(appointment.id)} onReschedule={handleReschedule} overlays={<>
-    <AppointmentDialog open={!!createDialog} onOpenChange={(open) => !open && setCreateDialog(null)} dietitians={dietitians} defaultDietitianId={selectedDietitianIds[0]} prefill={createDialog ? { startsAt: createDialog.startsAt } : undefined} />
-    <AppointmentDialog open={!!editAppointment} onOpenChange={(open) => !open && setEditAppointment(null)} dietitians={dietitians} appointment={editAppointment ?? undefined} />
+    <AppointmentDialog open={!!createDialog} onOpenChange={(open) => !open && setCreateDialog(null)} dietitians={dietitians} defaultDietitianId={selectedDietitianIds[0]} prefill={createDialog ? { startsAt: createDialog.startsAt } : undefined} onSearchClients={searchClientsAction} onGetPackageWarning={getClientPackageWarningAction} onSave={async (_appointmentId, _originalClientId, values, acknowledgeWarning) => createAppointmentAction(values, acknowledgeWarning)} onSaved={() => router.refresh()} />
+    <AppointmentDialog open={!!editAppointment} onOpenChange={(open) => !open && setEditAppointment(null)} dietitians={dietitians} appointment={editAppointment ?? undefined} onSearchClients={searchClientsAction} onGetPackageWarning={getClientPackageWarningAction} onSave={async (appointmentId, originalClientId, values, acknowledgeWarning) => updateAppointmentAction(appointmentId!, originalClientId!, values, acknowledgeWarning)} onSaved={() => router.refresh()} />
     <AppointmentDetailSheet appointmentId={detailAppointmentId} open={!!detailAppointmentId} onOpenChange={(open) => !open && setDetailAppointmentId(null)} onEdit={() => { const appointment = appointments.find((row) => row.id === detailAppointmentId); if (appointment) { setEditAppointment(appointment); setDetailAppointmentId(null) } }} />
     {canManageHolidays ? <HolidayManagerDialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen} holidays={holidays as HolidayManagerRow[]} /> : null}
   </>} />
