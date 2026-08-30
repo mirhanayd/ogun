@@ -35,6 +35,33 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.3.0',
+    publishedAt: '2026-08-30',
+    notes: [
+      'Çevrimiçi ve çevrimdışı kullanım artık aynı paketlenmiş Öğün arayüzü ve route ağacıyla çalışır.',
+      'Danışan, klinik kayıt, plan ve randevu verileri kullanıcı/klinik kapsamlı şifreli SQLite veritabanından okunur.',
+      'Offline değişiklikler durable outbox üzerinden idempotent olarak eşitlenir; bağlantı geri geldiğinde ekran veya route değişmez.',
+      'Besin kataloğu yerel indeksli SQLite aramasıyla plan editöründe bağlantısız kullanılabilir.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.3.0/Ogun_0.3.0_x64-setup.exe',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.3.0/Ogun_0.3.0_x64_tr-TR.msi',
+      },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: 'https://github.com/mirhanayd/ogun/releases/download/desktop-v0.3.0/Ogun_0.3.0_universal.dmg',
+      },
+    ],
+  },
+  {
     version: '0.2.13',
     publishedAt: '2026-08-27',
     notes: [

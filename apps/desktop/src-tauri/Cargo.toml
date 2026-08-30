@@ -1,7 +1,7 @@
 [package]
 name = "ogun-desktop"
-version = "0.2.13"
-description = "Öğün masaüstü kabuğu — apps/web'i saran Tauri 2.x native pencere."
+version = "0.3.0"
+description = "Öğün local-first desktop application"
 authors = ["Öğün"]
 edition = "2021"
 # GitHub issue #51 / Prompt 9.1 — bkz. src-tauri/README yok, açıklamalar
