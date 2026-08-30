@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { DomainEntity, LocalScope, OgunRepositories } from '@/data/repositories'
+import { cloudUrl } from '@/lib/cloud-origin'
 
 export type DesktopLocalScope = LocalScope & { capabilities: string[] }
 
@@ -153,6 +154,39 @@ export const failLocalOutboxMutation = (
   error: string,
 ) => invoke<void>('fail_local_outbox_mutation', { scope, mutationId, error })
 
+export async function synchronizeLocalFoodCatalog(): Promise<void> {
+  const local = await invoke<{ version: string | null; entryCount: number }>('local_food_catalog_info')
+  let versionResponse: Response
+  try {
+    versionResponse = await fetch(cloudUrl('/api/foods/index/version'), { cache: 'no-store' })
+  } catch (reason) {
+    if (local.entryCount > 0) return
+    throw reason
+  }
+  if (!versionResponse.ok) throw new Error('Besin katalog sürümü alınamadı.')
+  const { version } = (await versionResponse.json()) as { version: string }
+  if (local.version === version && local.entryCount > 0) return
+
+  let catalogResponse: Response
+  try {
+    catalogResponse = await fetch(
+      cloudUrl(`/api/foods/index?v=${encodeURIComponent(version)}`),
+      { cache: 'no-store' },
+    )
+  } catch (reason) {
+    if (local.entryCount > 0) return
+    throw reason
+  }
+  if (!catalogResponse.ok) throw new Error('Besin kataloğu indirilemedi.')
+  const catalog = (await catalogResponse.json()) as {
+    version: string
+    entries: DomainEntity[]
+  }
+  await invoke('replace_local_food_catalog', {
+    catalog: { version: catalog.version, entries: catalog.entries },
+  })
+}
+
 function nullableString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
@@ -280,8 +314,21 @@ export function createNativeRepositories(scope: DesktopLocalScope): OgunReposito
                 name: String(plan.name ?? ''),
                 targetKcal: plan.targetKcal ? Number(plan.targetKcal) : null,
                 notes: nullableString(plan.notes),
+                ...(plan.skeleton ? { skeleton: plan.skeleton } : {}),
               },
           projection,
+        })
+      },
+      async replaceDraft(planId, draft) {
+        const existing = (await read('plans')).find((plan) => plan.id === planId)
+        if (!existing) throw new Error('Plan yerel veritabanında bulunamadı.')
+        await applyLocalMutation(scope, {
+          kind: 'plan.draft.replace',
+          entityType: 'plans',
+          entityId: planId,
+          operation: 'replace',
+          payload: draft,
+          projection: { ...existing, draft, updatedAt: new Date().toISOString() },
         })
       },
     },
@@ -304,11 +351,12 @@ export function createNativeRepositories(scope: DesktopLocalScope): OgunReposito
       },
     },
     foods: {
-      async search() {
-        return []
+      async search(query, limit = 20) {
+        return invoke<DomainEntity[]>('search_local_foods', { query, limit })
       },
-      async get() {
-        return null
+      async get(id) {
+        const rows = await invoke<DomainEntity[]>('get_local_food_entries', { ids: [id] })
+        return rows[0] ?? null
       },
     },
   }

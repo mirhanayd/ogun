@@ -8,6 +8,7 @@ import {
   failLocalOutboxMutation,
   loadLocalOutbox,
   replaceLocalWorkspace,
+  synchronizeLocalFoodCatalog,
   type DesktopLocalScope,
   type DesktopWorkspacePayload,
 } from './native-workspace-repository'
@@ -88,6 +89,7 @@ export async function synchronizeDesktopWorkspace(scope: DesktopLocalScope): Pro
   })
   if (!response.ok) throw new Error(await responseError(response))
   await replaceLocalWorkspace(scope, (await response.json()) as DesktopWorkspacePayload)
+  await synchronizeLocalFoodCatalog()
 }
 
 export function DesktopSyncProvider({

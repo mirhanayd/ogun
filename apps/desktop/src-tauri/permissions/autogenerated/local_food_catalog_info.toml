@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-food-catalog-info"
+description = "Enables the local_food_catalog_info command without any pre-configured scope."
+commands.allow = ["local_food_catalog_info"]
+
+[[permission]]
+identifier = "deny-local-food-catalog-info"
+description = "Denies the local_food_catalog_info command without any pre-configured scope."
+commands.deny = ["local_food_catalog_info"]

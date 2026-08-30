@@ -440,13 +440,62 @@ export async function GET() {
       clientRows.map((client) => client.id),
     )
 
+    const plansWithDrafts = await Promise.all(
+      planRows.map(async (plan) => {
+        const tree = await getPlanTree(db, ctx.scope.clinicId, plan.id)
+        if (!tree) return plan
+        return {
+          ...plan,
+          draft: {
+            planId: plan.id,
+            planName: plan.name,
+            targetKcal: plan.targetKcal,
+            startDate: plan.startDate?.toISOString() ?? null,
+            endDate: plan.endDate?.toISOString() ?? null,
+            outputFormat: plan.outputFormat,
+            days: tree.days.map(({ day, meals }) => ({
+              id: day.id,
+              dayNumber: day.dayNumber,
+              dayLabel: day.dayLabel,
+              meals: meals.map(({ meal, items }) => ({
+                id: meal.id,
+                dayId: meal.dayId,
+                mealType: meal.mealType,
+                time: meal.time,
+                name: meal.name,
+                sortOrder: meal.sortOrder,
+                items: items.map(({ item, alternatives }) => ({
+                  id: item.id,
+                  mealId: item.mealId,
+                  foodId: item.foodId,
+                  recipeId: item.recipeId,
+                  freeText: item.freeText,
+                  amountGrams: Number(item.amount),
+                  note: item.note,
+                  sortOrder: item.sortOrder,
+                  isOptional: item.isOptional,
+                  alternatives: alternatives.map((alternative) => ({
+                    id: alternative.id,
+                    foodId: alternative.foodId,
+                    recipeId: alternative.recipeId,
+                    freeText: alternative.freeText,
+                    amountGrams: Number(alternative.amount),
+                  })),
+                })),
+              })),
+            })),
+          },
+        }
+      }),
+    )
+
     return NextResponse.json({
       version: 2,
       capturedAt: new Date().toISOString(),
       clinic: { id: clinic.id, name: clinic.name },
       clients: clientRows,
       ...clinicalWorkspace,
-      plans: planRows,
+      plans: plansWithDrafts,
       appointments: appointmentRows,
     })
   } catch (error) {

@@ -9,7 +9,7 @@ use chacha20poly1305::{
     XChaCha20Poly1305, XNonce,
 };
 use rand::{rngs::OsRng, RngCore};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -177,6 +177,20 @@ pub struct LocalOutboxMutation {
     pub attempt_count: i64,
     pub sync_status: String,
     pub last_error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFoodCatalogInput {
+    pub version: String,
+    pub entries: Vec<Value>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalFoodCatalogInfo {
+    pub version: Option<String>,
+    pub entry_count: i64,
 }
 
 fn validate_scope(scope: &LocalScope) -> Result<(), String> {
@@ -651,6 +665,163 @@ pub async fn fail_local_outbox_mutation(
     }).await.map_err(|err| format!("Outbox hata işlemi tamamlanamadı: {err}"))?
 }
 
+fn normalize_food_query(value: &str) -> String {
+    value
+        .to_lowercase()
+        .chars()
+        .filter_map(|character| match character {
+            'ç' => Some('c'),
+            'ğ' => Some('g'),
+            'ı' | 'i' => Some('i'),
+            'ö' => Some('o'),
+            'ş' => Some('s'),
+            'ü' => Some('u'),
+            '\u{307}' => None,
+            character if character.is_alphanumeric() => Some(character),
+            _ => Some(' '),
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[tauri::command]
+pub async fn local_food_catalog_info(app: AppHandle) -> Result<LocalFoodCatalogInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = open_database(&database_path(&app)?)?;
+        let version = connection
+            .query_row(
+                "SELECT value FROM local_db_metadata WHERE key='food_catalog_version'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| format!("Besin katalog sürümü okunamadı: {err}"))?;
+        let entry_count = connection
+            .query_row("SELECT COUNT(*) FROM foods", [], |row| row.get(0))
+            .map_err(|err| format!("Besin katalog sayısı okunamadı: {err}"))?;
+        Ok(LocalFoodCatalogInfo {
+            version,
+            entry_count,
+        })
+    })
+    .await
+    .map_err(|err| format!("Besin katalog bilgisi alınamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn replace_local_food_catalog(
+    app: AppHandle,
+    catalog: LocalFoodCatalogInput,
+) -> Result<(), String> {
+    if catalog.version.trim().is_empty() || catalog.entries.len() > 150_000 {
+        return Err("Besin kataloğu geçersiz.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut connection = open_database(&database_path(&app)?)?;
+        let transaction = connection
+            .transaction()
+            .map_err(|err| format!("Besin kataloğu güncellemesi başlatılamadı: {err}"))?;
+        transaction
+            .execute("DELETE FROM foods", [])
+            .map_err(|err| format!("Eski besin kataloğu temizlenemedi: {err}"))?;
+        for entry in catalog.entries {
+            let id = entry.get("id").and_then(Value::as_str).unwrap_or_default();
+            let name = entry
+                .get("nameTr")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if id.is_empty() || name.is_empty() {
+                return Err("Besin kataloğunda kimlik veya ad eksik.".to_string());
+            }
+            let search_text = entry
+                .get("searchText")
+                .and_then(Value::as_str)
+                .map(normalize_food_query)
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| normalize_food_query(name));
+            let group_name = entry.get("groupNameTr").and_then(Value::as_str);
+            let payload = serde_json::to_string(&entry)
+                .map_err(|err| format!("Besin kaydı kodlanamadı: {err}"))?;
+            transaction.execute(
+                "INSERT INTO foods(food_id,catalog_version,name_tr,normalized_name,search_text,group_name_tr,payload_json) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![id, catalog.version, name, normalize_food_query(name), search_text, group_name, payload],
+            ).map_err(|err| format!("Besin kaydı yazılamadı: {err}"))?;
+        }
+        transaction.execute(
+            "INSERT INTO local_db_metadata(key,value) VALUES('food_catalog_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            params![catalog.version],
+        ).map_err(|err| format!("Besin katalog sürümü yazılamadı: {err}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("Besin kataloğu kaydedilemedi: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Besin kataloğu güncellenemedi: {err}"))?
+}
+
+#[tauri::command]
+pub async fn search_local_foods(
+    app: AppHandle,
+    query: String,
+    limit: usize,
+) -> Result<Vec<Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = open_database(&database_path(&app)?)?;
+        let normalized = normalize_food_query(&query);
+        if normalized.is_empty() {
+            return Ok(Vec::new());
+        }
+        let pattern = format!("%{}%", normalized.replace('%', "").replace('_', ""));
+        let prefix = format!("{}%", normalized.replace('%', "").replace('_', ""));
+        let mut statement = connection.prepare(
+            "SELECT payload_json FROM foods WHERE search_text LIKE ?1 ORDER BY CASE WHEN normalized_name LIKE ?2 THEN 0 ELSE 1 END, name_tr LIMIT ?3",
+        ).map_err(|err| format!("Besin araması hazırlanamadı: {err}"))?;
+        let rows = statement.query_map(params![pattern, prefix, limit.clamp(1, 50)], |row| row.get::<_, String>(0))
+            .map_err(|err| format!("Besin araması yapılamadı: {err}"))?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(serde_json::from_str(&row.map_err(|err| format!("Besin satırı okunamadı: {err}"))?)
+                .map_err(|err| format!("Besin kaydı çözülemedi: {err}"))?);
+        }
+        Ok(result)
+    }).await.map_err(|err| format!("Besin araması tamamlanamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn get_local_food_entries(
+    app: AppHandle,
+    ids: Vec<String>,
+) -> Result<Vec<Value>, String> {
+    if ids.len() > 500 {
+        return Err("Tek seferde en fazla 500 besin okunabilir.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = open_database(&database_path(&app)?)?;
+        let mut result = Vec::new();
+        for id in ids {
+            let payload: Option<String> = connection
+                .query_row(
+                    "SELECT payload_json FROM foods WHERE food_id=?1",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|err| format!("Besin kaydı okunamadı: {err}"))?;
+            if let Some(payload) = payload {
+                result.push(
+                    serde_json::from_str(&payload)
+                        .map_err(|err| format!("Besin kaydı çözülemedi: {err}"))?,
+                );
+            }
+        }
+        Ok(result)
+    })
+    .await
+    .map_err(|err| format!("Besin kayıtları tamamlanamadı: {err}"))?
+}
+
 pub fn remove_scope_data(app: &AppHandle, user_id: &str) -> Result<(), String> {
     let connection = open_database(&database_path(app)?)?;
     connection
@@ -730,5 +901,13 @@ mod tests {
             .unwrap();
         connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clients','c1','update',X'01','2026-08-29T00:00:00Z')", []).unwrap();
         assert!(connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clients','c1','update',X'01','2026-08-29T00:00:00Z')", []).is_err());
+    }
+
+    #[test]
+    fn food_queries_are_turkish_normalized() {
+        assert_eq!(
+            normalize_food_query("  Çiğ Şeftali, Üzüm — İncir! "),
+            "cig seftali uzum incir"
+        );
     }
 }

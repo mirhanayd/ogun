@@ -49,6 +49,7 @@ export interface PlansRepository {
   list(clientId?: string): Promise<DomainEntity[]>
   get(id: string): Promise<DomainEntity | null>
   upsert(plan: DomainEntity): Promise<void>
+  replaceDraft(planId: string, draft: Record<string, unknown>): Promise<void>
 }
 
 export interface AppointmentsRepository {

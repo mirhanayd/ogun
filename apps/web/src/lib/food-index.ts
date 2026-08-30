@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { create, insertMultiple, search } from '@orama/orama'
+import { invoke } from '@tauri-apps/api/core'
+import { isNativeShell } from './native-shell'
 import { normalizeSearchText } from './normalize'
 
 export interface FoodIndexRow {
@@ -37,6 +39,28 @@ export interface FoodIndexRow {
   // not: değişim modunun gram<->değişim dönüşümü için besinin birincil
   // değişim grubu. AYNI desen — indekslenmeyen düz alan.
   exchange: { groupCode: string; groupNameTr: string; gramsPerExchange: number } | null
+}
+
+type NativeFoodEntry = Omit<FoodIndexRow, 'defaultPortionLabel' | 'defaultPortionGrams' | 'nutrientsPer100g' | 'hasImputedValues'> & {
+  defaultPortion?: { label: string; grams: number } | null
+}
+
+function nativeFoodEntryToRow(entry: NativeFoodEntry): FoodIndexRow {
+  const macroPairs: Array<[string, number | null]> = [
+    ['ENERC_KCAL', entry.kcalPer100g],
+    ['PROCNT', entry.proteinPer100g],
+    ['CHOCDF', entry.carbPer100g],
+    ['FAT', entry.fatPer100g],
+  ]
+  return {
+    ...entry,
+    defaultPortionLabel: entry.defaultPortion?.label ?? null,
+    defaultPortionGrams: entry.defaultPortion?.grams ?? null,
+    nutrientsPer100g: Object.fromEntries(
+      macroPairs.filter((pair): pair is [string, number] => pair[1] !== null),
+    ),
+    hasImputedValues: false,
+  }
 }
 
 interface MetaRow {
@@ -329,6 +353,7 @@ async function downloadAndStoreNutrientPack(): Promise<void> {
 // GitHub issue #26 / Prompt 5.4 — mikro besin öğesi listesinin metadata'sı
 // (ad/birim/isCore), önbellekten (initFoodIndex çağrılmış olmalı).
 export async function getNutrientDefinitions(): Promise<NutrientDefRow[]> {
+  if (isNativeShell()) return []
   // NOT: orderBy() Dexie'de INDEKSLİ bir alan gerektirir (sadece 'code'
   // indeksli, bkz. FoodIndexDb.version(2)) — sortBy() indeks gerektirmez,
   // JS tarafında sıralar. ~60 satırlık küçük bir tablo için maliyeti önemsiz.
@@ -357,6 +382,7 @@ async function getOramaIndex(): Promise<OramaDb> {
 }
 
 export async function initFoodIndex(): Promise<void> {
+  if (isNativeShell()) return
   await ensureIndexLoaded()
   // Orama yalnız ilk gerçek aramada, tam mikro besin paketi yalnız besin
   // panelinde hazırlanır. Uygulama kabuğunu açmak bu ağır işleri tetiklemez.
@@ -383,6 +409,7 @@ export async function initFoodIndex(): Promise<void> {
 // olabilir ve onu okumak hiç okumamaktan iyidir — çağıranlar her koşulda
 // devam edebilsin diye bu fonksiyon reject ETMEZ.
 export async function whenFoodIndexReady(): Promise<void> {
+  if (isNativeShell()) return
   try {
     await ensureIndexLoaded()
     await ensureNutrientPackLoaded()
@@ -394,6 +421,7 @@ export async function whenFoodIndexReady(): Promise<void> {
 // Ad, porsiyon, makro, değişim ve yemek bileşenleri için yalnızca hafif arama
 // paketini bekler. Planın ilk görünümü tam mikro besin paketine bağlı kalmaz.
 export async function whenFoodSearchIndexReady(): Promise<void> {
+  if (isNativeShell()) return
   try {
     await ensureIndexLoaded()
   } catch (error: unknown) {
@@ -409,6 +437,10 @@ export async function whenFoodSearchIndexReady(): Promise<void> {
 // olmalı — bkz. çağıranlar).
 export async function getFoodIndexEntriesByIds(ids: string[]): Promise<Map<string, FoodIndexRow>> {
   if (ids.length === 0) return new Map()
+  if (isNativeShell()) {
+    const rows = await invoke<NativeFoodEntry[]>('get_local_food_entries', { ids })
+    return new Map(rows.map((entry) => [entry.id, nativeFoodEntryToRow(entry)]))
+  }
   const rows = await dexieDb.foods.bulkGet(ids)
   const result = new Map<string, FoodIndexRow>()
   for (const row of rows) {
@@ -477,6 +509,30 @@ export async function searchFoodsOffline(
   limit = 20,
 ): Promise<{ hits: FoodSearchHit[]; elapsedMs: number }> {
   const start = performance.now()
+
+  if (isNativeShell()) {
+    const entries = await invoke<NativeFoodEntry[]>('search_local_foods', { query, limit })
+    return {
+      hits: entries.map((entry) => {
+        const row = nativeFoodEntryToRow(entry)
+        return {
+          id: row.id,
+          nameTr: row.nameTr,
+          groupNameTr: row.groupNameTr,
+          kcalPer100g: row.kcalPer100g,
+          proteinPer100g: row.proteinPer100g,
+          carbPer100g: row.carbPer100g,
+          fatPer100g: row.fatPer100g,
+          defaultPortion:
+            row.defaultPortionLabel && row.defaultPortionGrams !== null
+              ? { label: row.defaultPortionLabel, grams: row.defaultPortionGrams }
+              : null,
+          ingredientNames: row.ingredientNames ?? [],
+        }
+      }),
+      elapsedMs: performance.now() - start,
+    }
+  }
 
   const oramaDb = await getOramaIndex()
   const normalizedQuery = normalizeSearchText(query)
