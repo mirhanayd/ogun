@@ -14,7 +14,11 @@
     "audit:nutrition": "tsx src/audit-nutrition-data.ts",
     "repair:nutrition": "tsx src/repair-nutrition-data.ts",
     "etl:e2e": "tsx src/e2e-plan-validation.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "etl:rxnorm-mappings": "tsx src/importers/rxnorm-mappings.ts",
+    "etl:rxnorm-mappings:verify": "tsx src/verify-rxnorm-mappings.ts",
+    "etl:openfda-labels": "tsx src/openfda-label-downloader.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ogun/db": "workspace:*",
