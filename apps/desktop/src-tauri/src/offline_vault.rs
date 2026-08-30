@@ -245,6 +245,14 @@ fn verify_pin_hash(pin: &str, encoded: &str) -> bool {
     })
 }
 
+fn runtime_may_open_local_data(
+    pin_unlocked: bool,
+    online_provisioning: bool,
+    pin_configured: bool,
+) -> bool {
+    pin_unlocked || (online_provisioning && !pin_configured)
+}
+
 pub fn authorize_local_scope(
     app: &AppHandle,
     state: &OfflineVaultState,
@@ -256,20 +264,24 @@ pub fn authorize_local_scope(
         .0
         .lock()
         .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
-    let active = runtime.unlocked_user_id.as_deref() == Some(user_id)
-        || runtime.active_online_user_id.as_deref() == Some(user_id);
+    let pin_unlocked = runtime.unlocked_user_id.as_deref() == Some(user_id);
+    let online_provisioning = runtime.active_online_user_id.as_deref() == Some(user_id);
     drop(runtime);
-    if !active {
-        return Err("Yerel çalışma alanı bu hesap için açık değil.".to_string());
+    let document = load_document(app)?;
+    let record = document
+        .profiles
+        .iter()
+        .find(|record| {
+            record.summary.user_id == user_id
+                && record.summary.clinic_id == clinic_id
+                && record.summary.role == role
+        })
+        .ok_or_else(|| "Yerel çalışma alanı kapsamı cihaz profiliyle eşleşmiyor.".to_string())?;
+    if runtime_may_open_local_data(pin_unlocked, online_provisioning, record.pin_hash.is_some()) {
+        Ok(())
+    } else {
+        Err("Yerel çalışma alanı bu hesap için açık değil.".to_string())
     }
-    let matches_scope = load_document(app)?.profiles.iter().any(|record| {
-        record.summary.user_id == user_id
-            && record.summary.clinic_id == clinic_id
-            && record.summary.role == role
-    });
-    matches_scope
-        .then_some(())
-        .ok_or_else(|| "Yerel çalışma alanı kapsamı cihaz profiliyle eşleşmiyor.".to_string())
 }
 
 fn join_result<T>(result: tauri::Result<Result<T, String>>) -> Result<T, String> {
@@ -360,8 +372,10 @@ pub async fn upsert_offline_profile(
                 .0
                 .lock()
                 .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
-            runtime.active_online_user_id = Some(profile.user_id.clone());
-            runtime.unlocked_user_id = Some(profile.user_id);
+            runtime.active_online_user_id = Some(profile.user_id);
+            // Online authentication provisions a first-use profile but never unlocks
+            // an existing PIN-protected workspace. Only configure/unlock may set this.
+            runtime.unlocked_user_id = None;
             Ok(())
         })
         .await,
@@ -452,6 +466,7 @@ pub async fn configure_offline_pin(
                 .lock()
                 .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
             runtime.unlocked_user_id = Some(user_id);
+            runtime.active_online_user_id = None;
             runtime.failed_attempts = 0;
             runtime.locked_until = None;
             Ok(())
@@ -516,6 +531,7 @@ pub async fn unlock_offline_profile(
                 .lock()
                 .map_err(|_| "Cihaz kasası kilidi kullanılamıyor.".to_string())?;
             runtime.unlocked_user_id = Some(user_id);
+            runtime.active_online_user_id = None;
             runtime.failed_attempts = 0;
             runtime.locked_until = None;
             Ok(record.summary)
@@ -553,6 +569,14 @@ mod tests {
         assert_ne!(first, second);
         assert!(verify_pin_hash("4826", &first));
         assert!(!verify_pin_hash("4827", &first));
+    }
+
+    #[test]
+    fn online_session_cannot_open_a_pin_protected_workspace() {
+        assert!(!runtime_may_open_local_data(false, true, true));
+        assert!(runtime_may_open_local_data(true, true, true));
+        assert!(runtime_may_open_local_data(false, true, false));
+        assert!(!runtime_may_open_local_data(false, false, false));
     }
 
     #[test]
