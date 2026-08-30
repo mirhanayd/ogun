@@ -10,13 +10,20 @@ import {
   type ExchangeGroupCode,
 } from '@ogun/nutrition-core'
 import { computeExchangeUsage, computeUnconvertedItemCount } from '@/lib/plan-exchanges'
-import {
-  listFoodsForExchangeGroupAction,
-  type ExchangeFoodSuggestion,
-} from '@/app/(app)/planlar/exchange-actions'
+import { invokePlanEditorAction } from '@/screens/plan-editor-persistence'
 import { EXCHANGE_GROUP_LABELS_TR } from '@/lib/validation/plan-schemas'
 import { cn } from '@/lib/utils'
 import { usePlanEditorStore, useFoodExchangeMap, type DraftDay } from './plan-editor-store'
+
+interface ExchangeFoodSuggestion {
+  foodId: string
+  nameTr: string
+  gramsPerExchange: number
+  isPrimary: boolean
+  portionLabel: string | null
+  portionGrams: number | null
+  allergenConflict: boolean
+}
 
 // GitHub issue #28 / Prompt 5.6 — GÖREV 2 + GÖREV 3: "Değişim hedefleri
 // paneli... Gram modundaki besin öğesi panelinin YERİNE geçer" — bkz.
@@ -149,8 +156,8 @@ function ExchangeFoodSuggestionList({ groupCode }: { groupCode: ExchangeGroupCod
   useEffect(() => {
     let cancelled = false
     setStatus('loading')
-    listFoodsForExchangeGroupAction({ groupCode, allergies, intolerances })
-      .then((result) => {
+    invokePlanEditorAction('listFoodsForExchangeGroupAction', { groupCode, allergies, intolerances })
+      .then((result: { success: boolean; data?: ExchangeFoodSuggestion[] }) => {
         if (cancelled) return
         if (!result.success || !result.data) {
           setStatus('error')

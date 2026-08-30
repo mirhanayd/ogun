@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { GroupEquivalentsRow } from '@ogun/nutrition-core'
-import { buildExchangeEquivalentsPreviewAction } from '@/app/(app)/planlar/exchange-actions'
+import { invokePlanEditorAction } from '@/screens/plan-editor-persistence'
 import { convertItemToExchange } from '@/lib/plan-exchanges'
 import type { FoodMacroLookup } from '@/lib/plan-nutrients'
 import { usePlanEditorStore, useFoodExchangeMap, type DraftDay } from './plan-editor-store'
@@ -44,8 +44,8 @@ export function OutputFormatPreviewDialog({
     if (!open || outputFormat !== 'değişim_listesi') return
     let cancelled = false
     setStatus('loading')
-    buildExchangeEquivalentsPreviewAction({ allergies, intolerances })
-      .then((result) => {
+    invokePlanEditorAction('buildExchangeEquivalentsPreviewAction', { allergies, intolerances })
+      .then((result: { success: boolean; data?: GroupEquivalentsRow[] }) => {
         if (cancelled) return
         if (!result.success || !result.data) {
           setStatus('error')

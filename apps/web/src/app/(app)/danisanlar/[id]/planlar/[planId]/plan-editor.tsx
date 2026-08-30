@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
   ArrowLeft,
@@ -46,6 +45,7 @@ import { computeDragEndPlan } from '@/lib/dnd-reorder'
 import { cn } from '@/lib/utils'
 import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import { initFoodIndex } from '@/lib/food-index'
+import { NavigationLink } from '@/components/navigation-link'
 import type { PlanTree } from '@ogun/db/queries'
 import type { ClientAllergenEntry, ClientSex, PdfDensity, PlanOutputFormat } from '@ogun/db/schema'
 import { PLAN_OUTPUT_FORMAT_OPTIONS } from '@/lib/validation/plan-schemas'
@@ -53,10 +53,19 @@ import { usePlanEditorStore, type DraftDay, type PlanViewMode } from './plan-edi
 import { MealBlock } from './meal-block'
 import { NutrientPanel } from './nutrient-panel'
 import { ExchangePanel } from './exchange-panel'
-import { SaveAsTemplateDialog } from './save-as-template-dialog'
 import { OutputFormatPreviewDialog } from './output-format-preview-dialog'
-import { PlanPdfDialog } from './plan-pdf-dialog'
-import { ShareDialog } from './share-dialog'
+
+export interface PlanEditorCloudDialogState {
+  planId: string
+  clientId: string
+  currentPlanName: string
+  templateDialogOpen: boolean
+  setTemplateDialogOpen: (open: boolean) => void
+  pdfDialogOpen: boolean
+  setPdfDialogOpen: (open: boolean) => void
+  shareDialogOpen: boolean
+  setShareDialogOpen: (open: boolean) => void
+}
 
 export interface PlanEditorProps {
   planId: string
@@ -87,6 +96,7 @@ export interface PlanEditorProps {
   clientPhone: string | null
   clientEmail: string | null
   whatsappTemplate: string | null
+  renderCloudDialogs?: (state: PlanEditorCloudDialogState) => ReactNode
 }
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör düzeni.
@@ -127,6 +137,7 @@ export function PlanEditor({
   clientPhone,
   clientEmail,
   whatsappTemplate,
+  renderCloudDialogs,
 }: PlanEditorProps) {
   const initialize = usePlanEditorStore((s) => s.initialize)
   const days = usePlanEditorStore((s) => s.days)
@@ -317,31 +328,7 @@ export function PlanEditor({
       {/* GitHub issue #27 / Prompt 5.5, GÖREV 1 — "Mevcut planı şablona
           dönüştür". #61'de yalnızca TETİKLEYİCİSİ taşma menüsüne taşındı;
           diyalog (ve durumu) editörün kökünde duruyor. */}
-      <SaveAsTemplateDialog
-        planId={planId}
-        currentPlanName={currentPlanName}
-        open={templateDialogOpen}
-        onOpenChange={setTemplateDialogOpen}
-      />
-      <PlanPdfDialog
-        open={pdfDialogOpen}
-        onOpenChange={setPdfDialogOpen}
-        planId={planId}
-        clientId={clientId}
-        defaultDensity={pdfDefaultDensity}
-        defaultShowCalories={pdfDefaultShowCalories}
-      />
-      <ShareDialog
-        open={shareDialogOpen}
-        onOpenChange={setShareDialogOpen}
-        planId={planId}
-        clientId={clientId}
-        planName={currentPlanName}
-        clientName={clientName}
-        clientPhone={clientPhone}
-        clientEmail={clientEmail}
-        whatsappTemplate={whatsappTemplate}
-      />
+      {renderCloudDialogs?.({ planId, clientId, currentPlanName, templateDialogOpen, setTemplateDialogOpen, pdfDialogOpen, setPdfDialogOpen, shareDialogOpen, setShareDialogOpen })}
     </DndContext>
   )
 }
@@ -405,18 +392,16 @@ function EditorTopBar({
     outputFormat?: PlanOutputFormat
   }) => void
 }) {
-  const router = useRouter()
-
   return (
     <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
       <Button
+        asChild
         variant="ghost"
         size="icon-sm"
         aria-label="Danışana dön"
         title="Danışana dön"
-        onClick={() => router.push(`/danisanlar/${clientId}?tab=planlar`)}
       >
-        <ArrowLeft className="size-4" />
+        <NavigationLink href={`/danisanlar/${clientId}?tab=planlar`}><ArrowLeft className="size-4" /></NavigationLink>
       </Button>
       {/* Plan adı satır içi düzenlenir (kaydet butonu YOK, bkz.
           SaveStatusIndicator). Üst şerit sakin dursun diye kenarlık yalnızca

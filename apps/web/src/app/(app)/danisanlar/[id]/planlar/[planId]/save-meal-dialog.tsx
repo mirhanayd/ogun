@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createSavedMealAction } from '@/app/(app)/planlar/actions'
+import { invokePlanEditorAction } from '@/screens/plan-editor-persistence'
 
 // GitHub issue #27 / Prompt 5.5, GÖREV 3 — meal-block.tsx'teki "kaydet"
 // ikonunun açtığı küçük diyalog: sadece bir ad (ve opsiyonel not) ister,
@@ -42,7 +42,7 @@ export function SaveMealDialog({
 
   function handleSubmit() {
     startTransition(async () => {
-      const result = await createSavedMealAction({
+      const result = await invokePlanEditorAction('createSavedMealAction', {
         mealId,
         name,
         notes: notes.trim() === '' ? null : notes,

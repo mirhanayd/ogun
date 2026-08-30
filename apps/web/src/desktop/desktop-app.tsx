@@ -24,6 +24,7 @@ import { FoodCatalogScreen } from '@/screens/food-catalog-screen'
 import { PanelScreen, type PanelFeed } from '@/screens/panel-screen'
 import { PlansScreen, type PlanScreenRow } from '@/screens/plans-screen'
 import type { DomainEntity, OgunRepositories } from '@/data/repositories'
+import { LocalPlanEditor } from './local-plan-editor'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 
@@ -140,13 +141,17 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
   const routeRoot = `/${route.split('/').filter(Boolean)[0] ?? 'panel'}`
   const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === routeRoot)?.label ?? 'Panel', [identity.role, routeRoot])
   const initials = identity.clinicName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
-  const clientId = route.startsWith('/danisanlar/') ? route.slice('/danisanlar/'.length) : null
+  const planRoute = route.match(/^\/danisanlar\/([^/]+)\/planlar\/([^/]+)$/)
+  const clientRoute = route.match(/^\/danisanlar\/([^/]+)$/)
+  const clientId = clientRoute?.[1] ?? null
   async function logout() {
     await authClient.signOut().catch(() => undefined)
     await clearNativeSessionToken()
     onLogout()
   }
-  const content = clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : route === '/panel' ? <PanelScreen feed={localPanelFeed(localRows, identity.role)} /> : route === '/planlar' ? <PlansScreen plans={localPlanRows(localRows.plans)} templates={localPlanRows(localRows.plans).filter((plan) => plan.isTemplate)} clientNames={Object.fromEntries(localRows.clients.map((client) => [client.id, `${String(client.firstName ?? '')} ${String(client.lastName ?? '')}`.trim()]))} /> : route === '/randevular' ? <AppointmentsWorkspaceScreen repository={repositories} /> : route === '/tarifler' ? <FoodCatalogScreen /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
+  const routedPlan = planRoute ? localRows.plans.find((plan) => plan.id === planRoute[2]) : null
+  const routedClient = planRoute ? localRows.clients.find((client) => client.id === planRoute[1]) : null
+  const content = routedPlan && routedClient ? <LocalPlanEditor plan={routedPlan} client={routedClient} repository={repositories.plans} /> : clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : route === '/panel' ? <PanelScreen feed={localPanelFeed(localRows, identity.role)} /> : route === '/planlar' ? <PlansScreen plans={localPlanRows(localRows.plans)} templates={localPlanRows(localRows.plans).filter((plan) => plan.isTemplate)} clientNames={Object.fromEntries(localRows.clients.map((client) => [client.id, `${String(client.firstName ?? '')} ${String(client.lastName ?? '')}`.trim()]))} /> : route === '/randevular' ? <AppointmentsWorkspaceScreen repository={repositories} /> : route === '/tarifler' ? <FoodCatalogScreen /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
   return (
     <NavigationProvider navigate={setRoute}><AppShellFrame clinicName={identity.clinicName} clinicLogoUrl={branding.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(branding.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{identity.clinicName}</span>} search={<button type="button" disabled className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Ara veya komut çalıştır</button>} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       {content}

@@ -7,7 +7,7 @@ import { PLAN_MEAL_TYPE_OPTIONS } from '@/lib/validation/plan-schemas'
 import { viewClientRecord } from '@/lib/data-subject-rights'
 import { calculateAge } from '@/lib/client-age'
 import { requireClinic } from '@/lib/authz'
-import { PlanEditor } from './plan-editor'
+import { WebPlanEditor } from './web-plan-editor'
 
 // GitHub issue #25 / Prompt 5.3 — GÖREV 1: editör rotası
 // /danisanlar/[id]/planlar/[planId]. #23'ün bıraktığı boşluk: bir plan
@@ -88,7 +88,7 @@ export default async function PlanEditorPage({
   }
 
   return (
-    <PlanEditor
+    <WebPlanEditor
       planId={tree.plan.id}
       clientId={id}
       planName={tree.plan.name}

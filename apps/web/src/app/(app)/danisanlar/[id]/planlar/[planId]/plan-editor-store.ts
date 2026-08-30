@@ -10,18 +10,7 @@ import type {
 } from '@ogun/db/schema'
 import type { PlanTree } from '@ogun/db/queries'
 import { buildAllergenConflictMap, type AllergenConflict } from '@/lib/allergen-conflict'
-import {
-  addAlternativeAction,
-  addItemAction,
-  insertSavedMealAction,
-  moveItemAction,
-  removeAlternativeAction,
-  removeItemAction,
-  reorderItemsAction,
-  updateItemAction,
-  updateMealAction,
-  updatePlanAction,
-} from '@/app/(app)/planlar/actions'
+import { invokePlanEditorAction } from '@/screens/plan-editor-persistence'
 import type { FoodSearchSelection } from '@/components/food-search-input'
 import { getFoodIndexEntriesByIds, whenFoodSearchIndexReady } from '@/lib/food-index'
 import { resolveGramsFromSelection, type FoodMacroLookup } from '@/lib/plan-nutrients'
@@ -388,7 +377,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     offlineQueue.enqueue({
       key: 'plan:meta',
       run: async () => {
-        const result = await updatePlanAction(planId, {
+        const result = await invokePlanEditorAction('updatePlanAction', planId, {
           name: planName,
           targetKcal,
           startDate,
@@ -420,7 +409,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     offlineQueue.enqueue({
       key: `meal:${mealId}`,
       run: async () => {
-        const result = await updateMealAction(mealId, { name: meal.name, time: meal.time })
+        const result = await invokePlanEditorAction('updateMealAction', mealId, { name: meal.name, time: meal.time })
         if (!result.success) throw new Error(result.error ?? 'Öğün güncellenemedi.')
       },
     })
@@ -469,7 +458,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       {
         key: `add-item:${draftId}`,
         run: async () => {
-          const result = await addItemAction(mealId, {
+          const result = await invokePlanEditorAction('addItemAction', mealId, {
             foodId: selection.foodId,
             amount: grams,
             note: noteHint,
@@ -512,7 +501,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     offlineQueue.enqueue({
       key: `item-amount:${itemId}`,
       run: async () => {
-        const result = await updateItemAction(itemId, { amount: amountGrams })
+        const result = await invokePlanEditorAction('updateItemAction', itemId, { amount: amountGrams })
         if (!result.success) throw new Error(result.error ?? 'Miktar güncellenemedi.')
       },
     })
@@ -532,7 +521,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
     offlineQueue.enqueue({
       key: `item-note:${itemId}`,
       run: async () => {
-        const result = await updateItemAction(itemId, { note })
+        const result = await invokePlanEditorAction('updateItemAction', itemId, { note })
         if (!result.success) throw new Error(result.error ?? 'Not güncellenemedi.')
       },
     })
@@ -553,7 +542,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       {
         key: `remove-item:${itemId}`,
         run: async () => {
-          const result = await removeItemAction(itemId)
+          const result = await invokePlanEditorAction('removeItemAction', itemId)
           if (!result.success) throw new Error(result.error ?? 'Kalem silinemedi.')
         },
       },
@@ -588,7 +577,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       {
         key: `reorder:${mealId}`,
         run: async () => {
-          const result = await reorderItemsAction({ mealId, orderedItemIds: realIds })
+          const result = await invokePlanEditorAction('reorderItemsAction', { mealId, orderedItemIds: realIds })
           if (!result.success) throw new Error(result.error ?? 'Sıralama kaydedilemedi.')
         },
       },
@@ -646,7 +635,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
         key: `move-item:${itemId}`,
         run: async () => {
           const resolvedSortOrder = targetOrderedIds.indexOf(itemId)
-          const moveResult = await moveItemAction({
+          const moveResult = await invokePlanEditorAction('moveItemAction', {
             itemId,
             targetMealId: toMealId,
             sortOrder:
@@ -655,7 +644,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
           if (!moveResult.success) throw new Error(moveResult.error ?? 'Kalem taşınamadı.')
 
           if (targetOrderedIds.length > 0) {
-            const reorderTarget = await reorderItemsAction({
+            const reorderTarget = await invokePlanEditorAction('reorderItemsAction', {
               mealId: toMealId,
               orderedItemIds: targetOrderedIds,
             })
@@ -663,7 +652,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
               throw new Error(reorderTarget.error ?? 'Sıralama kaydedilemedi.')
           }
           if (fromMealId !== toMealId && sourceOrderedIds.length > 0) {
-            const reorderSource = await reorderItemsAction({
+            const reorderSource = await invokePlanEditorAction('reorderItemsAction', {
               mealId: fromMealId,
               orderedItemIds: sourceOrderedIds,
             })
@@ -717,7 +706,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       {
         key: `add-alt:${draftId}`,
         run: async () => {
-          const result = await addAlternativeAction(itemId, {
+          const result = await invokePlanEditorAction('addAlternativeAction', itemId, {
             foodId: selection.foodId,
             amount: grams,
           })
@@ -763,7 +752,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
       {
         key: `remove-alt:${alternativeId}`,
         run: async () => {
-          const result = await removeAlternativeAction(alternativeId)
+          const result = await invokePlanEditorAction('removeAlternativeAction', alternativeId)
           if (!result.success) throw new Error(result.error ?? 'Alternatif silinemedi.')
         },
       },
@@ -778,7 +767,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
   // YOK, sadece dönen kalemler taslağa EKLENİYOR ve eksik besin makroları
   // (resolveFoodMacros ile AYNI yöntemle) tamamlanıyor.
   insertSavedMeal: async (mealId, savedMealId) => {
-    const result = await insertSavedMealAction({ targetMealId: mealId, savedMealId })
+    const result = await invokePlanEditorAction('insertSavedMealAction', { targetMealId: mealId, savedMealId })
     if (!result.success || !result.data) {
       throw new Error(result.error ?? 'Kayıtlı öğün eklenemedi.')
     }
@@ -793,7 +782,7 @@ export const usePlanEditorStore = create<PlanEditorState>((set, get) => ({
                 ...meal,
                 items: [
                   ...meal.items,
-                  ...insertedItems.map((item) => ({
+                  ...insertedItems.map((item: { id: string; foodId: string | null; recipeId: string | null; freeText: string | null; amount: number | string; note: string | null; sortOrder: number; isOptional: boolean; alternatives?: DraftAlternative[] }) => ({
                     id: item.id,
                     mealId,
                     foodId: item.foodId,
