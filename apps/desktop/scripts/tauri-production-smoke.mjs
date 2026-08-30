@@ -3,7 +3,8 @@ import { resolve } from 'node:path'
 
 const endpoint = process.env.OGUN_TAURI_CDP ?? 'http://127.0.0.1:9333'
 const browser = await chromium.connectOverCDP(endpoint)
-const page = browser.contexts()[0]?.pages()[0]
+const context = browser.contexts()[0]
+const page = context?.pages()[0]
 if (!page) throw new Error(`No Tauri WebView page at ${endpoint}`)
 
 await page.waitForLoadState('domcontentloaded')
@@ -16,6 +17,16 @@ const login = await page.evaluate(() => ({
   stylesheets: document.styleSheets.length,
 }))
 await page.screenshot({ path: resolve('dist/tauri-production-login.png') })
+
+const liveRoutes = []
+if (await page.locator('[data-app-shell]').count()) {
+  for (const route of ['danisanlar', 'planlar']) {
+    await page.locator(`[data-sidebar-navigation-items] a[href="/${route}"]`).click()
+    await page.getByRole('heading', { name: route === 'danisanlar' ? 'Danışanlar' : 'Planlar', exact: true }).waitFor()
+    liveRoutes.push({ route, heading: await page.getByRole('heading', { name: route === 'danisanlar' ? 'Danışanlar' : 'Planlar', exact: true }).innerText() })
+    await page.screenshot({ path: resolve(`dist/tauri-production-live-${route}.png`) })
+  }
+}
 
 const routes = []
 for (const route of ['panel', 'danisanlar', 'planlar']) {
@@ -37,5 +48,14 @@ for (const route of ['panel', 'danisanlar', 'planlar']) {
   await page.screenshot({ path: resolve(`dist/tauri-production-${route}.png`) })
 }
 await page.goto('http://tauri.localhost/')
-console.log(JSON.stringify({ login, routes }, null, 2))
+await context.setOffline(true)
+await page.reload()
+await page.getByText('Bu cihazdaki hesaplar').waitFor()
+const accountButton = page.locator('section').filter({ hasText: 'Bu cihazdaki hesaplar' }).locator('button').first()
+await accountButton.click()
+await page.locator('input[type="password"][inputmode="numeric"]').waitFor()
+const offlinePin = { title: await page.getByText('Bu cihazdaki hesaplar').innerText(), pinVisible: await page.locator('input[type="password"][inputmode="numeric"]').isVisible() }
+await page.screenshot({ path: resolve('dist/tauri-production-offline-pin.png') })
+await context.setOffline(false)
+console.log(JSON.stringify({ login, liveRoutes, routes, offlinePin }, null, 2))
 await browser.close()
