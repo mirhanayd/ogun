@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { KeyRound, Leaf, LockKeyhole, LogOut, Mail, Search } from 'lucide-react'
 import { AppShellFrame } from '@/components/app-shell-frame'
 import { BottomNavView, DesktopTitlebarView, SidebarNavView, TopBarView } from '@/components/app-shell-views'
+import { NavigationProvider } from '@/components/navigation-link'
 import { AuthCard, AuthError } from '@/app/(auth)/_components/auth-card'
 import { DesktopSavedAccounts } from '@/components/desktop-saved-accounts'
 import { ConnectivityStatusProvider, useConnectivityStatus } from '@/components/connectivity-status-provider'
@@ -18,8 +19,11 @@ import { getClinicBrandingVariables } from '@/lib/clinic-branding'
 import { useDesktopWindowControls } from '@/components/use-desktop-window-controls'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
 import { ClientCollectionScreen, ClientDetailScreen } from '@/screens/client-workspace-screen'
-import { AppointmentsWorkspaceScreen, PlansWorkspaceScreen, WorkspaceDashboardScreen } from '@/screens/workspace-operations-screen'
+import { AppointmentsWorkspaceScreen } from '@/screens/workspace-operations-screen'
 import { FoodCatalogScreen } from '@/screens/food-catalog-screen'
+import { PanelScreen, type PanelFeed } from '@/screens/panel-screen'
+import { PlansScreen, type PlanScreenRow } from '@/screens/plans-screen'
+import type { DomainEntity, OgunRepositories } from '@/data/repositories'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 
@@ -55,9 +59,73 @@ function NativeDesktopTitlebar() {
   return <DesktopTitlebarView maximized={maximized} titlebarProps={titlebarHandlers} search={<button type="button" disabled className="flex w-full items-center gap-2 rounded-lg border px-3 text-xs opacity-70"><Search className="size-3.5" />Ara veya komut çalıştır</button>} onMinimize={() => void withWindow('minimize')} onToggleMaximize={() => void withWindow('toggleMaximize')} onClose={() => void withWindow('close')} />
 }
 
+function useLocalScreenRows(repositories: OgunRepositories) {
+  const [rows, setRows] = useState({ clients: [] as DomainEntity[], plans: [] as DomainEntity[], appointments: [] as DomainEntity[], measurements: [] as DomainEntity[] })
+  useEffect(() => {
+    const load = async () => {
+      const [clients, plans, appointments] = await Promise.all([repositories.clients.list(), repositories.plans.list(), repositories.appointments.list()])
+      const measurements = (await Promise.all(clients.map((client) => repositories.clinical.listForClient('measurements', client.id)))).flat()
+      setRows({ clients, plans, appointments, measurements })
+    }
+    void load()
+    window.addEventListener('ogun-local-data-changed', load)
+    return () => window.removeEventListener('ogun-local-data-changed', load)
+  }, [repositories])
+  return rows
+}
+
+function localPanelFeed(rows: ReturnType<typeof useLocalScreenRows>, role: DesktopIdentity['role'], now = new Date()): PanelFeed {
+  const client = (id: unknown) => rows.clients.find((item) => item.id === id)
+  const sameDay = (value: Date) => value.toDateString() === now.toDateString()
+  const upcoming = rows.appointments.map((item) => ({ item, startsAt: new Date(String(item.startsAt ?? '')) })).filter(({ startsAt, item }) => startsAt >= now && startsAt.getTime() <= now.getTime() + 7 * 86_400_000 && item.status !== 'iptal').slice(0, 6)
+  return {
+    todayAppointmentsCount: rows.appointments.filter((item) => sameDay(new Date(String(item.startsAt ?? '')))).length,
+    noShowCount: rows.appointments.filter((item) => item.status === 'gelmedi').length,
+    staleMeasurementCount: 0,
+    expiringPackageCount: 0,
+    staleMeasurementClients: [],
+    expiringPackages: [],
+    canManageFinance: role === 'owner',
+    upcomingAppointments: upcoming.map(({ item, startsAt }) => {
+      const owner = client(item.clientId)
+      return {
+        id: item.id,
+        clientId: String(item.clientId ?? ''),
+        clientFirstName: String(owner?.firstName ?? 'Danışan'),
+        clientLastName: String(owner?.lastName ?? ''),
+        startsAt,
+        endsAt: new Date(String(item.endsAt ?? startsAt)),
+        status: item.status === 'ertelendi' ? 'ertelendi' : 'planlandı',
+        type: item.type === 'ilk_görüşme' || item.type === 'online' || item.type === 'ölçüm' ? item.type : 'kontrol',
+        dietitianId: String(item.dietitianId ?? ''),
+        dietitianName: String(item.dietitianName ?? 'Diyetisyen'),
+        location: typeof item.location === 'string' ? item.location : null,
+        packageSessionId: null,
+        notes: null,
+        createdAt: startsAt,
+        updatedAt: startsAt,
+      }
+    }),
+  }
+}
+
+function localPlanRows(rows: DomainEntity[]): PlanScreenRow[] {
+  return rows.map((plan) => ({
+    id: plan.id,
+    clientId: typeof plan.clientId === 'string' ? plan.clientId : null,
+    name: String(plan.name ?? 'İsimsiz plan'),
+    status: plan.status === 'aktif' || plan.status === 'arşiv' ? plan.status : 'taslak',
+    isTemplate: plan.isTemplate === true,
+    endDate: plan.endDate ? new Date(String(plan.endDate)) : null,
+    updatedAt: new Date(String(plan.updatedAt ?? new Date().toISOString())),
+    targetKcal: typeof plan.targetKcal === 'number' ? plan.targetKcal : null,
+  }))
+}
+
 function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; onLogout: () => void }) {
   const [route, setRoute] = useState<Route>('/panel')
   const repositories = useMemo(() => createNativeRepositories(scopeOf(identity)), [identity])
+  const localRows = useLocalScreenRows(repositories)
   const [branding, setBranding] = useState({ logoUrl: identity.clinicLogoUrl ?? null, primaryColor: identity.clinicPrimaryColor ?? null })
   const connectivity = useConnectivityStatus()
   useEffect(() => {
@@ -78,11 +146,11 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
     await clearNativeSessionToken()
     onLogout()
   }
-  const content = clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : route === '/panel' ? <WorkspaceDashboardScreen repository={repositories} /> : route === '/planlar' ? <PlansWorkspaceScreen repository={repositories} readOnly={identity.role === 'assistant'} /> : route === '/randevular' ? <AppointmentsWorkspaceScreen repository={repositories} /> : route === '/tarifler' ? <FoodCatalogScreen /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
+  const content = clientId ? <ClientDetailScreen clientId={clientId} role={identity.role} repositories={repositories} onBack={() => setRoute('/danisanlar')} /> : route === '/danisanlar' ? <ClientCollectionScreen role={identity.role} repository={repositories.clients} onOpen={(id) => setRoute(`/danisanlar/${id}`)} /> : route === '/panel' ? <PanelScreen feed={localPanelFeed(localRows, identity.role)} /> : route === '/planlar' ? <PlansScreen plans={localPlanRows(localRows.plans)} templates={localPlanRows(localRows.plans).filter((plan) => plan.isTemplate)} clientNames={Object.fromEntries(localRows.clients.map((client) => [client.id, `${String(client.firstName ?? '')} ${String(client.lastName ?? '')}`.trim()]))} /> : route === '/randevular' ? <AppointmentsWorkspaceScreen repository={repositories} /> : route === '/tarifler' ? <FoodCatalogScreen /> : <div className="grid min-h-80 place-items-center rounded-2xl border border-border/70 bg-card text-center shadow-sm"><div><Leaf className="mx-auto mb-3 size-8 text-primary" /><p className="font-semibold">{title} yerel veritabanından hazırlanıyor…</p></div></div>
   return (
-    <AppShellFrame clinicName={identity.clinicName} clinicLogoUrl={branding.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(branding.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{identity.clinicName}</span>} search={<button type="button" disabled className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Ara veya komut çalıştır</button>} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
+    <NavigationProvider navigate={setRoute}><AppShellFrame clinicName={identity.clinicName} clinicLogoUrl={branding.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(branding.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{identity.clinicName}</span>} search={<button type="button" disabled className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Ara veya komut çalıştır</button>} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       {content}
-    </AppShellFrame>
+    </AppShellFrame></NavigationProvider>
   )
 }
 
