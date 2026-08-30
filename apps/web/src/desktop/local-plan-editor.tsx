@@ -1,3 +1,4 @@
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo } from 'react'
@@ -56,4 +57,3 @@ export function LocalPlanEditor({ plan, client, repository }: { plan: DomainEnti
   })
   return <PlanEditor planId={plan.id} clientId={client.id} planName={String(plan.name ?? draft.planName)} startDate={plan.startDate ? new Date(String(plan.startDate)) : null} endDate={plan.endDate ? new Date(String(plan.endDate)) : null} targetKcal={typeof plan.targetKcal === 'number' ? plan.targetKcal : null} outputFormat={plan.outputFormat === 'değişim_listesi' ? 'değişim_listesi' : 'besin_listesi'} tree={treeFromDraft(plan, draft)} clientSex={client.sex === 'male' || client.sex === 'female' ? client.sex : null} clientAge={calculateAge(typeof client.birthDate === 'string' ? client.birthDate : null)} allergies={null} intolerances={null} pdfDefaultDensity="spacious" pdfDefaultShowCalories clientName={`${String(client.firstName ?? '')} ${String(client.lastName ?? '')}`.trim()} clientPhone={typeof client.phone === 'string' ? client.phone : null} clientEmail={typeof client.email === 'string' ? client.email : null} whatsappTemplate={null} />
 }
-/* eslint-disable @typescript-eslint/no-explicit-any */

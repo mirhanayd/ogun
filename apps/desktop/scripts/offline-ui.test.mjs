@@ -16,7 +16,7 @@ test('Scenario A — initial online login seeds SQLite before PIN and dashboard'
   assert.ok(app.indexOf("invoke('initialize_local_scope'") < app.indexOf('replaceLocalWorkspace('))
   assert.ok(app.indexOf('replaceLocalWorkspace(') < app.indexOf('onAuthenticated(identity'))
   assert.match(app, /<PinSetup identity=\{identity\}/)
-  assert.match(app, /<WorkspaceDashboardScreen repository=\{repositories\}/)
+  assert.match(app, /<PanelScreen feed=\{localPanelFeed\(localRows, identity\.role\)\}/)
 })
 
 test('Scenario B — cold offline start unlocks the packaged shared UI and local domains', async () => {
@@ -27,7 +27,9 @@ test('Scenario B — cold offline start unlocks the packaged shared UI and local
   ])
   assert.match(entry, /import \{ DesktopApp \} from '@\/desktop\/desktop-app'/)
   assert.match(app, /<DesktopSavedAccounts onUnlocked=/)
-  assert.match(app, /ClientCollectionScreen|PlansWorkspaceScreen|FoodCatalogScreen/)
+  assert.match(app, /LocalClientsAdapter/)
+  assert.match(app, /<PlansScreen/)
+  assert.match(app, /FoodCatalogScreen/)
   assert.match(repository, /list_local_entities/)
   assert.match(repository, /search_local_foods/)
 })

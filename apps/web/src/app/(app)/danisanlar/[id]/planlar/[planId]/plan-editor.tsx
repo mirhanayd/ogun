@@ -118,27 +118,22 @@ export interface PlanEditorProps {
 //      eylemler ("PDF önizleme / indir", "Şablona dönüştür") taşma menüsünde.
 // HİÇBİR İŞLEV KALDIRILMADI — hepsi bir tık ötede ve AYNI store action'larına
 // bağlı (bkz. plan-editor-store.ts setPlanMeta).
-export function PlanEditor({
-  planId,
-  clientId,
-  planName,
-  startDate,
-  endDate,
-  targetKcal,
-  outputFormat,
-  tree,
-  clientSex,
-  clientAge,
-  allergies,
-  intolerances,
-  pdfDefaultDensity,
-  pdfDefaultShowCalories,
-  clientName,
-  clientPhone,
-  clientEmail,
-  whatsappTemplate,
-  renderCloudDialogs,
-}: PlanEditorProps) {
+export function PlanEditor(props: PlanEditorProps) {
+  const {
+    planId,
+    clientId,
+    planName,
+    startDate,
+    endDate,
+    targetKcal,
+    outputFormat,
+    tree,
+    clientSex,
+    clientAge,
+    allergies,
+    intolerances,
+    renderCloudDialogs,
+  } = props
   const initialize = usePlanEditorStore((s) => s.initialize)
   const days = usePlanEditorStore((s) => s.days)
   const currentPlanName = usePlanEditorStore((s) => s.planName)

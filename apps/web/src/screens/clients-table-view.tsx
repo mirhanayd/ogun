@@ -64,16 +64,6 @@ const STATUS_BADGE_VARIANT: Record<ClientStatus, 'default' | 'secondary' | 'outl
 
 const ALL_FILTER_VALUE = 'all'
 
-function buildQueryString(filters: ClientsFilters, page: number): string {
-  const params = new URLSearchParams()
-  if (filters.search) params.set('q', filters.search)
-  if (filters.status) params.set('status', filters.status)
-  if (filters.assignedDietitianId) params.set('dietitian', filters.assignedDietitianId)
-  if (page > 1) params.set('page', String(page))
-  const qs = params.toString()
-  return qs ? `?${qs}` : ''
-}
-
 export function ClientsTableView({
   result,
   dietitians,

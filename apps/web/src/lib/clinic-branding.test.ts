@@ -57,14 +57,14 @@ describe('clinic branding', () => {
 
   it('connects the persisted clinic color from app layout to the desktop header', () => {
     const layout = readFileSync(new URL('../app/(app)/layout.tsx', import.meta.url), 'utf8')
-    const titlebar = readFileSync(
-      new URL('../app/(app)/_components/desktop-titlebar.tsx', import.meta.url),
+    const titlebarView = readFileSync(
+      new URL('../components/app-shell-views.tsx', import.meta.url),
       'utf8',
     )
     const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
 
     expect(layout).toContain('getClinicBrandingVariables(clinic?.primaryColor)')
-    expect(titlebar).toContain('clinic-desktop-titlebar')
+    expect(titlebarView).toContain('clinic-desktop-titlebar')
     expect(css).toContain('var(--clinic-brand-color, var(--desktop-chrome))')
     expect(css).toContain('var(--clinic-brand-foreground, white)')
   })

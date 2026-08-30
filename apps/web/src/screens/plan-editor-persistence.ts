@@ -2,23 +2,20 @@
 
 export type PlanEditorAction = (...args: any[]) => Promise<any>
 
-const actionNames = [
-  'addAlternativeAction',
-  'addItemAction',
-  'insertSavedMealAction',
-  'moveItemAction',
-  'removeAlternativeAction',
-  'removeItemAction',
-  'reorderItemsAction',
-  'updateItemAction',
-  'updateMealAction',
-  'updatePlanAction',
-  'createSavedMealAction',
-  'buildExchangeEquivalentsPreviewAction',
-  'listFoodsForExchangeGroupAction',
-] as const
-
-export type PlanEditorActionName = (typeof actionNames)[number]
+export type PlanEditorActionName =
+  | 'addAlternativeAction'
+  | 'addItemAction'
+  | 'insertSavedMealAction'
+  | 'moveItemAction'
+  | 'removeAlternativeAction'
+  | 'removeItemAction'
+  | 'reorderItemsAction'
+  | 'updateItemAction'
+  | 'updateMealAction'
+  | 'updatePlanAction'
+  | 'createSavedMealAction'
+  | 'buildExchangeEquivalentsPreviewAction'
+  | 'listFoodsForExchangeGroupAction'
 export type PlanEditorPersistence = Partial<Record<PlanEditorActionName, PlanEditorAction>>
 
 let persistence: PlanEditorPersistence = {}
@@ -34,4 +31,3 @@ export function invokePlanEditorAction(name: PlanEditorActionName, ...args: any[
   }
   return action(...args)
 }
-/* eslint-disable @typescript-eslint/no-explicit-any */
