@@ -25,6 +25,7 @@ import { PanelScreen, type PanelFeed } from '@/screens/panel-screen'
 import { PlansScreen, type PlanScreenRow } from '@/screens/plans-screen'
 import type { DomainEntity, OgunRepositories } from '@/data/repositories'
 import { LocalPlanEditor } from './local-plan-editor'
+import { DesktopLayoutSmokeApp } from './layout-smoke-app'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 
@@ -216,7 +217,7 @@ function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: Desktop
   return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="İlk cihaz kurulumu normal Öğün hesabıyla çevrimiçi yapılır. Daha sonraki çevrimdışı açılışlarda PIN yalnızca yerel kasayı açar."><DesktopSavedAccounts onUnlocked={(profile) => onAuthenticated({ userId: profile.userId, email: profile.email, displayName: profile.displayName, clinicId: profile.clinicId, clinicName: profile.clinicName, role: profile.role as DesktopIdentity['role'] }, false)} /><form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy}>{busy ? 'Giriş yapılıyor…' : 'Giriş yap'}</Button></form></AuthCard></AuthSurface>
 }
 
-export function DesktopApp() {
+function DesktopRuntimeApp() {
   const [identity, setIdentity] = useState<DesktopIdentity | null>(null)
   const [needsPin, setNeedsPin] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -225,4 +226,10 @@ export function DesktopApp() {
   if (!identity) return <DesktopLogin onAuthenticated={(next, pinRequired) => { setIdentity(next); setNeedsPin(pinRequired) }} />
   if (needsPin) return <PinSetup identity={identity} onComplete={() => setNeedsPin(false)} />
   return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} onLogout={() => { setIdentity(null); setNeedsPin(false) }} /></DesktopSyncProvider></ConnectivityStatusProvider>
+}
+
+export function DesktopApp() {
+  const smokeRoute = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('layout-smoke')
+  if (smokeRoute === 'panel' || smokeRoute === 'danisanlar' || smokeRoute === 'planlar') return <DesktopLayoutSmokeApp initialRoute={`/${smokeRoute}`} />
+  return <DesktopRuntimeApp />
 }

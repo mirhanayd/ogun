@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   root: fileURLToPath(new URL('./ui', import.meta.url)),
+  publicDir: fileURLToPath(new URL('../web/public', import.meta.url)),
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

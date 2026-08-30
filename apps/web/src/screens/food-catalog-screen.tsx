@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { Search, UtensilsCrossed } from 'lucide-react'
 import { FoodSearchInput, type FoodSearchSelection } from '@/components/food-search-input'
@@ -7,7 +9,7 @@ import { ScreenFrame } from './screen-frame'
 export function FoodCatalogScreen() {
   const [selection, setSelection] = useState<FoodSearchSelection | null>(null)
   return (
-    <ScreenFrame eyebrow="Yerel katalog" title="Besin arama" description="Besin kataloğu cihazdaki indeksli SQLite tablosunda aranır; bağlantı gerekmez." icon={UtensilsCrossed}>
+    <ScreenFrame eyebrow="Besin kataloğu" title="Besin arama" description="Besin ve tarif kataloğunda porsiyon ve besin değerleriyle arama yapın." icon={UtensilsCrossed}>
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Search className="size-4 text-primary" />Katalogda ara</CardTitle></CardHeader>
         <CardContent><FoodSearchInput onSelect={setSelection} placeholder="Besin adı, tarif veya porsiyon ara…" showLatencyBadge /></CardContent>
