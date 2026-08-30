@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, FlaskConical, Plus, Search, Target, UserRound, Weight } from 'lucide-react'
+import { ArrowLeft, FlaskConical, Plus, Target, UserRound, Weight } from 'lucide-react'
 import type { ClinicRole, DomainEntity, OgunRepositories } from '@/data/repositories'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ClientsScreen } from './clients-screen'
+import { ClientsTableView, type ClientsFilters } from './clients-table-view'
 
 type DetailTab = 'summary' | 'anamnesis' | 'measurements' | 'goals' | 'labs'
 
@@ -93,7 +94,7 @@ export function ClientCollectionScreen({
   onOpen: (id: string) => void
 }) {
   const [clients, setClients] = useState<DomainEntity[]>([])
-  const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<ClientsFilters>({ search: '', status: '', assignedDietitianId: '' })
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -103,17 +104,10 @@ export function ClientCollectionScreen({
     return () => window.removeEventListener('ogun-local-data-changed', load)
   }, [repository])
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase('tr-TR')
-    if (!normalized) return clients
-    return clients.filter((client) =>
-      [client.firstName, client.lastName, client.phone, client.email]
-        .filter(Boolean)
-        .join(' ')
-        .toLocaleLowerCase('tr-TR')
-        .includes(normalized),
-    )
-  }, [clients, query])
+  const filtered = useMemo(() => clients.filter((client) => {
+    const haystack = [client.firstName, client.lastName, client.phone, client.email].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
+    return (!filters.search || haystack.includes(filters.search.toLocaleLowerCase('tr-TR'))) && (!filters.status || client.status === filters.status)
+  }), [clients, filters])
 
   return (
     <ClientsScreen
@@ -121,17 +115,15 @@ export function ClientCollectionScreen({
       actions={role === 'assistant' ? undefined : <Button onClick={() => setCreating((value) => !value)}><Plus />Yeni danışan</Button>}
     >
       {creating ? <ClientForm repository={repository} onSaved={(id) => { setCreating(false); onOpen(id) }} /> : null}
-      <div className="relative max-w-xl"><Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Ad, soyad, telefon veya e-posta ara…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-      <div className="grid gap-3">
-        {filtered.map((client) => (
-          <button key={client.id} type="button" onClick={() => onOpen(client.id)} className="flex items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition-colors hover:bg-muted/35">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/8 font-semibold text-primary">{text(client, 'firstName').slice(0, 1)}{text(client, 'lastName').slice(0, 1)}</span>
-            <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{text(client, 'firstName')} {text(client, 'lastName')}</span><span className="block truncate text-xs text-muted-foreground">{text(client, 'phone') || text(client, 'email') || 'İletişim bilgisi yok'}</span></span>
-            <Badge variant={client.status === 'aktif' ? 'default' : 'secondary'}>{text(client, 'status') || 'aktif'}</Badge>
-          </button>
-        ))}
-        {filtered.length === 0 ? <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">Bu aramayla eşleşen danışan bulunamadı.</div> : null}
-      </div>
+      <ClientsTableView
+        result={{ rows: filtered.map((client) => ({ id: client.id, firstName: text(client, 'firstName'), lastName: text(client, 'lastName'), birthDate: text(client, 'birthDate') || null, status: client.status === 'pasif' || client.status === 'arşiv' ? client.status : 'aktif', assignedDietitianId: typeof client.assignedDietitianId === 'string' ? client.assignedDietitianId : null, assignedDietitianName: typeof client.assignedDietitianName === 'string' ? client.assignedDietitianName : null, createdAt: new Date(String(client.createdAt ?? new Date().toISOString())) })), total: filtered.length, page: 1, pageSize: Math.max(filtered.length, 1) }}
+        dietitians={[]}
+        role={role}
+        filters={filters}
+        onNavigate={(next) => setFilters(next)}
+        onArchive={async (ids) => { try { await Promise.all(ids.map((id) => repository.archive(id))); return { success: true } } catch (reason) { return { success: false, error: String(reason) } } }}
+        onAssign={async () => ({ success: false, error: 'Diyetisyen ataması çevrimdışıyken kullanılamıyor.' })}
+      />
     </ClientsScreen>
   )
 }
