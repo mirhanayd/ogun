@@ -22,6 +22,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { clients } from './clients'
@@ -257,6 +258,56 @@ export const medicationSubstanceAliases = pgTable(
       table.medicationSubstanceId,
       table.searchNormalized,
       table.sourceId,
+    ),
+  ],
+)
+
+// RxNorm adayları yalnız küçük crosswalk metadata'sı olarak tutulur. Raw RRF,
+// candidate JSONL ve review worklist PostgreSQL'e girmez. Klinik tüketiciler
+// yalnız mapping_status='verified' kayıtlarını kullanmalıdır.
+export const medicationSubstanceMappings = pgTable(
+  'medication_substance_mappings',
+  {
+    id: text('id').primaryKey(),
+    medicationSubstanceId: text('medication_substance_id')
+      .notNull()
+      .references(() => medicationSubstances.id, { onDelete: 'cascade' }),
+    system: text('system').notNull().default('RXNORM'),
+    externalId: text('external_id').notNull(),
+    mappingStatus: text('mapping_status').notNull().default('candidate'),
+    matchMethod: text('match_method').notNull(),
+    confidence: doublePrecision('confidence'),
+    matchedTerm: text('matched_term'),
+    externalTermType: text('external_term_type'),
+    sourceVersion: text('source_version').notNull(),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('medication_substance_mappings_unique_idx').on(
+      table.medicationSubstanceId,
+      table.system,
+      table.externalId,
+    ),
+    index('medication_substance_mappings_external_idx').on(table.system, table.externalId),
+    index('medication_substance_mappings_status_idx').on(table.mappingStatus),
+    check('medication_substance_mappings_system_check', sql`${table.system} in ('RXNORM')`),
+    check(
+      'medication_substance_mappings_status_check',
+      sql`${table.mappingStatus} in ('candidate', 'reviewed', 'verified', 'ambiguous', 'rejected', 'unmapped')`,
+    ),
+    check(
+      'medication_substance_mappings_method_check',
+      sql`${table.matchMethod} in ('lexical_exact', 'normalized_exact', 'token_exact', 'atc_bridge', 'fuzzy', 'manual')`,
+    ),
+    check(
+      'medication_substance_mappings_confidence_check',
+      sql`${table.confidence} is null or (${table.confidence} >= 0 and ${table.confidence} <= 1)`,
+    ),
+    check(
+      'medication_substance_mappings_review_check',
+      sql`${table.mappingStatus} not in ('reviewed', 'verified') or (${table.reviewedBy} is not null and ${table.reviewedAt} is not null)`,
     ),
   ],
 )

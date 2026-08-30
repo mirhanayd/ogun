@@ -183,6 +183,13 @@
       "when": 1788048000000,
       "tag": "0025_desktop_mutation_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788050676102,
+      "tag": "0026_mean_human_torch",
+      "breakpoints": true
     }
   ]
 }

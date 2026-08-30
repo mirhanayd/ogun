@@ -11,6 +11,7 @@ import {
   medicationProducts,
   medicationProductSubstances,
   medicationSubstanceAliases,
+  medicationSubstanceMappings,
   medicationSubstances,
 } from '../schema/clinical'
 
@@ -406,4 +407,58 @@ export async function searchMedicationSubstances(db: Database, query: string, li
     )
     .orderBy(asc(medicationSubstances.needsReview), asc(medicationSubstances.nameTr))
     .limit(limit)
+}
+
+/**
+ * Returns only human-verified RxNorm mappings. Candidate rows are deliberately
+ * excluded so an automated match can never become clinically effective by
+ * merely being imported.
+ */
+export async function getVerifiedRxNormMappingsForSubstances(
+  db: Database,
+  medicationSubstanceIds: string[],
+) {
+  if (medicationSubstanceIds.length === 0) return []
+
+  return db
+    .select()
+    .from(medicationSubstanceMappings)
+    .where(
+      and(
+        eq(medicationSubstanceMappings.system, 'RXNORM'),
+        eq(medicationSubstanceMappings.mappingStatus, 'verified'),
+        inArray(medicationSubstanceMappings.medicationSubstanceId, medicationSubstanceIds),
+      ),
+    )
+    .orderBy(
+      asc(medicationSubstanceMappings.medicationSubstanceId),
+      asc(medicationSubstanceMappings.externalId),
+    )
+}
+
+export async function findVerifiedMedicationSubstancesByRxCui(db: Database, rxcui: string) {
+  const normalizedRxCui = rxcui.trim()
+  if (!normalizedRxCui) return []
+
+  return db
+    .select({
+      mappingId: medicationSubstanceMappings.id,
+      rxcui: medicationSubstanceMappings.externalId,
+      matchedTerm: medicationSubstanceMappings.matchedTerm,
+      medicationSubstanceId: medicationSubstances.id,
+      medicationSubstanceName: medicationSubstances.nameTr,
+    })
+    .from(medicationSubstanceMappings)
+    .innerJoin(
+      medicationSubstances,
+      eq(medicationSubstances.id, medicationSubstanceMappings.medicationSubstanceId),
+    )
+    .where(
+      and(
+        eq(medicationSubstanceMappings.system, 'RXNORM'),
+        eq(medicationSubstanceMappings.mappingStatus, 'verified'),
+        eq(medicationSubstanceMappings.externalId, normalizedRxCui),
+      ),
+    )
+    .orderBy(asc(medicationSubstances.nameTr))
 }
