@@ -36,11 +36,9 @@ export interface PreviousMeasurementSummary {
 // notu: mod değişimi sadece HANGİ alanların görünür olduğunu değiştirir,
 // girilen değerler kaybolmaz.
 export function MeasurementForm({
-  clientId,
   previousMeasurement,
   onSave,
 }: {
-  clientId: string
   previousMeasurement: PreviousMeasurementSummary | null
   onSave: (values: MeasurementFormValues) => Promise<{ success: boolean; error?: string }>
 }) {

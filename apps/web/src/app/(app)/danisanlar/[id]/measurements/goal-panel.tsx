@@ -54,13 +54,11 @@ function formatDateTr(iso: string): string {
 }
 
 export function GoalPanel({
-  clientId,
   activeGoals,
   measurements,
   onCreateGoal,
   onAchieveGoal,
 }: {
-  clientId: string
   activeGoals: ActiveGoalRow[]
   measurements: ChartMeasurement[]
   onCreateGoal: (values: GoalFormValues) => Promise<{ success: boolean; error?: string }>
@@ -73,7 +71,6 @@ export function GoalPanel({
         return (
           <GoalCard
             key={option.value}
-            clientId={clientId}
             type={option.value}
             goal={goal}
             measurements={measurements}
@@ -87,14 +84,12 @@ export function GoalPanel({
 }
 
 function GoalCard({
-  clientId,
   type,
   goal,
   measurements,
   onCreateGoal,
   onAchieveGoal,
 }: {
-  clientId: string
   type: GoalType
   goal: ActiveGoalRow | null
   measurements: ChartMeasurement[]

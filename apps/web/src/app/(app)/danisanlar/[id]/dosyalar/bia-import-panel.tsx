@@ -49,7 +49,7 @@ export function BiaImportPanel({
             <DocumentList documents={biaDocuments} onView={onViewDocument} onDelete={onDeleteDocument} />
           </div>
           <div className="rounded-lg border p-3">
-            <MeasurementForm clientId={clientId} previousMeasurement={previousMeasurement} onSave={onSaveMeasurement} />
+            <MeasurementForm previousMeasurement={previousMeasurement} onSave={onSaveMeasurement} />
           </div>
         </div>
       </CardContent>
