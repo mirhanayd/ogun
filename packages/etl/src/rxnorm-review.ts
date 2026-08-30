@@ -17,7 +17,7 @@ type CandidateAlternative = {
 }
 
 export type ReviewQueue =
-  'high_confidence_review' | 'atc_supported_review' | 'manual_review' | 'unmapped'
+  'high_confidence_review' | 'atc_supported_review' | 'manual_review' | 'unmapped' | 'ambiguous'
 
 export type ReviewExportRow = {
   review_queue: ReviewQueue
@@ -61,7 +61,7 @@ async function readAlternatives(packageDir: string) {
 
 function queueFor(item: PreparedMapping): ReviewQueue {
   if (item.resolution.kind !== 'resolved') {
-    return item.resolution.kind === 'ambiguous' ? 'manual_review' : 'unmapped'
+    return item.resolution.kind === 'ambiguous' ? 'ambiguous' : 'unmapped'
   }
   if (item.row.review_tier === 'unmapped') return 'unmapped'
   if (
@@ -96,6 +96,7 @@ export async function buildReviewExports(
     atc_supported_review: [],
     manual_review: [],
     unmapped: [],
+    ambiguous: [],
   }
 
   for (const item of prepared) {
@@ -142,9 +143,16 @@ export function writeReviewExports(
   outputDir: string,
 ) {
   mkdirSync(outputDir, { recursive: true })
+  const fileNames: Record<ReviewQueue, string> = {
+    high_confidence_review: 'high-confidence-review.csv',
+    atc_supported_review: 'atc-supported-review.csv',
+    manual_review: 'manual-review.csv',
+    unmapped: 'unmapped.csv',
+    ambiguous: 'ambiguous.csv',
+  }
   const counts = {} as Record<ReviewQueue, number>
   for (const [queue, rows] of Object.entries(queues) as Array<[ReviewQueue, ReviewExportRow[]]>) {
-    const destination = path.join(outputDir, `${queue}.csv`)
+    const destination = path.join(outputDir, fileNames[queue])
     const temporary = `${destination}.tmp`
     writeFileSync(temporary, `${Papa.unparse(rows, { newline: '\n' })}\n`, 'utf8')
     renameSync(temporary, destination)

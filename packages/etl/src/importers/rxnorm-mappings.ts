@@ -75,7 +75,7 @@ async function main() {
   )
   const reviewCounts = writeReviewExports(
     await buildReviewExports(prepared, substances, packageDir),
-    path.join(packageDir, 'review'),
+    path.resolve(packageDir, '..', 'review'),
   )
   const candidates = selectDeterministicCandidates(prepared)
   const existing = await db
