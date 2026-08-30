@@ -24,7 +24,7 @@ export function DesktopDownloadCta({ release }: { release: DesktopRelease }) {
   const preferredAsset =
     release.downloads.find((asset) => asset.platform === detected) ?? windowsAsset
   const otherAssets = release.downloads.filter((asset) => asset !== preferredAsset)
-  const fileName = preferredAsset?.url.split('/').pop()
+  const fileName = preferredAsset?.fileName ?? preferredAsset?.url.split('/').pop()
 
   if (!preferredAsset) return null
 
