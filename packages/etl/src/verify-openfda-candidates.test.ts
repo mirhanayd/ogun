@@ -16,6 +16,7 @@ const candidate: OpenFdaInteractionCandidate = {
   afterMinutes: null,
   extractionReason: 'vitamin_k:consistency:deterministic_phrase',
   candidateConfidence: 'high',
+  ingredientAttribution: 'direct_single_ingredient',
   status: 'candidate',
   reviewRequired: true,
   notForProduction: true,
@@ -41,6 +42,9 @@ const evidence: OpenFdaCandidateEvidence = {
   matchedValue: 'WARFARIN',
   confidence: 'high',
   ambiguous: false,
+  ingredientAttribution: 'direct_single_ingredient',
+  activeIngredientCount: 1,
+  evidenceNamesSubject: true,
 }
 
 const summary = {

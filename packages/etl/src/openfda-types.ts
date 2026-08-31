@@ -44,13 +44,7 @@ export type OpenFdaSubstanceMatch = {
 }
 
 export type OpenFdaTargetType =
-  | 'nutrient'
-  | 'food_component'
-  | 'food'
-  | 'food_group'
-  | 'supplement'
-  | 'alcohol'
-  | 'meal_timing'
+  'nutrient' | 'food_component' | 'food' | 'food_group' | 'supplement' | 'alcohol' | 'meal_timing'
 
 export type OpenFdaCandidateAction =
   | 'avoid'
@@ -78,6 +72,9 @@ export type OpenFdaCandidateTrigger = {
 
 export type OpenFdaCandidateConfidence = 'high' | 'medium' | 'low'
 
+export type OpenFdaIngredientAttribution =
+  import('./openfda-ingredient-attribution').OpenFdaIngredientAttribution
+
 export type OpenFdaInteractionCandidate = {
   id: string
   medicationSubstanceId: string
@@ -91,6 +88,7 @@ export type OpenFdaInteractionCandidate = {
   afterMinutes: number | null
   extractionReason: string
   candidateConfidence: OpenFdaCandidateConfidence
+  ingredientAttribution: OpenFdaIngredientAttribution
   status: 'candidate'
   reviewRequired: true
   notForProduction: true
@@ -121,4 +119,7 @@ export type OpenFdaCandidateEvidence = {
   matchedValue: string
   confidence: OpenFdaCandidateConfidence
   ambiguous: boolean
+  ingredientAttribution: OpenFdaIngredientAttribution
+  activeIngredientCount: number
+  evidenceNamesSubject: boolean
 }

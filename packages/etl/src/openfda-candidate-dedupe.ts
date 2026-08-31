@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { OpenFdaRelevantSection } from './openfda-label-reader'
 import {
+  classifyOpenFdaIngredientAttribution,
+  isUnsafeOpenFdaAttribution,
+  strongerOpenFdaAttribution,
+  type OpenFdaIngredientAttribution,
+} from './openfda-ingredient-attribution'
+import {
   OPENFDA_EXTRACTION_VERSION,
   type OpenFdaCandidateConfidence,
   type OpenFdaCandidateEvidence,
@@ -38,7 +44,9 @@ export function scoreOpenFdaCandidateConfidence(
   match: OpenFdaSubstanceMatch,
   section: OpenFdaRelevantSection,
   trigger: OpenFdaCandidateTrigger,
+  attribution?: OpenFdaIngredientAttribution,
 ): OpenFdaCandidateConfidence {
+  if (attribution && isUnsafeOpenFdaAttribution(attribution)) return 'low'
   if (match.ambiguous || match.tier === 'secondary_generic_match') return 'low'
   if (
     ['exact_rxcui_match', 'exact_substance_name_match'].includes(match.tier) &&
@@ -86,7 +94,13 @@ export class OpenFdaCandidateAccumulator {
     const { record, recordHash, partitionFile, retrievedAt, match, section, trigger } = input
     const logicalKey = openFdaLogicalCandidateKey(match, trigger)
     const candidateId = stableId('ofci', logicalKey)
-    const confidence = scoreOpenFdaCandidateConfidence(match, section, trigger)
+    const attribution = classifyOpenFdaIngredientAttribution(record, match, trigger.evidenceSnippet)
+    const confidence = scoreOpenFdaCandidateConfidence(
+      match,
+      section,
+      trigger,
+      attribution.attribution,
+    )
     const current = this.candidateByKey.get(logicalKey)
     if (!current) {
       this.candidateByKey.set(logicalKey, {
@@ -102,14 +116,21 @@ export class OpenFdaCandidateAccumulator {
         afterMinutes: trigger.afterMinutes,
         extractionReason: trigger.extractionReason,
         candidateConfidence: confidence,
+        ingredientAttribution: attribution.attribution,
         status: 'candidate',
         reviewRequired: true,
         notForProduction: true,
         clinicalRecommendation: null,
         evidenceCount: 0,
       })
-    } else if (CONFIDENCE_RANK[confidence] > CONFIDENCE_RANK[current.candidateConfidence]) {
-      current.candidateConfidence = confidence
+    } else {
+      if (CONFIDENCE_RANK[confidence] > CONFIDENCE_RANK[current.candidateConfidence]) {
+        current.candidateConfidence = confidence
+      }
+      current.ingredientAttribution = strongerOpenFdaAttribution(
+        current.ingredientAttribution,
+        attribution.attribution,
+      )
     }
 
     const splSetId = firstString(record.set_id, record.openfda?.spl_set_id)
@@ -146,6 +167,9 @@ export class OpenFdaCandidateAccumulator {
         matchedValue: match.matchedValue,
         confidence,
         ambiguous: match.ambiguous,
+        ingredientAttribution: attribution.attribution,
+        activeIngredientCount: attribution.activeIngredientCount,
+        evidenceNamesSubject: attribution.explicitlyNamesSubject,
       })
       this.candidateByKey.get(logicalKey)!.evidenceCount += 1
     }

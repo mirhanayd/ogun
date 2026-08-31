@@ -393,6 +393,50 @@ describe('logical candidate dedupe and evidence binding', () => {
     ).toBe('low')
   })
 
+  test('single verified active ingredient is directly attributed', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, {
+      record: label({ rxcui: [seed.rxcui], substance_name: ['WARFARIN'] }),
+    })
+    expect(accumulator.result()).toMatchObject({
+      candidates: [{ ingredientAttribution: 'direct_single_ingredient' }],
+      evidence: [{ ingredientAttribution: 'direct_single_ingredient', activeIngredientCount: 1 }],
+    })
+  })
+
+  test('multi-ingredient evidence without explicit component is unattributed and low confidence', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, {
+      record: label({ rxcui: [seed.rxcui], substance_name: ['WARFARIN', 'BIOTIN'] }),
+      trigger: trigger('Avoid grapefruit juice.'),
+    })
+    expect(accumulator.result()).toMatchObject({
+      candidates: [
+        { ingredientAttribution: 'multi_ingredient_unattributed', candidateConfidence: 'low' },
+      ],
+    })
+  })
+
+  test('multi-ingredient evidence explicitly naming the component is attributable', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, {
+      record: label({ rxcui: [seed.rxcui], substance_name: ['WARFARIN', 'BIOTIN'] }),
+      trigger: trigger('Warfarin patients should avoid grapefruit juice.'),
+    })
+    expect(accumulator.result().candidates[0]?.ingredientAttribution).toBe(
+      'multi_ingredient_attributable',
+    )
+  })
+
+  test('secondary generic linkage remains attribution-uncertain', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, { match: match({ tier: 'secondary_generic_match' }) })
+    expect(accumulator.result().candidates[0]).toMatchObject({
+      ingredientAttribution: 'secondary_match_uncertain',
+      candidateConfidence: 'low',
+    })
+  })
+
   test('candidate output has no recommendation and is not for production', () => {
     const accumulator = new OpenFdaCandidateAccumulator()
     addEvidence(accumulator)

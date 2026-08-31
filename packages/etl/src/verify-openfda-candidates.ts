@@ -7,6 +7,10 @@ import { sql } from 'drizzle-orm'
 import { verifyOpenFdaCandidateIsolation } from '@ogun/db/queries'
 import { OPENFDA_ALLOWED_TARGETS } from './openfda-target-vocabulary'
 import {
+  isUnsafeOpenFdaAttribution,
+  OPENFDA_INGREDIENT_ATTRIBUTIONS,
+} from './openfda-ingredient-attribution'
+import {
   OPENFDA_CANDIDATE_FILE,
   OPENFDA_EVIDENCE_FILE,
   OPENFDA_SUMMARY_FILE,
@@ -36,6 +40,7 @@ const ALLOWED_ACTIONS = new Set<OpenFdaCandidateAction>([
   'avoid_alcohol',
   'individualize',
 ])
+const ALLOWED_ATTRIBUTIONS = new Set(OPENFDA_INGREDIENT_ATTRIBUTIONS)
 
 function readGzipJsonl<T>(filePath: string): T[] {
   const contents = gunzipSync(readFileSync(filePath)).toString('utf8')
@@ -78,6 +83,15 @@ export function validateOpenFdaCandidateArtifacts(
     if (!OPENFDA_ALLOWED_TARGETS.has(candidate.target))
       errors.push(`unknown_target:${candidate.target}`)
     if (!ALLOWED_ACTIONS.has(candidate.action)) errors.push(`unknown_action:${candidate.action}`)
+    if (!ALLOWED_ATTRIBUTIONS.has(candidate.ingredientAttribution)) {
+      errors.push(`unknown_attribution:${candidate.id}`)
+    }
+    if (
+      isUnsafeOpenFdaAttribution(candidate.ingredientAttribution) &&
+      candidate.candidateConfidence === 'high'
+    ) {
+      errors.push(`unsafe_high_confidence:${candidate.id}`)
+    }
     if (
       candidate.status !== 'candidate' ||
       candidate.reviewRequired !== true ||
@@ -95,6 +109,9 @@ export function validateOpenFdaCandidateArtifacts(
     evidenceIds.add(item.id)
     if (!candidateIds.has(item.candidateId)) errors.push(`orphan_evidence:${item.id}`)
     if (item.sourceSystem !== 'openfda') errors.push(`invalid_source:${item.id}`)
+    if (!ALLOWED_ATTRIBUTIONS.has(item.ingredientAttribution)) {
+      errors.push(`unknown_evidence_attribution:${item.id}`)
+    }
     if (!item.splSetId || !item.recordHash || !item.labelPartitionFile) {
       errors.push(`missing_provenance:${item.id}`)
     }
