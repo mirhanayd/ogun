@@ -42,3 +42,36 @@ export type OpenFdaSubstanceMatch = {
   matchedValue: string
   ambiguous: boolean
 }
+
+export type OpenFdaTargetType =
+  | 'nutrient'
+  | 'food_component'
+  | 'food'
+  | 'food_group'
+  | 'supplement'
+  | 'alcohol'
+  | 'meal_timing'
+
+export type OpenFdaCandidateAction =
+  | 'avoid'
+  | 'limit'
+  | 'caution'
+  | 'monitor'
+  | 'consistency'
+  | 'separate_timing'
+  | 'take_with_food'
+  | 'take_without_food'
+  | 'avoid_alcohol'
+  | 'individualize'
+
+export type OpenFdaCandidateTrigger = {
+  targetType: OpenFdaTargetType
+  target: string
+  action: OpenFdaCandidateAction
+  qualifier: string | null
+  beforeMinutes: number | null
+  afterMinutes: number | null
+  extractionReason: string
+  evidenceSnippet: string
+  signal: 'explicit_directive' | 'explicit_effect' | 'ambiguous_context'
+}
