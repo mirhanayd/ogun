@@ -1,20 +1,45 @@
 import type { OpenFdaRelevantSection } from './openfda-label-reader'
-import { OPENFDA_TARGET_VOCABULARY, type OpenFdaTargetDefinition } from './openfda-target-vocabulary'
-import type {
-  OpenFdaCandidateAction,
-  OpenFdaCandidateTrigger,
-} from './openfda-types'
+import {
+  OPENFDA_TARGET_VOCABULARY,
+  type OpenFdaTargetDefinition,
+} from './openfda-target-vocabulary'
+import type { OpenFdaCandidateAction, OpenFdaCandidateTrigger } from './openfda-types'
 
 const NEGATIVE_CONTEXT = [
   /\bwith or without food\b/i,
   /\bfood (?:has|had) no (?:clinically significant )?effect\b/i,
   /\bfood does not (?:affect|alter)\b/i,
   /\bno (?:clinically significant )?(?:food|meal) effect\b/i,
+  /\bno clinically significant (?:changes?|effects?|impact)\b/i,
+  /\b(?:has|have|had) no impact\b/i,
+  /\b(?:does|do|did) not (?:affect|alter|modify)\b/i,
+  /\b(?:was|were|is|are) not (?:affected|altered|modified)\b/i,
+  /\bcomparable to (?:that )?(?:observed|seen|measured)\b/i,
+  /\bwithout regards? (?:to|for) (?:the )?timing of meals?\b/i,
+  /\bask (?:a |your )?(?:doctor|physician)\b/i,
   /\bconsult (?:a |your )?(?:doctor|physician)\b/i,
 ]
 
 const EFFECT_PATTERN =
   /\b(?:increase[sd]?|decrease[sd]?|reduce[sd]?|enhance[sd]?|impair[sd]?|affect(?:s|ed)?|bioavailability|exposure|absorption|toxicity|risk)\b/i
+
+const CONTEXT_GATED_NUTRIENTS = new Set([
+  'calcium',
+  'iron',
+  'magnesium',
+  'zinc',
+  'potassium',
+  'sodium',
+  'protein',
+])
+
+function hasDietaryNutrientContext(target: string, snippet: string) {
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(
+    String.raw`\b${escaped}[- ]containing\s+(?:products?|foods?|beverages?|supplements?)\b|\bproducts?\s+(?:containing|with)\s+${escaped}\b|\b(?:dietary|diet|intake|supplements?|foods?|beverages?|antacids?|minerals?|milk|dairy|restriction|amounts?)\b.{0,100}\b${escaped}\b|\b${escaped}\b.{0,100}\b(?:dietary|diet|intake|supplements?|foods?|beverages?|antacids?|minerals?|milk|dairy|restriction)\b`,
+    'i',
+  ).test(snippet)
+}
 
 function evidenceWindow(text: string, start: number, end: number) {
   const leftLimit = Math.max(0, start - 220)
@@ -39,7 +64,9 @@ function evidenceWindow(text: string, start: number, end: number) {
 function timingOffsets(snippet: string) {
   let beforeMinutes: number | null = null
   let afterMinutes: number | null = null
-  for (const match of snippet.matchAll(/(\d+(?:\.\d+)?)\s*(minutes?|hours?)\s*(before|after)\b/gi)) {
+  for (const match of snippet.matchAll(
+    /(\d+(?:\.\d+)?)\s*(minutes?|hours?)\s*(before|after)\b/gi,
+  )) {
     const value = Number(match[1]) * (match[2]!.toLowerCase().startsWith('hour') ? 60 : 1)
     if (match[3]!.toLowerCase() === 'before') beforeMinutes = value
     else afterMinutes = value
@@ -58,9 +85,58 @@ function actionFor(
   snippet: string,
 ): { action: OpenFdaCandidateAction; signal: OpenFdaCandidateTrigger['signal'] } | null {
   if (NEGATIVE_CONTEXT.some((pattern) => pattern.test(snippet))) return null
-  const directive = /\b(?:take|administer|give|dose|consume|eat|drink|avoid|limit|restrict)\b/i.test(
-    snippet,
-  )
+  if (
+    definition.target === 'alcohol' &&
+    (/\b(?:benzyl|cetyl|isopropyl|polyvinyl|stearyl) alcohol\b/i.test(snippet) ||
+      /\balcohol[- ]free\b|\balcohol[- ]based\b|\balcohol(?:[\s,-]+.{0,40})?\bcontaining products?\b|\bmouthwashes?\b/i.test(
+        snippet,
+      ))
+  ) {
+    return null
+  }
+  if (
+    (definition.target === 'milk' || definition.target === 'dairy') &&
+    /\b(?:breast|human) milk\b|\blactat(?:ing|ion)\b|\bnursing mothers?\b|\bmilk (?:production|quantity|quality)\b/i.test(
+      snippet,
+    )
+  ) {
+    return null
+  }
+  if (
+    definition.target === 'calcium' &&
+    /\bcalcium channel (?:blockers?|blocking agents?)\b|\b(?:serum|urinary|blood) calcium\b|\bcalcium (?:levels?|concentrations?|excretion|oxalate|calculi)\b|\b(?:levels?|concentrations?|excretion) of calcium\b|\bcalcium and phosphate solution\b|\bpremature neonates?\b|\b(?:hyper|hypo)calcemia\b/i.test(
+      snippet,
+    ) &&
+    !/\b(?:dietary|intake|supplements?|products?|foods?|milk|dairy|antacids?)\b.{0,80}\bcalcium\b|\bcalcium[- ]containing\b/i.test(
+      snippet,
+    )
+  ) {
+    return null
+  }
+  if (
+    definition.target === 'sodium' &&
+    !/\b(?:dietary sodium|sodium intake|sodium[- ]restrict(?:ed|ion)|salt substitutes?)\b/i.test(
+      snippet,
+    )
+  ) {
+    return null
+  }
+  if (
+    definition.target === 'potassium' &&
+    !/\b(?:dietary potassium|potassium intake|potassium supplements?|salt substitutes? containing potassium|foods? (?:high|rich) in potassium)\b/i.test(
+      snippet,
+    )
+  ) {
+    return null
+  }
+  if (
+    CONTEXT_GATED_NUTRIENTS.has(definition.target) &&
+    !hasDietaryNutrientContext(definition.target, snippet)
+  ) {
+    return null
+  }
+  const directive =
+    /\b(?:take|administer|give|dose|consume|eat|drink|avoid|limit|restrict)\b/i.test(snippet)
   if (
     definition.target === 'alcohol' &&
     /\b(?:avoid|do not|should not|must not|abstain)\b.{0,100}\b(?:alcohol|ethanol|alcoholic)/i.test(
@@ -69,23 +145,40 @@ function actionFor(
   ) {
     return { action: 'avoid_alcohol', signal: 'explicit_directive' }
   }
-  if (/\b(?:take|administer|given|give|dose)\b.{0,100}\bwith (?:a )?(?:meal|food)\b/i.test(snippet)) {
+  if (
+    ['meals_general', 'high_fat_meal'].includes(definition.target) &&
+    /\b(?:take|administer)\b.{0,100}\b(?:with (?:a )?(?:meal|food)|after (?:a )?meals?)\b/i.test(
+      snippet,
+    )
+  ) {
     return { action: 'take_with_food', signal: 'explicit_directive' }
   }
   if (
-    /\b(?:take|administer|given|give|dose)\b.{0,120}\b(?:without food|on an empty stomach|fasting)\b/i.test(
+    ['meals_general', 'fasting'].includes(definition.target) &&
+    /\b(?:take|administer|should be administered|must be administered)\b.{0,120}\b(?:without food|on an empty stomach|fasting)\b/i.test(
       snippet,
     )
   ) {
     return { action: 'take_without_food', signal: 'explicit_directive' }
   }
   if (
-    /\b(?:within|separate|apart|before|after)\b.{0,120}\b(?:minutes?|hours?|meal|food|feeding|calcium|iron|magnesium|zinc|antacid|mineral)/i.test(
+    /\b(?:take|administer|give|dose|consume|place)\b.{0,100}\b(?:at least\s+)?\d+(?:\.\d+)?\s*(?:minutes?|hours?)\s*(?:before|after|apart)\b/i.test(
       snippet,
     ) ||
-    /\b(?:minutes?|hours?)\b.{0,60}\b(?:before|after|apart)\b/i.test(snippet)
+    /\b(?:do not|should not|must not|avoid)\s+(?:take|administer|give|dose|consume)?\b.{0,80}\bwithin\s+\d+(?:\.\d+)?\s*(?:minutes?|hours?)\s+of\b/i.test(
+      snippet,
+    ) ||
+    /\b(?:take|administer|give|dose|consume|place)\b.{0,100}\b(?:before|after)\s+(?:a\s+)?(?:meals?|food|feeding)\b/i.test(
+      snippet,
+    ) ||
+    /\bseparate\b.{0,100}\b(?:meals?|food|feeding|calcium|iron|magnesium|zinc|antacids?|minerals?)\b/i.test(
+      snippet,
+    )
   ) {
-    return { action: 'separate_timing', signal: directive ? 'explicit_directive' : 'explicit_effect' }
+    return {
+      action: 'separate_timing',
+      signal: directive ? 'explicit_directive' : 'explicit_effect',
+    }
   }
   if (/\b(?:consistent|consistency|same way each time|maintain a stable)\b/i.test(snippet)) {
     return { action: 'consistency', signal: directive ? 'explicit_directive' : 'explicit_effect' }
@@ -104,6 +197,14 @@ function actionFor(
   }
   if (/\b(?:caution|use caution|care should be taken)\b/i.test(snippet)) {
     return { action: 'caution', signal: 'explicit_directive' }
+  }
+  if (
+    (definition.type === 'meal_timing' || definition.target === 'food_general') &&
+    !/\b(?:increase[sd]?|decrease[sd]?|reduce[sd]?|enhance[sd]?|impair[sd]?|affect(?:s|ed)?|alter(?:s|ed)?|modif(?:y|ies|ied))\b/i.test(
+      snippet,
+    )
+  ) {
+    return null
   }
   if (EFFECT_PATTERN.test(snippet)) return { action: 'caution', signal: 'explicit_effect' }
   return null

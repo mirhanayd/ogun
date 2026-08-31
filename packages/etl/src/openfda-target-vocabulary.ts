@@ -20,7 +20,7 @@ export const OPENFDA_TARGET_VOCABULARY: readonly OpenFdaTargetDefinition[] = [
   { target: 'potassium', type: 'nutrient', pattern: /\bpotassium\b/gi },
   { target: 'sodium', type: 'nutrient', pattern: /\bsodium\b/gi },
   { target: 'protein', type: 'nutrient', pattern: /\bprotein(?:-rich)?\b/gi },
-  { target: 'high_fat_meal', type: 'meal_timing', pattern: /\bhigh[- ]fat meal\b/gi },
+  { target: 'high_fat_meal', type: 'meal_timing', pattern: /\bhigh[- ]fat (?:meal|food)\b/gi },
   { target: 'fat', type: 'food_component', pattern: /\bdietary fat\b|\bfat content\b/gi },
   { target: 'dairy', type: 'food_group', pattern: /\bdairy(?: products?)?\b/gi },
   { target: 'milk', type: 'food', pattern: /\bmilk\b/gi },

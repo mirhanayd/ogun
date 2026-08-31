@@ -271,6 +271,92 @@ describe('controlled deterministic interaction extraction', () => {
   test('explicit no-food-effect text does not create a candidate', () => {
     expect(extractOpenFdaCandidateTriggers(section('Food has no effect on exposure.'))).toEqual([])
   })
+
+  test.each([
+    ['calcium channel blocker', 'Monitor patients receiving calcium channel blockers.'],
+    ['calcium lab value', 'Monitor serum calcium concentrations regularly.'],
+    ['calcium solution', 'Premature neonates require calcium and phosphate solution.'],
+    ['sodium drug salt', 'Meaningful elevation occurred with diclofenac sodium tablets.'],
+    [
+      'sodium injection',
+      'Do not dilute with Sodium Chloride Injection because it may precipitate.',
+    ],
+    ['potassium lab value', 'Some patients developed increases in potassium during treatment.'],
+    ['benzyl alcohol', 'This product does not contain benzyl alcohol.'],
+    [
+      'alcohol-containing topical product',
+      'Avoid alcohol-, iodine-, or thyme-containing products.',
+    ],
+    ['breast milk', 'The drug was detected in human breast milk during lactation.'],
+    ['nursing mother milk', 'In nursing mothers the medicine may decrease the quality of milk.'],
+    [
+      'negative caffeine study',
+      'No clinically significant changes in exposure of caffeine were observed.',
+    ],
+    ['negative grapefruit study', 'Grapefruit juice has no impact on exposure.'],
+    ['alcohol-free mouthwash', 'Advise patients to use alcohol-free mouthwashes.'],
+    ['flammable alcohol product', 'Alcohol-based products are flammable; avoid fire.'],
+  ])('%s context does not create a food interaction candidate', (_name, text) => {
+    expect(extractOpenFdaCandidateTriggers(section(text))).toEqual([])
+  })
+
+  test('generic within-hours pharmacology text does not create timing', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('The onset of activity of liothyronine sodium occurs within a few hours.'),
+      ),
+    ).toEqual([])
+  })
+
+  test('after-meal administration is normalized to take_with_food', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('Advise patients to take each dose after meals.', 'dosage_and_administration'),
+      ),
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'take_with_food' })]))
+  })
+
+  test('sodium restriction and potassium supplement contexts remain eligible', () => {
+    expect(extractOpenFdaCandidateTriggers(section('Avoid sodium restriction.'))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ target: 'sodium', action: 'avoid' })]),
+    )
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('Potassium supplements may increase the risk of hyperkalemia.'),
+      ),
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ target: 'potassium' })]))
+  })
+
+  test('PK study administration does not become a meal directive', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section(
+          'Multiple-dose PK parameters following oral administration with food were measured.',
+          'pharmacokinetics',
+        ),
+      ),
+    ).toEqual([])
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('A single dose was administered under fasting conditions.', 'pharmacokinetics'),
+      ),
+    ).toEqual([])
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('Exposure was comparable to that observed under fasting conditions.'),
+      ),
+    ).toEqual([])
+  })
+
+  test('an antacid effect is not mislabeled as take_with_food', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('The dose was taken with food and total availability was reduced by an antacid.'),
+      ),
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ target: 'antacids', action: 'caution' })]),
+    )
+  })
 })
 
 describe('logical candidate dedupe and evidence binding', () => {

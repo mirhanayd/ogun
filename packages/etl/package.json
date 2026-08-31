@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "etl:openfda:extract": "tsx src/extract-openfda-candidates.ts",
+    "etl:openfda:verify": "tsx src/verify-openfda-candidates.ts",
     "etl:rxnorm:verify": "tsx src/verify-rxnorm-mappings.ts",
     "etl:bls": "tsx src/importers/bls.ts",
     "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
