@@ -14,6 +14,8 @@ import {
 } from './client-clinical'
 import {
   findConditionsByAlias,
+  getRxNormReviewCandidates,
+  getVerifiedRxNormMappingsForSubstances,
   searchConditions,
   searchMedicationProducts,
   searchMedicationSubstances,
@@ -82,6 +84,16 @@ describeWithDb.sequential('clinical catalog integration', () => {
     expect(
       results.some((substance) => substance.nameTr.toLocaleLowerCase('tr-TR') === 'metformin'),
     ).toBe(true)
+  })
+
+  it('candidate review sorgusu production verified sorgusuna sızmaz', async () => {
+    const [candidate] = await getRxNormReviewCandidates(db)
+    if (!candidate) return
+    const verified = await getVerifiedRxNormMappingsForSubstances(db, [
+      candidate.medicationSubstanceId,
+    ])
+    expect(verified.every((mapping) => mapping.mappingStatus === 'verified')).toBe(true)
+    expect(verified.some((mapping) => mapping.id === candidate.id)).toBe(false)
   })
 })
 
