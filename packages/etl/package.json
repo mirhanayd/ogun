@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "etl:rxnorm:verify": "tsx src/verify-rxnorm-mappings.ts",
     "etl:bls": "tsx src/importers/bls.ts",
     "etl:bls:headers": "tsx src/importers/bls.ts --list-headers",
     "etl:usda": "tsx src/importers/usda.ts",
