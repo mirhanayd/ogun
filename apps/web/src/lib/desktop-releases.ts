@@ -37,6 +37,36 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.3.3',
+    publishedAt: '2026-08-31',
+    notes: [
+      'Kayıtlı cihaz profili her process başlangıcında internet ve cached session durumundan bağımsız olarak PIN ile açılır; native yerel veri guard’ı da PIN kurulmuş profillerde online session’ı unlock saymaz.',
+      'Danışan klinik sekmeleri, randevu formu, finans ve ayarlar browser ile aynı presentation component implementation üzerinden yerel şifreli repository’ye bağlanır.',
+      'Finans ve ayarlar gerçek offline route/read-model desteğine kavuştu; bilinen navigation route’larında sonsuz placeholder kalmadı.',
+      'Desktop command palette artık yerel danışan ve besin indeksinde çalışan arama ile web’deki aynı komut yüzeyini kullanır.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: '/api/desktop/download?platform=windows&format=exe&version=0.3.3',
+        fileName: 'Ogun_0.3.3_x64-setup.exe',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: '/api/desktop/download?platform=windows&format=msi&version=0.3.3',
+        fileName: 'Ogun_0.3.3_x64_tr-TR.msi',
+      },
+      {
+        platform: 'macos',
+        label: 'macOS 10.15+ (Apple Silicon ve Intel)',
+        url: '/api/desktop/download?platform=macos&format=dmg&version=0.3.3',
+        fileName: 'Ogun_0.3.3_universal.dmg',
+      },
+    ],
+  },
+  {
     version: '0.3.2',
     publishedAt: '2026-08-30',
     notes: [
