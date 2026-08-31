@@ -1,0 +1,428 @@
+import { gunzipSync } from 'node:zlib'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { Readable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
+import { afterEach, describe, expect, test } from 'vitest'
+import { extractOpenFdaCandidateTriggers } from './openfda-candidate-extractor'
+import {
+  OpenFdaCandidateAccumulator,
+  scoreOpenFdaCandidateConfidence,
+} from './openfda-candidate-dedupe'
+import {
+  extractRelevantOpenFdaSections,
+  streamOpenFdaResults,
+  type OpenFdaRelevantSection,
+} from './openfda-label-reader'
+import {
+  OPENFDA_CANDIDATE_FILE,
+  OPENFDA_EVIDENCE_FILE,
+  OPENFDA_SUMMARY_FILE,
+  writeOpenFdaReviewArtifacts,
+  type OpenFdaExtractionSummary,
+} from './openfda-review-export'
+import type {
+  OpenFdaCandidateTrigger,
+  OpenFdaLabelRecord,
+  OpenFdaSubstanceMatch,
+  VerifiedRxNormSeed,
+} from './openfda-types'
+import {
+  buildVerifiedRxNormIndex,
+  loadVerifiedRxNormSeeds,
+  matchOpenFdaLabel,
+  parseVerifiedRxNormSeeds,
+} from './openfda-verified-filter'
+import { DATABASE_HARD_LIMIT_BYTES, evaluateClinicalDatabaseFootprint } from './verify-rxnorm-size'
+
+const temporaryDirectories: string[] = []
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+const seed: VerifiedRxNormSeed = {
+  medicationSubstanceId: 'meds-warfarin',
+  canonicalName: 'warfarin',
+  rxcui: '11289',
+  tty: 'IN',
+  sourceVersion: '2026-08-03',
+}
+
+function label(openfda: OpenFdaLabelRecord['openfda'] = {}): OpenFdaLabelRecord {
+  return {
+    id: 'spl-id',
+    set_id: 'spl-set-id',
+    effective_time: '20260831',
+    openfda,
+  }
+}
+
+function section(text: string, name: OpenFdaRelevantSection['name'] = 'drug_interactions') {
+  return {
+    name,
+    priority: name === 'drug_interactions' ? 1 : 2,
+    text,
+  } satisfies OpenFdaRelevantSection
+}
+
+function trigger(text = 'Avoid grapefruit juice.') {
+  return extractOpenFdaCandidateTriggers(section(text))[0]!
+}
+
+function match(overrides: Partial<OpenFdaSubstanceMatch> = {}): OpenFdaSubstanceMatch {
+  return {
+    seed,
+    tier: 'exact_rxcui_match',
+    matchedField: 'openfda.rxcui',
+    matchedValue: seed.rxcui,
+    ambiguous: false,
+    ...overrides,
+  }
+}
+
+function addEvidence(
+  accumulator: OpenFdaCandidateAccumulator,
+  overrides: {
+    record?: OpenFdaLabelRecord
+    recordHash?: string
+    trigger?: OpenFdaCandidateTrigger
+    match?: OpenFdaSubstanceMatch
+  } = {},
+) {
+  accumulator.add({
+    record: overrides.record ?? label({ rxcui: [seed.rxcui] }),
+    recordHash: overrides.recordHash ?? 'record-hash-1',
+    partitionFile: 'drug-label-0001-of-0014.json.zip',
+    retrievedAt: '2026-08-31T00:00:00.000Z',
+    match: overrides.match ?? match(),
+    section: section(overrides.trigger?.evidenceSnippet ?? 'Avoid grapefruit juice.'),
+    trigger: overrides.trigger ?? trigger(),
+  })
+}
+
+describe('verified RxNorm seed and openFDA label linkage', () => {
+  test('generated verified RxNorm export is the extraction seed', () => {
+    const seeds = loadVerifiedRxNormSeeds()
+    expect(seeds).toHaveLength(279)
+    expect(seeds.every((item) => ['IN', 'PIN', 'MIN'].includes(item.tty))).toBe(true)
+  })
+
+  test('unverified/candidate metadata cannot enter the strict seed format', () => {
+    expect(() =>
+      parseVerifiedRxNormSeeds(
+        `${JSON.stringify({ medication_substance_id: 'x', canonical_name: 'x', rxcui: '1', tty: 'IN', source_version: 'v', mapping_status: 'candidate' })}\n`,
+      ),
+    ).toThrow(/beklenmeyen alan/i)
+  })
+
+  test('label links by exact RxCUI', () => {
+    expect(
+      matchOpenFdaLabel(label({ rxcui: ['11289'] }), buildVerifiedRxNormIndex([seed]))[0],
+    ).toMatchObject({
+      tier: 'exact_rxcui_match',
+      seed: { medicationSubstanceId: 'meds-warfarin' },
+    })
+  })
+
+  test('label links by exact substance name', () => {
+    expect(
+      matchOpenFdaLabel(
+        label({ substance_name: ['WARFARIN'] }),
+        buildVerifiedRxNormIndex([seed]),
+      )[0],
+    ).toMatchObject({ tier: 'exact_substance_name_match' })
+  })
+
+  test('punctuation-only name variation has a separate normalized tier', () => {
+    const combination = { ...seed, canonicalName: 'ledipasvir/sofosbuvir' }
+    expect(
+      matchOpenFdaLabel(
+        label({ substance_name: ['ledipasvir / sofosbuvir'] }),
+        buildVerifiedRxNormIndex([combination]),
+      )[0],
+    ).toMatchObject({ tier: 'normalized_substance_name_match' })
+  })
+
+  test('generic-name fallback is explicitly secondary', () => {
+    expect(
+      matchOpenFdaLabel(label({ generic_name: ['warfarin'] }), buildVerifiedRxNormIndex([seed]))[0],
+    ).toMatchObject({ tier: 'secondary_generic_match' })
+  })
+
+  test('irrelevant label is filtered before section extraction', () => {
+    expect(
+      matchOpenFdaLabel(label({ substance_name: ['unrelated'] }), buildVerifiedRxNormIndex([seed])),
+    ).toEqual([])
+  })
+})
+
+describe('openFDA streaming label and section parser', () => {
+  test('chunked results JSON emits complete records and stable hashes', async () => {
+    const json = JSON.stringify({ meta: {}, results: [label(), { ...label(), id: 'second' }] })
+    const input = Readable.from([json.slice(0, 17), json.slice(17, 53), json.slice(53)])
+    const rows = []
+    for await (const row of streamOpenFdaResults(input)) rows.push(row)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.recordHash).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  test('relevant section parser prioritizes drug interactions and ignores how supplied', () => {
+    const sections = extractRelevantOpenFdaSections({
+      drug_interactions: ['Vitamin K intake should remain consistent.'],
+      dosage_and_administration: 'Take with food.',
+      how_supplied: 'Store at room temperature.',
+    })
+    expect(sections.map((item) => [item.name, item.priority])).toEqual([
+      ['drug_interactions', 1],
+      ['dosage_and_administration', 2],
+    ])
+  })
+})
+
+describe('controlled deterministic interaction extraction', () => {
+  test('drug_interactions section extracts vitamin K consistency', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(section('Maintain a consistent intake of vitamin K.')),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ target: 'vitamin_k', action: 'consistency' }),
+      ]),
+    )
+  })
+
+  test('dosage section extracts take with food', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('Patients should take each dose with food.', 'dosage_and_administration'),
+      ),
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'take_with_food' })]))
+  })
+
+  test('dosage section extracts take without food', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(
+        section('Take the tablet on an empty stomach.', 'dosage_and_administration'),
+      ),
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'take_without_food' })]))
+  })
+
+  test('alcohol avoidance uses controlled avoid_alcohol action', () => {
+    expect(extractOpenFdaCandidateTriggers(section('Patients should avoid alcohol.'))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ target: 'alcohol', action: 'avoid_alcohol' }),
+      ]),
+    )
+  })
+
+  test('grapefruit juice avoidance is normalized', () => {
+    expect(
+      extractOpenFdaCandidateTriggers(section('Avoid grapefruit juice during treatment.')),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ target: 'grapefruit_juice', action: 'avoid' }),
+      ]),
+    )
+  })
+
+  test.each(['calcium', 'iron', 'magnesium'])(
+    '%s timing is extracted with numeric offset',
+    (mineral) => {
+      const result = extractOpenFdaCandidateTriggers(
+        section(`Do not administer within 2 hours of ${mineral}-containing products.`),
+      )
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            target: mineral,
+            action: 'separate_timing',
+            beforeMinutes: 120,
+            afterMinutes: 120,
+          }),
+        ]),
+      )
+    },
+  )
+
+  test('tyramine and caffeine remain controlled food components', () => {
+    expect(extractOpenFdaCandidateTriggers(section('Avoid tyramine-rich foods.'))[0]).toMatchObject(
+      {
+        target: 'tyramine',
+        targetType: 'food_component',
+      },
+    )
+    expect(
+      extractOpenFdaCandidateTriggers(section('Limit caffeine consumption.'))[0],
+    ).toMatchObject({
+      target: 'caffeine',
+      action: 'limit',
+    })
+  })
+
+  test('with-or-without-food boilerplate does not create a candidate', () => {
+    expect(extractOpenFdaCandidateTriggers(section('May be taken with or without food.'))).toEqual(
+      [],
+    )
+  })
+
+  test('explicit no-food-effect text does not create a candidate', () => {
+    expect(extractOpenFdaCandidateTriggers(section('Food has no effect on exposure.'))).toEqual([])
+  })
+})
+
+describe('logical candidate dedupe and evidence binding', () => {
+  test('duplicate observation produces one logical candidate', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator)
+    addEvidence(accumulator)
+    expect(accumulator.result()).toMatchObject({
+      candidates: [{ evidenceCount: 1 }],
+      evidence: [{ candidateId: expect.any(String) }],
+    })
+  })
+
+  test('same logical candidate binds evidence from multiple labels', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator)
+    addEvidence(accumulator, {
+      record: { ...label({ rxcui: ['11289'] }), set_id: 'second-set' },
+      recordHash: 'record-hash-2',
+    })
+    const result = accumulator.result()
+    expect(result.candidates).toHaveLength(1)
+    expect(result.candidates[0]?.evidenceCount).toBe(2)
+    expect(result.evidence).toHaveLength(2)
+  })
+
+  test('ambiguous linkage is always low confidence', () => {
+    expect(
+      scoreOpenFdaCandidateConfidence(
+        match({ ambiguous: true }),
+        section('Avoid grapefruit.'),
+        trigger('Avoid grapefruit.'),
+      ),
+    ).toBe('low')
+  })
+
+  test('candidate output has no recommendation and is not for production', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator)
+    expect(accumulator.result().candidates[0]).toMatchObject({
+      status: 'candidate',
+      reviewRequired: true,
+      notForProduction: true,
+      clinicalRecommendation: null,
+    })
+  })
+
+  test('long raw label text is never copied into candidate or evidence', () => {
+    const marker = 'RAW_LABEL_MARKER_'.repeat(2_000)
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, { record: { ...label(), warnings: marker } })
+    const serialized = JSON.stringify(accumulator.result())
+    expect(serialized).not.toContain(marker)
+    expect(accumulator.result().evidence[0]?.evidenceSnippet.length).toBeLessThanOrEqual(480)
+  })
+
+  test('candidate IDs and counts are stable across identical runs', () => {
+    const run = () => {
+      const accumulator = new OpenFdaCandidateAccumulator()
+      addEvidence(accumulator)
+      addEvidence(accumulator)
+      return accumulator.result()
+    }
+    expect(run()).toEqual(run())
+  })
+})
+
+describe('filesystem review artifacts and safety guards', () => {
+  test('gzip JSONL, summary and review CSV artifacts are created', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ogun-openfda-review-'))
+    temporaryDirectories.push(directory)
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator)
+    const result = accumulator.result()
+    const summary: OpenFdaExtractionSummary = {
+      extractionVersion: 'openfda-food-candidate-v1',
+      sourceLastUpdated: '2026-08-31',
+      labelExportDate: '2026-08-31',
+      retrievedAt: '2026-08-31T00:00:00Z',
+      manifestPartitions: 14,
+      availablePartitions: 1,
+      missingPartitions: ['missing.zip'],
+      partialCoverage: true,
+      verifiedRxNormSeeds: 279,
+      processedLabelRecords: 1,
+      matchedLabels: 1,
+      matchedSubstances: 1,
+      relevantSections: 1,
+      candidateObservations: 1,
+      logicalCandidates: 1,
+      evidenceRecords: 1,
+      targetTypeCounts: {
+        nutrient: 0,
+        food_component: 0,
+        food: 1,
+        food_group: 0,
+        supplement: 0,
+        alcohol: 0,
+        meal_timing: 0,
+      },
+      actionCounts: {
+        avoid: 1,
+        limit: 0,
+        caution: 0,
+        monitor: 0,
+        consistency: 0,
+        separate_timing: 0,
+        take_with_food: 0,
+        take_without_food: 0,
+        avoid_alcohol: 0,
+        individualize: 0,
+      },
+      confidenceCounts: { high: 1, medium: 0, low: 0 },
+    }
+    const artifacts = writeOpenFdaReviewArtifacts(
+      result.candidates,
+      result.evidence,
+      summary,
+      path.join(directory, 'extracted'),
+      path.join(directory, 'review'),
+    )
+    expect(existsSync(path.join(directory, 'extracted', OPENFDA_CANDIDATE_FILE))).toBe(true)
+    expect(existsSync(path.join(directory, 'extracted', OPENFDA_EVIDENCE_FILE))).toBe(true)
+    expect(existsSync(path.join(directory, 'extracted', OPENFDA_SUMMARY_FILE))).toBe(true)
+    expect(gunzipSync(readFileSync(artifacts.candidatePath)).toString()).toContain(
+      'notForProduction',
+    )
+    expect(Object.values(artifacts.reviewPaths).every(existsSync)).toBe(true)
+  })
+
+  test('candidate output path is gitignored', () => {
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
+    const result = spawnSync(
+      'git',
+      [
+        'check-ignore',
+        '--quiet',
+        '--',
+        'packages/etl/data/clinical/openfda/extracted/output.jsonl.gz',
+      ],
+      { cwd: repoRoot },
+    )
+    expect(result.status).toBe(0)
+  })
+
+  test('DB size guard remains below one GiB', () => {
+    expect(
+      evaluateClinicalDatabaseFootprint({
+        database_bytes: DATABASE_HARD_LIMIT_BYTES - 1,
+        mapping_table_bytes: 0,
+        mapping_index_bytes: 0,
+      }).withinHardLimit,
+    ).toBe(true)
+  })
+})

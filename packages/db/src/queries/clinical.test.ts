@@ -19,6 +19,7 @@ import {
   searchConditions,
   searchMedicationProducts,
   searchMedicationSubstances,
+  verifyOpenFdaCandidateIsolation,
 } from './clinical'
 
 describe('clinical legacy label helpers', () => {
@@ -94,6 +95,14 @@ describeWithDb.sequential('clinical catalog integration', () => {
     ])
     expect(verified.every((mapping) => mapping.mappingStatus === 'verified')).toBe(true)
     expect(verified.some((mapping) => mapping.id === candidate.id)).toBe(false)
+  })
+
+  it('openFDA review candidate artifacts production DB/query katmanından izoledir', async () => {
+    await expect(verifyOpenFdaCandidateIsolation(db)).resolves.toMatchObject({
+      candidateTables: [],
+      productionQueryExposesCandidates: false,
+      isolated: true,
+    })
   })
 })
 
