@@ -104,6 +104,9 @@ export function validateOpenFdaCandidateArtifacts(
 
   const evidenceIds = new Set<string>()
   const evidenceCountByCandidate = new Map<string, number>()
+  const latestCountByCandidate = new Map<string, number>()
+  const historicalCountByCandidate = new Map<string, number>()
+  const partitionsByCandidate = new Map<string, Set<string>>()
   for (const item of evidence) {
     if (evidenceIds.has(item.id)) errors.push(`duplicate_evidence_id:${item.id}`)
     evidenceIds.add(item.id)
@@ -116,14 +119,32 @@ export function validateOpenFdaCandidateArtifacts(
       errors.push(`missing_provenance:${item.id}`)
     }
     if (item.evidenceSnippet.length > 480) errors.push(`long_evidence:${item.id}`)
+    if (!['latest', 'historical'].includes(item.evidenceVersionStatus)) {
+      errors.push(`invalid_evidence_version_status:${item.id}`)
+    }
     evidenceCountByCandidate.set(
       item.candidateId,
       (evidenceCountByCandidate.get(item.candidateId) ?? 0) + 1,
     )
+    const versionCounts =
+      item.evidenceVersionStatus === 'latest' ? latestCountByCandidate : historicalCountByCandidate
+    versionCounts.set(item.candidateId, (versionCounts.get(item.candidateId) ?? 0) + 1)
+    const partitions = partitionsByCandidate.get(item.candidateId) ?? new Set<string>()
+    partitions.add(item.labelPartitionFile)
+    partitionsByCandidate.set(item.candidateId, partitions)
   }
   for (const candidate of candidates) {
     if ((evidenceCountByCandidate.get(candidate.id) ?? 0) !== candidate.evidenceCount) {
       errors.push(`evidence_count_mismatch:${candidate.id}`)
+    }
+    if ((latestCountByCandidate.get(candidate.id) ?? 0) !== candidate.latestEvidenceCount) {
+      errors.push(`latest_evidence_count_mismatch:${candidate.id}`)
+    }
+    if ((historicalCountByCandidate.get(candidate.id) ?? 0) !== candidate.historicalEvidenceCount) {
+      errors.push(`historical_evidence_count_mismatch:${candidate.id}`)
+    }
+    if ((partitionsByCandidate.get(candidate.id)?.size ?? 0) !== candidate.sourcePartitionCount) {
+      errors.push(`source_partition_count_mismatch:${candidate.id}`)
     }
   }
   if (summary.logicalCandidates !== candidates.length) errors.push('summary_candidate_count')

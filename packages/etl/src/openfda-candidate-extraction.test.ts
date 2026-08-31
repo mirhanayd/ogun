@@ -89,6 +89,7 @@ function addEvidence(
   overrides: {
     record?: OpenFdaLabelRecord
     recordHash?: string
+    partitionFile?: string
     trigger?: OpenFdaCandidateTrigger
     match?: OpenFdaSubstanceMatch
   } = {},
@@ -96,7 +97,7 @@ function addEvidence(
   accumulator.add({
     record: overrides.record ?? label({ rxcui: [seed.rxcui] }),
     recordHash: overrides.recordHash ?? 'record-hash-1',
-    partitionFile: 'drug-label-0001-of-0014.json.zip',
+    partitionFile: overrides.partitionFile ?? 'drug-label-0001-of-0014.json.zip',
     retrievedAt: '2026-08-31T00:00:00.000Z',
     match: overrides.match ?? match(),
     section: section(overrides.trigger?.evidenceSnippet ?? 'Avoid grapefruit juice.'),
@@ -381,6 +382,37 @@ describe('logical candidate dedupe and evidence binding', () => {
     expect(result.candidates).toHaveLength(1)
     expect(result.candidates[0]?.evidenceCount).toBe(2)
     expect(result.evidence).toHaveLength(2)
+  })
+
+  test('same logical candidate in two partitions has one candidate and two evidence records', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, { partitionFile: 'drug-label-0001-of-0014.json.zip' })
+    addEvidence(accumulator, { partitionFile: 'drug-label-0002-of-0014.json.zip' })
+    expect(accumulator.result()).toMatchObject({
+      candidates: [{ evidenceCount: 2, sourcePartitionCount: 2 }],
+      evidence: [{ candidateId: expect.any(String) }, { candidateId: expect.any(String) }],
+    })
+  })
+
+  test('SPL versions retain latest and historical evidence provenance', () => {
+    const accumulator = new OpenFdaCandidateAccumulator()
+    addEvidence(accumulator, {
+      record: { ...label({ rxcui: [seed.rxcui] }), effective_time: '20250101', version: '1' },
+      recordHash: 'old-record',
+    })
+    addEvidence(accumulator, {
+      record: { ...label({ rxcui: [seed.rxcui] }), effective_time: '20260101', version: '2' },
+      recordHash: 'new-record',
+    })
+    const result = accumulator.result()
+    expect(result.candidates[0]).toMatchObject({
+      latestEvidenceCount: 1,
+      historicalEvidenceCount: 1,
+    })
+    expect(result.evidence.map((item) => item.evidenceVersionStatus).sort()).toEqual([
+      'historical',
+      'latest',
+    ])
   })
 
   test('ambiguous linkage is always low confidence', () => {

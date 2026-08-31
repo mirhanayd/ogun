@@ -122,6 +122,9 @@ export class OpenFdaCandidateAccumulator {
         notForProduction: true,
         clinicalRecommendation: null,
         evidenceCount: 0,
+        latestEvidenceCount: 0,
+        historicalEvidenceCount: 0,
+        sourcePartitionCount: 0,
       })
     } else {
       if (CONFIDENCE_RANK[confidence] > CONFIDENCE_RANK[current.candidateConfidence]) {
@@ -138,6 +141,7 @@ export class OpenFdaCandidateAccumulator {
     const evidenceIdentity = [
       candidateId,
       splSetId,
+      partitionFile,
       recordHash,
       section.name,
       createHash('sha256').update(trigger.evidenceSnippet).digest('hex'),
@@ -150,6 +154,8 @@ export class OpenFdaCandidateAccumulator {
         sourceSystem: 'openfda',
         splSetId,
         effectiveTime: firstString(record.effective_time) || null,
+        labelVersion: firstString(record.version) || null,
+        evidenceVersionStatus: 'latest',
         labelPartitionFile: partitionFile,
         productIdentifiers: {
           applicationNumbers: stringValues(record.openfda?.application_number),
@@ -176,9 +182,35 @@ export class OpenFdaCandidateAccumulator {
   }
 
   result() {
+    const evidenceValues = [...this.evidenceById.values()]
+    const evidenceBySet = new Map<string, OpenFdaCandidateEvidence[]>()
+    for (const item of evidenceValues) {
+      const values = evidenceBySet.get(item.splSetId) ?? []
+      values.push(item)
+      evidenceBySet.set(item.splSetId, values)
+    }
+    for (const values of evidenceBySet.values()) {
+      const latestKey = values
+        .map((item) => `${item.effectiveTime ?? ''}\0${item.labelVersion ?? ''}`)
+        .sort((left, right) => right.localeCompare(left, 'en', { numeric: true }))[0]!
+      for (const item of values) {
+        const key = `${item.effectiveTime ?? ''}\0${item.labelVersion ?? ''}`
+        item.evidenceVersionStatus = key === latestKey ? 'latest' : 'historical'
+      }
+    }
+    for (const candidate of this.candidateByKey.values()) {
+      const values = evidenceValues.filter((item) => item.candidateId === candidate.id)
+      candidate.latestEvidenceCount = values.filter(
+        (item) => item.evidenceVersionStatus === 'latest',
+      ).length
+      candidate.historicalEvidenceCount = values.filter(
+        (item) => item.evidenceVersionStatus === 'historical',
+      ).length
+      candidate.sourcePartitionCount = new Set(values.map((item) => item.labelPartitionFile)).size
+    }
     return {
       candidates: [...this.candidateByKey.values()].sort((a, b) => a.id.localeCompare(b.id)),
-      evidence: [...this.evidenceById.values()].sort((a, b) => a.id.localeCompare(b.id)),
+      evidence: evidenceValues.sort((a, b) => a.id.localeCompare(b.id)),
     }
   }
 }

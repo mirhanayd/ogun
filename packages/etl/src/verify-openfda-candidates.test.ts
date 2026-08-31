@@ -22,6 +22,9 @@ const candidate: OpenFdaInteractionCandidate = {
   notForProduction: true,
   clinicalRecommendation: null,
   evidenceCount: 1,
+  latestEvidenceCount: 1,
+  historicalEvidenceCount: 0,
+  sourcePartitionCount: 1,
 }
 
 const evidence: OpenFdaCandidateEvidence = {
@@ -30,6 +33,8 @@ const evidence: OpenFdaCandidateEvidence = {
   sourceSystem: 'openfda',
   splSetId: 'set-1',
   effectiveTime: '20260831',
+  labelVersion: '1',
+  evidenceVersionStatus: 'latest',
   labelPartitionFile: 'drug-label-0014-of-0014.json.zip',
   productIdentifiers: { applicationNumbers: [], productNdcs: [], packageNdcs: [], brandNames: [] },
   matchedSection: 'drug_interactions',

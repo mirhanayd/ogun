@@ -94,6 +94,9 @@ export type OpenFdaInteractionCandidate = {
   notForProduction: true
   clinicalRecommendation: null
   evidenceCount: number
+  latestEvidenceCount: number
+  historicalEvidenceCount: number
+  sourcePartitionCount: number
 }
 
 export type OpenFdaCandidateEvidence = {
@@ -102,6 +105,8 @@ export type OpenFdaCandidateEvidence = {
   sourceSystem: 'openfda'
   splSetId: string
   effectiveTime: string | null
+  labelVersion: string | null
+  evidenceVersionStatus: 'latest' | 'historical'
   labelPartitionFile: string
   productIdentifiers: {
     applicationNumbers: string[]
