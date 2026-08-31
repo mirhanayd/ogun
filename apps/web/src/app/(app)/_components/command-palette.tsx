@@ -380,6 +380,7 @@ export function CommandPaletteView({ role, onNavigate, searchClients }: { role: 
           değil, doğrudan komut paletini açan gerçek bir tetikleyici. */}
       <button
         type="button"
+        data-command-trigger
         onClick={() => setOpen(true)}
         className="flex h-9 w-full max-w-md items-center gap-2.5 rounded-xl border border-input/80 bg-muted/45 px-3 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-all hover:border-primary/25 hover:bg-muted/75 dark:bg-input/25"
       >
