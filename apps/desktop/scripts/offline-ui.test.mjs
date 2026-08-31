@@ -15,7 +15,7 @@ test('Scenario A — initial online login seeds SQLite before PIN and dashboard'
   const app = await read('apps/web/src/desktop/desktop-app.tsx')
   assert.ok(app.indexOf("invoke('initialize_local_scope'") < app.indexOf('replaceLocalWorkspace('))
   assert.ok(app.indexOf('replaceLocalWorkspace(') < app.indexOf('onAuthenticated(identity'))
-  assert.match(app, /<PinSetup identity=\{identity\}/)
+  assert.match(app, /phase === 'pin_setup'[\s\S]*<PinSetup identity=\{authState\.identity\}/)
   assert.match(app, /<PanelScreen feed=\{localPanelFeed\(localRows, identity\.role\)\}/)
 })
 
@@ -26,7 +26,11 @@ test('Scenario B — cold offline start unlocks the packaged shared UI and local
     read('apps/web/src/desktop/native-workspace-repository.ts'),
   ])
   assert.match(entry, /import \{ DesktopApp \} from '@\/desktop\/desktop-app'/)
-  assert.match(app, /<DesktopSavedAccounts onUnlocked=/)
+  assert.match(app, /<DesktopSavedAccounts[\s\S]*?onUnlocked=/)
+  assert.ok(
+    app.indexOf("invoke<DesktopOfflineProfile[]>('list_offline_profiles')") <
+      app.indexOf('await loadNativeSessionToken()'),
+  )
   assert.match(app, /LocalClientsAdapter/)
   assert.match(app, /<PlansScreen/)
   assert.match(app, /FoodCatalogScreen/)
