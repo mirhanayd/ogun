@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '../client'
 import { normalizeSearchText } from '../lib/normalize'
 import {
@@ -410,9 +410,8 @@ export async function searchMedicationSubstances(db: Database, query: string, li
 }
 
 /**
- * Returns only human-verified RxNorm mappings. Candidate rows are deliberately
- * excluded so an automated match can never become clinically effective by
- * merely being imported.
+ * Returns only verified RxNorm mappings. Candidate/review rows are deliberately
+ * excluded; verification provenance distinguishes deterministic and human paths.
  */
 export async function getVerifiedRxNormMappingsForSubstances(
   db: Database,
@@ -428,6 +427,57 @@ export async function getVerifiedRxNormMappingsForSubstances(
         eq(medicationSubstanceMappings.system, 'RXNORM'),
         eq(medicationSubstanceMappings.mappingStatus, 'verified'),
         inArray(medicationSubstanceMappings.medicationSubstanceId, medicationSubstanceIds),
+      ),
+    )
+    .orderBy(
+      asc(medicationSubstanceMappings.medicationSubstanceId),
+      asc(medicationSubstanceMappings.externalId),
+    )
+}
+
+/** Internal terminology-review query. Never use this as a clinical interaction source. */
+export async function getRxNormReviewCandidates(
+  db: Database,
+  medicationSubstanceIds: string[] = [],
+) {
+  const filters: SQL[] = [
+    eq(medicationSubstanceMappings.system, 'RXNORM'),
+    ne(medicationSubstanceMappings.mappingStatus, 'verified'),
+  ]
+  if (medicationSubstanceIds.length > 0) {
+    filters.push(
+      inArray(medicationSubstanceMappings.medicationSubstanceId, medicationSubstanceIds),
+    )
+  }
+  return db
+    .select()
+    .from(medicationSubstanceMappings)
+    .where(and(...filters))
+    .orderBy(
+      asc(medicationSubstanceMappings.medicationSubstanceId),
+      asc(medicationSubstanceMappings.externalId),
+    )
+}
+
+export async function getVerifiedRxNormSubstancesForExport(db: Database) {
+  return db
+    .select({
+      medicationSubstanceId: medicationSubstanceMappings.medicationSubstanceId,
+      canonicalName: medicationSubstances.nameTr,
+      rxcui: medicationSubstanceMappings.externalId,
+      tty: medicationSubstanceMappings.externalTermType,
+      sourceVersion: medicationSubstanceMappings.sourceVersion,
+      mappingStatus: medicationSubstanceMappings.mappingStatus,
+    })
+    .from(medicationSubstanceMappings)
+    .innerJoin(
+      medicationSubstances,
+      eq(medicationSubstances.id, medicationSubstanceMappings.medicationSubstanceId),
+    )
+    .where(
+      and(
+        eq(medicationSubstanceMappings.system, 'RXNORM'),
+        eq(medicationSubstanceMappings.mappingStatus, 'verified'),
       ),
     )
     .orderBy(
