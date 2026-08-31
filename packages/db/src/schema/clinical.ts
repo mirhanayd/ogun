@@ -282,6 +282,11 @@ export const medicationSubstanceMappings = pgTable(
     sourceVersion: text('source_version').notNull(),
     reviewedBy: text('reviewed_by'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    // Deterministik doğrulama insan incelemesi gibi sunulmaz. reviewedBy karar
+    // aktörünü (insan veya sistem), bu alanlar ise doğrulamanın provenance'ını tutar.
+    verificationMethod: text('verification_method'),
+    verificationReason: text('verification_reason'),
+    verificationVersion: text('verification_version'),
     ...timestamps(),
   },
   (table) => [
@@ -308,6 +313,20 @@ export const medicationSubstanceMappings = pgTable(
     check(
       'medication_substance_mappings_review_check',
       sql`${table.mappingStatus} not in ('reviewed', 'verified') or (${table.reviewedBy} is not null and ${table.reviewedAt} is not null)`,
+    ),
+    check(
+      'medication_substance_mappings_verification_check',
+      sql`(
+        ${table.verificationMethod} is null
+        or ${table.verificationMethod} in ('deterministic_exact_v1', 'human_review', 'manual_override')
+      ) and (
+        ${table.mappingStatus} <> 'verified'
+        or (
+          ${table.verificationMethod} is not null
+          and ${table.verificationReason} is not null
+          and ${table.verificationVersion} is not null
+        )
+      )`,
     ),
   ],
 )
