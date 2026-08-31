@@ -255,7 +255,7 @@ export function PlanEditor(props: PlanEditorProps) {
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex flex-col gap-4 pb-24 lg:pb-0">
+      <div className="flex flex-col gap-4 pb-24 lg:pb-0" data-plan-editor>
         <EditorTopBar
           clientId={clientId}
           planName={currentPlanName}

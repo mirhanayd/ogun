@@ -144,6 +144,8 @@ export function DesktopTitlebarView({
       data-desktop-titlebar
     >
       <div className="flex w-60 shrink-0 items-center gap-2.5 px-4">
+        {/* Plain img is intentional: this shared view is also bundled by Vite/Tauri without Next Image. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/ogun-uygulama-ikonu.svg"
           alt=""
