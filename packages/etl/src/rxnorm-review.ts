@@ -4,6 +4,11 @@ import readline from 'node:readline'
 import { createGunzip } from 'node:zlib'
 import Papa from 'papaparse'
 import type { PreparedMapping, SubstanceIdentity } from './rxnorm-mapping'
+import type {
+  RxNormVerificationReport,
+  VerificationClassification,
+  VerificationTier,
+} from './rxnorm-verification-types'
 
 type CandidateAlternative = {
   source_phrase: string
@@ -158,5 +163,100 @@ export function writeReviewExports(
     renameSync(temporary, destination)
     counts[queue] = rows.length
   }
+  return counts
+}
+
+const VERIFICATION_QUEUE_FILES: Record<Exclude<VerificationTier, 'VERIFIED_EXACT'>, string> = {
+  REVIEW_HIGH: 'verification-review-high.csv',
+  REVIEW_ATC: 'verification-review-atc.csv',
+  REVIEW_MANUAL: 'verification-review-manual.csv',
+  AMBIGUOUS: 'verification-ambiguous.csv',
+  UNMAPPED: 'verification-unmapped.csv',
+}
+
+function writeCsvAtomically(destination: string, rows: Array<Record<string, unknown>>) {
+  const temporary = `${destination}.tmp`
+  writeFileSync(temporary, `${Papa.unparse(rows, { newline: '\n' })}\n`, 'utf8')
+  renameSync(temporary, destination)
+}
+
+function compactClassification(item: VerificationClassification) {
+  return {
+    medication_substance_id: item.medicationSubstanceId ?? '',
+    canonical_name: item.canonicalName,
+    raw_source_phrase: item.sourcePhrase,
+    rxnorm_term: item.rxnormTerm,
+    rxcui: item.rxcui,
+    tty: item.tty,
+    match_method: item.matchMethod,
+    verification_tier: item.tier,
+    reason: item.reason,
+  }
+}
+
+export function summarizeVerificationReport(report: RxNormVerificationReport) {
+  const tierCounts = Object.fromEntries(
+    (
+      ['VERIFIED_EXACT', 'REVIEW_HIGH', 'REVIEW_ATC', 'REVIEW_MANUAL', 'AMBIGUOUS', 'UNMAPPED'] as const
+    ).map((tier) => [tier, report.classifications.filter((item) => item.tier === tier).length]),
+  ) as Record<VerificationTier, number>
+  const reasonCounts = Object.fromEntries(
+    [...new Set(report.classifications.map((item) => item.reason))]
+      .sort()
+      .map((reason) => [
+        reason,
+        report.classifications.filter((item) => item.reason === reason).length,
+      ]),
+  )
+  return {
+    canonicalSubstances: report.classifications.length,
+    tiers: tierCounts,
+    reasons: reasonCounts,
+    unresolvedRawPhrases: report.unresolvedPhrases.length,
+    sharedRxCuiConflicts: report.sharedRxCuiGroups.size,
+    multipleRxCuiConflicts: report.multipleRxCuiSubstances.size,
+  }
+}
+
+export function writeRxNormVerificationReviewExports(
+  report: RxNormVerificationReport,
+  substances: SubstanceIdentity[],
+  outputDir: string,
+) {
+  mkdirSync(outputDir, { recursive: true })
+  const counts: Partial<Record<VerificationTier | 'UNRESOLVED_PHRASES', number>> = {}
+  for (const [tier, fileName] of Object.entries(VERIFICATION_QUEUE_FILES) as Array<
+    [Exclude<VerificationTier, 'VERIFIED_EXACT'>, string]
+  >) {
+    const rows = report.classifications.filter((item) => item.tier === tier)
+    writeCsvAtomically(path.join(outputDir, fileName), rows.map(compactClassification))
+    counts[tier] = rows.length
+  }
+
+  writeCsvAtomically(
+    path.join(outputDir, 'verification-unresolved-phrases.csv'),
+    report.unresolvedPhrases.map(compactClassification),
+  )
+  counts.UNRESOLVED_PHRASES = report.unresolvedPhrases.length
+
+  const names = new Map(substances.map((substance) => [substance.id, substance.nameTr]))
+  writeCsvAtomically(
+    path.join(outputDir, 'verification-conflicts-shared-rxcui.csv'),
+    [...report.sharedRxCuiGroups].map(([rxcui, substanceIds]) => ({
+      rxcui,
+      medication_substance_ids: substanceIds.join('|'),
+      canonical_names: substanceIds.map((id) => names.get(id) ?? id).join('|'),
+      reason: 'shared_rxcui_review',
+    })),
+  )
+  writeCsvAtomically(
+    path.join(outputDir, 'verification-conflicts-multiple-rxcui.csv'),
+    [...report.multipleRxCuiSubstances].map(([substanceId, rxcuis]) => ({
+      medication_substance_id: substanceId,
+      canonical_name: names.get(substanceId) ?? substanceId,
+      rxcuis: rxcuis.join('|'),
+      reason: 'multiple_rxcui_review',
+    })),
+  )
   return counts
 }
