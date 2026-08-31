@@ -7,6 +7,7 @@ import {
   readFileSync,
   renameSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import path from 'node:path'
@@ -46,19 +47,34 @@ type RemoteManifest = {
   }
 }
 
-type LocalFileRecord = OpenFdaPartition & {
-  status: 'pending' | 'verified' | 'skipped'
-  bytes?: number
-  sha256?: string
+export type PinnedOpenFdaManifest = {
+  schemaVersion: 1
+  sourceManifestUrl: typeof OPENFDA_DOWNLOAD_MANIFEST_URL
+  sourceLastUpdated: string | null
+  labelExportDate: string | null
+  totalRecords: number
+  partitions: OpenFdaPartition[]
+  fetchedAt: string
+  manifestSha256: string
 }
 
-type LocalManifest = {
-  schemaVersion: 1
+export type LocalFileRecord = OpenFdaPartition & {
+  status: 'pending' | 'verified' | 'reused'
+  bytes?: number
+  sha256?: string
+  completedAt?: string
+  pinnedExportDate?: string | null
+}
+
+export type LocalOpenFdaManifest = {
+  schemaVersion: 2
   sourceManifestUrl: string
   sourceLastUpdated: string | null
   labelExportDate: string | null
   totalRecords: number
   fetchedAt: string
+  snapshotFile: string
+  manifestSha256: string
   rawStorage: 'filesystem-only'
   databaseImported: false
   files: LocalFileRecord[]
@@ -119,6 +135,71 @@ export async function sha256File(filePath: string) {
   return hash.digest('hex')
 }
 
+function snapshotPayload(input: {
+  sourceLastUpdated: string | null
+  exportDate: string | null
+  totalRecords: number
+  partitions: OpenFdaPartition[]
+}) {
+  return {
+    schemaVersion: 1 as const,
+    sourceManifestUrl: OPENFDA_DOWNLOAD_MANIFEST_URL as typeof OPENFDA_DOWNLOAD_MANIFEST_URL,
+    sourceLastUpdated: input.sourceLastUpdated,
+    labelExportDate: input.exportDate,
+    totalRecords: input.totalRecords,
+    partitions: input.partitions,
+  }
+}
+
+export function createPinnedOpenFdaManifest(
+  parsed: ReturnType<typeof parseDrugLabelManifest>,
+  fetchedAt = new Date().toISOString(),
+): PinnedOpenFdaManifest {
+  const payload = snapshotPayload(parsed)
+  const manifestSha256 = createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+  return { ...payload, fetchedAt, manifestSha256 }
+}
+
+export function verifyPinnedOpenFdaManifest(snapshot: PinnedOpenFdaManifest) {
+  const expected = createHash('sha256')
+    .update(
+      JSON.stringify(
+        snapshotPayload({
+          sourceLastUpdated: snapshot.sourceLastUpdated,
+          exportDate: snapshot.labelExportDate,
+          totalRecords: snapshot.totalRecords,
+          partitions: snapshot.partitions,
+        }),
+      ),
+    )
+    .digest('hex')
+  if (snapshot.manifestSha256 !== expected) {
+    throw new Error('Pinned openFDA manifest SHA-256 doğrulaması başarısız')
+  }
+  return expected
+}
+
+export function pinOpenFdaManifest(outputDir: string, snapshot: PinnedOpenFdaManifest) {
+  verifyPinnedOpenFdaManifest(snapshot)
+  const manifestDir = path.join(outputDir, 'manifest')
+  mkdirSync(manifestDir, { recursive: true })
+  const exportName = (snapshot.labelExportDate ?? 'unknown').replace(/[^0-9A-Za-z.-]/g, '_')
+  const fileName = `openfda-drug-label-manifest-${exportName}-${snapshot.manifestSha256.slice(0, 12)}.json`
+  const destination = path.join(manifestDir, fileName)
+  if (existsSync(destination)) {
+    const existing = JSON.parse(readFileSync(destination, 'utf8')) as PinnedOpenFdaManifest
+    verifyPinnedOpenFdaManifest(existing)
+    if (existing.manifestSha256 !== snapshot.manifestSha256) {
+      throw new Error('Immutable openFDA manifest snapshot çakışması')
+    }
+    return { snapshot: existing, destination, fileName, reused: true }
+  }
+  const temporary = `${destination}.tmp`
+  writeFileSync(temporary, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8')
+  renameSync(temporary, destination)
+  return { snapshot, destination, fileName, reused: false }
+}
+
 function wait(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
@@ -177,7 +258,7 @@ export async function downloadPartition(
   throw new Error('openFDA indirme retry döngüsü beklenmedik biçimde sonlandı')
 }
 
-function writeLocalManifest(outputDir: string, manifest: LocalManifest) {
+function writeLocalManifest(outputDir: string, manifest: LocalOpenFdaManifest) {
   const destination = path.join(outputDir, 'download-manifest.json')
   const temporary = `${destination}.tmp`
   writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
@@ -187,7 +268,23 @@ function writeLocalManifest(outputDir: string, manifest: LocalManifest) {
 function readPreviousManifest(outputDir: string) {
   const manifestPath = path.join(outputDir, 'download-manifest.json')
   if (!existsSync(manifestPath)) return null
-  return JSON.parse(readFileSync(manifestPath, 'utf8')) as LocalManifest
+  return JSON.parse(readFileSync(manifestPath, 'utf8')) as Partial<LocalOpenFdaManifest>
+}
+
+async function replaceStalePartition(partition: OpenFdaPartition, outputDir: string) {
+  const destination = path.join(outputDir, partition.fileName)
+  if (!existsSync(destination)) return downloadPartition(partition, outputDir)
+  const stale = `${destination}.stale`
+  if (existsSync(stale)) throw new Error(`${partition.fileName}: stale backup zaten var`)
+  renameSync(destination, stale)
+  try {
+    const downloaded = await downloadPartition(partition, outputDir)
+    unlinkSync(stale)
+    return downloaded
+  } catch (error) {
+    if (!existsSync(destination) && existsSync(stale)) renameSync(stale, destination)
+    throw error
+  }
 }
 
 function positiveIntegerArgument(prefix: string) {
@@ -217,6 +314,7 @@ export async function runOpenFdaDownloader() {
   const response = await fetch(OPENFDA_DOWNLOAD_MANIFEST_URL)
   if (!response.ok) throw new Error(`openFDA manifest HTTP ${response.status}`)
   const parsed = parseDrugLabelManifest(await response.json())
+  const pinned = pinOpenFdaManifest(outputDir, createPinnedOpenFdaManifest(parsed))
   const selected = part
     ? parsed.partitions.slice(part - 1, part)
     : maxFiles
@@ -225,27 +323,53 @@ export async function runOpenFdaDownloader() {
   if (part && selected.length === 0) throw new Error(`openFDA drug.label part ${part} yok`)
 
   const previous = readPreviousManifest(outputDir)
-  const previousByUrl = new Map(previous?.files.map((file) => [file.url, file]) ?? [])
-  const local: LocalManifest = {
-    schemaVersion: 1,
+  const sameSnapshot = previous?.manifestSha256 === pinned.snapshot.manifestSha256
+  const previousByUrl = new Map(
+    (sameSnapshot ? previous?.files : [])?.map((file) => [file.url, file]) ?? [],
+  )
+  const local: LocalOpenFdaManifest = {
+    schemaVersion: 2,
     sourceManifestUrl: OPENFDA_DOWNLOAD_MANIFEST_URL,
-    sourceLastUpdated: parsed.sourceLastUpdated,
-    labelExportDate: parsed.exportDate,
-    totalRecords: parsed.totalRecords,
-    fetchedAt: new Date().toISOString(),
+    sourceLastUpdated: pinned.snapshot.sourceLastUpdated,
+    labelExportDate: pinned.snapshot.labelExportDate,
+    totalRecords: pinned.snapshot.totalRecords,
+    fetchedAt: pinned.snapshot.fetchedAt,
+    snapshotFile: path.posix.join('manifest', pinned.fileName),
+    manifestSha256: pinned.snapshot.manifestSha256,
     rawStorage: 'filesystem-only',
     databaseImported: false,
-    files: parsed.partitions.map((partition) => ({ ...partition, status: 'pending' })),
+    files: parsed.partitions.map((partition) => {
+      const old = previousByUrl.get(partition.url)
+      return old ? { ...partition, ...old } : { ...partition, status: 'pending' }
+    }),
   }
 
   for (const partition of selected) {
     const file = local.files.find((item) => item.url === partition.url)!
     const destination = path.join(outputDir, partition.fileName)
     const old = previousByUrl.get(partition.url)
+    if (existsSync(destination) && !sameSnapshot) {
+      if (!shouldDownload) continue
+      const downloaded = await replaceStalePartition(partition, outputDir)
+      Object.assign(file, {
+        status: 'verified',
+        bytes: downloaded.bytes,
+        sha256: await sha256File(downloaded.destination),
+        completedAt: new Date().toISOString(),
+        pinnedExportDate: pinned.snapshot.labelExportDate,
+      })
+      writeLocalManifest(outputDir, local)
+      continue
+    }
     if (existsSync(destination) && old?.sha256) {
       const hash = await sha256File(destination)
       if (hash === old.sha256) {
-        Object.assign(file, { status: 'skipped', bytes: statSync(destination).size, sha256: hash })
+        Object.assign(file, {
+          status: 'reused',
+          bytes: statSync(destination).size,
+          sha256: hash,
+          pinnedExportDate: pinned.snapshot.labelExportDate,
+        })
         writeLocalManifest(outputDir, local)
         continue
       }
@@ -263,6 +387,8 @@ export async function runOpenFdaDownloader() {
       status: 'verified',
       bytes: downloaded.bytes,
       sha256: await sha256File(downloaded.destination),
+      completedAt: new Date().toISOString(),
+      pinnedExportDate: pinned.snapshot.labelExportDate,
     })
     writeLocalManifest(outputDir, local)
   }
@@ -275,7 +401,9 @@ export async function runOpenFdaDownloader() {
     partitions: parsed.partitions.length,
     selected: selected.length,
     downloaded: local.files.filter((file) => file.status === 'verified').length,
-    skipped: local.files.filter((file) => file.status === 'skipped').length,
+    reused: local.files.filter((file) => file.status === 'reused').length,
+    manifestSha256: pinned.snapshot.manifestSha256,
+    snapshotFile: pinned.destination,
     manifestOnly: !shouldDownload,
   }
 }

@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
+  createPinnedOpenFdaManifest,
   downloadPartition,
   parseDrugLabelManifest,
+  pinOpenFdaManifest,
+  verifyPinnedOpenFdaManifest,
   type OpenFdaPartition,
 } from './openfda-label-downloader'
 
@@ -48,6 +51,29 @@ describe('openFDA label downloader', () => {
     expect(() =>
       parseDrugLabelManifest(manifest('https://example.com/drug-label-0001-of-0001.json.zip')),
     ).toThrow('İzin verilmeyen')
+  })
+
+  test('official manifest section is pinned with a stable content hash', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'ogun-openfda-'))
+    temporaryDirectories.push(directory)
+    const parsed = parseDrugLabelManifest(manifest())
+    const first = pinOpenFdaManifest(
+      directory,
+      createPinnedOpenFdaManifest(parsed, '2026-09-01T00:00:00.000Z'),
+    )
+    const second = pinOpenFdaManifest(
+      directory,
+      createPinnedOpenFdaManifest(parsed, '2026-09-02T00:00:00.000Z'),
+    )
+    expect(first.reused).toBe(false)
+    expect(second.reused).toBe(true)
+    expect(second.snapshot.fetchedAt).toBe('2026-09-01T00:00:00.000Z')
+    expect(verifyPinnedOpenFdaManifest(second.snapshot)).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  test('tampered pinned manifest hash is rejected', () => {
+    const snapshot = createPinnedOpenFdaManifest(parseDrugLabelManifest(manifest()))
+    expect(() => verifyPinnedOpenFdaManifest({ ...snapshot, totalRecords: 13 })).toThrow(/SHA-256/)
   })
 
   test('partial download resumes with an HTTP Range request', async () => {
