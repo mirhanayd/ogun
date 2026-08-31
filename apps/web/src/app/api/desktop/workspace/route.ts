@@ -554,6 +554,7 @@ export async function GET() {
     return NextResponse.json({
       version: 2,
       capturedAt: new Date().toISOString(),
+      scope: { userId: ctx.user.id, clinicId: ctx.scope.clinicId, role: ctx.role },
       clinic: {
         id: clinic.id,
         name: clinic.name,

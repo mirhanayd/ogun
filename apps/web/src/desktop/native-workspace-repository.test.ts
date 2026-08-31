@@ -7,6 +7,7 @@ describe('desktop workspace projection', () => {
     const domains = workspaceToLocalDomains({
       version: 2,
       capturedAt,
+      scope: { userId: 'user-1', clinicId: 'clinic-1', role: 'owner' },
       clinic: { id: 'clinic-1', name: 'Öğün Klinik' },
       clients: [{ id: 'client-1', firstName: 'Ada', updatedAt: '2026-08-30T08:00:00.000Z' }],
       anamneses: [{ id: 'anamnesis-1', clientId: 'client-1', notes: 'Öykü' }],
@@ -51,6 +52,7 @@ describe('desktop workspace projection', () => {
       workspaceToLocalDomains({
         version: 2,
         capturedAt: '2026-08-30T09:00:00.000Z',
+        scope: { userId: 'user-1', clinicId: 'clinic-1', role: 'owner' },
         clinic: { id: 'clinic-1', name: 'Öğün Klinik' },
         clients: [{ firstName: 'Kimliksiz' } as never],
       }),

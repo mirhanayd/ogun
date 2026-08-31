@@ -7,6 +7,7 @@ export type DesktopLocalScope = LocalScope & { capabilities: string[] }
 export interface DesktopWorkspacePayload {
   version: number
   capturedAt: string
+  scope: { userId: string; clinicId: string; role: LocalScope['role'] }
   clinic: DomainEntity & { name: string; logoUrl?: string | null; primaryColor?: string | null }
   clients?: DomainEntity[]
   anamneses?: DomainEntity[]

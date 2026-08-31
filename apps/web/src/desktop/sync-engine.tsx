@@ -57,7 +57,29 @@ async function responseError(response: Response): Promise<string> {
   return body?.error ?? `Senkronizasyon isteği başarısız (${response.status}).`
 }
 
+export function assertWorkspaceScope(scope: DesktopLocalScope, workspace: DesktopWorkspacePayload): void {
+  if (workspace.scope.userId !== scope.userId || workspace.scope.clinicId !== scope.clinicId || workspace.scope.role !== scope.role) {
+    throw new Error('Bulut oturumu açık yerel profil ile eşleşmiyor. Yeniden giriş yapın.')
+  }
+}
+
+async function fetchScopedWorkspace(scope: DesktopLocalScope): Promise<DesktopWorkspacePayload> {
+  const response = await fetch(cloudUrl('/api/desktop/workspace'), {
+    cache: 'no-store',
+    credentials: 'include',
+    headers: bearerHeaders(),
+  })
+  if (!response.ok) throw new Error(await responseError(response))
+  const workspace = (await response.json()) as DesktopWorkspacePayload
+  assertWorkspaceScope(scope, workspace)
+  return workspace
+}
+
 export async function synchronizeDesktopWorkspace(scope: DesktopLocalScope): Promise<void> {
+  // Validate the bearer/session identity before any local outbox mutation can
+  // reach the cloud. A cached token belonging to another saved profile must
+  // neither push into that account nor replace this profile's encrypted scope.
+  let workspace = await fetchScopedWorkspace(scope)
   const outbox = await loadLocalOutbox(scope)
   if (outbox.length > 0) {
     let response: Response
@@ -89,15 +111,9 @@ export async function synchronizeDesktopWorkspace(scope: DesktopLocalScope): Pro
       await failLocalOutboxMutation(scope, result.failedMutationId, message)
       throw new Error(message)
     }
+    workspace = await fetchScopedWorkspace(scope)
   }
-
-  const response = await fetch(cloudUrl('/api/desktop/workspace'), {
-    cache: 'no-store',
-    credentials: 'include',
-    headers: bearerHeaders(),
-  })
-  if (!response.ok) throw new Error(await responseError(response))
-  await replaceLocalWorkspace(scope, (await response.json()) as DesktopWorkspacePayload)
+  await replaceLocalWorkspace(scope, workspace)
   await synchronizeLocalFoodCatalog()
 }
 
