@@ -114,6 +114,20 @@ describe('openFDA candidate artifact verifier', () => {
     )
   })
 
+  test('unsafe attribution can never verify as high confidence', () => {
+    const unsafe = {
+      ...candidate,
+      ingredientAttribution: 'multi_ingredient_unattributed' as const,
+    }
+    const result = validateOpenFdaCandidateArtifacts(
+      [unsafe],
+      [{ ...evidence, ingredientAttribution: 'multi_ingredient_unattributed' }],
+      summary,
+      new Set(['sub-1']),
+    )
+    expect(result.errors).toContain('unsafe_high_confidence:ofci-1')
+  })
+
   test('duplicate logical candidate and orphan evidence fail', () => {
     const result = validateOpenFdaCandidateArtifacts(
       [candidate, { ...candidate, id: 'ofci-2' }],

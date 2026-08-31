@@ -101,4 +101,27 @@ describe('openFDA full corpus coverage', () => {
       validateOpenFdaCorpusCoverage(value.manifest, value.snapshot, value.inspections, true).errors,
     ).toContain('parsed_record_count_mismatch')
   })
+
+  test('duplicate partition filename is rejected', () => {
+    const value = fixture()
+    value.manifest.files[1] = {
+      ...value.manifest.files[1]!,
+      fileName: value.manifest.files[0]!.fileName,
+    }
+    expect(
+      validateOpenFdaCorpusCoverage(value.manifest, value.snapshot, value.inspections, true).errors,
+    ).toContain('duplicate_filenames')
+  })
+
+  test('full verification requires parsed record counts', () => {
+    const value = fixture()
+    value.inspections = value.inspections.map((item) => ({
+      ...item,
+      parseable: null,
+      parsedRecords: null,
+    }))
+    expect(
+      validateOpenFdaCorpusCoverage(value.manifest, value.snapshot, value.inspections, true).errors,
+    ).toContain('parsed_records_not_verified')
+  })
 })

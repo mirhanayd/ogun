@@ -277,6 +277,10 @@ describe('controlled deterministic interaction extraction', () => {
     ['calcium channel blocker', 'Monitor patients receiving calcium channel blockers.'],
     ['calcium lab value', 'Monitor serum calcium concentrations regularly.'],
     ['calcium solution', 'Premature neonates require calcium and phosphate solution.'],
+    [
+      'iron accidental ingestion poisoning',
+      'Risk of overdosage in children due to accidental ingestion of iron-containing products, a leading cause of fatal poisoning.',
+    ],
     ['sodium drug salt', 'Meaningful elevation occurred with diclofenac sodium tablets.'],
     [
       'sodium injection',
@@ -295,8 +299,67 @@ describe('controlled deterministic interaction extraction', () => {
       'No clinically significant changes in exposure of caffeine were observed.',
     ],
     ['negative grapefruit study', 'Grapefruit juice has no impact on exposure.'],
+    ['not significantly influenced', 'Absorption is not significantly influenced by food.'],
     ['alcohol-free mouthwash', 'Advise patients to use alcohol-free mouthwashes.'],
     ['flammable alcohol product', 'Alcohol-based products are flammable; avoid fire.'],
+    ['alcohol swab', 'Clean the intended injection site with an alcohol swab before injection.'],
+    [
+      'alcohol used for skin cleansing',
+      'If dermal exposure occurs, the hair and skin should be washed with alcohol immediately.',
+    ],
+    [
+      'ethanol excipient',
+      'The oral solution contains the excipients ethanol and propylene glycol, which may cause toxicity.',
+    ],
+    [
+      'ethanol preceding excipient marker',
+      `Total amounts of ethanol and propylene glycol from all medicines should be taken into account in order to avoid toxicity from ${'long formulation context '.repeat(5)}these excipients.`,
+    ],
+    [
+      'not expected to affect',
+      'Vitamin K is not expected to affect the anticoagulant activity of this medicine.',
+    ],
+    [
+      'acute alcohol intoxication contraindication',
+      'Do not administer the injection in acute alcohol intoxication with depression of vital signs.',
+    ],
+    [
+      'negative alcohol dissolution study',
+      'The addition of alcohol does not increase the dissolution rate of the oral suspension.',
+    ],
+    [
+      'non-dietary ethanol scavenger',
+      'Compounds that scavenge radicals, such as ethanol and formate, may decrease activity.',
+    ],
+    [
+      'dosage maximum near diet wording',
+      'Do not take more than 3 capsules daily; use with a reduced-calorie, low-fat diet.',
+    ],
+    ['food used for preparation', 'Do not use hot food when preparing the suspension.'],
+    [
+      'tube feeding as neonatal support',
+      'Neonatal complications may require hospitalization, respiratory support, and tube feeding.',
+    ],
+    [
+      'other combination agent food instruction',
+      'Administer this medicine in combination with cabozantinib 40 mg orally once daily without food.',
+    ],
+    [
+      'renal table contraindication near meal',
+      'Dose once daily with evening meal. The medicine should not be administered to patients receiving hemodialysis.',
+    ],
+    [
+      'avoid driving until meal',
+      'Advise patients to avoid driving or operating machinery until ingesting a meal.',
+    ],
+    [
+      'general dietary adherence',
+      'Inform patients about the importance of adherence to dietary instructions and periodic blood glucose monitoring.',
+    ],
+    [
+      'pregnancy alcohol exposure from formulation',
+      'Do not take the oral solution during pregnancy because there is no known safe level of alcohol exposure during pregnancy.',
+    ],
   ])('%s context does not create a food interaction candidate', (_name, text) => {
     expect(extractOpenFdaCandidateTriggers(section(text))).toEqual([])
   })
@@ -315,6 +378,19 @@ describe('controlled deterministic interaction extraction', () => {
         section('Advise patients to take each dose after meals.', 'dosage_and_administration'),
       ),
     ).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'take_with_food' })]))
+  })
+
+  test('separate study occasions do not become a timing instruction', () => {
+    const result = extractOpenFdaCandidateTriggers(
+      section(
+        'In a food-effect study, subjects received a dose on three separate occasions: fasting and with a high-fat meal.',
+        'pharmacokinetics',
+      ),
+    )
+    expect(result).toEqual([])
+    expect(result).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ action: 'separate_timing' })]),
+    )
   })
 
   test('sodium restriction and potassium supplement contexts remain eligible', () => {
@@ -594,6 +670,32 @@ describe('filesystem review artifacts and safety guards', () => {
       lowConfidence: expect.stringContaining('openfda_low_confidence_review.csv'),
     })
     expect(summary.extraction.semanticHash).toBe(artifacts.outputHash)
+
+    const secondDirectory = mkdtempSync(path.join(tmpdir(), 'ogun-openfda-review-second-'))
+    temporaryDirectories.push(secondDirectory)
+    const secondSummary = structuredClone(summary)
+    const secondArtifacts = writeOpenFdaReviewArtifacts(
+      result.candidates,
+      result.evidence,
+      secondSummary,
+      path.join(secondDirectory, 'extracted'),
+      path.join(secondDirectory, 'review'),
+    )
+    expect(secondArtifacts.outputHash).toBe(artifacts.outputHash)
+    expect(readFileSync(secondArtifacts.candidatePath)).toEqual(
+      readFileSync(artifacts.candidatePath),
+    )
+    expect(readFileSync(secondArtifacts.evidencePath)).toEqual(readFileSync(artifacts.evidencePath))
+    expect(secondSummary.openfda).toMatchObject({
+      manifestSha256: 'manifest-hash',
+      partitionCount: 14,
+      expectedTotalRecords: 1,
+      parsedTotalRecords: 1,
+    })
+    expect(secondSummary.rxnorm).toMatchObject({
+      verifiedSeedCount: 279,
+      verifiedSeedSha256: 'seed-hash',
+    })
   })
 
   test('candidate output path is gitignored', () => {

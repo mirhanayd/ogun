@@ -13,7 +13,12 @@ const NEGATIVE_CONTEXT = [
   /\bno clinically significant (?:changes?|effects?|impact)\b/i,
   /\b(?:has|have|had) no impact\b/i,
   /\b(?:does|do|did) not (?:affect|alter|modify)\b/i,
+  /\b(?:does|do|did) not (?:increase|decrease|change)\b/i,
+  /\bnot expected to (?:affect|alter|increase|decrease|change)\b/i,
+  /\bnot significantly (?:affected|influenced|altered|changed)\b/i,
+  /\bdid not result in (?:an? )?(?:alteration|change)\b/i,
   /\b(?:was|were|is|are) not (?:affected|altered|modified)\b/i,
+  /\bunaffected by\b/i,
   /\bcomparable to (?:that )?(?:observed|seen|measured)\b/i,
   /\bwithout regards? (?:to|for) (?:the )?timing of meals?\b/i,
   /\bask (?:a |your )?(?:doctor|physician)\b/i,
@@ -90,7 +95,47 @@ function actionFor(
     (/\b(?:benzyl|cetyl|isopropyl|polyvinyl|stearyl) alcohol\b/i.test(snippet) ||
       /\balcohol[- ]free\b|\balcohol[- ]based\b|\balcohol(?:[\s,-]+.{0,40})?\bcontaining products?\b|\bmouthwashes?\b/i.test(
         snippet,
+      ) ||
+      /\balcohol swabs?\b|\b(?:skin|hair|site)\b.{0,80}\b(?:washed|cleansed|cleaned|swabbed)\b.{0,80}\b(?:alcohol|ethanol)\b/i.test(
+        snippet,
+      ) ||
+      /\b(?:excipients?|solvents?|diluents?)\b.{0,100}\b(?:alcohol|ethanol)\b|\bcontains?\b.{0,80}\b(?:alcohol|ethanol|propylene glycol)\b/i.test(
+        snippet,
+      ) ||
+      /\b(?:alcohol|ethanol|propylene glycol)\b.{0,480}\b(?:excipients?|solvents?|diluents?)\b/i.test(
+        snippet,
+      ) ||
+      /\bacute alcohol intoxication\b|\balcohol(?:ic)? liver disease\b|\b(?:quench|scaveng)\w*\b.{0,120}\b(?:alcohol|ethanol)\b/i.test(
+        snippet,
+      ) ||
+      /\bno known safe level of alcohol exposure during pregnancy\b/i.test(snippet))
+  ) {
+    return null
+  }
+  if (
+    definition.target === 'food_general' &&
+    (/\bdo not use (?:hot|warm|cold) food\b/i.test(snippet) ||
+      /\bdo not (?:take|administer|use) more than\b.{0,180}\b(?:food|diet)\b/i.test(snippet) ||
+      /\breduced-calorie(?:,? low-fat)? diet\b/i.test(snippet))
+  ) {
+    return null
+  }
+  if (
+    (definition.target === 'food_general' || definition.target === 'meals_general') &&
+    (/\bavoid (?:driving|operating machinery)\b.{0,120}\b(?:food|meals?)\b/i.test(snippet) ||
+      /\b(?:food|meals?)\b.{0,180}\bshould not be administered\b/i.test(snippet) ||
+      /\bimportance of adherence to dietary instructions\b/i.test(snippet) ||
+      /\bin combination with\b.{0,120}\b\d+(?:\.\d+)?\s*mg\b.{0,80}\borally\b.{0,80}\b(?:with|without) food\b/i.test(
+        snippet,
       ))
+  ) {
+    return null
+  }
+  if (
+    definition.target === 'enteral_nutrition' &&
+    /\b(?:requiring|required|requires)\b.{0,160}\b(?:enteral|tube) feeding\b|\b(?:newborn|neonatal|hospitalization|respiratory support)\b.{0,180}\b(?:enteral|tube) feeding\b/i.test(
+      snippet,
+    )
   ) {
     return null
   }
@@ -108,6 +153,14 @@ function actionFor(
       snippet,
     ) &&
     !/\b(?:dietary|intake|supplements?|products?|foods?|milk|dairy|antacids?)\b.{0,80}\bcalcium\b|\bcalcium[- ]containing\b/i.test(
+      snippet,
+    )
+  ) {
+    return null
+  }
+  if (
+    definition.target === 'iron' &&
+    /\b(?:accidental ingestion|overdosage|overdose)\b.{0,160}\b(?:children|child|poisoning|fatal)\b|\b(?:children|child)\b.{0,160}\b(?:accidental ingestion|overdosage|overdose|poisoning)\b/i.test(
       snippet,
     )
   ) {
@@ -171,9 +224,10 @@ function actionFor(
     /\b(?:take|administer|give|dose|consume|place)\b.{0,100}\b(?:before|after)\s+(?:a\s+)?(?:meals?|food|feeding)\b/i.test(
       snippet,
     ) ||
-    /\bseparate\b.{0,100}\b(?:meals?|food|feeding|calcium|iron|magnesium|zinc|antacids?|minerals?)\b/i.test(
+    (/\bseparate\b.{0,100}\b(?:meals?|food|feeding|calcium|iron|magnesium|zinc|antacids?|minerals?)\b/i.test(
       snippet,
-    )
+    ) &&
+      !/\bseparate occasions?\b/i.test(snippet))
   ) {
     return {
       action: 'separate_timing',
