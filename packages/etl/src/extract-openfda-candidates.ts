@@ -1,8 +1,13 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { extractOpenFdaCandidateTriggers } from './openfda-candidate-extractor'
 import { OpenFdaCandidateAccumulator } from './openfda-candidate-dedupe'
+import {
+  assertCompleteOpenFdaCorpus,
+  inspectOpenFdaCorpus,
+  readPinnedOpenFdaCorpus,
+} from './openfda-corpus-verifier'
 import { DEFAULT_OPENFDA_LABEL_DIR, sha256File } from './openfda-label-downloader'
 import { extractRelevantOpenFdaSections, streamOpenFdaPartition } from './openfda-label-reader'
 import { type OpenFdaExtractionSummary, writeOpenFdaReviewArtifacts } from './openfda-review-export'
@@ -13,22 +18,6 @@ import {
   matchOpenFdaLabel,
 } from './openfda-verified-filter'
 import { DEFAULT_VERIFIED_RXNORM_EXPORT_PATH } from './rxnorm-verified-export'
-
-type LocalManifest = {
-  schemaVersion: number
-  sourceLastUpdated: string | null
-  labelExportDate: string | null
-  totalRecords: number
-  fetchedAt: string
-  rawStorage: string
-  databaseImported: boolean
-  files: Array<{
-    fileName: string
-    records: number
-    status: string
-    sha256?: string
-  }>
-}
 
 function argumentValue(prefix: string) {
   return process.argv
@@ -41,24 +30,10 @@ function initializeCounts<T extends string>(values: readonly T[]) {
   return Object.fromEntries(values.map((value) => [value, 0])) as Record<T, number>
 }
 
-function readManifest(labelDir: string) {
-  const manifestPath = path.join(labelDir, 'download-manifest.json')
-  if (!existsSync(manifestPath)) throw new Error('openFDA download manifest bulunamadı')
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as LocalManifest
-  if (
-    manifest.schemaVersion !== 1 ||
-    manifest.rawStorage !== 'filesystem-only' ||
-    manifest.databaseImported !== false ||
-    !Array.isArray(manifest.files)
-  ) {
-    throw new Error('openFDA local manifest güvenlik politikası geçersiz')
-  }
-  return manifest
-}
-
-function availablePartitionPath(labelDir: string, fileName: string) {
+function availablePartitionPath(labelDir: string, fileName: string, allowPartial: boolean) {
   const zipPath = path.join(labelDir, fileName)
   if (existsSync(zipPath)) return zipPath
+  if (!allowPartial) return null
   const jsonPath = zipPath.replace(/\.zip$/, '')
   return existsSync(jsonPath) ? jsonPath : null
 }
@@ -69,6 +44,7 @@ export async function extractOpenFdaCandidates(
     seedPath?: string
     extractedDir?: string
     reviewDir?: string
+    allowPartial?: boolean
   } = {},
 ) {
   const labelDir = path.resolve(options.labelDir ?? DEFAULT_OPENFDA_LABEL_DIR)
@@ -76,15 +52,22 @@ export async function extractOpenFdaCandidates(
   const openFdaRoot = path.resolve(labelDir, '..')
   const extractedDir = path.resolve(options.extractedDir ?? path.join(openFdaRoot, 'extracted'))
   const reviewDir = path.resolve(options.reviewDir ?? path.join(openFdaRoot, 'review'))
-  const manifest = readManifest(labelDir)
+  const allowPartial = options.allowPartial === true
+  const { manifest } = readPinnedOpenFdaCorpus(labelDir)
+  const preflight = await inspectOpenFdaCorpus({
+    labelDir,
+    parseRecords: false,
+    verifyHashes: true,
+  })
+  if (!allowPartial) assertCompleteOpenFdaCorpus(preflight)
   const seeds = loadVerifiedRxNormSeeds(seedPath)
   const seedIndex = buildVerifiedRxNormIndex(seeds)
   const available = manifest.files.flatMap((file) => {
-    const filePath = availablePartitionPath(labelDir, file.fileName)
+    const filePath = availablePartitionPath(labelDir, file.fileName, allowPartial)
     return filePath ? [{ ...file, filePath }] : []
   })
   const missingPartitions = manifest.files
-    .filter((file) => !availablePartitionPath(labelDir, file.fileName))
+    .filter((file) => !availablePartitionPath(labelDir, file.fileName, allowPartial))
     .map((file) => file.fileName)
   if (available.length === 0) {
     throw new Error(`openFDA raw label partition yok; eksik=${missingPartitions.length}`)
@@ -96,6 +79,7 @@ export async function extractOpenFdaCandidates(
   let matchedLabels = 0
   let relevantSections = 0
   let candidateObservations = 0
+  const parsedRecordsByPartition = new Map<string, number>()
 
   for (const partition of available) {
     if (partition.filePath.endsWith('.zip') && partition.sha256) {
@@ -106,6 +90,10 @@ export async function extractOpenFdaCandidates(
     }
     for await (const { record, recordHash } of streamOpenFdaPartition(partition.filePath)) {
       processedLabelRecords += 1
+      parsedRecordsByPartition.set(
+        partition.fileName,
+        (parsedRecordsByPartition.get(partition.fileName) ?? 0) + 1,
+      )
       const matches = matchOpenFdaLabel(record, seedIndex)
       if (matches.length === 0) continue
       matchedLabels += 1
@@ -129,6 +117,17 @@ export async function extractOpenFdaCandidates(
           }
         }
       }
+    }
+  }
+
+  if (!allowPartial) {
+    const mismatched = manifest.files.filter(
+      (file) => parsedRecordsByPartition.get(file.fileName) !== file.records,
+    )
+    if (mismatched.length > 0 || processedLabelRecords !== manifest.totalRecords) {
+      throw new Error(
+        `openFDA full corpus parsed record mismatch: parsed=${processedLabelRecords} expected=${manifest.totalRecords} partitions=${mismatched.map((file) => file.fileName).join(',')}`,
+      )
     }
   }
 
@@ -199,6 +198,7 @@ async function main() {
     seedPath: argumentValue('--seed='),
     extractedDir: argumentValue('--output-dir='),
     reviewDir: argumentValue('--review-dir='),
+    allowPartial: process.argv.includes('--partial'),
   })
   console.log(JSON.stringify(result, null, 2))
 }
