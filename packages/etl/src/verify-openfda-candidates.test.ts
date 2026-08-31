@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
 import type { OpenFdaCandidateEvidence, OpenFdaInteractionCandidate } from './openfda-types'
 import type { OpenFdaExtractionSummary } from './openfda-review-export'
@@ -55,10 +56,32 @@ const evidence: OpenFdaCandidateEvidence = {
 const summary = {
   logicalCandidates: 1,
   evidenceRecords: 1,
-  availablePartitions: 1,
-  missingPartitions: ['missing.zip'],
-  partialCoverage: true,
-} as OpenFdaExtractionSummary
+  availablePartitions: 14,
+  manifestPartitions: 14,
+  missingPartitions: [],
+  partialCoverage: false,
+  attributionCounts: {
+    direct_single_ingredient: 1,
+    direct_substance_section: 0,
+    multi_ingredient_attributable: 0,
+    multi_ingredient_unattributed: 0,
+    secondary_match_uncertain: 0,
+  },
+  openfda: {
+    partitionCount: 14,
+    expectedTotalRecords: 1,
+    parsedTotalRecords: 1,
+    manifestSha256: 'manifest-hash',
+  },
+  rxnorm: { verifiedSeedCount: 1, verifiedSeedSha256: 'seed-hash' },
+  extraction: {
+    semanticHash: createHash('sha256')
+      .update(JSON.stringify([candidate]))
+      .update('\0')
+      .update(JSON.stringify([evidence]))
+      .digest('hex'),
+  },
+} as unknown as OpenFdaExtractionSummary
 
 describe('openFDA candidate artifact verifier', () => {
   test('valid review-only artifact set passes with a stable semantic hash', () => {

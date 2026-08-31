@@ -158,6 +158,17 @@ export function validateOpenFdaCandidateArtifacts(
     .update('\0')
     .update(JSON.stringify(evidence))
     .digest('hex')
+  if (summary.extraction.semanticHash !== semanticHash) errors.push('summary_semantic_hash')
+  if (
+    summary.openfda.parsedTotalRecords !== summary.openfda.expectedTotalRecords ||
+    summary.openfda.partitionCount !== summary.availablePartitions ||
+    summary.partialCoverage
+  ) {
+    errors.push('full_corpus_coverage')
+  }
+  if (summary.rxnorm.verifiedSeedCount !== verifiedSubstanceIds.size) {
+    errors.push('verified_seed_count')
+  }
   return {
     status: errors.length === 0 ? ('PASS' as const) : ('FAIL' as const),
     errors,

@@ -3,12 +3,17 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { extractOpenFdaCandidateTriggers } from './openfda-candidate-extractor'
 import { OpenFdaCandidateAccumulator } from './openfda-candidate-dedupe'
+import { OPENFDA_INGREDIENT_ATTRIBUTIONS } from './openfda-ingredient-attribution'
 import {
   assertCompleteOpenFdaCorpus,
   inspectOpenFdaCorpus,
   readPinnedOpenFdaCorpus,
 } from './openfda-corpus-verifier'
-import { DEFAULT_OPENFDA_LABEL_DIR, sha256File } from './openfda-label-downloader'
+import {
+  DEFAULT_OPENFDA_LABEL_DIR,
+  OPENFDA_DOWNLOAD_MANIFEST_URL,
+  sha256File,
+} from './openfda-label-downloader'
 import { extractRelevantOpenFdaSections, streamOpenFdaPartition } from './openfda-label-reader'
 import { type OpenFdaExtractionSummary, writeOpenFdaReviewArtifacts } from './openfda-review-export'
 import { OPENFDA_EXTRACTION_VERSION } from './openfda-types'
@@ -53,7 +58,7 @@ export async function extractOpenFdaCandidates(
   const extractedDir = path.resolve(options.extractedDir ?? path.join(openFdaRoot, 'extracted'))
   const reviewDir = path.resolve(options.reviewDir ?? path.join(openFdaRoot, 'review'))
   const allowPartial = options.allowPartial === true
-  const { manifest } = readPinnedOpenFdaCorpus(labelDir)
+  const { manifest, snapshot } = readPinnedOpenFdaCorpus(labelDir)
   const preflight = await inspectOpenFdaCorpus({
     labelDir,
     parseRecords: false,
@@ -75,6 +80,13 @@ export async function extractOpenFdaCandidates(
 
   const accumulator = new OpenFdaCandidateAccumulator()
   const matchedSubstances = new Set<string>()
+  const bestMatchTierBySubstance = new Map<string, string>()
+  const matchTierRank = {
+    secondary_generic_match: 1,
+    normalized_substance_name_match: 2,
+    exact_substance_name_match: 3,
+    exact_rxcui_match: 4,
+  } as const
   let processedLabelRecords = 0
   let matchedLabels = 0
   let relevantSections = 0
@@ -97,7 +109,15 @@ export async function extractOpenFdaCandidates(
       const matches = matchOpenFdaLabel(record, seedIndex)
       if (matches.length === 0) continue
       matchedLabels += 1
-      for (const match of matches) matchedSubstances.add(match.seed.medicationSubstanceId)
+      for (const match of matches) {
+        const substanceId = match.seed.medicationSubstanceId
+        matchedSubstances.add(substanceId)
+        const current = bestMatchTierBySubstance.get(substanceId) as
+          keyof typeof matchTierRank | undefined
+        if (!current || matchTierRank[match.tier] > matchTierRank[current]) {
+          bestMatchTierBySubstance.set(substanceId, match.tier)
+        }
+      }
       const sections = extractRelevantOpenFdaSections(record)
       relevantSections += sections.length
       for (const section of sections) {
@@ -156,11 +176,24 @@ export async function extractOpenFdaCandidates(
   const targetTypeCounts = initializeCounts(targetTypes)
   const actionCounts = initializeCounts(actions)
   const confidenceCounts = initializeCounts(['high', 'medium', 'low'] as const)
+  const attributionCounts = initializeCounts(OPENFDA_INGREDIENT_ATTRIBUTIONS)
   for (const candidate of candidates) {
     targetTypeCounts[candidate.targetType] += 1
     actionCounts[candidate.action] += 1
     confidenceCounts[candidate.candidateConfidence] += 1
+    attributionCounts[candidate.ingredientAttribution] += 1
   }
+  const tierValues = [...bestMatchTierBySubstance.values()]
+  const verifiedSeedCoverage = {
+    exactRxCui: tierValues.filter((tier) => tier === 'exact_rxcui_match').length,
+    exactSubstanceName: tierValues.filter((tier) => tier === 'exact_substance_name_match').length,
+    secondary: tierValues.filter((tier) =>
+      ['normalized_substance_name_match', 'secondary_generic_match'].includes(tier),
+    ).length,
+    noMatch: seeds.length - bestMatchTierBySubstance.size,
+  }
+  const verifiedSeedSha256 = await sha256File(seedPath)
+  const rxnormVersion = [...new Set(seeds.map((seed) => seed.sourceVersion))].sort().join(',')
   const summary: OpenFdaExtractionSummary = {
     extractionVersion: OPENFDA_EXTRACTION_VERSION,
     sourceLastUpdated: manifest.sourceLastUpdated,
@@ -181,6 +214,35 @@ export async function extractOpenFdaCandidates(
     targetTypeCounts,
     actionCounts,
     confidenceCounts,
+    attributionCounts,
+    globalDuplicatesCollapsed: candidateObservations - candidates.length,
+    latestEvidenceRecords: evidence.filter((item) => item.evidenceVersionStatus === 'latest')
+      .length,
+    historicalEvidenceRecords: evidence.filter(
+      (item) => item.evidenceVersionStatus === 'historical',
+    ).length,
+    verifiedSeedCoverage,
+    openfda: {
+      manifestUrl: OPENFDA_DOWNLOAD_MANIFEST_URL,
+      manifestLastUpdated: snapshot.sourceLastUpdated,
+      drugLabelExportDate: snapshot.labelExportDate,
+      partitionCount: snapshot.partitions.length,
+      expectedTotalRecords: snapshot.totalRecords,
+      parsedTotalRecords: processedLabelRecords,
+      manifestSha256: snapshot.manifestSha256,
+      partitionSha256: Object.fromEntries(
+        manifest.files.map((file) => [file.fileName, file.sha256 ?? '']),
+      ),
+    },
+    rxnorm: {
+      verifiedSeedCount: seeds.length,
+      verifiedSeedSha256,
+      rxnormVersion,
+    },
+    extraction: {
+      extractorVersion: OPENFDA_EXTRACTION_VERSION,
+      semanticHash: '',
+    },
   }
   const artifacts = writeOpenFdaReviewArtifacts(
     candidates,

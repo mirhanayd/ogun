@@ -546,6 +546,33 @@ describe('filesystem review artifacts and safety guards', () => {
         individualize: 0,
       },
       confidenceCounts: { high: 1, medium: 0, low: 0 },
+      attributionCounts: {
+        direct_single_ingredient: 0,
+        direct_substance_section: 0,
+        multi_ingredient_attributable: 0,
+        multi_ingredient_unattributed: 0,
+        secondary_match_uncertain: 1,
+      },
+      globalDuplicatesCollapsed: 0,
+      latestEvidenceRecords: 1,
+      historicalEvidenceRecords: 0,
+      verifiedSeedCoverage: { exactRxCui: 1, exactSubstanceName: 0, secondary: 0, noMatch: 278 },
+      openfda: {
+        manifestUrl: 'https://api.fda.gov/download.json',
+        manifestLastUpdated: '2026-08-31',
+        drugLabelExportDate: '2026-08-31',
+        partitionCount: 14,
+        expectedTotalRecords: 1,
+        parsedTotalRecords: 1,
+        manifestSha256: 'manifest-hash',
+        partitionSha256: { 'drug-label-0001-of-0014.json.zip': 'partition-hash' },
+      },
+      rxnorm: {
+        verifiedSeedCount: 279,
+        verifiedSeedSha256: 'seed-hash',
+        rxnormVersion: '2026-08-03',
+      },
+      extraction: { extractorVersion: 'openfda-food-candidate-v1', semanticHash: '' },
     }
     const artifacts = writeOpenFdaReviewArtifacts(
       result.candidates,
@@ -561,6 +588,12 @@ describe('filesystem review artifacts and safety guards', () => {
       'notForProduction',
     )
     expect(Object.values(artifacts.reviewPaths).every(existsSync)).toBe(true)
+    expect(artifacts.reviewPaths).toMatchObject({
+      multiIngredient: expect.stringContaining('openfda_multi_ingredient_review.csv'),
+      attributionUncertain: expect.stringContaining('openfda_attribution_uncertain_review.csv'),
+      lowConfidence: expect.stringContaining('openfda_low_confidence_review.csv'),
+    })
+    expect(summary.extraction.semanticHash).toBe(artifacts.outputHash)
   })
 
   test('candidate output path is gitignored', () => {
