@@ -251,10 +251,7 @@ function DesktopRuntimeApp() {
   const [authState, setAuthState] = useState<DesktopAuthState>({ phase: 'booting' })
   useEffect(() => {
     let cancelled = false
-    void Promise.all([
-      loadNativeSessionToken(),
-      invoke<DesktopOfflineProfile[]>('list_offline_profiles'),
-    ]).then(([, profiles]) => {
+    void invoke<DesktopOfflineProfile[]>('list_offline_profiles').then((profiles) => {
       if (!cancelled) setAuthState(stateAfterProfileDetection(profiles))
     }).catch(() => {
       if (!cancelled) setAuthState({ phase: 'online_login_required' })
@@ -263,7 +260,7 @@ function DesktopRuntimeApp() {
   }, [])
 
   if (authState.phase === 'booting') return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Öğün açılıyor…</div></AuthSurface>
-  if (authState.phase === 'locked') return <AuthSurface><AuthCard eyebrow="Cihaz kilitli" title="Yerel çalışma alanınızı açın." description="İnternet bağlantısı ve kayıtlı bulut oturumu bu cihaz PIN’ini atlayamaz."><DesktopSavedAccounts profiles={authState.profiles} autoSelectSingle onUnlocked={(profile) => setAuthState({ phase: 'unlocked', identity: profileIdentity(profile) })} /></AuthCard></AuthSurface>
+  if (authState.phase === 'locked') return <AuthSurface><AuthCard eyebrow="Cihaz kilitli" title="Yerel çalışma alanınızı açın." description="İnternet bağlantısı ve kayıtlı bulut oturumu bu cihaz PIN’ini atlayamaz."><DesktopSavedAccounts profiles={authState.profiles} autoSelectSingle onUnlocked={async (profile) => { await loadNativeSessionToken(); setAuthState({ phase: 'unlocked', identity: profileIdentity(profile) }) }} /></AuthCard></AuthSurface>
   if (authState.phase === 'online_login_required') return <DesktopLogin onAuthenticated={(identity, pinConfigured) => setAuthState(stateAfterOnlineSetup(identity, pinConfigured))} />
   if (authState.phase === 'pin_setup') return <PinSetup identity={authState.identity} onComplete={() => setAuthState({ phase: 'unlocked', identity: authState.identity })} />
   const identity = authState.identity
