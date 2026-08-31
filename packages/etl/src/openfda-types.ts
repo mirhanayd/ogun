@@ -75,3 +75,50 @@ export type OpenFdaCandidateTrigger = {
   evidenceSnippet: string
   signal: 'explicit_directive' | 'explicit_effect' | 'ambiguous_context'
 }
+
+export type OpenFdaCandidateConfidence = 'high' | 'medium' | 'low'
+
+export type OpenFdaInteractionCandidate = {
+  id: string
+  medicationSubstanceId: string
+  canonicalName: string
+  rxcui: string
+  targetType: OpenFdaTargetType
+  target: string
+  action: OpenFdaCandidateAction
+  qualifier: string | null
+  beforeMinutes: number | null
+  afterMinutes: number | null
+  extractionReason: string
+  candidateConfidence: OpenFdaCandidateConfidence
+  status: 'candidate'
+  reviewRequired: true
+  notForProduction: true
+  clinicalRecommendation: null
+  evidenceCount: number
+}
+
+export type OpenFdaCandidateEvidence = {
+  id: string
+  candidateId: string
+  sourceSystem: 'openfda'
+  splSetId: string
+  effectiveTime: string | null
+  labelPartitionFile: string
+  productIdentifiers: {
+    applicationNumbers: string[]
+    productNdcs: string[]
+    packageNdcs: string[]
+    brandNames: string[]
+  }
+  matchedSection: string
+  evidenceSnippet: string
+  recordHash: string
+  retrievedAt: string
+  extractionVersion: typeof OPENFDA_EXTRACTION_VERSION
+  labelMatchTier: OpenFdaMatchTier
+  matchedField: OpenFdaSubstanceMatch['matchedField']
+  matchedValue: string
+  confidence: OpenFdaCandidateConfidence
+  ambiguous: boolean
+}
