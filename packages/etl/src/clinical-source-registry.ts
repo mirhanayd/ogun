@@ -32,6 +32,9 @@ export const OPENFDA_DRUG_LABEL_SOURCE: ClinicalSourceInsert = {
   metadata: {
     rawStorage: 'filesystem-only',
     databasePayload: 'none',
+    candidateStorage: 'filesystem-only',
+    candidateStatus: 'review_required',
+    productionRulePublishing: 'disabled',
     downloadManifest: 'https://api.fda.gov/download.json',
   },
 }

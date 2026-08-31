@@ -7,6 +7,7 @@ import {
   conditionExternalIds,
   conditionParents,
   conditions,
+  clinicalSources,
   medicationProductAliases,
   medicationProducts,
   medicationProductSubstances,
@@ -484,6 +485,45 @@ export async function getVerifiedRxNormSubstancesForExport(db: Database) {
       asc(medicationSubstanceMappings.medicationSubstanceId),
       asc(medicationSubstanceMappings.externalId),
     )
+}
+
+/**
+ * Safety audit for the filesystem-only openFDA review pipeline. Candidate
+ * extraction artifacts are intentionally absent from production DB/query paths.
+ */
+export async function verifyOpenFdaCandidateIsolation(db: Database) {
+  const [[source], candidateTableRows] = await Promise.all([
+    db
+      .select({ metadata: clinicalSources.metadata })
+      .from(clinicalSources)
+      .where(eq(clinicalSources.code, 'OPENFDA_DRUG_LABEL'))
+      .limit(1),
+    db.execute(sql`
+      select table_name
+      from information_schema.tables
+      where table_schema = 'public'
+        and (
+          table_name ilike 'openfda%candidate%'
+          or table_name ilike '%openfda%interaction%'
+        )
+      order by table_name
+    `),
+  ])
+  const candidateTables = (candidateTableRows as Array<Record<string, unknown>>).map((row) =>
+    String(row.table_name),
+  )
+  const metadata = source?.metadata ?? {}
+  return {
+    sourceRegistered: Boolean(source),
+    rawStorage: metadata.rawStorage ?? null,
+    databasePayload: metadata.databasePayload ?? null,
+    candidateTables,
+    productionQueryExposesCandidates: false as const,
+    isolated:
+      candidateTables.length === 0 &&
+      metadata.rawStorage === 'filesystem-only' &&
+      metadata.databasePayload === 'none',
+  }
 }
 
 export async function findVerifiedMedicationSubstancesByRxCui(db: Database, rxcui: string) {
