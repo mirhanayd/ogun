@@ -36,6 +36,18 @@ export type VerificationReason =
   | 'combination_requires_min'
   | 'single_ingredient_rejects_min'
   | 'invalid_rxnorm_tty'
+  | 'human_review_approved'
+
+export type HumanReviewDecisionValue = 'verify' | 'reject' | 'ambiguous' | 'defer'
+
+export type HumanReviewDecision = {
+  medicationSubstanceId: string
+  rxcui: string
+  decision: HumanReviewDecisionValue
+  reviewer: string
+  reviewedAt: Date
+  note: string
+}
 
 export type StrictVerificationCandidate = {
   medicationSubstanceId: string
@@ -60,7 +72,7 @@ export type VerificationClassification = {
   matchMethod: MappingMethod | 'manual' | ''
   tier: VerificationTier
   reason: VerificationReason
-  verificationMethod: typeof DETERMINISTIC_VERIFICATION_METHOD | null
+  verificationMethod: VerificationMethod | null
   verificationVersion: typeof RXNORM_VERIFICATION_VERSION
 }
 
