@@ -63,3 +63,10 @@ export type VerificationClassification = {
   verificationMethod: typeof DETERMINISTIC_VERIFICATION_METHOD | null
   verificationVersion: typeof RXNORM_VERIFICATION_VERSION
 }
+
+export type RxNormVerificationReport = {
+  classifications: VerificationClassification[]
+  unresolvedPhrases: VerificationClassification[]
+  sharedRxCuiGroups: Map<string, string[]>
+  multipleRxCuiSubstances: Map<string, string[]>
+}
