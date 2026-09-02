@@ -31,10 +31,10 @@ export const OPENFDA_DRUG_LABEL_SOURCE: ClinicalSourceInsert = {
   reuseStatus: 'cc0-public-domain',
   metadata: {
     rawStorage: 'filesystem-only',
-    databasePayload: 'none',
+    databasePayload: 'approved-interaction-provenance-only',
     candidateStorage: 'filesystem-only',
     candidateStatus: 'review_required',
-    productionRulePublishing: 'disabled',
+    productionRulePublishing: 'explicit-human-approval-only',
     downloadManifest: 'https://api.fda.gov/download.json',
   },
 }
