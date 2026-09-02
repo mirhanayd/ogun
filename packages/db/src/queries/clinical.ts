@@ -7,7 +7,10 @@ import {
   conditionExternalIds,
   conditionParents,
   conditions,
+  clinicalInteractionEvidence,
+  clinicalInteractions,
   clinicalSources,
+  clinicalTargetConcepts,
   medicationProductAliases,
   medicationProducts,
   medicationProductSubstances,
@@ -15,6 +18,7 @@ import {
   medicationSubstanceMappings,
   medicationSubstances,
 } from '../schema/clinical'
+import { nutrients } from '../schema/foods'
 
 export interface ConditionSearchOptions {
   limit?: number
@@ -522,7 +526,9 @@ export async function verifyOpenFdaCandidateIsolation(db: Database) {
     isolated:
       candidateTables.length === 0 &&
       metadata.rawStorage === 'filesystem-only' &&
-      metadata.databasePayload === 'none',
+      ['none', 'approved-interaction-provenance-only'].includes(
+        String(metadata.databasePayload),
+      ),
   }
 }
 
@@ -551,4 +557,131 @@ export async function findVerifiedMedicationSubstancesByRxCui(db: Database, rxcu
       ),
     )
     .orderBy(asc(medicationSubstances.nameTr))
+}
+
+/**
+ * Production interaction-engine boundary. Candidate, draft, rejected and pending
+ * rows are intentionally impossible to obtain through this query.
+ */
+export async function getPublishedInteractionsForMedicationSubstances(
+  db: Database,
+  medicationSubstanceIds: string[],
+) {
+  const uniqueIds = [...new Set(medicationSubstanceIds.map((id) => id.trim()).filter(Boolean))]
+  if (uniqueIds.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: clinicalInteractions.id,
+      medicationSubstanceId: clinicalInteractions.medicationSubstanceId,
+      targetType: clinicalInteractions.targetType,
+      nutrientId: clinicalInteractions.nutrientId,
+      nutrientCode: nutrients.code,
+      nutrientNameTr: nutrients.nameTr,
+      clinicalTargetConceptId: clinicalInteractions.clinicalTargetConceptId,
+      clinicalTargetKey: clinicalTargetConcepts.key,
+      clinicalTargetNameTr: clinicalTargetConcepts.nameTr,
+      action: clinicalInteractions.action,
+      severity: clinicalInteractions.severity,
+      evidenceStrength: clinicalInteractions.evidenceStrength,
+      timingBeforeMinutes: clinicalInteractions.timingBeforeMinutes,
+      timingAfterMinutes: clinicalInteractions.timingAfterMinutes,
+      titleTr: clinicalInteractions.titleTr,
+      clinicalEffectTr: clinicalInteractions.clinicalEffectTr,
+      mechanismTr: clinicalInteractions.mechanismTr,
+      recommendationTr: clinicalInteractions.recommendationTr,
+      version: clinicalInteractions.version,
+      evidenceId: clinicalInteractionEvidence.id,
+      sourceId: clinicalSources.id,
+      sourceCode: clinicalSources.code,
+      sourceName: clinicalSources.name,
+      sourceVersion: clinicalInteractionEvidence.sourceVersion,
+      sourceDocumentId: clinicalInteractionEvidence.sourceDocumentId,
+      sourceSection: clinicalInteractionEvidence.sourceSection,
+      sourceLocator: clinicalInteractionEvidence.sourceLocator,
+      sourceHash: clinicalInteractionEvidence.sourceHash,
+      retrievedAt: clinicalInteractionEvidence.retrievedAt,
+    })
+    .from(clinicalInteractions)
+    .leftJoin(nutrients, eq(nutrients.id, clinicalInteractions.nutrientId))
+    .leftJoin(
+      clinicalTargetConcepts,
+      eq(clinicalTargetConcepts.id, clinicalInteractions.clinicalTargetConceptId),
+    )
+    .leftJoin(
+      clinicalInteractionEvidence,
+      eq(clinicalInteractionEvidence.interactionId, clinicalInteractions.id),
+    )
+    .leftJoin(clinicalSources, eq(clinicalSources.id, clinicalInteractionEvidence.sourceId))
+    .where(
+      and(
+        inArray(clinicalInteractions.medicationSubstanceId, uniqueIds),
+        eq(clinicalInteractions.status, 'published'),
+        eq(clinicalInteractions.reviewStatus, 'approved'),
+      ),
+    )
+    .orderBy(asc(clinicalInteractions.id), asc(clinicalInteractionEvidence.id))
+
+  const interactions = new Map<
+    string,
+    Omit<(typeof rows)[number], 'evidenceId' | 'sourceId' | 'sourceCode' | 'sourceName' | 'sourceVersion' | 'sourceDocumentId' | 'sourceSection' | 'sourceLocator' | 'sourceHash' | 'retrievedAt'> & {
+      evidence: Array<{
+        id: string
+        sourceId: string
+        sourceCode: string
+        sourceName: string
+        sourceVersion: string | null
+        sourceDocumentId: string
+        sourceSection: string
+        sourceLocator: string
+        sourceHash: string
+        retrievedAt: Date
+      }>
+    }
+  >()
+  for (const row of rows) {
+    let interaction = interactions.get(row.id)
+    if (!interaction) {
+      const {
+        evidenceId: _evidenceId,
+        sourceId: _sourceId,
+        sourceCode: _sourceCode,
+        sourceName: _sourceName,
+        sourceVersion: _sourceVersion,
+        sourceDocumentId: _sourceDocumentId,
+        sourceSection: _sourceSection,
+        sourceLocator: _sourceLocator,
+        sourceHash: _sourceHash,
+        retrievedAt: _retrievedAt,
+        ...core
+      } = row
+      interaction = { ...core, evidence: [] }
+      interactions.set(row.id, interaction)
+    }
+    if (
+      row.evidenceId &&
+      row.sourceId &&
+      row.sourceCode &&
+      row.sourceName &&
+      row.sourceDocumentId &&
+      row.sourceSection &&
+      row.sourceLocator &&
+      row.sourceHash &&
+      row.retrievedAt
+    ) {
+      interaction.evidence.push({
+        id: row.evidenceId,
+        sourceId: row.sourceId,
+        sourceCode: row.sourceCode,
+        sourceName: row.sourceName,
+        sourceVersion: row.sourceVersion,
+        sourceDocumentId: row.sourceDocumentId,
+        sourceSection: row.sourceSection,
+        sourceLocator: row.sourceLocator,
+        sourceHash: row.sourceHash,
+        retrievedAt: row.retrievedAt,
+      })
+    }
+  }
+  return [...interactions.values()]
 }
