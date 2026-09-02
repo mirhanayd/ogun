@@ -450,9 +450,7 @@ export async function getRxNormReviewCandidates(
     ne(medicationSubstanceMappings.mappingStatus, 'verified'),
   ]
   if (medicationSubstanceIds.length > 0) {
-    filters.push(
-      inArray(medicationSubstanceMappings.medicationSubstanceId, medicationSubstanceIds),
-    )
+    filters.push(inArray(medicationSubstanceMappings.medicationSubstanceId, medicationSubstanceIds))
   }
   return db
     .select()
@@ -526,9 +524,7 @@ export async function verifyOpenFdaCandidateIsolation(db: Database) {
     isolated:
       candidateTables.length === 0 &&
       metadata.rawStorage === 'filesystem-only' &&
-      ['none', 'approved-interaction-provenance-only'].includes(
-        String(metadata.databasePayload),
-      ),
+      ['none', 'approved-interaction-provenance-only'].includes(String(metadata.databasePayload)),
   }
 }
 
@@ -574,7 +570,19 @@ export async function getPublishedInteractionsForMedicationSubstances(
 
   const interactions = new Map<
     string,
-    Omit<(typeof rows)[number], 'evidenceId' | 'sourceId' | 'sourceCode' | 'sourceName' | 'sourceVersion' | 'sourceDocumentId' | 'sourceSection' | 'sourceLocator' | 'sourceHash' | 'retrievedAt'> & {
+    Omit<
+      (typeof rows)[number],
+      | 'evidenceId'
+      | 'sourceId'
+      | 'sourceCode'
+      | 'sourceName'
+      | 'sourceVersion'
+      | 'sourceDocumentId'
+      | 'sourceSection'
+      | 'sourceLocator'
+      | 'sourceHash'
+      | 'retrievedAt'
+    > & {
       evidence: Array<{
         id: string
         sourceId: string

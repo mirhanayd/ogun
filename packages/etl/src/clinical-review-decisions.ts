@@ -99,10 +99,7 @@ const REQUIRED_COLUMNS = [
 ] as const
 
 const FORBIDDEN_REVIEWERS = new Set(['ai', 'agent', 'system', 'automation', 'bot'])
-const UNSAFE_ATTRIBUTIONS = new Set([
-  'multi_ingredient_unattributed',
-  'secondary_match_uncertain',
-])
+const UNSAFE_ATTRIBUTIONS = new Set(['multi_ingredient_unattributed', 'secondary_match_uncertain'])
 
 function optional(value: string) {
   const trimmed = value.trim()
@@ -120,7 +117,8 @@ export function parseClinicalReviewDecisions(csv: string): ClinicalReviewDecisio
   }
   const fields = new Set(parsed.meta.fields ?? [])
   const missing = REQUIRED_COLUMNS.filter((column) => !fields.has(column))
-  if (missing.length > 0) throw new Error(`Review decision CSV missing columns: ${missing.join(',')}`)
+  if (missing.length > 0)
+    throw new Error(`Review decision CSV missing columns: ${missing.join(',')}`)
   return parsed.data.map((row) =>
     Object.fromEntries(REQUIRED_COLUMNS.map((column) => [column, row[column] ?? ''])),
   ) as ClinicalReviewDecisionRow[]
@@ -161,7 +159,8 @@ export function validateClinicalReviewDecisions(options: {
     }
     const decision = row.decision.trim() as ClinicalReviewDecision
     const candidateEvidence = evidenceByCandidate.get(candidateId) ?? []
-    if (candidateEvidence.length === 0) throw new Error(`Candidate evidence missing: ${candidateId}`)
+    if (candidateEvidence.length === 0)
+      throw new Error(`Candidate evidence missing: ${candidateId}`)
 
     const reviewer = optional(row.reviewer)
     const reviewedAtText = optional(row.reviewed_at)
@@ -184,7 +183,11 @@ export function validateClinicalReviewDecisions(options: {
       if (!options.verifiedMedicationSubstanceIds.has(candidate.medicationSubstanceId)) {
         throw new Error(`Unverified medication substance: ${candidateId}`)
       }
-      if (!CLINICAL_INTERACTION_SEVERITIES.includes(row.severity.trim() as ClinicalInteractionSeverity)) {
+      if (
+        !CLINICAL_INTERACTION_SEVERITIES.includes(
+          row.severity.trim() as ClinicalInteractionSeverity,
+        )
+      ) {
         throw new Error(`Invalid severity: ${candidateId}`)
       }
       severity = row.severity.trim() as ClinicalInteractionSeverity
@@ -200,7 +203,9 @@ export function validateClinicalReviewDecisions(options: {
       if (!approvedTargetKey || !resolveApprovedTargetKey(approvedTargetKey)) {
         throw new Error(`Unresolved approved target: ${candidateId}`)
       }
-      if (!CLINICAL_INTERACTION_ACTIONS.includes(row.approved_action.trim() as OpenFdaCandidateAction)) {
+      if (
+        !CLINICAL_INTERACTION_ACTIONS.includes(row.approved_action.trim() as OpenFdaCandidateAction)
+      ) {
         throw new Error(`Invalid approved action: ${candidateId}`)
       }
       approvedAction = row.approved_action.trim() as OpenFdaCandidateAction

@@ -9,10 +9,7 @@ import {
   OPENFDA_SUMMARY_FILE,
   type OpenFdaExtractionSummary,
 } from './openfda-review-export'
-import type {
-  OpenFdaCandidateEvidence,
-  OpenFdaInteractionCandidate,
-} from './openfda-types'
+import type { OpenFdaCandidateEvidence, OpenFdaInteractionCandidate } from './openfda-types'
 
 function readJsonl<T>(filePath: string): T[] {
   return gunzipSync(readFileSync(filePath))

@@ -3,10 +3,7 @@ import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import Papa from 'papaparse'
 import { resolveClinicalInteractionTarget } from './clinical-interaction-targets'
-import type {
-  OpenFdaCandidateEvidence,
-  OpenFdaInteractionCandidate,
-} from './openfda-types'
+import type { OpenFdaCandidateEvidence, OpenFdaInteractionCandidate } from './openfda-types'
 import type { OpenFdaExtractionSummary } from './openfda-review-export'
 
 export const CLINICAL_REVIEW_PRIORITIES = ['P1', 'P2', 'P3', 'P4', 'P5'] as const
@@ -28,7 +25,10 @@ export function clinicalReviewPriority(
     return 'P5'
   }
   if (candidate.candidateConfidence === 'low') return 'P4'
-  if (candidate.candidateConfidence === 'high' && SAFE_ATTRIBUTIONS.has(candidate.ingredientAttribution)) {
+  if (
+    candidate.candidateConfidence === 'high' &&
+    SAFE_ATTRIBUTIONS.has(candidate.ingredientAttribution)
+  ) {
     return 'P1'
   }
   if (

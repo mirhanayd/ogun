@@ -35,7 +35,9 @@ export function verifyClinicalTargetResolution(candidates: OpenFdaInteractionCan
     .filter((item) => item.resolution.status !== 'resolved')
   return {
     status:
-      invalidSafety.length === 0 && invalidResolutions.length === 0 ? ('PASS' as const) : ('FAIL' as const),
+      invalidSafety.length === 0 && invalidResolutions.length === 0
+        ? ('PASS' as const)
+        : ('FAIL' as const),
     ...summary,
     invalidSafety,
     invalidResolutions,
@@ -46,7 +48,10 @@ async function main() {
   const argument = process.argv.slice(2).find((item) => item.startsWith('--dir='))
   const extractedDir = path.resolve(
     argument?.slice('--dir='.length) ??
-      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data/clinical/openfda/extracted'),
+      path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        '../data/clinical/openfda/extracted',
+      ),
   )
   const result = verifyClinicalTargetResolution(
     loadCandidates(path.join(extractedDir, OPENFDA_CANDIDATE_FILE)),

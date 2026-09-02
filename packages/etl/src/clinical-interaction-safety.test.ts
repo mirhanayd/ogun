@@ -4,13 +4,14 @@ import {
   type ClinicalReviewDecisionRow,
 } from './clinical-review-decisions'
 import {
+  approvedClinicalReviewDecisions,
+  buildApprovedClinicalInteractionRecord,
+  buildClinicalInteractionEvidenceRecord,
+  interactionSemanticsEqual,
   stableClinicalEvidenceId,
   stableClinicalInteractionId,
 } from './importers/clinical-interactions'
-import type {
-  OpenFdaCandidateEvidence,
-  OpenFdaInteractionCandidate,
-} from './openfda-types'
+import type { OpenFdaCandidateEvidence, OpenFdaInteractionCandidate } from './openfda-types'
 
 const HASH = '4b971d4a85f3eb2a75066266e9f4154bbe0f91c0802167fc7fded28e76aabbdd'
 const SUBSTANCE = 'med_test'
@@ -178,6 +179,62 @@ describe('clinical approval fail-closed validation', () => {
     expect(validated?.candidate.candidateConfidence).toBe('high')
     expect(validated?.severity).toBe('info')
     expect(validated?.evidenceStrength).toBe('unknown')
+  })
+
+  it('builds production state only from the validated approval', () => {
+    const [approval] = validate(row())
+    const [rejection] = validate(row({ decision: 'reject' }))
+    const selected = approvedClinicalReviewDecisions([approval!, rejection!])
+    expect(selected).toHaveLength(1)
+    const record = buildApprovedClinicalInteractionRecord({
+      approval: selected[0]!,
+      candidateSemanticHash: HASH,
+      targetType: 'nutrient',
+      nutrientId: 'nutrient-calcium',
+      clinicalTargetConceptId: null,
+    })
+    expect(record).toMatchObject({
+      status: 'published',
+      reviewStatus: 'approved',
+      reviewedBy: 'Dr Human Reviewer',
+      nutrientId: 'nutrient-calcium',
+      sourceCandidateSemanticHash: HASH,
+    })
+  })
+
+  it('detects no-op second imports without changing version semantics', () => {
+    const [approval] = validate(row())
+    const desired = buildApprovedClinicalInteractionRecord({
+      approval: approval!,
+      candidateSemanticHash: HASH,
+      targetType: 'nutrient',
+      nutrientId: 'nutrient-calcium',
+      clinicalTargetConceptId: null,
+    })
+    const existing = {
+      ...desired,
+      createdAt: new Date('2026-09-02T09:00:00.000Z'),
+      updatedAt: new Date('2026-09-02T09:00:00.000Z'),
+    } as typeof import('@ogun/db/schema').clinicalInteractions.$inferSelect
+    expect(interactionSemanticsEqual(existing, desired)).toBe(true)
+    expect(interactionSemanticsEqual({ ...existing, severity: 'high' }, desired)).toBe(false)
+  })
+
+  it('links compact source provenance without storing the FDA evidence excerpt', () => {
+    const record = buildClinicalInteractionEvidenceRecord({
+      interactionId: 'interaction_1',
+      evidence: evidence(),
+      evidenceStrength: 'limited',
+    })
+    expect(record).toMatchObject({
+      interactionId: 'interaction_1',
+      sourceId: 'OPENFDA_DRUG_LABEL',
+      sourceDocumentId: 'spl-set-1',
+      sourceSection: 'drug_interactions',
+      sourceHash: 'record-hash',
+      evidenceSummary: null,
+    })
+    expect(JSON.stringify(record)).not.toContain('Source excerpt')
   })
 })
 

@@ -26,10 +26,7 @@ import {
   OPENFDA_SUMMARY_FILE,
   type OpenFdaExtractionSummary,
 } from '../openfda-review-export'
-import type {
-  OpenFdaCandidateEvidence,
-  OpenFdaInteractionCandidate,
-} from '../openfda-types'
+import type { OpenFdaCandidateEvidence, OpenFdaInteractionCandidate } from '../openfda-types'
 import { loadVerifiedRxNormSeeds } from '../openfda-verified-filter'
 
 export const OPENFDA_CLINICAL_SOURCE_ID = 'OPENFDA_DRUG_LABEL'
@@ -46,7 +43,13 @@ export function stableClinicalEvidenceId(
   interactionId: string,
   evidence: Pick<OpenFdaCandidateEvidence, 'splSetId' | 'recordHash'>,
 ) {
-  return stableId('cie', interactionId, OPENFDA_CLINICAL_SOURCE_ID, evidence.splSetId, evidence.recordHash)
+  return stableId(
+    'cie',
+    interactionId,
+    OPENFDA_CLINICAL_SOURCE_ID,
+    evidence.splSetId,
+    evidence.recordHash,
+  )
 }
 
 function readGzipJsonl<T>(filePath: string): T[] {
@@ -96,6 +99,7 @@ function emptyResult(dryRun: boolean): ClinicalInteractionImportResult {
 }
 
 type InteractionValues = typeof clinicalInteractions.$inferInsert
+type EvidenceValues = typeof clinicalInteractionEvidence.$inferInsert
 
 function sameDate(left: Date | string | null | undefined, right: Date | string | null | undefined) {
   if (left == null || right == null) return left == null && right == null
@@ -135,6 +139,87 @@ function decisionCounts(decisions: ValidatedClinicalReviewDecision[]) {
     rejected: decisions.filter((item) => item.decision === 'reject').length,
     deferred: decisions.filter((item) => item.decision === 'defer').length,
     needsMoreEvidence: decisions.filter((item) => item.decision === 'needs_more_evidence').length,
+  }
+}
+
+export function approvedClinicalReviewDecisions(decisions: ValidatedClinicalReviewDecision[]) {
+  return decisions.filter((item) => item.decision === 'approve')
+}
+
+export function buildApprovedClinicalInteractionRecord(options: {
+  approval: ValidatedClinicalReviewDecision
+  candidateSemanticHash: string
+  targetType: string
+  nutrientId: string | null
+  clinicalTargetConceptId: string | null
+}): InteractionValues {
+  const { approval } = options
+  if (
+    approval.decision !== 'approve' ||
+    !approval.reviewer ||
+    !approval.reviewedAt ||
+    !approval.severity ||
+    !approval.evidenceStrength ||
+    !approval.approvedAction
+  ) {
+    throw new Error(
+      `Only a validated human approval can build an interaction: ${approval.candidate.id}`,
+    )
+  }
+  return {
+    id: stableClinicalInteractionId(approval.candidate.id),
+    medicationSubstanceId: approval.candidate.medicationSubstanceId,
+    conditionId: null,
+    targetType: options.targetType,
+    nutrientId: options.nutrientId,
+    clinicalTargetConceptId: options.clinicalTargetConceptId,
+    action: approval.approvedAction,
+    severity: approval.severity,
+    evidenceStrength: approval.evidenceStrength,
+    timingBeforeMinutes: approval.candidate.beforeMinutes,
+    timingAfterMinutes: approval.candidate.afterMinutes,
+    titleTr: approval.titleTr,
+    clinicalEffectTr: approval.clinicalEffectTr,
+    mechanismTr: approval.mechanismTr,
+    recommendationTr: approval.recommendationTr,
+    status: 'published',
+    reviewStatus: 'approved',
+    reviewedBy: approval.reviewer,
+    reviewedAt: approval.reviewedAt,
+    sourceCandidateId: approval.candidate.id,
+    sourceCandidateSemanticHash: options.candidateSemanticHash,
+    version: 1,
+  }
+}
+
+export function buildClinicalInteractionEvidenceRecord(options: {
+  interactionId: string
+  evidence: OpenFdaCandidateEvidence
+  evidenceStrength: string
+}): EvidenceValues {
+  const { evidence } = options
+  const retrievedAt = new Date(evidence.retrievedAt)
+  if (Number.isNaN(retrievedAt.getTime())) {
+    throw new Error(`Invalid evidence retrieved_at: ${evidence.id}`)
+  }
+  if (evidence.sourceSystem !== 'openfda' || !evidence.splSetId || !evidence.recordHash) {
+    throw new Error(`Invalid openFDA evidence provenance: ${evidence.id}`)
+  }
+  return {
+    id: stableClinicalEvidenceId(options.interactionId, evidence),
+    interactionId: options.interactionId,
+    sourceId: OPENFDA_CLINICAL_SOURCE_ID,
+    sourceDocumentId: evidence.splSetId,
+    sourceVersion:
+      [evidence.effectiveTime, evidence.labelVersion].filter(Boolean).join(':') || null,
+    sourceSection: evidence.matchedSection,
+    sourceLocator: `openfda:${evidence.splSetId}:${evidence.effectiveTime ?? ''}:${evidence.matchedSection}:${evidence.labelPartitionFile}`,
+    // Full evidence text remains in the filesystem JSONL. Human-authored clinical
+    // text belongs on the interaction; the compact provenance row stores no excerpt.
+    evidenceSummary: null,
+    sourceHash: evidence.recordHash,
+    retrievedAt,
+    evidenceStrength: options.evidenceStrength,
   }
 }
 
@@ -180,7 +265,7 @@ export async function importApprovedClinicalInteractions(
     ),
   })
   const counts = decisionCounts(decisions)
-  const approvals = decisions.filter((item) => item.decision === 'approve')
+  const approvals = approvedClinicalReviewDecisions(decisions)
   if (approvals.length === 0) {
     return {
       ...emptyResult(dryRun),
@@ -219,14 +304,19 @@ export async function importApprovedClinicalInteractions(
       verifiedMappings.map((item) => `${item.medicationSubstanceId}\0${item.rxcui}`),
     )
     for (const approval of approvals) {
-      if (!verified.has(`${approval.candidate.medicationSubstanceId}\0${approval.candidate.rxcui}`)) {
+      if (
+        !verified.has(`${approval.candidate.medicationSubstanceId}\0${approval.candidate.rxcui}`)
+      ) {
         throw new Error(`Medication subject is not DB-verified: ${approval.candidate.id}`)
       }
     }
 
     const nutrientCodes = approvals
       .map((approval) => resolveApprovedTargetKey(approval.approvedTargetKey!))
-      .filter((item): item is NonNullable<typeof item> & { kind: 'nutrient' } => item?.kind === 'nutrient')
+      .filter(
+        (item): item is NonNullable<typeof item> & { kind: 'nutrient' } =>
+          item?.kind === 'nutrient',
+      )
       .map((item) => item.nutrientCode)
     const nutrientRows = nutrientCodes.length
       ? await tx
@@ -258,40 +348,34 @@ export async function importApprovedClinicalInteractions(
       const interactionId = stableClinicalInteractionId(approval.candidate.id)
       const bestEvidence = representativeEvidence(approval.evidence)
       if (!bestEvidence) throw new Error(`Candidate evidence missing: ${approval.candidate.id}`)
-      if (bestEvidence.sourceSystem !== 'openfda' || !bestEvidence.splSetId || !bestEvidence.recordHash) {
+      if (
+        bestEvidence.sourceSystem !== 'openfda' ||
+        !bestEvidence.splSetId ||
+        !bestEvidence.recordHash
+      ) {
         throw new Error(`Invalid openFDA evidence provenance: ${approval.candidate.id}`)
       }
       selectedEvidence.set(interactionId, bestEvidence)
-      desiredInteractions.push({
-        id: interactionId,
-        medicationSubstanceId: approval.candidate.medicationSubstanceId,
-        conditionId: null,
-        targetType: target.targetType,
-        nutrientId,
-        clinicalTargetConceptId,
-        action: approval.approvedAction!,
-        severity: approval.severity!,
-        evidenceStrength: approval.evidenceStrength!,
-        timingBeforeMinutes: approval.candidate.beforeMinutes,
-        timingAfterMinutes: approval.candidate.afterMinutes,
-        titleTr: approval.titleTr,
-        clinicalEffectTr: approval.clinicalEffectTr,
-        mechanismTr: approval.mechanismTr,
-        recommendationTr: approval.recommendationTr,
-        status: 'published',
-        reviewStatus: 'approved',
-        reviewedBy: approval.reviewer!,
-        reviewedAt: approval.reviewedAt!,
-        sourceCandidateId: approval.candidate.id,
-        sourceCandidateSemanticHash: summary.extraction.semanticHash,
-        version: 1,
-      })
+      desiredInteractions.push(
+        buildApprovedClinicalInteractionRecord({
+          approval,
+          candidateSemanticHash: summary.extraction.semanticHash,
+          targetType: target.targetType,
+          nutrientId,
+          clinicalTargetConceptId,
+        }),
+      )
     }
 
     const existingRows = await tx
       .select()
       .from(clinicalInteractions)
-      .where(inArray(clinicalInteractions.sourceCandidateId, approvals.map((item) => item.candidate.id)))
+      .where(
+        inArray(
+          clinicalInteractions.sourceCandidateId,
+          approvals.map((item) => item.candidate.id),
+        ),
+      )
     const existingByCandidate = new Map(existingRows.map((item) => [item.sourceCandidateId, item]))
     let inserted = 0
     let updated = 0
@@ -310,13 +394,23 @@ export async function importApprovedClinicalInteractions(
         if (!dryRun) {
           await tx
             .update(clinicalInteractions)
-            .set({ ...desired, id: undefined, version: existing.version + 1, updatedAt: new Date() })
+            .set({
+              ...desired,
+              id: undefined,
+              version: existing.version + 1,
+              updatedAt: new Date(),
+            })
             .where(eq(clinicalInteractions.id, existing.id))
         }
       }
 
       const best = selectedEvidence.get(desired.id)!
-      const evidenceId = stableClinicalEvidenceId(desired.id, best)
+      const evidenceRecord = buildClinicalInteractionEvidenceRecord({
+        interactionId: desired.id,
+        evidence: best,
+        evidenceStrength: desired.evidenceStrength,
+      })
+      const evidenceId = evidenceRecord.id
       const [existingEvidence] = await tx
         .select({ id: clinicalInteractionEvidence.id })
         .from(clinicalInteractionEvidence)
@@ -325,23 +419,7 @@ export async function importApprovedClinicalInteractions(
       if (!existingEvidence) {
         evidenceInserted += 1
         if (!dryRun) {
-          const retrievedAt = new Date(best.retrievedAt)
-          if (Number.isNaN(retrievedAt.getTime())) {
-            throw new Error(`Invalid evidence retrieved_at: ${best.id}`)
-          }
-          await tx.insert(clinicalInteractionEvidence).values({
-            id: evidenceId,
-            interactionId: desired.id,
-            sourceId: OPENFDA_CLINICAL_SOURCE_ID,
-            sourceDocumentId: best.splSetId,
-            sourceVersion: [best.effectiveTime, best.labelVersion].filter(Boolean).join(':') || null,
-            sourceSection: best.matchedSection,
-            sourceLocator: `openfda:${best.splSetId}:${best.effectiveTime ?? ''}:${best.matchedSection}:${best.labelPartitionFile}`,
-            evidenceSummary: null,
-            sourceHash: best.recordHash,
-            retrievedAt,
-            evidenceStrength: desired.evidenceStrength,
-          })
+          await tx.insert(clinicalInteractionEvidence).values(evidenceRecord)
         }
       }
     }

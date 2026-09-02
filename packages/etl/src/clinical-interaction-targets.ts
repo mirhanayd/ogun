@@ -164,7 +164,9 @@ export function resolveApprovedTargetKey(targetKey: string) {
     const definition = Object.values(NUTRIENT_TARGETS).find(
       (item) => item.nutrientCode === nutrientCode,
     )
-    return definition ? { kind: 'nutrient' as const, nutrientCode, targetType: definition.targetType } : null
+    return definition
+      ? { kind: 'nutrient' as const, nutrientCode, targetType: definition.targetType }
+      : null
   }
   const separator = targetKey.indexOf(':')
   if (separator < 1) return null
