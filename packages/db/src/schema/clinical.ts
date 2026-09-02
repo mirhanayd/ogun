@@ -26,6 +26,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { clients } from './clients'
+import { nutrients } from './foods'
 import { id, timestamps } from './_helpers'
 
 export const clinicalSources = pgTable(
@@ -471,5 +472,172 @@ export const clientMedications = pgTable(
     index('client_medications_client_active_idx').on(table.clientId, table.isActive),
     index('client_medications_product_idx').on(table.medicationProductId),
     index('client_medications_substance_idx').on(table.medicationSubstanceId),
+  ],
+)
+
+// Klinik interaction hedefleri mümkün olduğunda doğrudan nutrients FK'sini kullanır.
+// Besin kataloğunda doğal karşılığı olmayan grapefruit, alcohol ve meal timing gibi
+// kontrollü kavramlar yalnız bu küçük sözlükte tutulur; foods/nutrients kopyalanmaz.
+export const clinicalTargetConcepts = pgTable(
+  'clinical_target_concepts',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    key: text('key').notNull(),
+    nameTr: text('name_tr').notNull(),
+    nameEn: text('name_en').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('clinical_target_concepts_type_key_idx').on(table.type, table.key),
+    check(
+      'clinical_target_concepts_type_check',
+      sql`${table.type} in ('food_component', 'food', 'food_group', 'supplement', 'alcohol', 'meal_timing')`,
+    ),
+  ],
+)
+
+export const clinicalInteractions = pgTable(
+  'clinical_interactions',
+  {
+    id: text('id').primaryKey(),
+    medicationSubstanceId: text('medication_substance_id').references(
+      () => medicationSubstances.id,
+    ),
+    conditionId: text('condition_id').references(() => conditions.id),
+    targetType: text('target_type').notNull(),
+    nutrientId: text('nutrient_id').references(() => nutrients.id),
+    clinicalTargetConceptId: text('clinical_target_concept_id').references(
+      () => clinicalTargetConcepts.id,
+    ),
+    action: text('action').notNull(),
+    severity: text('severity').notNull(),
+    evidenceStrength: text('evidence_strength').notNull(),
+    timingBeforeMinutes: integer('timing_before_minutes'),
+    timingAfterMinutes: integer('timing_after_minutes'),
+    titleTr: text('title_tr'),
+    clinicalEffectTr: text('clinical_effect_tr'),
+    mechanismTr: text('mechanism_tr'),
+    recommendationTr: text('recommendation_tr'),
+    status: text('status').notNull().default('draft'),
+    reviewStatus: text('review_status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    sourceCandidateId: text('source_candidate_id').notNull(),
+    sourceCandidateSemanticHash: text('source_candidate_semantic_hash').notNull(),
+    version: integer('version').notNull().default(1),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('clinical_interactions_source_candidate_idx').on(table.sourceCandidateId),
+    index('clinical_interactions_medication_status_idx').on(
+      table.medicationSubstanceId,
+      table.status,
+      table.reviewStatus,
+    ),
+    index('clinical_interactions_condition_status_idx').on(
+      table.conditionId,
+      table.status,
+      table.reviewStatus,
+    ),
+    index('clinical_interactions_nutrient_idx').on(table.nutrientId),
+    index('clinical_interactions_target_concept_idx').on(table.clinicalTargetConceptId),
+    index('clinical_interactions_status_action_idx').on(table.status, table.action),
+    check(
+      'clinical_interactions_subject_check',
+      sql`num_nonnulls(${table.medicationSubstanceId}, ${table.conditionId}) = 1`,
+    ),
+    check(
+      'clinical_interactions_target_check',
+      sql`(
+        ${table.nutrientId} is not null
+        and ${table.clinicalTargetConceptId} is null
+        and ${table.targetType} in ('nutrient', 'food_component')
+      ) or (
+        ${table.nutrientId} is null
+        and ${table.clinicalTargetConceptId} is not null
+        and ${table.targetType} <> 'nutrient'
+      )`,
+    ),
+    check(
+      'clinical_interactions_target_type_check',
+      sql`${table.targetType} in ('nutrient', 'food_component', 'food', 'food_group', 'supplement', 'alcohol', 'meal_timing')`,
+    ),
+    check(
+      'clinical_interactions_action_check',
+      sql`${table.action} in ('avoid', 'limit', 'caution', 'monitor', 'consistency', 'separate_timing', 'take_with_food', 'take_without_food', 'avoid_alcohol', 'individualize')`,
+    ),
+    check(
+      'clinical_interactions_severity_check',
+      sql`${table.severity} in ('info', 'low', 'moderate', 'high', 'critical')`,
+    ),
+    check(
+      'clinical_interactions_evidence_strength_check',
+      sql`${table.evidenceStrength} in ('strong', 'moderate', 'limited', 'expert_consensus', 'unknown')`,
+    ),
+    check(
+      'clinical_interactions_status_check',
+      sql`${table.status} in ('draft', 'published', 'superseded', 'retired')`,
+    ),
+    check(
+      'clinical_interactions_review_status_check',
+      sql`${table.reviewStatus} in ('pending', 'approved', 'rejected', 'needs_more_evidence')`,
+    ),
+    check(
+      'clinical_interactions_review_actor_check',
+      sql`${table.reviewedBy} is null or lower(trim(${table.reviewedBy})) not in ('ai', 'agent', 'system')`,
+    ),
+    check(
+      'clinical_interactions_publish_check',
+      sql`${table.status} <> 'published' or (
+        ${table.reviewStatus} = 'approved'
+        and ${table.reviewedBy} is not null
+        and ${table.reviewedAt} is not null
+      )`,
+    ),
+    check(
+      'clinical_interactions_timing_check',
+      sql`(${table.timingBeforeMinutes} is null or ${table.timingBeforeMinutes} >= 0)
+        and (${table.timingAfterMinutes} is null or ${table.timingAfterMinutes} >= 0)`,
+    ),
+    check('clinical_interactions_version_check', sql`${table.version} >= 1`),
+  ],
+)
+
+// Yalnız yayınlanmış kurala seçilerek bağlanan kısa provenance tutulur. Raw SPL
+// metni ve candidate evidence JSONL filesystem'de kalır.
+export const clinicalInteractionEvidence = pgTable(
+  'clinical_interaction_evidence',
+  {
+    id: text('id').primaryKey(),
+    interactionId: text('interaction_id')
+      .notNull()
+      .references(() => clinicalInteractions.id, { onDelete: 'cascade' }),
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => clinicalSources.id),
+    sourceDocumentId: text('source_document_id').notNull(),
+    sourceVersion: text('source_version'),
+    sourceSection: text('source_section').notNull(),
+    sourceLocator: text('source_locator').notNull(),
+    evidenceSummary: text('evidence_summary'),
+    sourceHash: text('source_hash').notNull(),
+    retrievedAt: timestamp('retrieved_at', { withTimezone: true }).notNull(),
+    evidenceStrength: text('evidence_strength').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('clinical_interaction_evidence_provenance_idx').on(
+      table.interactionId,
+      table.sourceId,
+      table.sourceDocumentId,
+      table.sourceHash,
+    ),
+    index('clinical_interaction_evidence_interaction_idx').on(table.interactionId),
+    check(
+      'clinical_interaction_evidence_strength_check',
+      sql`${table.evidenceStrength} in ('strong', 'moderate', 'limited', 'expert_consensus', 'unknown')`,
+    ),
   ],
 )
