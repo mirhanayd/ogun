@@ -570,57 +570,7 @@ export async function getPublishedInteractionsForMedicationSubstances(
   const uniqueIds = [...new Set(medicationSubstanceIds.map((id) => id.trim()).filter(Boolean))]
   if (uniqueIds.length === 0) return []
 
-  const rows = await db
-    .select({
-      id: clinicalInteractions.id,
-      medicationSubstanceId: clinicalInteractions.medicationSubstanceId,
-      targetType: clinicalInteractions.targetType,
-      nutrientId: clinicalInteractions.nutrientId,
-      nutrientCode: nutrients.code,
-      nutrientNameTr: nutrients.nameTr,
-      clinicalTargetConceptId: clinicalInteractions.clinicalTargetConceptId,
-      clinicalTargetKey: clinicalTargetConcepts.key,
-      clinicalTargetNameTr: clinicalTargetConcepts.nameTr,
-      action: clinicalInteractions.action,
-      severity: clinicalInteractions.severity,
-      evidenceStrength: clinicalInteractions.evidenceStrength,
-      timingBeforeMinutes: clinicalInteractions.timingBeforeMinutes,
-      timingAfterMinutes: clinicalInteractions.timingAfterMinutes,
-      titleTr: clinicalInteractions.titleTr,
-      clinicalEffectTr: clinicalInteractions.clinicalEffectTr,
-      mechanismTr: clinicalInteractions.mechanismTr,
-      recommendationTr: clinicalInteractions.recommendationTr,
-      version: clinicalInteractions.version,
-      evidenceId: clinicalInteractionEvidence.id,
-      sourceId: clinicalSources.id,
-      sourceCode: clinicalSources.code,
-      sourceName: clinicalSources.name,
-      sourceVersion: clinicalInteractionEvidence.sourceVersion,
-      sourceDocumentId: clinicalInteractionEvidence.sourceDocumentId,
-      sourceSection: clinicalInteractionEvidence.sourceSection,
-      sourceLocator: clinicalInteractionEvidence.sourceLocator,
-      sourceHash: clinicalInteractionEvidence.sourceHash,
-      retrievedAt: clinicalInteractionEvidence.retrievedAt,
-    })
-    .from(clinicalInteractions)
-    .leftJoin(nutrients, eq(nutrients.id, clinicalInteractions.nutrientId))
-    .leftJoin(
-      clinicalTargetConcepts,
-      eq(clinicalTargetConcepts.id, clinicalInteractions.clinicalTargetConceptId),
-    )
-    .leftJoin(
-      clinicalInteractionEvidence,
-      eq(clinicalInteractionEvidence.interactionId, clinicalInteractions.id),
-    )
-    .leftJoin(clinicalSources, eq(clinicalSources.id, clinicalInteractionEvidence.sourceId))
-    .where(
-      and(
-        inArray(clinicalInteractions.medicationSubstanceId, uniqueIds),
-        eq(clinicalInteractions.status, 'published'),
-        eq(clinicalInteractions.reviewStatus, 'approved'),
-      ),
-    )
-    .orderBy(asc(clinicalInteractions.id), asc(clinicalInteractionEvidence.id))
+  const rows = await buildPublishedMedicationInteractionsQuery(db, uniqueIds)
 
   const interactions = new Map<
     string,
@@ -684,4 +634,61 @@ export async function getPublishedInteractionsForMedicationSubstances(
     }
   }
   return [...interactions.values()]
+}
+
+export function buildPublishedMedicationInteractionsQuery(
+  db: Database,
+  medicationSubstanceIds: string[],
+) {
+  return db
+    .select({
+      id: clinicalInteractions.id,
+      medicationSubstanceId: clinicalInteractions.medicationSubstanceId,
+      targetType: clinicalInteractions.targetType,
+      nutrientId: clinicalInteractions.nutrientId,
+      nutrientCode: nutrients.code,
+      nutrientNameTr: nutrients.nameTr,
+      clinicalTargetConceptId: clinicalInteractions.clinicalTargetConceptId,
+      clinicalTargetKey: clinicalTargetConcepts.key,
+      clinicalTargetNameTr: clinicalTargetConcepts.nameTr,
+      action: clinicalInteractions.action,
+      severity: clinicalInteractions.severity,
+      evidenceStrength: clinicalInteractions.evidenceStrength,
+      timingBeforeMinutes: clinicalInteractions.timingBeforeMinutes,
+      timingAfterMinutes: clinicalInteractions.timingAfterMinutes,
+      titleTr: clinicalInteractions.titleTr,
+      clinicalEffectTr: clinicalInteractions.clinicalEffectTr,
+      mechanismTr: clinicalInteractions.mechanismTr,
+      recommendationTr: clinicalInteractions.recommendationTr,
+      version: clinicalInteractions.version,
+      evidenceId: clinicalInteractionEvidence.id,
+      sourceId: clinicalSources.id,
+      sourceCode: clinicalSources.code,
+      sourceName: clinicalSources.name,
+      sourceVersion: clinicalInteractionEvidence.sourceVersion,
+      sourceDocumentId: clinicalInteractionEvidence.sourceDocumentId,
+      sourceSection: clinicalInteractionEvidence.sourceSection,
+      sourceLocator: clinicalInteractionEvidence.sourceLocator,
+      sourceHash: clinicalInteractionEvidence.sourceHash,
+      retrievedAt: clinicalInteractionEvidence.retrievedAt,
+    })
+    .from(clinicalInteractions)
+    .leftJoin(nutrients, eq(nutrients.id, clinicalInteractions.nutrientId))
+    .leftJoin(
+      clinicalTargetConcepts,
+      eq(clinicalTargetConcepts.id, clinicalInteractions.clinicalTargetConceptId),
+    )
+    .leftJoin(
+      clinicalInteractionEvidence,
+      eq(clinicalInteractionEvidence.interactionId, clinicalInteractions.id),
+    )
+    .leftJoin(clinicalSources, eq(clinicalSources.id, clinicalInteractionEvidence.sourceId))
+    .where(
+      and(
+        inArray(clinicalInteractions.medicationSubstanceId, medicationSubstanceIds),
+        eq(clinicalInteractions.status, 'published'),
+        eq(clinicalInteractions.reviewStatus, 'approved'),
+      ),
+    )
+    .orderBy(asc(clinicalInteractions.id), asc(clinicalInteractionEvidence.id))
 }
