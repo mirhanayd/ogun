@@ -198,6 +198,57 @@ export async function synchronizeLocalFoodCatalog(): Promise<void> {
   })
 }
 
+export async function synchronizeLocalClinicalCatalog(): Promise<void> {
+  const local = await invoke<{
+    version: string | null
+    conditionCount: number
+    medicationProductCount: number
+    medicationSubstanceCount: number
+  }>('local_clinical_catalog_info')
+  const hasLocalCatalog =
+    local.conditionCount > 0 &&
+    local.medicationProductCount > 0 &&
+    local.medicationSubstanceCount > 0
+  let versionResponse: Response
+  try {
+    versionResponse = await fetch(cloudUrl('/api/clinical/index/version'), { cache: 'no-store' })
+  } catch (reason) {
+    if (hasLocalCatalog) return
+    throw reason
+  }
+  if (!versionResponse.ok) throw new Error('Klinik katalog sürümü alınamadı.')
+  const { version } = (await versionResponse.json()) as { version: string }
+  if (local.version === version && hasLocalCatalog) return
+
+  let catalogResponse: Response
+  try {
+    catalogResponse = await fetch(
+      cloudUrl(`/api/clinical/index?v=${encodeURIComponent(version)}`),
+      { cache: 'no-store' },
+    )
+  } catch (reason) {
+    if (hasLocalCatalog) return
+    throw reason
+  }
+  if (!catalogResponse.ok) throw new Error('Klinik katalog indirilemedi.')
+  const catalog = (await catalogResponse.json()) as {
+    version: string
+    conditions: DomainEntity[]
+    medicationProducts: DomainEntity[]
+    medicationSubstances: DomainEntity[]
+  }
+  await invoke('replace_local_clinical_catalog', { catalog })
+}
+
+export const searchLocalConditions = (query: string, limit = 24) =>
+  invoke<DomainEntity[]>('search_local_conditions', { query, limit })
+
+export const searchLocalMedicationProducts = (query: string, limit = 36) =>
+  invoke<DomainEntity[]>('search_local_medication_products', { query, limit })
+
+export const searchLocalMedicationSubstances = (query: string, limit = 16) =>
+  invoke<DomainEntity[]>('search_local_medication_substances', { query, limit })
+
 function nullableString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }

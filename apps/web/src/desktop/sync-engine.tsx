@@ -9,6 +9,7 @@ import {
   loadLocalOutbox,
   replaceLocalWorkspace,
   synchronizeLocalFoodCatalog,
+  synchronizeLocalClinicalCatalog,
   type DesktopLocalScope,
   type DesktopWorkspacePayload,
 } from './native-workspace-repository'
@@ -114,7 +115,7 @@ export async function synchronizeDesktopWorkspace(scope: DesktopLocalScope): Pro
     workspace = await fetchScopedWorkspace(scope)
   }
   await replaceLocalWorkspace(scope, workspace)
-  await synchronizeLocalFoodCatalog()
+  await Promise.all([synchronizeLocalFoodCatalog(), synchronizeLocalClinicalCatalog()])
 }
 
 export function DesktopSyncProvider({

@@ -9,7 +9,7 @@ use chacha20poly1305::{
     XChaCha20Poly1305, XNonce,
 };
 use rand::{rngs::OsRng, RngCore};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -23,7 +23,7 @@ use crate::offline_vault::OfflineVaultState;
 const DB_FILE: &str = "ogun-local-v3.sqlite3";
 const KEY_CLIENT: &[u8] = b"ogun-local-db-secrets";
 const KEY_RECORD: &[u8] = b"clinical-db-key-v1";
-const CURRENT_SCHEMA_VERSION: i64 = 3;
+const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 const MIGRATIONS: &[(i64, &str, &str)] = &[
     (
@@ -106,6 +106,39 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         );
+    "#,
+    ),
+    (
+        4,
+        "clinical_catalogs",
+        r#"
+        CREATE TABLE IF NOT EXISTS clinical_conditions (
+          entry_id TEXT PRIMARY KEY,
+          catalog_version TEXT NOT NULL,
+          normalized_name TEXT NOT NULL,
+          search_text TEXT NOT NULL,
+          payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS clinical_medication_products (
+          entry_id TEXT PRIMARY KEY,
+          catalog_version TEXT NOT NULL,
+          normalized_name TEXT NOT NULL,
+          search_text TEXT NOT NULL,
+          payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS clinical_medication_substances (
+          entry_id TEXT PRIMARY KEY,
+          catalog_version TEXT NOT NULL,
+          normalized_name TEXT NOT NULL,
+          search_text TEXT NOT NULL,
+          payload_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS clinical_conditions_name_idx ON clinical_conditions(normalized_name);
+        CREATE INDEX IF NOT EXISTS clinical_medication_products_name_idx ON clinical_medication_products(normalized_name);
+        CREATE INDEX IF NOT EXISTS clinical_medication_substances_name_idx ON clinical_medication_substances(normalized_name);
+        CREATE VIRTUAL TABLE IF NOT EXISTS clinical_conditions_fts USING fts5(entry_id UNINDEXED, search_text, tokenize='unicode61');
+        CREATE VIRTUAL TABLE IF NOT EXISTS clinical_medication_products_fts USING fts5(entry_id UNINDEXED, search_text, tokenize='unicode61');
+        CREATE VIRTUAL TABLE IF NOT EXISTS clinical_medication_substances_fts USING fts5(entry_id UNINDEXED, search_text, tokenize='unicode61');
     "#,
     ),
 ];
@@ -191,6 +224,24 @@ pub struct LocalFoodCatalogInput {
 pub struct LocalFoodCatalogInfo {
     pub version: Option<String>,
     pub entry_count: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalClinicalCatalogInput {
+    pub version: String,
+    pub conditions: Vec<Value>,
+    pub medication_products: Vec<Value>,
+    pub medication_substances: Vec<Value>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalClinicalCatalogInfo {
+    pub version: Option<String>,
+    pub condition_count: i64,
+    pub medication_product_count: i64,
+    pub medication_substance_count: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -1031,6 +1082,222 @@ pub async fn get_local_food_entries(
     .map_err(|err| format!("Besin kayıtları tamamlanamadı: {err}"))?
 }
 
+fn replace_clinical_entries(
+    transaction: &Transaction<'_>,
+    table: &str,
+    fts_table: &str,
+    version: &str,
+    entries: Vec<Value>,
+    name_key: &str,
+) -> Result<(), String> {
+    transaction
+        .execute(&format!("DELETE FROM {table}"), [])
+        .map_err(|err| format!("Eski klinik katalog temizlenemedi: {err}"))?;
+    transaction
+        .execute(&format!("DELETE FROM {fts_table}"), [])
+        .map_err(|err| format!("Eski klinik arama indeksi temizlenemedi: {err}"))?;
+    let insert = format!(
+        "INSERT INTO {table}(entry_id,catalog_version,normalized_name,search_text,payload_json) VALUES(?1,?2,?3,?4,?5)"
+    );
+    let insert_fts = format!("INSERT INTO {fts_table}(entry_id,search_text) VALUES(?1,?2)");
+    for entry in entries {
+        let id = entry.get("id").and_then(Value::as_str).unwrap_or_default();
+        let name = entry
+            .get(name_key)
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if id.is_empty() || name.is_empty() {
+            return Err("Klinik katalogda kimlik veya ad eksik.".to_string());
+        }
+        let search_text = entry
+            .get("searchText")
+            .and_then(Value::as_str)
+            .map(normalize_food_query)
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| normalize_food_query(name));
+        let payload = serde_json::to_string(&entry)
+            .map_err(|err| format!("Klinik katalog kaydı kodlanamadı: {err}"))?;
+        transaction
+            .execute(
+                &insert,
+                params![
+                    id,
+                    version,
+                    normalize_food_query(name),
+                    search_text,
+                    payload
+                ],
+            )
+            .map_err(|err| format!("Klinik katalog kaydı yazılamadı: {err}"))?;
+        transaction
+            .execute(&insert_fts, params![id, search_text])
+            .map_err(|err| format!("Klinik arama indeksi yazılamadı: {err}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn local_clinical_catalog_info(
+    app: AppHandle,
+) -> Result<LocalClinicalCatalogInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = open_database(&database_path(&app)?)?;
+        let version = connection
+            .query_row(
+                "SELECT value FROM local_db_metadata WHERE key='clinical_catalog_version'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| format!("Klinik katalog sürümü okunamadı: {err}"))?;
+        let count_rows = |table: &str| -> Result<i64, String> {
+            connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .map_err(|err| format!("Klinik katalog sayısı okunamadı: {err}"))
+        };
+        Ok(LocalClinicalCatalogInfo {
+            version,
+            condition_count: count_rows("clinical_conditions")?,
+            medication_product_count: count_rows("clinical_medication_products")?,
+            medication_substance_count: count_rows("clinical_medication_substances")?,
+        })
+    })
+    .await
+    .map_err(|err| format!("Klinik katalog bilgisi alınamadı: {err}"))?
+}
+
+#[tauri::command]
+pub async fn replace_local_clinical_catalog(
+    app: AppHandle,
+    catalog: LocalClinicalCatalogInput,
+) -> Result<(), String> {
+    let total = catalog.conditions.len()
+        + catalog.medication_products.len()
+        + catalog.medication_substances.len();
+    if catalog.version.trim().is_empty() || total > 300_000 {
+        return Err("Klinik katalog geçersiz.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut connection = open_database(&database_path(&app)?)?;
+        let transaction = connection
+            .transaction()
+            .map_err(|err| format!("Klinik katalog güncellemesi başlatılamadı: {err}"))?;
+        replace_clinical_entries(
+            &transaction,
+            "clinical_conditions",
+            "clinical_conditions_fts",
+            &catalog.version,
+            catalog.conditions,
+            "nameTr",
+        )?;
+        replace_clinical_entries(
+            &transaction,
+            "clinical_medication_products",
+            "clinical_medication_products_fts",
+            &catalog.version,
+            catalog.medication_products,
+            "name",
+        )?;
+        replace_clinical_entries(
+            &transaction,
+            "clinical_medication_substances",
+            "clinical_medication_substances_fts",
+            &catalog.version,
+            catalog.medication_substances,
+            "nameTr",
+        )?;
+        transaction
+            .execute(
+                "INSERT INTO local_db_metadata(key,value) VALUES('clinical_catalog_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                params![catalog.version],
+            )
+            .map_err(|err| format!("Klinik katalog sürümü yazılamadı: {err}"))?;
+        transaction
+            .commit()
+            .map_err(|err| format!("Klinik katalog kaydedilemedi: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Klinik katalog güncellenemedi: {err}"))?
+}
+
+fn clinical_fts_query(query: &str) -> String {
+    normalize_food_query(query)
+        .split_whitespace()
+        .map(|token| format!("\"{}\"*", token.replace('"', "\"\"")))
+        .collect::<Vec<_>>()
+        .join(" AND ")
+}
+
+fn search_clinical_entries(
+    connection: &Connection,
+    table: &str,
+    fts_table: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Value>, String> {
+    let match_query = clinical_fts_query(query);
+    if match_query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT catalog.payload_json FROM {fts_table} JOIN {table} catalog ON catalog.entry_id={fts_table}.entry_id WHERE {fts_table} MATCH ?1 ORDER BY bm25({fts_table}), catalog.normalized_name LIMIT ?2"
+    );
+    let mut statement = connection
+        .prepare(&sql)
+        .map_err(|err| format!("Klinik katalog araması hazırlanamadı: {err}"))?;
+    let rows = statement
+        .query_map(params![match_query, limit.clamp(1, 50)], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|err| format!("Klinik katalog araması yapılamadı: {err}"))?;
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(
+            serde_json::from_str(
+                &row.map_err(|err| format!("Klinik katalog satırı okunamadı: {err}"))?,
+            )
+            .map_err(|err| format!("Klinik katalog kaydı çözülemedi: {err}"))?,
+        );
+    }
+    Ok(result)
+}
+
+macro_rules! clinical_search_command {
+    ($name:ident, $table:literal, $fts:literal) => {
+        #[tauri::command]
+        pub async fn $name(
+            app: AppHandle,
+            query: String,
+            limit: usize,
+        ) -> Result<Vec<Value>, String> {
+            tauri::async_runtime::spawn_blocking(move || {
+                let connection = open_database(&database_path(&app)?)?;
+                search_clinical_entries(&connection, $table, $fts, &query, limit)
+            })
+            .await
+            .map_err(|err| format!("Klinik katalog araması tamamlanamadı: {err}"))?
+        }
+    };
+}
+
+clinical_search_command!(
+    search_local_conditions,
+    "clinical_conditions",
+    "clinical_conditions_fts"
+);
+clinical_search_command!(
+    search_local_medication_products,
+    "clinical_medication_products",
+    "clinical_medication_products_fts"
+);
+clinical_search_command!(
+    search_local_medication_substances,
+    "clinical_medication_substances",
+    "clinical_medication_substances_fts"
+);
+
 pub fn remove_scope_data(app: &AppHandle, user_id: &str) -> Result<(), String> {
     let connection = open_database(&database_path(app)?)?;
     connection
@@ -1117,6 +1384,87 @@ mod tests {
         assert_eq!(
             normalize_food_query("  Çiğ Şeftali, Üzüm — İncir! "),
             "cig seftali uzum incir"
+        );
+    }
+
+    #[test]
+    fn clinical_catalog_search_is_indexed_and_turkish_normalized() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&mut connection).unwrap();
+        let transaction = connection.transaction().unwrap();
+        replace_clinical_entries(
+            &transaction,
+            "clinical_conditions",
+            "clinical_conditions_fts",
+            "v1",
+            vec![serde_json::json!({
+                "id": "diabetes",
+                "nameTr": "Tip 2 Diyabet",
+                "searchText": "tip 2 diyabet şeker"
+            })],
+            "nameTr",
+        )
+        .unwrap();
+        replace_clinical_entries(
+            &transaction,
+            "clinical_medication_products",
+            "clinical_medication_products_fts",
+            "v1",
+            vec![serde_json::json!({
+                "id": "parol",
+                "name": "PAROL 500 MG",
+                "searchText": "parol 500 mg parasetamol"
+            })],
+            "name",
+        )
+        .unwrap();
+        replace_clinical_entries(
+            &transaction,
+            "clinical_medication_substances",
+            "clinical_medication_substances_fts",
+            "v1",
+            vec![serde_json::json!({
+                "id": "metformin",
+                "nameTr": "Metformin",
+                "searchText": "metformin"
+            })],
+            "nameTr",
+        )
+        .unwrap();
+        transaction.commit().unwrap();
+
+        assert_eq!(
+            search_clinical_entries(
+                &connection,
+                "clinical_conditions",
+                "clinical_conditions_fts",
+                "diy",
+                10,
+            )
+            .unwrap()[0]["id"],
+            "diabetes"
+        );
+        assert_eq!(
+            search_clinical_entries(
+                &connection,
+                "clinical_medication_products",
+                "clinical_medication_products_fts",
+                "parol",
+                10,
+            )
+            .unwrap()[0]["id"],
+            "parol"
+        );
+        assert_eq!(
+            search_clinical_entries(
+                &connection,
+                "clinical_medication_substances",
+                "clinical_medication_substances_fts",
+                "metfor",
+                10,
+            )
+            .unwrap()[0]["id"],
+            "metformin"
         );
     }
 }

@@ -5,9 +5,9 @@
 //! pencere URL'sini veya component ağacını değiştirmez.
 
 mod deep_link;
+mod local_db;
 mod menu;
 mod menu_actions;
-mod local_db;
 mod navigation;
 mod notifications;
 mod offline_vault;
@@ -112,6 +112,11 @@ pub fn run() {
             local_db::replace_local_food_catalog,
             local_db::search_local_foods,
             local_db::get_local_food_entries,
+            local_db::local_clinical_catalog_info,
+            local_db::replace_local_clinical_catalog,
+            local_db::search_local_conditions,
+            local_db::search_local_medication_products,
+            local_db::search_local_medication_substances,
             deep_link::notify_frontend_ready,
             // GitHub issue #53 / Prompt 9.3 — dar kapsamlı, tek-amaçlı
             // komutlar (bkz. Cargo.toml/PR'daki genel prensip: sadece
