@@ -142,3 +142,68 @@ test('Scenario J — browser UI remains server-backed while desktop bundles shar
   assert.equal(JSON.parse(tauri).build.frontendDist, '../dist')
   assert.doesNotMatch(tauri, /ogun-web\.vercel\.app/)
 })
+
+test('Scenario K — unified login remains visible and cached tokens never unlock startup', async () => {
+  const [app, authState, savedAccounts] = await Promise.all([
+    read('apps/web/src/desktop/desktop-app.tsx'),
+    read('apps/web/src/desktop/desktop-auth-state.ts'),
+    read('apps/web/src/components/desktop-saved-accounts.tsx'),
+  ])
+  assert.match(app, /data-desktop-login-form/)
+  assert.match(app, /id="desktop-email"/)
+  assert.match(app, /id="desktop-password"/)
+  assert.match(app, /offlineLoginMessage\(profiles\.length\)/)
+  assert.match(savedAccounts, /Bu cihazdaki kayıtlı hesaplar/)
+  assert.match(authState, /return \{ phase: 'login', profiles: profiles\.filter/)
+  const runtime = app.slice(app.indexOf('function DesktopRuntimeApp'))
+  assert.doesNotMatch(runtime, /loadNativeSessionToken\(/)
+})
+
+test('Scenario L — canonical clinical selections and native catalog search share the offline round trip', async () => {
+  const [adapter, localClinical, repository, route, database] = await Promise.all([
+    read('apps/web/src/desktop/local-clients-adapter.tsx'),
+    read('apps/web/src/desktop/local-clinical.ts'),
+    read('apps/web/src/desktop/native-workspace-repository.ts'),
+    read('apps/web/src/app/api/desktop/workspace/route.ts'),
+    read('apps/desktop/src-tauri/src/local_db.rs'),
+  ])
+  assert.match(adapter, /localHealthRecord\(anamnesis\)/)
+  assert.match(adapter, /searchLocalConditions/)
+  assert.match(adapter, /searchLocalMedicationProducts/)
+  assert.match(adapter, /searchLocalMedicationSubstances/)
+  assert.match(localClinical, /conditionSelections/)
+  assert.match(localClinical, /medicationSelections/)
+  assert.match(repository, /search_local_conditions/)
+  assert.match(route, /replaceClientConditions/)
+  assert.match(route, /replaceClientMedications/)
+  assert.match(database, /CREATE VIRTUAL TABLE IF NOT EXISTS clinical_conditions_fts USING fts5/)
+})
+
+test('Scenario M — local clinic branding is the restart and live-update source', async () => {
+  const [app, profile] = await Promise.all([
+    read('apps/web/src/desktop/desktop-app.tsx'),
+    read('apps/web/src/desktop/desktop-auth-state.ts'),
+  ])
+  assert.match(app, /listLocalEntities\(localScope, 'clinic'\)/)
+  assert.match(app, /addEventListener\('ogun-local-data-changed', load\)/)
+  assert.match(app, /clinicLogoUrl=\{clinicIdentity\.logoUrl\}/)
+  assert.match(app, /getClinicBrandingVariables\(clinicIdentity\.primaryColor\)/)
+  assert.match(profile, /clinicLogoUrl: profile\.clinicLogoUrl/)
+  assert.match(profile, /clinicPrimaryColor: profile\.clinicPrimaryColor/)
+})
+
+test('Scenario N — client activity and owner-only assignment stay shared and local-first', async () => {
+  const [adapter, table, route, database] = await Promise.all([
+    read('apps/web/src/desktop/local-clients-adapter.tsx'),
+    read('apps/web/src/screens/clients-table-view.tsx'),
+    read('apps/web/src/app/api/desktop/workspace/route.ts'),
+    read('apps/desktop/src-tauri/src/local_db.rs'),
+  ])
+  assert.match(adapter, /buildLocalClientListRows/)
+  assert.doesNotMatch(adapter, /dietitians=\{\[\]\}/)
+  assert.match(table, /formatLastMeasurement/)
+  assert.match(table, /formatLastAppointment/)
+  assert.match(route, /mutation\.kind === 'client\.assignDietitian'/)
+  assert.match(route, /ctx\.role !== 'owner'/)
+  assert.match(database, /mutation\.kind == "client\.assignDietitian" && scope\.role != "owner"/)
+})

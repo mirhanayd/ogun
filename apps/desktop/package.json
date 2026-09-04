@@ -11,6 +11,7 @@
     "test:production-css": "pnpm ui:build && node --test scripts/production-css.test.mjs",
     "test:production-layout": "pnpm ui:build && node --test scripts/production-layout.test.mjs",
     "test:production": "pnpm ui:build && node --test scripts/production-css.test.mjs scripts/production-layout.test.mjs",
+    "smoke:tauri": "node scripts/tauri-production-smoke.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "build": "tauri build",
     "signer:generate": "tauri signer generate -w ~/.tauri/ogun-updater.key",

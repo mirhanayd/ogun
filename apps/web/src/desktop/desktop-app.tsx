@@ -29,7 +29,7 @@ import { PlansScreen, type PlanScreenRow } from '@/screens/plans-screen'
 import { NotFoundScreen } from '@/screens/not-found-screen'
 import type { DomainEntity, OgunRepositories } from '@/data/repositories'
 import { LocalPlanEditor } from './local-plan-editor'
-import { DesktopLayoutSmokeApp } from './layout-smoke-app'
+import { DesktopLayoutSmokeApp, isDesktopLayoutSmokeRoute } from './layout-smoke-app'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 import { resolveDesktopRoute, routePath } from './desktop-route-registry'
@@ -234,9 +234,11 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
 function DesktopLogin({
   profiles,
   onAuthenticated,
+  connectivityOverride,
 }: {
   profiles: DesktopOfflineProfile[]
   onAuthenticated: (identity: DesktopIdentity, pinUnlocked: boolean) => void
+  connectivityOverride?: 'online' | 'offline'
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -248,7 +250,8 @@ function DesktopLogin({
     workspace: DesktopWorkspacePayload
   } | null>(null)
   const savedAccountsRef = useRef<HTMLElement>(null)
-  const connectivity = useConnectivityStatus()
+  const detectedConnectivity = useConnectivityStatus()
+  const connectivity = connectivityOverride ?? detectedConnectivity
 
   function focusSavedAccounts() {
     setHighlightSavedAccounts(true)
@@ -319,6 +322,21 @@ function DesktopRuntimeApp() {
 
 export function DesktopApp() {
   const smokeRoute = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('layout-smoke')
-  if (smokeRoute === 'panel' || smokeRoute === 'danisanlar' || smokeRoute === 'planlar') return <DesktopLayoutSmokeApp initialRoute={`/${smokeRoute}`} />
+  if (smokeRoute === 'login' || smokeRoute === 'offline-login') {
+    const profile: DesktopOfflineProfile = {
+      userId: 'smoke-owner',
+      email: 'ada@destis-klinik.test',
+      displayName: 'Dyt. Ada Demir',
+      clinicId: 'smoke-clinic',
+      clinicName: 'Deştiş Kliniği',
+      clinicLogoUrl: '/brand/ogun-uygulama-ikonu.svg',
+      clinicPrimaryColor: '#6D4AFF',
+      role: 'owner',
+      pinConfigured: true,
+      lastSyncedAt: '2026-09-04T12:00:00.000Z',
+    }
+    return <ConnectivityStatusProvider><DesktopLogin profiles={[profile]} connectivityOverride={smokeRoute === 'offline-login' ? 'offline' : 'online'} onAuthenticated={() => undefined} /></ConnectivityStatusProvider>
+  }
+  if (smokeRoute && isDesktopLayoutSmokeRoute(smokeRoute)) return <DesktopLayoutSmokeApp initialRoute={smokeRoute} />
   return <ConnectivityStatusProvider><DesktopRuntimeApp /></ConnectivityStatusProvider>
 }

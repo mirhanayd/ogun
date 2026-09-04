@@ -70,7 +70,7 @@ export function DesktopSavedAccounts({
     >
       <div className="flex items-center gap-2 px-1 pb-2 text-xs font-bold tracking-[0.1em] text-primary uppercase">
         <KeyRound className="size-3.5" />
-        Bu cihazdaki hesaplar
+        Bu cihazdaki kayıtlı hesaplar
       </div>
       {!selected ? (
         <div className="grid gap-2">

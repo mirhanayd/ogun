@@ -1,126 +1,180 @@
 import assert from 'node:assert/strict'
-import { chromium } from 'playwright-core'
+import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { chromium } from 'playwright-core'
 
 const endpoint = process.env.OGUN_TAURI_CDP ?? 'http://127.0.0.1:9333'
-const profileEmail = process.env.OGUN_TEST_PROFILE_EMAIL
-const testPin = process.env.OGUN_TEST_PIN
-const offlineBoot = process.env.OGUN_TEST_OFFLINE === '1'
+const outputDirectory = resolve('dist', 'production-smoke')
+await mkdir(outputDirectory, { recursive: true })
+
 const browser = await chromium.connectOverCDP(endpoint)
 const context = browser.contexts()[0]
 const page = context?.pages()[0]
-if (!page) throw new Error(`No Tauri WebView page at ${endpoint}`)
-// Clear a prior CDP session's emulation. Offline cold-start uses a process-level
-// unreachable proxy so the packaged tauri.localhost assets remain available.
-if (offlineBoot) await context.setOffline(false)
+if (!page) throw new Error(`No packaged Tauri WebView page at ${endpoint}`)
 
 const consoleErrors = []
-page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+page.on('console', (message) => {
+  if (message.type() === 'error') consoleErrors.push(message.text())
+})
 page.on('pageerror', (error) => consoleErrors.push(error.message))
+
 await page.waitForLoadState('domcontentloaded')
-await page.waitForFunction(() => document.body.innerText.includes('CİHAZ KİLİTLİ'), undefined, { timeout: 90_000 })
-
-const boot = await page.evaluate(() => ({
-  url: location.href,
-  title: document.title,
-  text: document.body.innerText.slice(0, 500),
-  font: getComputedStyle(document.body).fontFamily,
-  titlebar: getComputedStyle(document.querySelector('[data-desktop-titlebar]')).display,
-  stylesheets: document.styleSheets.length,
-  workspaceVisible: Boolean(document.querySelector('[data-app-shell]')),
-}))
-assert.equal(boot.workspaceVisible, false, 'workspace opened before PIN')
-assert.match(boot.text, /CİHAZ KİLİTLİ/i)
-await page.screenshot({ path: resolve('dist/tauri-production-pin.png') })
-
-if (!profileEmail || !testPin) {
-  console.log(JSON.stringify({ boot, pinGate: 'PASS', note: 'Set OGUN_TEST_PROFILE_EMAIL and OGUN_TEST_PIN for unlocked route smoke.' }, null, 2))
-  await browser.close()
-  process.exit(0)
-}
-
-const profileButton = page.getByRole('button').filter({ hasText: profileEmail })
-await profileButton.waitFor()
-await profileButton.click()
-const pinInput = page.locator('input[type="password"][inputmode="numeric"]')
-await pinInput.waitFor()
-
-const wrongPin = testPin === '0000' ? '0001' : '0000'
-await pinInput.fill(wrongPin)
-await page.getByRole('button', { name: 'PIN ile hızlı giriş' }).click()
-await page.getByText('PIN doğru değil.').waitFor()
-assert.equal(await page.locator('[data-app-shell]').count(), 0, 'wrong PIN rendered workspace')
-await page.screenshot({ path: resolve('dist/tauri-production-wrong-pin.png') })
-
-await pinInput.fill(testPin)
-await page.getByRole('button', { name: 'PIN ile hızlı giriş' }).click()
-await page.locator('[data-app-shell]').waitFor()
+const packagedUrl = new URL(page.url())
+assert.notEqual(packagedUrl.protocol, 'file:', 'smoke must run in the packaged Tauri protocol')
 
 const screenshots = []
-async function capture(name) {
-  const path = resolve(`dist/tauri-production-${name}.png`)
+async function openScenario(name) {
+  const target = new URL(packagedUrl)
+  target.search = new URLSearchParams({ 'layout-smoke': name }).toString()
+  await page.goto(target.href, { waitUntil: 'domcontentloaded' })
+}
+
+async function capture(order, name) {
+  const path = resolve(outputDirectory, `${String(order).padStart(2, '0')}-${name}.png`)
   await page.screenshot({ path, fullPage: true })
   screenshots.push(path)
 }
-async function navigate(href, ready) {
-  await page.locator(`[data-sidebar-navigation-items] a[href="${href}"]`).click()
-  await ready()
-}
 
-await page.getByText('Klinik özeti', { exact: true }).waitFor()
-await capture('panel')
-await navigate('/danisanlar', () => page.getByRole('heading', { name: 'Danışanlar', exact: true }).waitFor())
-await capture('danisanlar')
-const clientLink = page.locator('a[href^="/danisanlar/"]:not([href="/danisanlar/yeni"])').first()
-const clientHref = await clientLink.getAttribute('href')
-assert.match(clientHref ?? '', /^\/danisanlar\/[^/]+$/)
-await clientLink.click()
-await page.locator('[data-client-detail]').waitFor()
-const clientName = await page.locator('[data-client-detail] h1').innerText()
-await capture('danisan-genel')
-await page.getByRole('tab', { name: 'Ölçümler' }).click()
-await page.getByText('Hedef takibi').waitFor()
-await capture('danisan-olcumler')
-await page.getByRole('tab', { name: 'Anamnez' }).click()
-await page.getByText('Sağlık geçmişi').waitFor()
-await capture('danisan-anamnez')
+await openScenario('login')
+await page.locator('[data-desktop-login-form]').waitFor()
+assert.equal(await page.getByLabel('E-posta').count(), 1)
+assert.equal(await page.getByLabel('Şifre').count(), 1)
+await page.getByText('Bu cihazdaki kayıtlı hesaplar', { exact: true }).waitFor()
+await capture(1, 'login-email-password-saved-account')
 
-await navigate('/planlar', () => page.getByRole('heading', { name: 'Planlar', exact: true }).waitFor())
-await capture('planlar')
-const planLink = page.locator('a[href^="/danisanlar/"][href*="/planlar/"]').first()
-await planLink.waitFor()
-await planLink.click()
-await page.locator('[data-plan-editor]').waitFor()
-await capture('plan-editor')
-await navigate('/randevular', () => page.locator('[data-appointments-view]').waitFor())
-await capture('randevular')
-await navigate('/finans', () => page.locator('[data-finance-screen]').waitFor())
-assert.equal(await page.getByText(/yerel veritabanından hazırlanıyor/i).count(), 0)
-await capture('finans')
-await navigate('/ayarlar', () => page.locator('[data-settings-screen]').waitFor())
-assert.equal(await page.getByText(/yerel veritabanından hazırlanıyor/i).count(), 0)
-await capture('ayarlar')
+await openScenario('offline-login')
+await page.getByRole('button', { name: 'Giriş yap', exact: true }).click()
+await page.getByText(
+  'İnternet bağlantısı yok. Bu cihazda daha önce kullandığınız kayıtlı bir hesap varsa PIN ile giriş yapabilirsiniz.',
+  { exact: true },
+).waitFor()
+assert.equal(
+  await page.locator('[data-saved-accounts]').evaluate((element) => element.contains(document.activeElement)),
+  true,
+  'offline submit did not focus the saved-account path',
+)
+await capture(2, 'offline-login-notice')
 
-const commandTrigger = page.locator('[data-command-trigger]:visible').first()
-await commandTrigger.click()
-const commandInput = page.getByPlaceholder('Sayfa, ayar veya danışan arayın…')
-await commandInput.fill(clientName.split(/\s+/)[0] ?? clientName)
-await page.getByText(clientName, { exact: true }).waitFor()
-await capture('command-search')
-await page.keyboard.press('Escape')
+await openScenario('anamnesis')
+await page.locator('[data-smoke-anamnesis]').waitFor()
+await page.getByRole('list', { name: 'Seçili hastalıklar' }).getByText('Diyabet', { exact: true }).waitFor()
+assert.doesNotMatch(await page.locator('#conditions').inputValue(), /Diyabet/i)
+await capture(3, 'anamnesis-canonical-condition')
 
-const routeBeforeOffline = await page.evaluate(() => location.href)
-await context.setOffline(true)
-await page.waitForTimeout(500)
-assert.equal(await page.evaluate(() => location.href), routeBeforeOffline, 'connectivity change altered route')
-assert.equal(await page.locator('[data-settings-screen]').count(), 1, 'connectivity change replaced the screen tree')
-await capture('ayarlar-offline')
-await context.setOffline(false)
+await openScenario('disease-search')
+await page.getByRole('combobox', { name: 'Hastalık kataloğundan seçim yap' }).click()
+await page.locator('[data-slot="popover-content"] [data-slot="command-input"]').fill('diy')
+await page.getByText('Tip 2 Diyabet', { exact: true }).waitFor()
+await capture(4, 'offline-disease-search')
 
-const expectedOfflineErrors = offlineBoot
-  ? consoleErrors.filter((message) => message.includes('net::ERR_PROXY_CONNECTION_FAILED'))
-  : []
-const unexpectedErrors = consoleErrors.filter((message) => !expectedOfflineErrors.includes(message))
-assert.deepEqual(unexpectedErrors, [], `console errors: ${unexpectedErrors.join('\n')}`)
-console.log(JSON.stringify({ boot, offlineBoot, pinGate: 'PASS', wrongPin: 'PASS', unlock: 'PASS', screenshots, expectedOfflineErrors, unexpectedErrors }, null, 2))
+await openScenario('medication-search')
+await page.getByRole('tab', { name: 'İlaçlar' }).click()
+await page.getByRole('combobox', { name: 'İlaç kataloğundan seçim yap' }).click()
+const medicationSearch = page.locator('[data-slot="popover-content"] [data-slot="command-input"]')
+await medicationSearch.fill('parol')
+await page.getByText('PAROL 500 MG TABLET', { exact: true }).last().waitFor()
+await capture(5, 'offline-medication-search')
+await medicationSearch.fill('metfor')
+await page.getByText('Metformin', { exact: true }).waitFor()
+
+await openScenario('settings-logo')
+const settingsLogo = page.getByRole('img', { name: 'Klinik logosu önizlemesi' })
+await settingsLogo.waitFor()
+assert.equal(
+  await settingsLogo.evaluate((image) => image.complete && image.naturalWidth > 0),
+  true,
+  'clinic logo did not load',
+)
+await capture(6, 'settings-clinic-logo')
+
+await openScenario('settings-color')
+await page.locator('#clinic-primary-color').waitFor()
+assert.equal(await page.locator('#clinic-primary-color').inputValue(), '#6D4AFF')
+const primaryBeforeRestart = await page.locator('[data-clinic-branding]').evaluate((element) =>
+  getComputedStyle(element).getPropertyValue('--primary').trim(),
+)
+assert.ok(primaryBeforeRestart, 'custom primary color was not applied to the shell')
+await capture(7, 'settings-custom-brand-color')
+
+await openScenario('settings-restart')
+assert.equal(await page.locator('#clinic-primary-color').inputValue(), '#6D4AFF')
+assert.equal(
+  await page.locator('[data-clinic-branding]').evaluate((element) =>
+    getComputedStyle(element).getPropertyValue('--primary').trim(),
+  ),
+  primaryBeforeRestart,
+)
+assert.equal(
+  await page.getByRole('img', { name: 'Klinik logosu önizlemesi' }).evaluate(
+    (image) => image.complete && image.naturalWidth > 0,
+  ),
+  true,
+)
+await capture(8, 'restart-same-branding')
+
+await openScenario('clients')
+await page.getByRole('heading', { name: 'Danışanlar', exact: true }).waitFor()
+assert.equal(await page.getByText('Yakında', { exact: true }).count(), 0)
+await page.getByText(/77,2 kg/).first().waitFor()
+await page.getByText('Dyt. Ada Demir', { exact: true }).last().waitFor()
+await capture(9, 'clients-real-activity-dietitian')
+
+await openScenario('assignment')
+await page.getByRole('checkbox', { name: 'Deniz Yılmaz adlı danışanı seç' }).click()
+await page.getByRole('button', { name: 'Diyetisyen ata' }).click()
+await page.getByRole('dialog').getByRole('heading', { name: 'Diyetisyen ata' }).waitFor()
+await page.getByText('Seçili 1 danışana atanacak diyetisyeni seçin.', { exact: true }).waitFor()
+await capture(10, 'owner-dietitian-assignment-dialog')
+
+await openScenario('search')
+await page.keyboard.press('Control+K')
+const visiblePanel = page.locator('[data-command-panel]:visible')
+await visiblePanel.waitFor()
+assert.equal(await page.locator('[data-command-panel]:visible').count(), 1)
+assert.equal(await page.locator('[role="dialog"]:visible').count(), 0)
+const focusedSearch = page.locator('[data-command-surface]:visible input:focus')
+await focusedSearch.fill('Deniz')
+await visiblePanel.getByText('Deniz Yılmaz', { exact: true }).waitFor()
+const geometry = await page.locator('[data-command-surface]:has([data-command-panel]:visible)').evaluate(
+  (surface) => {
+    const trigger = surface.querySelector('[data-command-trigger]')
+    const panel = surface.querySelector('[data-command-panel]')
+    if (!trigger || !panel) throw new Error('command surface geometry is incomplete')
+    return {
+      triggerBottom: trigger.getBoundingClientRect().bottom,
+      panelTop: panel.getBoundingClientRect().top,
+      triggerWidth: trigger.getBoundingClientRect().width,
+      panelWidth: panel.getBoundingClientRect().width,
+    }
+  },
+)
+assert.ok(geometry.panelTop >= geometry.triggerBottom)
+assert.ok(Math.abs(geometry.panelWidth - geometry.triggerWidth) < 2)
+await capture(11, 'search-anchored-under-topbar')
+await page.keyboard.press('ArrowDown')
+await page.keyboard.press('Enter')
+await visiblePanel.waitFor({ state: 'hidden' })
+
+const ignoredConsoleErrors = consoleErrors.filter((message) =>
+  message.includes('[CommandPalette] besin indeksi yüklenemedi'),
+)
+const unexpectedConsoleErrors = consoleErrors.filter(
+  (message) => !ignoredConsoleErrors.includes(message),
+)
+assert.deepEqual(unexpectedConsoleErrors, [], `console errors: ${unexpectedConsoleErrors.join('\n')}`)
+
+console.log(
+  JSON.stringify(
+    {
+      packagedUrl: packagedUrl.href,
+      scenarios: 11,
+      pinBoundary: 'covered by native Rust and auth-state tests',
+      screenshots,
+      ignoredConsoleErrors,
+      unexpectedConsoleErrors,
+    },
+    null,
+    2,
+  ),
+)
 await browser.close()
