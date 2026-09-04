@@ -40,6 +40,7 @@ import {
   getWorkingHoursForClinic,
   moveItem,
   markGoalAchieved,
+  mergeLegacyAndCatalogLabels,
   removeAlternative,
   removeItem,
   reorderItems,
@@ -52,6 +53,8 @@ import {
   updatePlan,
   upsertClientHealth,
   recordDesktopMutationReceipt,
+  replaceClientConditions,
+  replaceClientMedications,
 } from '@ogun/db/queries'
 import { requireClinic, UnauthenticatedError } from '@/lib/authz'
 import { canAccessClientRecord } from '@/lib/client-access'
@@ -129,7 +132,28 @@ const allergenSchema = z.object({
 const anamnesisSchema = z.object({
   clientId: z.string().min(1),
   conditions: z.array(z.string().trim().min(1).max(500)).max(100),
+  legacyConditions: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+  conditionSelections: z
+    .array(z.object({ conditionId: z.string().trim().min(1).max(160) }))
+    .max(100)
+    .optional(),
   medications: z.array(z.string().trim().min(1).max(500)).max(100),
+  legacyMedications: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+  medicationSelections: z
+    .array(
+      z
+        .object({
+          medicationProductId: z.string().trim().min(1).max(160).nullable(),
+          medicationSubstanceId: z.string().trim().min(1).max(160).nullable(),
+        })
+        .refine(
+          (selection) =>
+            Boolean(selection.medicationProductId) !== Boolean(selection.medicationSubstanceId),
+          'İlaç seçimi ürün veya etkin madde içermelidir.',
+        ),
+    )
+    .max(100)
+    .optional(),
   allergies: z.array(allergenSchema).max(50),
   intolerances: z.array(allergenSchema).max(50),
   surgeries: z.string().max(2_000).nullable(),
@@ -661,7 +685,43 @@ export async function POST(request: Request) {
           const payload = anamnesisSchema.parse(mutation.payload)
           const clientId = idMap[payload.clientId] ?? payload.clientId
           await requireAccessibleClient(clientId, 'Anamnez kaydı')
-          await upsertClientHealth(db, ctx.scope.clinicId, clientId, payload)
+          const {
+            legacyConditions,
+            conditionSelections,
+            legacyMedications,
+            medicationSelections,
+            ...health
+          } = payload
+          if (conditionSelections && medicationSelections) {
+            const [conditionResult, medicationResult] = await Promise.all([
+              replaceClientConditions(
+                db,
+                ctx.scope.clinicId,
+                clientId,
+                conditionSelections,
+              ),
+              replaceClientMedications(
+                db,
+                ctx.scope.clinicId,
+                clientId,
+                medicationSelections,
+              ),
+            ])
+            await upsertClientHealth(db, ctx.scope.clinicId, clientId, {
+              ...health,
+              conditions: mergeLegacyAndCatalogLabels(
+                legacyConditions ?? [],
+                conditionResult.catalogLabels,
+              ),
+              medications: mergeLegacyAndCatalogLabels(
+                legacyMedications ?? [],
+                medicationResult.catalogLabels,
+              ),
+            })
+          } else {
+            // Backward compatibility for pending 0.3.3 outbox entries.
+            await upsertClientHealth(db, ctx.scope.clinicId, clientId, health)
+          }
         }
 
         if (mutation.kind === 'measurement.create') {

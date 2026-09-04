@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ComponentProps } from 'react'
 import type { ClinicRole, DomainEntity, OgunRepositories } from '@/data/repositories'
 import { calculateAge } from '@/lib/client-age'
-import { listFromText, type AnamnesisFormValues } from '@/lib/validation/anamnesis-schemas'
+import type { AnamnesisFormValues } from '@/lib/validation/anamnesis-schemas'
 import type { GoalFormValues, MeasurementFormValues } from '@/lib/validation/measurement-schemas'
 import type { LabResultFormValues } from '@/lib/validation/lab-schemas'
 import type { NewClientFormValues } from '@/lib/validation/client-schemas'
@@ -20,6 +20,7 @@ import { DocumentsView } from '@/screens/documents-view'
 import type { DocumentRow } from '@/app/(app)/danisanlar/[id]/dosyalar/document-list'
 import { OdemelerView } from '@/screens/client-payments-view'
 import { ClientAppointmentsView } from '@/screens/client-appointments-view'
+import { buildLocalAnamnesisEntity, localHealthRecord } from './local-clinical'
 
 const text = (entity: DomainEntity, key: string) => typeof entity[key] === 'string' ? String(entity[key]) : ''
 const numberOrNull = (value: unknown) => value === '' || value == null || !Number.isFinite(Number(value)) ? null : Number(value)
@@ -75,7 +76,7 @@ export function LocalClientDetailAdapter({ clientId, role, repositories }: { cli
   const goals = records.goals.filter((row) => row.status !== 'tamamlandı').map((row): ActiveGoalRow => ({ id: row.id, type: String(row.type) as ActiveGoalRow['type'], targetValue: Number(row.targetValue), targetDate: text(row, 'targetDate') || null, startValue: Number(row.startValue), startedAt: String(row.startedAt ?? row.createdAt ?? new Date().toISOString()) }))
   const labResults = records.labResults.map((row): LabResultChartPoint => ({ id: row.id, testedAt: String(row.testedAt ?? row.createdAt ?? new Date().toISOString()), analyte: text(row, 'analyte'), value: Number(row.value ?? 0), unit: text(row, 'unit'), refMin: numberOrNull(row.refMin), refMax: numberOrNull(row.refMax), isAbnormal: typeof row.isAbnormal === 'boolean' ? row.isAbnormal : null }))
   const anamnesis = records.anamneses[0] ?? null
-  const healthRecord = { ...(anamnesis ?? {}), healthRecord: anamnesis, legacyConditions: (anamnesis?.conditions as string[] | undefined) ?? [], legacyMedications: (anamnesis?.medications as string[] | undefined) ?? [], conditionSelections: [], medicationSelections: [] } as unknown as ClientHealthRow
+  const healthRecord = localHealthRecord(anamnesis) as unknown as ClientHealthRow
   const latest = measurements.at(-1) ?? null
   const nextAppointment = records.appointments.map((row) => date(row.startsAt)).filter((value) => value >= new Date()).sort((a, b) => a.getTime() - b.getTime())[0]
   const clientName = `${text(client, 'firstName')} ${text(client, 'lastName')}`.trim()
@@ -85,7 +86,7 @@ export function LocalClientDetailAdapter({ clientId, role, repositories }: { cli
     try { await repositories.clinical.upsert('measurements', { id: crypto.randomUUID(), clientId, ...projection, measuredAt: new Date(values.measuredAt).toISOString(), recordedBy: 'local' }); return { success: true } } catch (reason) { return { success: false, error: String(reason) } }
   }
   async function saveAnamnesis(values: AnamnesisFormValues) {
-    const entity: DomainEntity = { id: clientId, clientId, conditions: listFromText(values.conditions), medications: listFromText(values.medications), allergies: values.allergies, intolerances: values.intolerances, surgeries: values.surgeries || null, familyHistory: values.familyHistory || null, smokingStatus: values.smokingStatus || null, alcoholUse: values.alcoholUse || null, mealsPerDay: numberOrNull(values.mealsPerDay), eatingOutFrequency: values.eatingOutFrequency || null, waterIntakeMl: numberOrNull(values.waterIntakeMl), activityLevel: values.activityLevel, activityNotes: values.activityNotes || null, sleepHours: numberOrNull(values.sleepHours), sleepQuality: values.sleepQuality || null, bowelHabits: values.bowelHabits || null, updatedAt: new Date().toISOString() }
+    const entity = buildLocalAnamnesisEntity(clientId, values)
     try { await repositories.clinical.upsert('anamneses', entity); return { success: true } } catch (reason) { return { success: false, error: String(reason) } }
   }
   async function saveLab(values: LabResultFormValues) {
