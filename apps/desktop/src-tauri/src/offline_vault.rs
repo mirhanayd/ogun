@@ -33,6 +33,10 @@ pub struct OfflineProfileSummary {
     pub display_name: String,
     pub clinic_id: String,
     pub clinic_name: String,
+    #[serde(default)]
+    pub clinic_logo_url: Option<String>,
+    #[serde(default)]
+    pub clinic_primary_color: Option<String>,
     pub role: String,
     pub pin_configured: bool,
     pub last_synced_at: Option<String>,
@@ -46,6 +50,10 @@ pub struct OfflineProfileInput {
     pub display_name: String,
     pub clinic_id: String,
     pub clinic_name: String,
+    #[serde(default)]
+    pub clinic_logo_url: Option<String>,
+    #[serde(default)]
+    pub clinic_primary_color: Option<String>,
     pub role: String,
     pub last_synced_at: Option<String>,
 }
@@ -344,6 +352,8 @@ pub async fn upsert_offline_profile(
                     display_name: profile.display_name,
                     clinic_id: profile.clinic_id,
                     clinic_name: profile.clinic_name,
+                    clinic_logo_url: profile.clinic_logo_url,
+                    clinic_primary_color: profile.clinic_primary_color,
                     role: profile.role,
                     pin_configured: record.pin_hash.is_some(),
                     last_synced_at,
@@ -356,6 +366,8 @@ pub async fn upsert_offline_profile(
                         display_name: profile.display_name,
                         clinic_id: profile.clinic_id,
                         clinic_name: profile.clinic_name,
+                        clinic_logo_url: profile.clinic_logo_url,
+                        clinic_primary_color: profile.clinic_primary_color,
                         role: profile.role,
                         pin_configured: false,
                         last_synced_at: profile.last_synced_at,

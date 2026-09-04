@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { KeyRound, Leaf, LockKeyhole, LogOut, Mail } from 'lucide-react'
 import { AppShellFrame } from '@/components/app-shell-frame'
@@ -35,6 +35,7 @@ import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 import { resolveDesktopRoute, routePath } from './desktop-route-registry'
 import {
   profileIdentity,
+  offlineLoginMessage,
   stateAfterOnlineSetup,
   stateAfterProfileDetection,
   type DesktopAuthState,
@@ -217,11 +218,32 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
   return <div className="min-h-svh bg-background text-foreground"><NativeDesktopTitlebar /><main className="mx-auto grid min-h-[calc(100svh-3rem)] max-w-6xl items-center px-6 py-12"><div className="mx-auto w-full max-w-lg rounded-3xl border border-border/70 bg-card p-8 shadow-xl">{children}</div></main></div>
 }
 
-function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: DesktopIdentity, pinConfigured: boolean) => void }) {
+function DesktopLogin({
+  profiles,
+  onAuthenticated,
+}: {
+  profiles: DesktopOfflineProfile[]
+  onAuthenticated: (identity: DesktopIdentity, pinUnlocked: boolean) => void
+}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [highlightSavedAccounts, setHighlightSavedAccounts] = useState(false)
+  const [pendingOnline, setPendingOnline] = useState<{
+    identity: DesktopIdentity
+    workspace: DesktopWorkspacePayload
+  } | null>(null)
+  const savedAccountsRef = useRef<HTMLElement>(null)
+  const connectivity = useConnectivityStatus()
+
+  function focusSavedAccounts() {
+    setHighlightSavedAccounts(true)
+    requestAnimationFrame(() => {
+      savedAccountsRef.current?.focus()
+      savedAccountsRef.current?.querySelector<HTMLElement>('button, input')?.focus()
+    })
+  }
 
   async function finishOnlineAuthentication() {
     const { data: session, error: sessionError } = await authClient.getSession()
@@ -234,17 +256,33 @@ function DesktopLogin({ onAuthenticated }: { onAuthenticated: (identity: Desktop
     const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
     const previous = profiles.find((profile) => profile.userId === identity.userId && profile.clinicId === identity.clinicId)
     await invoke('upsert_offline_profile', { profile: { ...identity, lastSyncedAt: new Date().toISOString() } })
+    if (previous?.pinConfigured) {
+      setPendingOnline({ identity, workspace })
+      setError('Hesabınız çevrimiçi doğrulandı. Şifreli yerel çalışma alanını açmak için cihaz PIN’inizi girin.')
+      focusSavedAccounts()
+      return
+    }
     await invoke('initialize_local_scope', { scope: scopeOf(identity) })
     await replaceLocalWorkspace(scopeOf(identity), workspace)
-    onAuthenticated(identity, previous?.pinConfigured === true)
+    onAuthenticated(identity, false)
   }
 
   async function signIn(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError(null)
+    event.preventDefault()
+    if (connectivity !== 'online') {
+      setError(offlineLoginMessage(profiles.length))
+      if (profiles.length > 0) focusSavedAccounts()
+      return
+    }
+    setBusy(true); setError(null); setHighlightSavedAccounts(false)
     try { const result = await authClient.signIn.email({ email, password }); if (result.error) throw new Error(result.error.message ?? 'Giriş yapılamadı.'); await finishOnlineAuthentication() } catch (reason) { setError(String(reason)) } finally { setBusy(false) }
   }
 
-  return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="İlk cihaz kurulumu normal Öğün hesabıyla çevrimiçi yapılır. Sonraki her uygulama açılışında yerel kasa PIN ile açılır."><form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy}>{busy ? 'Giriş yapılıyor…' : 'Giriş yap'}</Button></form></AuthCard></AuthSurface>
+  const savedProfiles = pendingOnline
+    ? profiles.filter((profile) => profile.userId === pendingOnline.identity.userId && profile.clinicId === pendingOnline.identity.clinicId)
+    : profiles
+
+  return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="Öğün hesabınızla çevrimiçi giriş yapın veya bu cihazdaki şifreli çalışma alanınızı PIN ile açın."><form data-desktop-login-form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy || connectivity === 'checking'}>{busy ? 'Giriş yapılıyor…' : connectivity === 'checking' ? 'Bağlantı kontrol ediliyor…' : 'Giriş yap'}</Button></form>{savedProfiles.length > 0 ? <div className="mt-6 border-t border-border/70 pt-5"><DesktopSavedAccounts profiles={savedProfiles} autoSelectSingle={Boolean(pendingOnline)} highlighted={highlightSavedAccounts} sectionRef={savedAccountsRef} onUnlocked={async (profile) => { await loadNativeSessionToken(); if (pendingOnline && profile.userId === pendingOnline.identity.userId && profile.clinicId === pendingOnline.identity.clinicId) { await invoke('initialize_local_scope', { scope: scopeOf(pendingOnline.identity) }); await replaceLocalWorkspace(scopeOf(pendingOnline.identity), pendingOnline.workspace); onAuthenticated(pendingOnline.identity, true); return } onAuthenticated(profileIdentity(profile), true) }} /></div> : null}</AuthCard></AuthSurface>
 }
 
 function DesktopRuntimeApp() {
@@ -254,21 +292,20 @@ function DesktopRuntimeApp() {
     void invoke<DesktopOfflineProfile[]>('list_offline_profiles').then((profiles) => {
       if (!cancelled) setAuthState(stateAfterProfileDetection(profiles))
     }).catch(() => {
-      if (!cancelled) setAuthState({ phase: 'online_login_required' })
+      if (!cancelled) setAuthState({ phase: 'login', profiles: [] })
     })
     return () => { cancelled = true }
   }, [])
 
   if (authState.phase === 'booting') return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Öğün açılıyor…</div></AuthSurface>
-  if (authState.phase === 'locked') return <AuthSurface><AuthCard eyebrow="Cihaz kilitli" title="Yerel çalışma alanınızı açın." description="İnternet bağlantısı ve kayıtlı bulut oturumu bu cihaz PIN’ini atlayamaz."><DesktopSavedAccounts profiles={authState.profiles} autoSelectSingle onUnlocked={async (profile) => { await loadNativeSessionToken(); setAuthState({ phase: 'unlocked', identity: profileIdentity(profile) }) }} /></AuthCard></AuthSurface>
-  if (authState.phase === 'online_login_required') return <DesktopLogin onAuthenticated={(identity, pinConfigured) => setAuthState(stateAfterOnlineSetup(identity, pinConfigured))} />
+  if (authState.phase === 'login') return <DesktopLogin profiles={authState.profiles} onAuthenticated={(identity, pinUnlocked) => setAuthState(stateAfterOnlineSetup(identity, pinUnlocked))} />
   if (authState.phase === 'pin_setup') return <PinSetup identity={authState.identity} onComplete={() => setAuthState({ phase: 'unlocked', identity: authState.identity })} />
   const identity = authState.identity
-  return <ConnectivityStatusProvider><DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} onLogout={() => setAuthState({ phase: 'online_login_required' })} /></DesktopSyncProvider></ConnectivityStatusProvider>
+  return <DesktopSyncProvider scope={scopeOf(identity)}><DesktopWorkspace identity={identity} onLogout={() => { void invoke<DesktopOfflineProfile[]>('list_offline_profiles').then((profiles) => setAuthState(stateAfterProfileDetection(profiles))).catch(() => setAuthState({ phase: 'login', profiles: [] })) }} /></DesktopSyncProvider>
 }
 
 export function DesktopApp() {
   const smokeRoute = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('layout-smoke')
   if (smokeRoute === 'panel' || smokeRoute === 'danisanlar' || smokeRoute === 'planlar') return <DesktopLayoutSmokeApp initialRoute={`/${smokeRoute}`} />
-  return <DesktopRuntimeApp />
+  return <ConnectivityStatusProvider><DesktopRuntimeApp /></ConnectivityStatusProvider>
 }

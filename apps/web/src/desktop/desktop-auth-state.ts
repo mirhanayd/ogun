@@ -13,8 +13,7 @@ export type DesktopIdentity = {
 
 export type DesktopAuthState =
   | { phase: 'booting' }
-  | { phase: 'online_login_required' }
-  | { phase: 'locked'; profiles: DesktopOfflineProfile[] }
+  | { phase: 'login'; profiles: DesktopOfflineProfile[] }
   | { phase: 'pin_setup'; identity: DesktopIdentity }
   | { phase: 'unlocked'; identity: DesktopIdentity }
 
@@ -25,6 +24,8 @@ export function profileIdentity(profile: DesktopOfflineProfile): DesktopIdentity
     displayName: profile.displayName,
     clinicId: profile.clinicId,
     clinicName: profile.clinicName,
+    clinicLogoUrl: profile.clinicLogoUrl ?? null,
+    clinicPrimaryColor: profile.clinicPrimaryColor ?? null,
     role: profile.role as DesktopIdentity['role'],
   }
 }
@@ -33,10 +34,7 @@ export function profileIdentity(profile: DesktopOfflineProfile): DesktopIdentity
 export function stateAfterProfileDetection(
   profiles: DesktopOfflineProfile[],
 ): DesktopAuthState {
-  const lockedProfiles = profiles.filter((profile) => profile.pinConfigured)
-  return lockedProfiles.length > 0
-    ? { phase: 'locked', profiles: lockedProfiles }
-    : { phase: 'online_login_required' }
+  return { phase: 'login', profiles: profiles.filter((profile) => profile.pinConfigured) }
 }
 
 export function stateAfterOnlineSetup(
@@ -44,9 +42,12 @@ export function stateAfterOnlineSetup(
   pinConfigured: boolean,
 ): DesktopAuthState {
   return pinConfigured
-    ? {
-        phase: 'locked',
-        profiles: [{ ...identity, pinConfigured: true, lastSyncedAt: null }],
-      }
+    ? { phase: 'unlocked', identity }
     : { phase: 'pin_setup', identity }
+}
+
+export function offlineLoginMessage(savedProfileCount: number): string {
+  return savedProfileCount > 0
+    ? 'İnternet bağlantısı yok. Bu cihazda daha önce kullandığınız kayıtlı bir hesap varsa PIN ile giriş yapabilirsiniz.'
+    : 'Bu cihazda kayıtlı hesap bulunmuyor. İlk giriş için internet bağlantısı gereklidir.'
 }

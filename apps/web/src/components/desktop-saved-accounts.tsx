@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Ref } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ChevronRight, KeyRound, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,14 @@ export function DesktopSavedAccounts({
   onUnlocked,
   profiles: suppliedProfiles,
   autoSelectSingle = false,
+  highlighted = false,
+  sectionRef,
 }: {
   onUnlocked?: (profile: DesktopOfflineProfile) => void | Promise<void>
   profiles?: DesktopOfflineProfile[]
   autoSelectSingle?: boolean
+  highlighted?: boolean
+  sectionRef?: Ref<HTMLElement>
 } = {}) {
   const [loadedProfiles, setProfiles] = useState<DesktopOfflineProfile[]>(suppliedProfiles ?? [])
   const profiles = suppliedProfiles ?? loadedProfiles
@@ -56,7 +60,14 @@ export function DesktopSavedAccounts({
   }
 
   return (
-    <section className="mb-5 rounded-2xl border border-primary/15 bg-primary/[0.045] p-3">
+    <section
+      ref={sectionRef}
+      data-saved-accounts
+      tabIndex={-1}
+      className={`mb-5 rounded-2xl border bg-primary/[0.045] p-3 outline-none transition ${
+        highlighted ? 'border-primary ring-3 ring-primary/20' : 'border-primary/15'
+      }`}
+    >
       <div className="flex items-center gap-2 px-1 pb-2 text-xs font-bold tracking-[0.1em] text-primary uppercase">
         <KeyRound className="size-3.5" />
         Bu cihazdaki hesaplar

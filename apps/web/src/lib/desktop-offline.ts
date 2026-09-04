@@ -4,6 +4,8 @@ export interface DesktopOfflineProfile {
   displayName: string
   clinicId: string
   clinicName: string
+  clinicLogoUrl?: string | null
+  clinicPrimaryColor?: string | null
   role: string
   pinConfigured: boolean
   lastSyncedAt: string | null
