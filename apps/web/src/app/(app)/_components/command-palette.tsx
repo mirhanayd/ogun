@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, UserPlus, UserRound, UtensilsCrossed, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import { Badge } from '@/components/ui/badge'
 import {
-  CommandDialog,
+  Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
@@ -19,6 +19,7 @@ import { useActiveMealStore } from '@/lib/stores/active-meal-store'
 import type { ClientPickerOption } from '@/app/(app)/randevular/actions'
 import { visibleNavItems } from './nav-items'
 import { visibleSettingsEntries } from './settings-search'
+import { registerCommandShortcutTarget } from './command-shortcut'
 
 // PALETİN SATIR MODELİ: artık her satır SADECE bir etiket değil — ikinci
 // satırda açıklama ve sağda bir TİP ROZETİ ("Sayfa" / "Bölüm" / "Ayar" /
@@ -261,17 +262,27 @@ export function CommandPaletteView({ role, onNavigate, searchClients }: { role: 
   const [query, setQuery] = useState('')
   const [foodHits, setFoodHits] = useState<FoodSearchHit[]>([])
   const [clientHits, setClientHits] = useState<ClientPickerOption[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setOpen((prev) => !prev)
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    return registerCommandShortcutTarget(() => {
+      const input = inputRef.current
+      if (!input || input.getClientRects().length === 0) return false
+      setOpen(true)
+      input.focus()
+      return true
+    })
   }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer)
+  }, [open])
 
   // Besin indeksi (Dexie+Orama) SADECE palet ilk açıldığında yüklenir — her
   // sayfada baştan indirmek yerine "ilk lazım olduğunda" tembel yükleme.
@@ -375,33 +386,39 @@ export function CommandPaletteView({ role, onNavigate, searchClients }: { role: 
   )
 
   return (
-    <>
-      {/* Üst bardaki "arama" girişi — GitHub issue #11'in istediği "stub input"
-          değil, doğrudan komut paletini açan gerçek bir tetikleyici. */}
-      <button
-        type="button"
-        data-command-trigger
-        onClick={() => setOpen(true)}
-        className="flex h-9 w-full max-w-md items-center gap-2.5 rounded-xl border border-input/80 bg-muted/45 px-3 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-all hover:border-primary/25 hover:bg-muted/75 dark:bg-input/25"
-      >
-        <Search className="size-4 shrink-0" />
-        <span className="flex-1 text-left">Ara…</span>
-        <kbd className="hidden shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] text-muted-foreground sm:inline">
-          Ctrl K
-        </kbd>
-      </button>
-      <CommandDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Arama"
-        description="Sayfalar, ayarlar, danışanlar ve besinler arasında arama yapın."
-        className="sm:max-w-[36rem]"
-      >
-        <CommandInput
-          placeholder="Sayfa, ayar veya danışan arayın…"
-          value={query}
-          onValueChange={setQuery}
-        />
+    <div ref={containerRef} data-command-surface className="relative w-full max-w-md">
+      <Command className="size-auto! overflow-visible rounded-none! bg-transparent p-0">
+        <div
+          data-command-trigger
+          className="relative flex h-9 w-full items-center rounded-xl border border-input/80 bg-muted/45 text-sm text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-all focus-within:border-primary/35 focus-within:bg-background focus-within:ring-3 focus-within:ring-ring/20 hover:border-primary/25 hover:bg-muted/75 dark:bg-input/25"
+        >
+          <Search className="pointer-events-none absolute left-3 z-10 size-4 shrink-0" />
+          <CommandInput
+            ref={inputRef}
+            aria-label="Sayfa, ayar veya danışan ara"
+            placeholder="Ara…"
+            value={query}
+            onValueChange={setQuery}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setOpen(false)
+                inputRef.current?.blur()
+              }
+            }}
+            wrapperClassName="w-full p-0"
+            inputGroupClassName="h-9! rounded-xl! border-0! bg-transparent! pr-16 pl-9 shadow-none!"
+            className="h-9"
+            showSearchIcon={false}
+          />
+          <kbd className="pointer-events-none absolute right-3 hidden shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] text-muted-foreground sm:inline">
+            Ctrl K
+          </kbd>
+        </div>
+        {open ? <div
+          data-command-panel
+          className="absolute top-[calc(100%+0.375rem)] right-0 left-0 z-[100] max-h-[min(30rem,calc(100vh-5rem))] overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground shadow-2xl"
+        >
         <CommandList className="max-h-[min(26rem,55vh)]">
           <CommandEmpty>
             {trimmedQuery !== '' ? `“${trimmedQuery}” için sonuç bulunamadı.` : 'Sonuç bulunamadı.'}
@@ -422,7 +439,8 @@ export function CommandPaletteView({ role, onNavigate, searchClients }: { role: 
           <FooterHint keys={['↵']}>aç</FooterHint>
           <FooterHint keys={['esc']}>kapat</FooterHint>
         </div>
-      </CommandDialog>
-    </>
+        </div> : null}
+      </Command>
+    </div>
   )
 }
