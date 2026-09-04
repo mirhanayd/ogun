@@ -33,6 +33,7 @@ import { DesktopLayoutSmokeApp } from './layout-smoke-app'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 import { resolveDesktopRoute, routePath } from './desktop-route-registry'
+import { clinicIdentityFromEntity, type LocalClinicIdentity } from './local-branding'
 import {
   profileIdentity,
   offlineLoginMessage,
@@ -130,7 +131,8 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
   const [route, setRoute] = useState<Route>('/panel')
   const repositories = useMemo(() => createNativeRepositories(scopeOf(identity)), [identity])
   const localRows = useLocalScreenRows(repositories)
-  const [branding, setBranding] = useState({ logoUrl: identity.clinicLogoUrl ?? null, primaryColor: identity.clinicPrimaryColor ?? null })
+  const localScope = useMemo(() => scopeOf(identity), [identity])
+  const [clinicIdentity, setClinicIdentity] = useState<LocalClinicIdentity | null>(null)
   const connectivity = useConnectivityStatus()
   const searchClients = useCallback(async (query: string) => {
     const normalized = query.toLocaleLowerCase('tr-TR').trim()
@@ -139,17 +141,27 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
   }, [repositories])
   const navigate = useCallback((href: string) => setRoute(href), [])
   useEffect(() => {
-    void listLocalEntities(scopeOf(identity), 'clinic').then(([clinic]) => {
-      if (!clinic) return
-      setBranding({
-        logoUrl: typeof clinic.logoUrl === 'string' ? clinic.logoUrl : null,
-        primaryColor: typeof clinic.primaryColor === 'string' ? clinic.primaryColor : null,
+    let cancelled = false
+    const load = () => {
+      void listLocalEntities(localScope, 'clinic').then(([clinic]) => {
+        if (!cancelled) {
+          setClinicIdentity(
+            clinicIdentityFromEntity(clinic, { id: identity.clinicId, name: identity.clinicName }),
+          )
+        }
       })
-    })
-  }, [identity])
+    }
+    load()
+    window.addEventListener('ogun-local-data-changed', load)
+    return () => {
+      cancelled = true
+      window.removeEventListener('ogun-local-data-changed', load)
+    }
+  }, [identity.clinicId, identity.clinicName, localScope])
   const routeRoot = `/${routePath(route).split('/').filter(Boolean)[0] ?? 'panel'}`
   const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === routeRoot)?.label ?? 'Panel', [identity.role, routeRoot])
-  const initials = identity.clinicName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
+  if (!clinicIdentity) return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Yerel klinik kimliği açılıyor…</div></AuthSurface>
+  const initials = clinicIdentity.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
   const routeMatch = resolveDesktopRoute(route)
   async function logout() {
     await authClient.signOut().catch(() => undefined)
@@ -195,7 +207,7 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
       content = <NotFoundScreen />
   }
   return (
-    <NavigationProvider navigate={setRoute}><AppShellFrame clinicName={identity.clinicName} clinicLogoUrl={branding.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(branding.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{identity.clinicName}</span>} search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
+    <NavigationProvider navigate={setRoute}><AppShellFrame clinicName={clinicIdentity.name} clinicLogoUrl={clinicIdentity.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(clinicIdentity.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{clinicIdentity.name}</span>} search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       {content}
     </AppShellFrame></NavigationProvider>
   )
