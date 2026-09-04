@@ -16,6 +16,7 @@ export interface DesktopOfflineMutation {
   kind:
     | 'client.create'
     | 'client.update'
+    | 'client.assignDietitian'
     | 'anamnesis.upsert'
     | 'measurement.create'
     | 'goal.create'

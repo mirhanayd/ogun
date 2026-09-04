@@ -3,6 +3,7 @@ export type DomainEntity = Record<string, unknown> & { id: string }
 
 export interface LocalScope {
   userId: string
+  displayName?: string
   clinicId: string
   role: ClinicRole
 }
@@ -38,6 +39,7 @@ export interface ClientsRepository {
   create(input: DomainEntity): Promise<void>
   update(id: string, patch: Record<string, unknown>): Promise<void>
   archive(id: string): Promise<void>
+  assignDietitian(clientIds: string[], dietitianId: string): Promise<void>
 }
 
 export interface ClinicalRepository {

@@ -48,6 +48,7 @@ type Route = string
 function scopeOf(identity: DesktopIdentity) {
   return {
     userId: identity.userId,
+    displayName: identity.displayName,
     clinicId: identity.clinicId,
     role: identity.role,
     capabilities: identity.role === 'owner' ? ['*'] : ['clients:assigned', 'clinical:write', 'plans:write', 'appointments:write'],
@@ -174,7 +175,7 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
       content = <PanelScreen feed={localPanelFeed(localRows, identity.role)} />
       break
     case 'clients':
-      content = <LocalClientsAdapter role={identity.role} repository={repositories.clients} />
+      content = <LocalClientsAdapter role={identity.role} repositories={repositories} />
       break
     case 'client_new':
       content = <LocalNewClientAdapter repository={repositories.clients} onCreated={(id) => setRoute(`/danisanlar/${id}`)} />

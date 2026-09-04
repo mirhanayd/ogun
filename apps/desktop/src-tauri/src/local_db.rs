@@ -194,7 +194,17 @@ pub struct LocalMutationInput {
     pub operation: String,
     pub payload: Value,
     pub projection: Value,
+    #[serde(default)]
+    pub additional_projections: Vec<LocalProjectionInput>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalProjectionInput {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub projection: Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -280,6 +290,7 @@ fn validate_entity_type(entity_type: &str) -> Result<(), String> {
             | "plans"
             | "appointments"
             | "customFoods"
+            | "dietitians"
     ) {
         Ok(())
     } else {
@@ -778,6 +789,15 @@ pub async fn apply_local_mutation(
     if !can_mutate(&scope, &mutation.entity_type) {
         return Err("Rolünüz bu değişikliği çevrimdışı yapmaya izin vermiyor.".to_string());
     }
+    if mutation.kind == "client.assignDietitian" && scope.role != "owner" {
+        return Err("Diyetisyen atamasını yalnız klinik sahibi yapabilir.".to_string());
+    }
+    for projection in &mutation.additional_projections {
+        validate_entity_type(&projection.entity_type)?;
+        if projection.entity_id.is_empty() || !can_mutate(&scope, &projection.entity_type) {
+            return Err("Ek yerel görünüm güncellemesi geçersiz.".to_string());
+        }
+    }
     if mutation.mutation_id.is_empty()
         || mutation.mutation_id.len() > 160
         || mutation.kind.is_empty()
@@ -819,6 +839,19 @@ pub async fn apply_local_mutation(
                 params![scope_key, mutation.entity_type, mutation.entity_id, projection, mutation.created_at, i64::from(mutation.operation == "delete")],
             )
             .map_err(|err| format!("Yerel görünüm güncellenemedi: {err}"))?;
+        for additional in &mutation.additional_projections {
+            let aad = format!(
+                "{scope_key}\u{1f}{}\u{1f}{}",
+                additional.entity_type, additional.entity_id
+            );
+            let encrypted = encrypt_json(&key, aad.as_bytes(), &additional.projection)?;
+            transaction
+                .execute(
+                    "INSERT INTO entities(scope_key,entity_type,entity_id,encrypted_payload,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,0) ON CONFLICT(scope_key,entity_type,entity_id) DO UPDATE SET encrypted_payload=excluded.encrypted_payload,updated_at=excluded.updated_at,deleted=0",
+                    params![scope_key, additional.entity_type, additional.entity_id, encrypted, mutation.created_at],
+                )
+                .map_err(|err| format!("Ek yerel görünüm güncellenemedi: {err}"))?;
+        }
         let outbox_aad = format!("{scope_key}\u{1f}outbox\u{1f}{}", mutation.mutation_id);
         let envelope = serde_json::json!({ "kind": mutation.kind, "payload": mutation.payload });
         let payload = encrypt_json(&key, outbox_aad.as_bytes(), &envelope)?;

@@ -23,6 +23,7 @@ describe('desktop workspace projection', () => {
       plans: [{ id: 'plan-1', clientId: 'client-1' }],
       appointments: [{ id: 'appointment-1', clientId: 'client-1' }],
       customFoods: [{ id: 'food-1', nameTr: 'Ev yapımı çorba' }],
+      dietitians: [{ id: 'user-1', name: 'Dyt. Ada Demir' }],
     })
 
     expect(Object.keys(domains)).toEqual([
@@ -41,6 +42,7 @@ describe('desktop workspace projection', () => {
       'plans',
       'appointments',
       'customFoods',
+      'dietitians',
     ])
     expect(domains.anamneses?.[0]?.id).toBe('anamnesis-1')
     expect(domains.clients?.[0]?.updatedAt).toBe('2026-08-30T08:00:00.000Z')

@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { DomainEntity, LocalScope, OgunRepositories } from '@/data/repositories'
 import { cloudUrl } from '@/lib/cloud-origin'
+import { localCreatedClientProjection } from './local-client-list'
+import { canManuallyAssignDietitian } from '@/lib/dietitian-assignment'
 
 export type DesktopLocalScope = LocalScope & { capabilities: string[] }
 
@@ -23,6 +25,7 @@ export interface DesktopWorkspacePayload {
   plans?: DomainEntity[]
   appointments?: DomainEntity[]
   customFoods?: DomainEntity[]
+  dietitians?: DomainEntity[]
 }
 
 export interface LocalOutboxMutation {
@@ -46,6 +49,11 @@ export interface LocalMutation {
   operation: 'create' | 'update' | 'upsert' | 'delete' | 'replace'
   payload: Record<string, unknown>
   projection: DomainEntity
+  additionalProjections?: Array<{
+    entityType: string
+    entityId: string
+    projection: DomainEntity
+  }>
   createdAt?: string
 }
 
@@ -64,6 +72,7 @@ const WORKSPACE_DOMAINS = [
   'plans',
   'appointments',
   'customFoods',
+  'dietitians',
 ] as const
 
 function entityId(domain: string, entity: DomainEntity): string {
@@ -281,7 +290,7 @@ export function createNativeRepositories(scope: DesktopLocalScope): OgunReposito
       },
       async create(input) {
         const now = new Date().toISOString()
-        const projection = { ...input, status: 'aktif', createdAt: now, updatedAt: now }
+        const projection = localCreatedClientProjection(input, scope, now)
         await applyLocalMutation(scope, {
           kind: 'client.create',
           entityType: 'clients',
@@ -319,6 +328,35 @@ export function createNativeRepositories(scope: DesktopLocalScope): OgunReposito
       },
       async archive(id) {
         await this.update(id, { status: 'arşiv' })
+      },
+      async assignDietitian(clientIds, dietitianId) {
+        if (!canManuallyAssignDietitian(scope.role)) throw new Error('Diyetisyen atamasını yalnız klinik sahibi yapabilir.')
+        const dietitians = await read('dietitians')
+        const dietitian = dietitians.find((option) => option.id === dietitianId)
+        if (!dietitian) throw new Error('Seçilen diyetisyen bu klinikte bulunamadı.')
+        const clients = await read('clients')
+        const selected = clientIds.map((id) => clients.find((client) => client.id === id))
+        if (selected.some((client) => !client)) throw new Error('Seçilen danışanlardan biri bulunamadı.')
+        const projections = selected.map((client) => ({
+          ...client!,
+          assignedDietitianId: dietitian.id,
+          assignedDietitianName: String(dietitian.name ?? ''),
+          updatedAt: new Date().toISOString(),
+        }))
+        if (projections.length === 0) return
+        await applyLocalMutation(scope, {
+          kind: 'client.assignDietitian',
+          entityType: 'clients',
+          entityId: projections[0]!.id,
+          operation: 'update',
+          payload: { clientIds, dietitianId },
+          projection: projections[0]!,
+          additionalProjections: projections.slice(1).map((projection) => ({
+            entityType: 'clients',
+            entityId: projection.id,
+            projection,
+          })),
+        })
       },
     },
     clinical: {

@@ -22,6 +22,7 @@ import {
   type ClientGeneralInfoFormValues,
   type NewClientFormValues,
 } from '@/lib/validation/client-schemas'
+import { assignedDietitianForNewClient } from '@/lib/dietitian-assignment'
 
 // GitHub issue #17 / Prompt 4.1 — danışan kaydı mutasyonları. Ortak dönüş tipi
 // app/kurulum/actions.ts'teki ActionResult örüntüsüyle aynı: hata durumunda
@@ -67,7 +68,7 @@ const createClientForClinic = withAuth(
         kvkkConsentAt: consent.kvkkConsentAt,
         kvkkConsentVersion: CURRENT_KVKK_CONSENT_VERSION,
         explicitConsentAt: consent.explicitConsentAt,
-        assignedDietitianId: ctx.role === 'dietitian' ? ctx.user.id : null,
+        assignedDietitianId: assignedDietitianForNewClient(ctx.role, ctx.user.id),
       })
     },
   ),

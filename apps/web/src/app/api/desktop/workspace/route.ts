@@ -6,6 +6,7 @@ import {
   addDay,
   addItem,
   addMeal,
+  assignDietitianToClients,
   createAppointment,
   createBillingPackage,
   createClient,
@@ -18,6 +19,7 @@ import {
   deleteExpense,
   deleteLabResult,
   getClientById,
+  getClientsByIds,
   getDesktopClinicalWorkspace,
   getDesktopMutationReceipt,
   getGoalClientId,
@@ -36,6 +38,7 @@ import {
   listPlans,
   listBillingPackages,
   listClientPackagesForClinic,
+  listClinicDietitians,
   listExpensesForClinicInRange,
   getWorkingHoursForClinic,
   moveItem,
@@ -59,6 +62,10 @@ import {
 import { requireClinic, UnauthenticatedError } from '@/lib/authz'
 import { canAccessClientRecord } from '@/lib/client-access'
 import { CURRENT_KVKK_CONSENT_VERSION } from '@/lib/validation/client-schemas'
+import {
+  assignedDietitianForNewClient,
+  canManuallyAssignDietitian,
+} from '@/lib/dietitian-assignment'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +74,7 @@ const mutationEnvelopeSchema = z.object({
   kind: z.enum([
     'client.create',
     'client.update',
+    'client.assignDietitian',
     'anamnesis.upsert',
     'measurement.create',
     'goal.create',
@@ -120,6 +128,11 @@ const clientUpdateSchema = z.object({
   notes: z.string().max(4_000).nullable().optional(),
   status: z.enum(['aktif', 'pasif', 'arşiv']),
   smsConsentChecked: z.boolean().optional(),
+})
+
+const clientAssignDietitianSchema = z.object({
+  clientIds: z.array(z.string().min(1)).min(1).max(100),
+  dietitianId: z.string().min(1),
 })
 
 const allergenSchema = z.object({
@@ -479,10 +492,11 @@ export async function GET() {
     const clinic = await getClinicById(db, ctx.scope.clinicId)
     if (!clinic) return NextResponse.json({ error: 'Klinik bulunamadı.' }, { status: 404 })
 
-    const from = new Date()
-    from.setFullYear(from.getFullYear() - 1)
-    const to = new Date()
-    to.setFullYear(to.getFullYear() + 2)
+    // The local list needs the actual last appointment even when the clinic has
+    // not seen a client for more than a year, so the offline read model keeps
+    // the complete operational range instead of a rolling one-year window.
+    const from = new Date('2000-01-01T00:00:00.000Z')
+    const to = new Date('2100-01-01T00:00:00.000Z')
 
     const clientSummaries: Array<{ id: string }> = []
     let clientPage = 1
@@ -499,9 +513,7 @@ export async function GET() {
     } while (clientSummaries.length < clientTotal)
 
     const [clientRows, planRows, appointmentRows] = await Promise.all([
-      Promise.all(
-        clientSummaries.map((summary) => getClientById(db, ctx.scope.clinicId, summary.id)),
-      ).then((rows) => rows.filter((row) => row !== null)),
+      getClientsByIds(db, ctx.scope.clinicId, clientSummaries.map((summary) => summary.id)),
       listPlans(db, ctx.scope.clinicId, {
         visibleToDietitianId: ctx.role === 'dietitian' ? ctx.user.id : undefined,
       }),
@@ -517,13 +529,14 @@ export async function GET() {
       ctx.scope.clinicId,
       clientRows.map((client) => client.id),
     )
-    const [billingPackages, clientPackages, expenses, workingHours] = await Promise.all([
+    const [billingPackages, clientPackages, expenses, workingHours, dietitians] = await Promise.all([
       ctx.role === 'owner' ? listBillingPackages(db, ctx.scope.clinicId) : Promise.resolve([]),
       ctx.role === 'owner' ? listClientPackagesForClinic(db, ctx.scope.clinicId) : Promise.resolve([]),
       ctx.role === 'owner'
         ? listExpensesForClinicInRange(db, ctx.scope.clinicId, { from: '2000-01-01', to: '2100-12-31' })
         : Promise.resolve([]),
       getWorkingHoursForClinic(db, ctx.scope.clinicId),
+      listClinicDietitians(db, ctx.scope.clinicId),
     ])
 
     const plansWithDrafts = await Promise.all(
@@ -591,6 +604,7 @@ export async function GET() {
       clientPackages,
       expenses,
       workingHours,
+      dietitians,
       plans: plansWithDrafts,
       appointments: appointmentRows,
     })
@@ -655,7 +669,7 @@ export async function POST(request: Request) {
               kvkkConsentAt: new Date(mutation.createdAt),
               kvkkConsentVersion: CURRENT_KVKK_CONSENT_VERSION,
               explicitConsentAt: new Date(mutation.createdAt),
-              assignedDietitianId: ctx.role === 'dietitian' ? ctx.user.id : null,
+               assignedDietitianId: assignedDietitianForNewClient(ctx.role, ctx.user.id),
             }))
           idMap[payload.id] = created.id
         }
@@ -679,6 +693,23 @@ export async function POST(request: Request) {
               ? { smsConsentAt: payload.smsConsentChecked ? new Date(mutation.createdAt) : null }
               : {}),
           })
+        }
+
+        if (mutation.kind === 'client.assignDietitian') {
+          if (!canManuallyAssignDietitian(ctx.role)) {
+            throw new Error('Diyetisyen atamasını yalnız klinik sahibi yapabilir.')
+          }
+          const payload = clientAssignDietitianSchema.parse(mutation.payload)
+          const options = await listClinicDietitians(db, ctx.scope.clinicId)
+          if (!options.some((option) => option.id === payload.dietitianId)) {
+            throw new Error('Seçilen diyetisyen bu klinikte bulunamadı.')
+          }
+          await assignDietitianToClients(
+            db,
+            ctx.scope.clinicId,
+            payload.clientIds.map((id) => idMap[id] ?? id),
+            payload.dietitianId,
+          )
         }
 
         if (mutation.kind === 'anamnesis.upsert') {

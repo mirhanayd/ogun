@@ -45,6 +45,8 @@ import { EmptyState } from '@/components/empty-state'
 import { calculateAge } from '@/lib/client-age'
 import { STATUS_LABELS_TR, STATUS_OPTIONS } from '@/lib/validation/client-schemas'
 import { selectedClientIds, selectionSummaryLabel } from '@/app/(app)/danisanlar/selection'
+import { formatLastAppointment, formatLastMeasurement } from '@/lib/client-list-activity'
+import { canManuallyAssignDietitian } from '@/lib/dietitian-assignment'
 
 export interface ClientsFilters {
   search: string
@@ -92,7 +94,7 @@ export function ClientsTableView({
   // burada tekrarlanması bir güvenlik sınırı DEĞİL (nav-items.ts'teki
   // "gizleme tek başına güvenlik sınırı değildir" notuyla aynı gerekçe),
   // sadece assistant'a hiç kullanamayacağı bir seçim arayüzü göstermemek için.
-  const canBulkManage = role === 'owner'
+  const canBulkManage = canManuallyAssignDietitian(role)
 
   const columnHelper = useMemo(() => createColumnHelper<ClientListRow>(), [])
 
@@ -149,19 +151,15 @@ export function ClientsTableView({
         header: 'Yaş',
         cell: ({ row }) => calculateAge(row.original.birthDate) ?? '—',
       }),
-      // "Son ölçüm" / "son randevu": measurements (GitHub issue #18 / Prompt
-      // 4.2) ve randevu modülü (henüz açılmamış bir issue) tabloları bu
-      // repoda henüz YOK — bkz. packages/db/src/queries/clients.ts listClients
-      // üstündeki not. Bu iki kolon şimdilik sabit bir yer tutucu gösterir.
       columnHelper.display({
         id: 'lastMeasurement',
         header: 'Son ölçüm',
-        cell: () => <span className="text-muted-foreground">Yakında</span>,
+        cell: ({ row }) => <span className="whitespace-nowrap">{formatLastMeasurement(row.original)}</span>,
       }),
       columnHelper.display({
         id: 'lastAppointment',
         header: 'Son randevu',
-        cell: () => <span className="text-muted-foreground">Yakında</span>,
+        cell: ({ row }) => <span className="whitespace-nowrap">{formatLastAppointment(row.original)}</span>,
       }),
       columnHelper.accessor('assignedDietitianName', {
         header: 'Atanan diyetisyen',
@@ -427,6 +425,10 @@ export function ClientsTableView({
                       </span>
                       <ArrowRight className="size-4 shrink-0 text-muted-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/60 pt-3 text-xs">
+                    <div><span className="block text-muted-foreground">Son ölçüm</span><span className="mt-1 block font-medium">{formatLastMeasurement(client)}</span></div>
+                    <div><span className="block text-muted-foreground">Son randevu</span><span className="mt-1 block font-medium">{formatLastAppointment(client)}</span></div>
                   </div>
                   <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
                     <Badge variant={STATUS_BADGE_VARIANT[client.status]}>

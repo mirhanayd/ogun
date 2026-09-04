@@ -1,7 +1,8 @@
-import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm'
+import { and, count, desc, eq, getTableColumns, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import type { SQLWrapper } from 'drizzle-orm'
 import { clients, type ClientSex, type ClientStatus } from '../schema/clients'
 import { measurements } from '../schema/measurements'
+import { appointments, type AppointmentStatus } from '../schema/appointments'
 import { users } from '../schema/tenancy'
 import type { Database } from '../client'
 
@@ -21,6 +22,18 @@ export async function getClientById(db: Database, clinicId: string, clientId: st
     .where(and(eq(clients.id, clientId), eq(clients.clinicId, clinicId)))
     .limit(1)
   return client ?? null
+}
+
+export async function getClientsByIds(db: Database, clinicId: string, clientIds: string[]) {
+  if (clientIds.length === 0) return []
+  return db
+    .select({
+      ...getTableColumns(clients),
+      assignedDietitianName: users.name,
+    })
+    .from(clients)
+    .leftJoin(users, eq(users.id, clients.assignedDietitianId))
+    .where(and(eq(clients.clinicId, clinicId), inArray(clients.id, clientIds)))
 }
 
 export interface ClientConsentInput {
@@ -78,6 +91,10 @@ export interface ClientListRow {
   status: ClientStatus
   assignedDietitianId: string | null
   assignedDietitianName: string | null
+  lastMeasurementAt: Date | null
+  lastMeasurementWeightKg: string | null
+  lastAppointmentAt: Date | null
+  lastAppointmentStatus: AppointmentStatus | null
   createdAt: Date
 }
 
@@ -118,13 +135,9 @@ function buildClientListFilters(
   ]
 }
 
-// Sunucu tarafı sayfalama + arama + filtre (GÖREV 2). "Son ölçüm"/"son
-// randevu" kolonları BİLEREK burada YOK — measurements (GitHub issue #18 /
-// Prompt 4.2) ve randevu modülü (henüz açılmamış, gelecekteki bir issue)
-// tabloları bu repoda henüz yok. UI katmanı (clients-table.tsx) bu iki
-// kolonu "—" ile gösterir; bu tablolar gelince buraya birer LEFT JOIN
-// LATERAL (bkz. foods.ts getFoodSummaries'teki aynı desen) eklenip
-// ListClientsResult genişletilecek.
+// Activity fields use correlated aggregate subqueries, so the page remains a
+// single bounded query instead of issuing one measurement/appointment query
+// per client.
 export async function listClients(
   db: Database,
   clinicId: string,
@@ -144,6 +157,36 @@ export async function listClients(
         status: clients.status,
         assignedDietitianId: clients.assignedDietitianId,
         assignedDietitianName: users.name,
+        lastMeasurementAt: sql<Date | null>`(
+          select ${measurements.measuredAt}
+          from ${measurements}
+          where ${measurements.clientId} = ${clients.id}
+          order by ${measurements.measuredAt} desc
+          limit 1
+        )`,
+        lastMeasurementWeightKg: sql<string | null>`(
+          select ${measurements.weightKg}
+          from ${measurements}
+          where ${measurements.clientId} = ${clients.id}
+          order by ${measurements.measuredAt} desc
+          limit 1
+        )`,
+        lastAppointmentAt: sql<Date | null>`(
+          select ${appointments.startsAt}
+          from ${appointments}
+          where ${appointments.clientId} = ${clients.id}
+            and ${appointments.clinicId} = ${clinicId}
+          order by ${appointments.startsAt} desc
+          limit 1
+        )`,
+        lastAppointmentStatus: sql<AppointmentStatus | null>`(
+          select ${appointments.status}
+          from ${appointments}
+          where ${appointments.clientId} = ${clients.id}
+            and ${appointments.clinicId} = ${clinicId}
+          order by ${appointments.startsAt} desc
+          limit 1
+        )`,
         createdAt: clients.createdAt,
       })
       .from(clients)
