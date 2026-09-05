@@ -4,6 +4,7 @@ import { listFromText, type AnamnesisFormValues } from '@/lib/validation/anamnes
 function normalizeLabel(value: string): string {
   return value
     .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9çğıöşü\s]/g, ' ')
@@ -43,7 +44,22 @@ function arrayField<T>(entity: DomainEntity | null, key: string): T[] {
 
 export function localHealthRecord(anamnesis: DomainEntity | null) {
   const conditionSelections = arrayField<{ nameTr?: string }>(anamnesis, 'conditionSelections')
-  const medicationSelections = arrayField<{ productName?: string | null; substanceName?: string | null; name?: string }>(anamnesis, 'medicationSelections')
+  // Offline mutations store selector values; cloud pulls store joined query
+  // rows. Expose the same read DTO to the shared form in both cases.
+  const medicationSelections = arrayField<{
+    medicationProductId?: string | null; medicationSubstanceId?: string | null
+    productName?: string | null; substanceName?: string | null; name?: string
+    productSubstanceNames?: string[]; substanceNames?: string[]
+    productBarcode?: string | null; barcode?: string | null
+    substanceNeedsReview?: boolean | null; needsReview?: boolean
+  }>(anamnesis, 'medicationSelections').map((selection) => ({
+    ...selection,
+    productName: selection.productName ?? (selection.medicationProductId ? selection.name ?? null : null),
+    substanceName: selection.substanceName ?? (selection.medicationSubstanceId ? selection.name ?? null : null),
+    productSubstanceNames: selection.productSubstanceNames ?? selection.substanceNames ?? [],
+    productBarcode: selection.productBarcode ?? selection.barcode ?? null,
+    substanceNeedsReview: selection.substanceNeedsReview ?? selection.needsReview ?? false,
+  }))
   const conditionLabels = conditionSelections.flatMap((selection) => selection.nameTr ? [selection.nameTr] : [])
   const medicationLabels = medicationSelections.flatMap((selection) => {
     const label = selection.productName ?? selection.substanceName ?? selection.name

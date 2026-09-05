@@ -53,6 +53,8 @@ export function ClinicIdentityEditor({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const persistedBrandColorRef = useRef(identity.primaryColor)
+  const identityKey = JSON.stringify(identity)
+  const previousIdentityKey = useRef(identityKey)
   const [formError, setFormError] = useState<string | null>(null)
   const {
     register,
@@ -73,6 +75,17 @@ export function ClinicIdentityEditor({
       ? resolveBrandColor(primaryColor)
       : resolveBrandColor(persistedBrandColorRef.current)
   const previewForeground = readableBrandForeground(previewColor)
+
+  useEffect(() => {
+    if (previousIdentityKey.current === identityKey) return
+    persistedBrandColorRef.current = identity.primaryColor
+    // A pull can arrive while the user is editing. Preserve unsaved inputs;
+    // otherwise refresh the editor from the canonical local/cloud identity.
+    if (!isDirty && !isSubmitting) {
+      reset(toFormValues(identity))
+      previousIdentityKey.current = identityKey
+    }
+  }, [identity, identityKey, isDirty, isSubmitting, reset])
 
   useEffect(() => {
     const brandingRoot = document.querySelector<HTMLElement>('[data-clinic-branding]')

@@ -76,7 +76,7 @@ const WORKSPACE_DOMAINS = [
 ] as const
 
 function entityId(domain: string, entity: DomainEntity): string {
-  const candidate = entity.id ?? (domain === 'anamneses' ? entity.clientId : undefined)
+  const candidate = domain === 'anamneses' ? entity.clientId ?? entity.id : entity.id
   if (typeof candidate !== 'string' || candidate.length === 0) {
     throw new Error(`${domain} kaydının yerel kimliği bulunamadı.`)
   }
@@ -112,7 +112,7 @@ export function workspaceToLocalDomains(workspace: DesktopWorkspacePayload) {
   for (const domain of WORKSPACE_DOMAINS) {
     domains[domain] = (workspace[domain] ?? []).map((entity) => ({
       id: entityId(domain, entity),
-      payload: entity,
+      payload: domain === 'anamneses' ? { ...entity, id: entityId(domain, entity) } : entity,
       updatedAt: entityTimestamp(entity, workspace.capturedAt),
     }))
   }

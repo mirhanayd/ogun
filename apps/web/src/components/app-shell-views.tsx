@@ -230,7 +230,7 @@ export function TopBarView({
   userMenu: ReactNode
 }) {
   return (
-    <header className="app-topbar flex h-[4.5rem] shrink-0 items-center gap-2 border-b border-border/80 bg-background/90 px-3 backdrop-blur-xl sm:gap-4 sm:px-6">
+    <header className="app-topbar relative z-40 flex h-[4.5rem] shrink-0 items-center gap-2 border-b border-border/80 bg-background/90 px-3 backdrop-blur-xl sm:gap-4 sm:px-6">
       {pageContext}
       <div className="hidden h-7 w-px bg-border md:block" />
       <div className="min-w-0 flex-1 sm:flex-none">{clinicSwitcher}</div>

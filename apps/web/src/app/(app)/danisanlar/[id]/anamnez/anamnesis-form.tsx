@@ -47,7 +47,7 @@ function initialConditionSelections(record: ClientHealthRow): ConditionCatalogSe
   }))
 }
 
-function initialMedicationSelections(record: ClientHealthRow): MedicationCatalogSelection[] {
+export function initialMedicationSelections(record: ClientHealthRow): MedicationCatalogSelection[] {
   const selections: MedicationCatalogSelection[] = []
   for (const medication of record.medicationSelections) {
     if (medication.medicationProductId && medication.productName) {

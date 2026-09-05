@@ -29,7 +29,7 @@ import { PlansScreen, type PlanScreenRow } from '@/screens/plans-screen'
 import { NotFoundScreen } from '@/screens/not-found-screen'
 import type { DomainEntity, OgunRepositories } from '@/data/repositories'
 import { LocalPlanEditor } from './local-plan-editor'
-import { DesktopLayoutSmokeApp, isDesktopLayoutSmokeRoute } from './layout-smoke-app'
+import { DesktopLayoutSmokeApp } from './layout-smoke-app'
 import { createNativeRepositories, listLocalEntities, replaceLocalWorkspace, type DesktopWorkspacePayload } from './native-workspace-repository'
 import { DesktopSyncIndicator, DesktopSyncProvider } from './sync-engine'
 import { resolveDesktopRoute, routePath } from './desktop-route-registry'
@@ -231,14 +231,12 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
   return <div className="min-h-svh bg-background text-foreground"><NativeDesktopTitlebar /><main className="mx-auto grid min-h-[calc(100svh-3rem)] max-w-6xl items-center px-6 py-12"><div className="mx-auto w-full max-w-lg rounded-3xl border border-border/70 bg-card p-8 shadow-xl">{children}</div></main></div>
 }
 
-function DesktopLogin({
+export function DesktopLogin({
   profiles,
   onAuthenticated,
-  connectivityOverride,
 }: {
   profiles: DesktopOfflineProfile[]
   onAuthenticated: (identity: DesktopIdentity, pinUnlocked: boolean) => void
-  connectivityOverride?: 'online' | 'offline'
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -250,8 +248,7 @@ function DesktopLogin({
     workspace: DesktopWorkspacePayload
   } | null>(null)
   const savedAccountsRef = useRef<HTMLElement>(null)
-  const detectedConnectivity = useConnectivityStatus()
-  const connectivity = connectivityOverride ?? detectedConnectivity
+  const connectivity = useConnectivityStatus()
 
   function focusSavedAccounts() {
     setHighlightSavedAccounts(true)
@@ -263,12 +260,13 @@ function DesktopLogin({
 
   async function finishOnlineAuthentication() {
     const { data: session, error: sessionError } = await authClient.getSession()
-    if (!session || sessionError || !session.session.activeClinicId || !session.session.role) throw new Error('Aktif klinik oturumu bulunamadı.')
+    if (!session || sessionError) throw new Error('Doğrulanmış oturum bulunamadı.')
     const response = await fetch(cloudUrl('/api/desktop/workspace'), { cache: 'no-store', credentials: 'include', headers: authHeaders() })
     if (!response.ok) throw new Error('Klinik çalışma alanı indirilemedi.')
     const workspace = await response.json() as DesktopWorkspacePayload
-    if (!['owner', 'dietitian', 'assistant'].includes(session.session.role)) throw new Error('Klinik rolü yerel çalışma için desteklenmiyor.')
-    const identity: DesktopIdentity = { userId: session.user.id, email: session.user.email, displayName: session.user.name, clinicId: workspace.clinic.id, clinicName: workspace.clinic.name, clinicLogoUrl: typeof workspace.clinic.logoUrl === 'string' ? workspace.clinic.logoUrl : null, clinicPrimaryColor: typeof workspace.clinic.primaryColor === 'string' ? workspace.clinic.primaryColor : null, role: session.session.role as DesktopIdentity['role'] }
+    if (workspace.scope.userId !== session.user.id || workspace.scope.clinicId !== workspace.clinic.id) throw new Error('Çalışma alanı doğrulanmış oturumla eşleşmiyor.')
+    if (!['owner', 'dietitian', 'assistant'].includes(workspace.scope.role)) throw new Error('Klinik rolü yerel çalışma için desteklenmiyor.')
+    const identity: DesktopIdentity = { userId: session.user.id, email: session.user.email, displayName: session.user.name, clinicId: workspace.clinic.id, clinicName: workspace.clinic.name, clinicLogoUrl: typeof workspace.clinic.logoUrl === 'string' ? workspace.clinic.logoUrl : null, clinicPrimaryColor: typeof workspace.clinic.primaryColor === 'string' ? workspace.clinic.primaryColor : null, role: workspace.scope.role }
     const profiles = await invoke<DesktopOfflineProfile[]>('list_offline_profiles')
     const previous = profiles.find((profile) => profile.userId === identity.userId && profile.clinicId === identity.clinicId)
     await invoke('upsert_offline_profile', { profile: { ...identity, lastSyncedAt: new Date().toISOString() } })
@@ -298,7 +296,7 @@ function DesktopLogin({
     ? profiles.filter((profile) => profile.userId === pendingOnline.identity.userId && profile.clinicId === pendingOnline.identity.clinicId)
     : profiles
 
-  return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="Öğün hesabınızla çevrimiçi giriş yapın veya bu cihazdaki şifreli çalışma alanınızı PIN ile açın."><form data-desktop-login-form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy || connectivity === 'checking'}>{busy ? 'Giriş yapılıyor…' : connectivity === 'checking' ? 'Bağlantı kontrol ediliyor…' : 'Giriş yap'}</Button></form>{savedProfiles.length > 0 ? <div className="mt-6 border-t border-border/70 pt-5"><DesktopSavedAccounts profiles={savedProfiles} autoSelectSingle={Boolean(pendingOnline)} highlighted={highlightSavedAccounts} sectionRef={savedAccountsRef} onUnlocked={async (profile) => { await loadNativeSessionToken(); if (pendingOnline && profile.userId === pendingOnline.identity.userId && profile.clinicId === pendingOnline.identity.clinicId) { await invoke('initialize_local_scope', { scope: scopeOf(pendingOnline.identity) }); await replaceLocalWorkspace(scopeOf(pendingOnline.identity), pendingOnline.workspace); onAuthenticated(pendingOnline.identity, true); return } onAuthenticated(profileIdentity(profile), true) }} /></div> : null}</AuthCard></AuthSurface>
+  return <AuthSurface><AuthCard eyebrow="Tekrar hoş geldiniz" title="Kliniğinize kaldığınız yerden devam edin." description="Öğün hesabınızla çevrimiçi giriş yapın veya bu cihazdaki şifreli çalışma alanınızı PIN ile açın."><form data-desktop-login-form className="flex flex-col gap-5" onSubmit={signIn}><div className="grid gap-2"><Label htmlFor="desktop-email">E-posta</Label><div className="relative"><Mail className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-email" type="email" autoComplete="email" className="pl-10" value={email} onChange={(event) => setEmail(event.target.value)} /></div></div><div className="grid gap-2"><Label htmlFor="desktop-password">Şifre</Label><div className="relative"><LockKeyhole className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="desktop-password" type="password" autoComplete="current-password" className="pl-10" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>{error ? <AuthError>{error}</AuthError> : null}<Button type="submit" disabled={busy || connectivity === 'checking'}>{busy ? 'Giriş yapılıyor…' : connectivity === 'checking' ? 'Bağlantı kontrol ediliyor…' : 'Giriş yap'}</Button></form>{savedProfiles.length > 0 ? <div className="mt-6 border-t border-border/70 pt-5"><DesktopSavedAccounts profiles={savedProfiles} autoSelectSingle={Boolean(pendingOnline)} highlighted={highlightSavedAccounts} sectionRef={savedAccountsRef} onUnlocked={async (profile) => { await loadNativeSessionToken(); if (pendingOnline && profile.userId === pendingOnline.identity.userId && profile.clinicId === pendingOnline.identity.clinicId) { await invoke('initialize_local_scope', { scope: scopeOf(pendingOnline.identity) }); onAuthenticated(pendingOnline.identity, true); return } onAuthenticated(profileIdentity(profile), true) }} /></div> : null}</AuthCard></AuthSurface>
 }
 
 function DesktopRuntimeApp() {
@@ -322,21 +320,6 @@ function DesktopRuntimeApp() {
 
 export function DesktopApp() {
   const smokeRoute = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('layout-smoke')
-  if (smokeRoute === 'login' || smokeRoute === 'offline-login') {
-    const profile: DesktopOfflineProfile = {
-      userId: 'smoke-owner',
-      email: 'ada@destis-klinik.test',
-      displayName: 'Dyt. Ada Demir',
-      clinicId: 'smoke-clinic',
-      clinicName: 'Deştiş Kliniği',
-      clinicLogoUrl: '/brand/ogun-uygulama-ikonu.svg',
-      clinicPrimaryColor: '#6D4AFF',
-      role: 'owner',
-      pinConfigured: true,
-      lastSyncedAt: '2026-09-04T12:00:00.000Z',
-    }
-    return <ConnectivityStatusProvider><DesktopLogin profiles={[profile]} connectivityOverride={smokeRoute === 'offline-login' ? 'offline' : 'online'} onAuthenticated={() => undefined} /></ConnectivityStatusProvider>
-  }
-  if (smokeRoute && isDesktopLayoutSmokeRoute(smokeRoute)) return <DesktopLayoutSmokeApp initialRoute={smokeRoute} />
+  if (smokeRoute && ['panel', 'danisanlar', 'planlar'].includes(smokeRoute)) return <DesktopLayoutSmokeApp initialRoute={smokeRoute} />
   return <ConnectivityStatusProvider><DesktopRuntimeApp /></ConnectivityStatusProvider>
 }

@@ -1,0 +1,13 @@
+{
+  "identifier": "clinical-catalog",
+  "description": "Canonical clinical catalog access for the embedded local renderer only.",
+  "windows": ["main"],
+  "local": true,
+  "permissions": [
+    "allow-local-clinical-catalog-info",
+    "allow-replace-local-clinical-catalog",
+    "allow-search-local-conditions",
+    "allow-search-local-medication-products",
+    "allow-search-local-medication-substances"
+  ]
+}

@@ -1,5 +1,34 @@
-import { describe, expect, it } from 'vitest'
-import { workspaceToLocalDomains } from './native-workspace-repository'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { invoke } from '@tauri-apps/api/core'
+import { createNativeRepositories, workspaceToLocalDomains } from './native-workspace-repository'
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+
+describe('native repository assignment invariants', () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined)
+    vi.stubGlobal('window', { dispatchEvent: vi.fn() })
+  })
+  for (const role of ['owner', 'dietitian'] as const) {
+    it(`${role} creation writes the correct optimistic assignment and canonical outbox`, async () => {
+      const repository = createNativeRepositories({ userId: 'user', clinicId: 'clinic', displayName: 'Dyt. Test', role, capabilities: [] })
+      await repository.clients.create({ id: 'client', firstName: 'Test', lastName: 'Client' })
+      expect(invoke).toHaveBeenCalledWith('apply_local_mutation', expect.objectContaining({
+        mutation: expect.objectContaining({
+          kind: 'client.create',
+          projection: expect.objectContaining({ assignedDietitianId: role === 'dietitian' ? 'user' : null, assignedDietitianName: role === 'dietitian' ? 'Dyt. Test' : null }),
+        }),
+      }))
+    })
+  }
+  for (const role of ['dietitian', 'assistant'] as const) {
+    it(`${role} cannot enqueue manual assignment`, async () => {
+      const repository = createNativeRepositories({ userId: 'user', clinicId: 'clinic', role, capabilities: [] })
+      await expect(repository.clients.assignDietitian(['client'], 'another')).rejects.toThrow('yalnız klinik sahibi')
+      expect(invoke).not.toHaveBeenCalled()
+    })
+  }
+})
 
 describe('desktop workspace projection', () => {
   it('projects every offline domain without loading one JSON snapshot into the UI', () => {
@@ -44,7 +73,8 @@ describe('desktop workspace projection', () => {
       'customFoods',
       'dietitians',
     ])
-    expect(domains.anamneses?.[0]?.id).toBe('anamnesis-1')
+    expect(domains.anamneses?.[0]?.id).toBe('client-1')
+    expect(domains.anamneses?.[0]?.payload.id).toBe('client-1')
     expect(domains.clients?.[0]?.updatedAt).toBe('2026-08-30T08:00:00.000Z')
     expect(domains.plans?.[0]?.updatedAt).toBe(capturedAt)
   })

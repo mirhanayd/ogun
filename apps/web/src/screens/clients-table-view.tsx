@@ -94,7 +94,8 @@ export function ClientsTableView({
   // burada tekrarlanması bir güvenlik sınırı DEĞİL (nav-items.ts'teki
   // "gizleme tek başına güvenlik sınırı değildir" notuyla aynı gerekçe),
   // sadece assistant'a hiç kullanamayacağı bir seçim arayüzü göstermemek için.
-  const canBulkManage = canManuallyAssignDietitian(role)
+  const canBulkManage = role === 'owner' || role === 'dietitian'
+  const canAssign = canManuallyAssignDietitian(role)
 
   const columnHelper = useMemo(() => createColumnHelper<ClientListRow>(), [])
 
@@ -327,7 +328,7 @@ export function ClientsTableView({
             >
               Arşivle
             </Button>
-            <Button
+            {canAssign && <Button
               size="sm"
               variant="outline"
               className="rounded-lg bg-background/75"
@@ -335,7 +336,7 @@ export function ClientsTableView({
               disabled={dietitians.length === 0}
             >
               Diyetisyen ata
-            </Button>
+            </Button>}
           </div>
         </div>
       )}

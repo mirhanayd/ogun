@@ -717,6 +717,20 @@ pub async fn replace_local_entities(
     }).await.map_err(|err| format!("Yerel veri işlemi tamamlanamadı: {err}"))?
 }
 
+// Check every queued mutation, including backed-off/blocked rows. Checking only
+// load_local_outbox in the renderer races with new writes and misses retries.
+fn ensure_workspace_can_be_replaced(connection: &Connection, scope_key: &str) -> Result<(), String> {
+    let pending: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM outbox WHERE scope_key=?1)",
+        params![scope_key],
+        |row| row.get(0),
+    ).map_err(|err| format!("Bekleyen yerel değişiklikler okunamadı: {err}"))?;
+    if pending {
+        return Err("Bekleyen yerel değişiklikler korunuyor. Bulut verisi eşitleme tamamlanınca alınacak.".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn replace_local_workspace(
     app: AppHandle,
@@ -737,6 +751,7 @@ pub async fn replace_local_workspace(
         let mut connection = open_database(&database_path(&app)?)?;
         let scope_key = scope_key(&scope);
         let transaction = connection.transaction().map_err(|err| format!("Çalışma alanı işlemi başlatılamadı: {err}"))?;
+        ensure_workspace_can_be_replaced(&transaction, &scope_key)?;
         for (entity_type, entities) in workspace.domains {
             transaction.execute("DELETE FROM entities WHERE scope_key=?1 AND entity_type=?2", params![scope_key, entity_type]).map_err(|err| format!("Eski çalışma alanı temizlenemedi: {err}"))?;
             for entity in entities {
@@ -1410,6 +1425,21 @@ mod tests {
             .unwrap();
         connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clients','c1','update',X'01','2026-08-29T00:00:00Z')", []).unwrap();
         assert!(connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clients','c1','update',X'01','2026-08-29T00:00:00Z')", []).is_err());
+    }
+
+    #[test]
+    fn workspace_pull_preserves_pending_and_backed_off_projections() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&mut connection).unwrap();
+        connection.execute("INSERT INTO scopes(scope_key,user_id,clinic_id,role) VALUES('s','u','c','owner')", []).unwrap();
+        assert!(ensure_workspace_can_be_replaced(&connection, "s").is_ok());
+        connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clinic','c','update',X'01','2026-09-05T00:00:00Z')", []).unwrap();
+        assert!(ensure_workspace_can_be_replaced(&connection, "s").is_err());
+        connection.execute("UPDATE outbox SET sync_status='failed', next_attempt_at='2099-01-01'", []).unwrap();
+        assert!(ensure_workspace_can_be_replaced(&connection, "s").is_err());
+        assert!(ensure_workspace_can_be_replaced(&connection, "another-scope").is_ok());
+        connection.execute("DELETE FROM outbox WHERE mutation_id='m'", []).unwrap();
+        assert!(ensure_workspace_can_be_replaced(&connection, "s").is_ok());
     }
 
     #[test]

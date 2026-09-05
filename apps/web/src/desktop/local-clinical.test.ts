@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ANAMNESIS_FORM_DEFAULT_VALUES } from '@/lib/validation/anamnesis-schemas'
 import { buildLocalAnamnesisEntity, localHealthRecord } from './local-clinical'
+import { initialMedicationSelections } from '@/app/(app)/danisanlar/[id]/anamnez/anamnesis-form'
 
 const condition = {
   conditionId: 'condition-diabetes',
@@ -33,9 +34,23 @@ describe('desktop canonical anamnesis projection', () => {
 
     const restarted = localHealthRecord(stored)
     expect(restarted.conditionSelections).toEqual([condition])
-    expect(restarted.medicationSelections).toEqual([medication])
+    expect(restarted.medicationSelections).toEqual([expect.objectContaining({
+      medicationProductId: medication.medicationProductId,
+      productName: medication.name,
+      productSubstanceNames: medication.substanceNames,
+      productBarcode: medication.barcode,
+    })])
     expect(restarted.legacyConditions).toEqual(['Eski tanı'])
     expect(restarted.legacyMedications).toEqual(['Özel karışım'])
+    expect(initialMedicationSelections(restarted as never)).toEqual([medication])
+  })
+
+  it('rehydrates an offline substance with the shared form, including review flags', () => {
+    const substance = { key: 'substance:metformin', kind: 'substance' as const, medicationProductId: null, medicationSubstanceId: 'metformin', name: 'Metformin', substanceNames: [], barcode: null, needsReview: true }
+    const stored = buildLocalAnamnesisEntity('client-1', { ...ANAMNESIS_FORM_DEFAULT_VALUES, medicationSelections: [substance] })
+    const restarted = localHealthRecord(JSON.parse(JSON.stringify(stored)))
+    expect(initialMedicationSelections(restarted as never)).toEqual([substance])
+    expect(restarted.legacyMedications).toEqual([])
   })
 
   it('projects server workspace selections as canonical badges', () => {

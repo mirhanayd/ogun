@@ -6,7 +6,7 @@ import { isNativeShell } from '@/lib/native-shell'
 
 export type DesktopWindowAction = 'minimize' | 'toggleMaximize' | 'close'
 
-const INTERACTIVE_SELECTOR = 'button, a, input, [role="button"], [role="menuitem"]'
+const INTERACTIVE_SELECTOR = 'button, a, input, [role="button"], [role="menuitem"], [role="option"], [data-command-surface]'
 
 // Windows varsayılan çift tık eşiği (GetDoubleClickTime ≈ 500 ms) ve
 // SM_CXDOUBLECLK (~4 px) ile uyumlu toleranslar.

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -97,6 +97,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function KeyboardShortcutsHelp() {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   // isNativeShell() `window.__TAURI_INTERNALS__`e bakar — sunucuda YOK.
   // Doğrudan render sırasında çağırmak hidrasyon uyumsuzluğu üretirdi, bu
   // yüzden mount sonrası bir kez okunuyor (web'de değer HİÇ değişmez).
@@ -108,6 +109,8 @@ export function KeyboardShortcutsHelp() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      // Both shared bars are mounted; only the visible one owns this shortcut.
+      if (event.defaultPrevented || !triggerRef.current?.getClientRects().length) return
       // '?' fiziksel tuşu Shift+/ ile üretilir — event.key zaten '?' değerini
       // verir, ayrıca shiftKey kontrolüne gerek yok. Bir metin alanına
       // yazarken (ör. bir not alanına "soru işareti" karakterinin kendisi
@@ -127,7 +130,9 @@ export function KeyboardShortcutsHelp() {
   // diyaloğu bir Tauri olayıyla açar — "?" tuşuyla açmakla AYNI mekanizma.
   useEffect(() => {
     if (!isNativeShell()) return
-    const unlistenPromise = listen('ogun-menu-open-shortcuts', () => setOpen(true))
+    const unlistenPromise = listen('ogun-menu-open-shortcuts', () => {
+      if (triggerRef.current?.getClientRects().length) setOpen(true)
+    })
     return () => {
       void unlistenPromise.then((unlisten) => unlisten())
     }
@@ -135,7 +140,7 @@ export function KeyboardShortcutsHelp() {
 
   return (
     <>
-      <Button variant="ghost" size="icon" title="Klavye kısayolları (?)" onClick={() => setOpen(true)}>
+      <Button ref={triggerRef} variant="ghost" size="icon" title="Klavye kısayolları (?)" onClick={() => setOpen(true)}>
         <Keyboard className="size-4" />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>

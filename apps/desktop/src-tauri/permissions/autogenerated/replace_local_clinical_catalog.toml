@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-replace-local-clinical-catalog"
+description = "Enables the replace_local_clinical_catalog command without any pre-configured scope."
+commands.allow = ["replace_local_clinical_catalog"]
+
+[[permission]]
+identifier = "deny-replace-local-clinical-catalog"
+description = "Denies the replace_local_clinical_catalog command without any pre-configured scope."
+commands.deny = ["replace_local_clinical_catalog"]

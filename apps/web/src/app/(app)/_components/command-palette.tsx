@@ -396,6 +396,7 @@ export function CommandPaletteView({ role, onNavigate, searchClients }: { role: 
           <CommandInput
             ref={inputRef}
             aria-label="Sayfa, ayar veya danışan ara"
+            aria-expanded={open}
             placeholder="Ara…"
             value={query}
             onValueChange={setQuery}
