@@ -174,79 +174,24 @@ export const failLocalOutboxMutation = (
   error: string,
 ) => invoke<void>('fail_local_outbox_mutation', { scope, mutationId, error })
 
-export async function synchronizeLocalFoodCatalog(): Promise<void> {
-  const local = await invoke<{ version: string | null; entryCount: number }>('local_food_catalog_info')
-  let versionResponse: Response
-  try {
-    versionResponse = await fetch(cloudUrl('/api/foods/index/version'), { cache: 'no-store' })
-  } catch (reason) {
-    if (local.entryCount > 0) return
-    throw reason
-  }
-  if (!versionResponse.ok) throw new Error('Besin katalog sürümü alınamadı.')
-  const { version } = (await versionResponse.json()) as { version: string }
-  if (local.version === version && local.entryCount > 0) return
+import { syncFetchJson, syncPhase } from './sync-diagnostics'
+export interface LocalOutboxStatus { pendingCount: number; blockedCount: number; nextRetryAt: string | null }
+export const loadLocalOutboxStatus = (scope: DesktopLocalScope) => invoke<LocalOutboxStatus>('local_outbox_status', { scope })
 
-  let catalogResponse: Response
-  try {
-    catalogResponse = await fetch(
-      cloudUrl(`/api/foods/index?v=${encodeURIComponent(version)}`),
-      { cache: 'no-store' },
-    )
-  } catch (reason) {
-    if (local.entryCount > 0) return
-    throw reason
-  }
-  if (!catalogResponse.ok) throw new Error('Besin kataloğu indirilemedi.')
-  const catalog = (await catalogResponse.json()) as {
-    version: string
-    entries: DomainEntity[]
-  }
-  await invoke('replace_local_food_catalog', {
-    catalog: { version: catalog.version, entries: catalog.entries },
-  })
+export async function synchronizeLocalFoodCatalog(): Promise<void> {
+  const local = await syncPhase('food_catalog_version', () => invoke<{ version: string | null; entryCount: number }>('local_food_catalog_info'))
+  const { version } = await syncFetchJson<{ version: string }>('food_catalog_version', cloudUrl('/api/foods/index/version'), { cache: 'no-store' })
+  if (local.version === version && local.entryCount > 0) return
+  const catalog = await syncFetchJson<{ version: string; entries: DomainEntity[] }>('food_catalog_download', cloudUrl(`/api/foods/index?v=${encodeURIComponent(version)}`), { cache: 'no-store' })
+  await syncPhase('food_catalog_download', () => invoke('replace_local_food_catalog', { catalog }))
 }
 
 export async function synchronizeLocalClinicalCatalog(): Promise<void> {
-  const local = await invoke<{
-    version: string | null
-    conditionCount: number
-    medicationProductCount: number
-    medicationSubstanceCount: number
-  }>('local_clinical_catalog_info')
-  const hasLocalCatalog =
-    local.conditionCount > 0 &&
-    local.medicationProductCount > 0 &&
-    local.medicationSubstanceCount > 0
-  let versionResponse: Response
-  try {
-    versionResponse = await fetch(cloudUrl('/api/clinical/index/version'), { cache: 'no-store' })
-  } catch (reason) {
-    if (hasLocalCatalog) return
-    throw reason
-  }
-  if (!versionResponse.ok) throw new Error('Klinik katalog sürümü alınamadı.')
-  const { version } = (await versionResponse.json()) as { version: string }
-  if (local.version === version && hasLocalCatalog) return
-
-  let catalogResponse: Response
-  try {
-    catalogResponse = await fetch(
-      cloudUrl(`/api/clinical/index?v=${encodeURIComponent(version)}`),
-      { cache: 'no-store' },
-    )
-  } catch (reason) {
-    if (hasLocalCatalog) return
-    throw reason
-  }
-  if (!catalogResponse.ok) throw new Error('Klinik katalog indirilemedi.')
-  const catalog = (await catalogResponse.json()) as {
-    version: string
-    conditions: DomainEntity[]
-    medicationProducts: DomainEntity[]
-    medicationSubstances: DomainEntity[]
-  }
-  await invoke('replace_local_clinical_catalog', { catalog })
+  const local = await syncPhase('clinical_catalog_version', () => invoke<{ version: string | null; conditionCount: number; medicationProductCount: number; medicationSubstanceCount: number }>('local_clinical_catalog_info'))
+  const { version } = await syncFetchJson<{ version: string }>('clinical_catalog_version', cloudUrl('/api/clinical/index/version'), { cache: 'no-store' })
+  if (local.version === version && local.conditionCount > 0 && local.medicationProductCount > 0 && local.medicationSubstanceCount > 0) return
+  const catalog = await syncFetchJson<{ version: string; conditions: DomainEntity[]; medicationProducts: DomainEntity[]; medicationSubstances: DomainEntity[] }>('clinical_catalog_download', cloudUrl(`/api/clinical/index?v=${encodeURIComponent(version)}`), { cache: 'no-store' })
+  await syncPhase('clinical_catalog_download', () => invoke('replace_local_clinical_catalog', { catalog }))
 }
 
 export const searchLocalConditions = (query: string, limit = 24) =>

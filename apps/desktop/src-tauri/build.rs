@@ -19,6 +19,7 @@ fn main() {
         "list_local_entities",
         "apply_local_mutation",
         "load_local_outbox",
+        "local_outbox_status",
         "acknowledge_local_outbox",
         "fail_local_outbox_mutation",
         "local_food_catalog_info",

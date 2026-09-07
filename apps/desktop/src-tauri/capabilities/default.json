@@ -28,6 +28,7 @@
     "allow-list-local-entities",
     "allow-apply-local-mutation",
     "allow-load-local-outbox",
+    "allow-local-outbox-status",
     "allow-acknowledge-local-outbox",
     "allow-fail-local-outbox-mutation",
     "allow-local-food-catalog-info",

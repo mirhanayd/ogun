@@ -106,6 +106,7 @@ pub fn run() {
             local_db::list_local_entities,
             local_db::apply_local_mutation,
             local_db::load_local_outbox,
+            local_db::local_outbox_status,
             local_db::acknowledge_local_outbox,
             local_db::fail_local_outbox_mutation,
             local_db::local_food_catalog_info,

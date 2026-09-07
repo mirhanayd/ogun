@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-outbox-status"
+description = "Enables the local_outbox_status command without any pre-configured scope."
+commands.allow = ["local_outbox_status"]
+
+[[permission]]
+identifier = "deny-local-outbox-status"
+description = "Denies the local_outbox_status command without any pre-configured scope."
+commands.deny = ["local_outbox_status"]

@@ -952,6 +952,26 @@ pub async fn acknowledge_local_outbox(
     .map_err(|err| format!("Outbox onayı tamamlanamadı: {err}"))?
 }
 
+fn outbox_status(connection: &Connection, scope_key: &str) -> Result<Value, String> {
+    connection.query_row(
+        "SELECT COUNT(*), COALESCE(SUM(sync_status='blocked'),0), strftime('%Y-%m-%dT%H:%M:%fZ', MIN(next_attempt_at)) FROM outbox WHERE scope_key=?1",
+        params![scope_key], |row| Ok(serde_json::json!({
+            "pendingCount": row.get::<_, i64>(0)?,
+            "blockedCount": row.get::<_, i64>(1)?,
+            "nextRetryAt": row.get::<_, Option<String>>(2)?
+        })),
+    ).map_err(|err| format!("Outbox durumu okunamadı: {err}"))
+}
+
+#[tauri::command]
+pub async fn local_outbox_status(app: AppHandle, state: State<'_, OfflineVaultState>, scope: LocalScope) -> Result<Value, String> {
+    authorize(&app, &state, &scope)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = open_database(&database_path(&app)?)?;
+        outbox_status(&connection, &scope_key(&scope))
+    }).await.map_err(|err| format!("Outbox durum işlemi tamamlanamadı: {err}"))?
+}
+
 #[tauri::command]
 pub async fn fail_local_outbox_mutation(
     app: AppHandle,
@@ -1436,6 +1456,10 @@ mod tests {
         connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clinic','c','update',X'01','2026-09-05T00:00:00Z')", []).unwrap();
         assert!(ensure_workspace_can_be_replaced(&connection, "s").is_err());
         connection.execute("UPDATE outbox SET sync_status='failed', next_attempt_at='2099-01-01'", []).unwrap();
+        let status = outbox_status(&connection, "s").unwrap();
+        assert_eq!(status["pendingCount"], 1);
+        assert_eq!(status["nextRetryAt"], "2099-01-01T00:00:00.000Z");
+        assert_eq!(outbox_status(&connection, "another-scope").unwrap()["pendingCount"], 0);
         assert!(ensure_workspace_can_be_replaced(&connection, "s").is_err());
         assert!(ensure_workspace_can_be_replaced(&connection, "another-scope").is_ok());
         connection.execute("DELETE FROM outbox WHERE mutation_id='m'", []).unwrap();
