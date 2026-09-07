@@ -19,9 +19,12 @@
     "repair:nutrition": "tsx src/repair-nutrition-data.ts",
     "etl:e2e": "tsx src/e2e-plan-validation.ts",
     "typecheck": "tsc --noEmit",
+    "etl:clinical": "tsx src/importers/clinical.ts",
+    "etl:clinical:verify": "tsx src/verify-clinical.ts",
     "etl:rxnorm-mappings": "tsx src/importers/rxnorm-mappings.ts",
     "etl:rxnorm-mappings:verify": "tsx src/verify-rxnorm-mappings.ts",
     "etl:openfda-labels": "tsx src/openfda-label-downloader.ts",
+    "clinical-review:bundle-openfda": "tsx src/cli-bundle-openfda.ts",
     "test": "vitest run"
   },
   "dependencies": {
