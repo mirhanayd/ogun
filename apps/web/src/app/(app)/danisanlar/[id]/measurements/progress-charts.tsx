@@ -21,6 +21,7 @@ import { MEASUREMENT_SOURCE_LABELS_TR } from '@/lib/validation/measurement-schem
 import type { MeasurementSource } from '@ogun/db/schema'
 
 export interface ChartMeasurement {
+  deviceImport?: import('@ogun/db/measurement-device-import').MeasurementDeviceImport | null
   id: string
   measuredAt: string // ISO
   source: MeasurementSource

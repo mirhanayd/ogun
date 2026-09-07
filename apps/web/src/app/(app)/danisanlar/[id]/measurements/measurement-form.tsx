@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import {
+  TANITA_DUPLICATE_MESSAGE,
+  type MeasurementDeviceImport,
+} from '@ogun/db/measurement-device-import'
+import { TanitaImportControl, TanitaDeviceDetails } from '@/components/tanita-import-control'
+import { tanitaFormValues } from '@/lib/tanita/form-values'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { calculateBmi, classifyBmi } from '@ogun/nutrition-core'
@@ -38,9 +44,11 @@ export interface PreviousMeasurementSummary {
 export function MeasurementForm({
   previousMeasurement,
   onSave,
+  existingImportFingerprints = [],
 }: {
   previousMeasurement: PreviousMeasurementSummary | null
   onSave: (values: MeasurementFormValues) => Promise<{ success: boolean; error?: string }>
+  existingImportFingerprints?: string[]
 }) {
   const [mode, setMode] = useState<'quick' | 'detailed'>('quick')
   const [formError, setFormError] = useState<string | null>(null)
@@ -49,6 +57,8 @@ export function MeasurementForm({
     register,
     handleSubmit,
     reset,
+    getValues,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<MeasurementFormValues>({
     resolver: zodResolver(measurementFormSchema),
@@ -57,6 +67,15 @@ export function MeasurementForm({
 
   const weightKgRaw = useWatch({ control, name: 'weightKg' })
   const heightCmRaw = useWatch({ control, name: 'heightCm' })
+  const source = useWatch({ control, name: 'source' })
+  const deviceImport = useWatch({ control, name: 'deviceImport' })
+  const [importGeneration, setImportGeneration] = useState(0)
+
+  function selectTanita(item: MeasurementDeviceImport) {
+    reset(tanitaFormValues(getValues(), item))
+    setMode('detailed')
+    setFormError(null)
+  }
 
   const weightKg = weightKgRaw ? Number(weightKgRaw) : null
   // Boy her ölçümde tekrar girilmeyebilir (bkz. schema/measurements.ts
@@ -71,12 +90,20 @@ export function MeasurementForm({
 
   async function onSubmit(values: MeasurementFormValues) {
     setFormError(null)
+    if (
+      values.deviceImport &&
+      existingImportFingerprints.includes(values.deviceImport.fingerprint)
+    ) {
+      setFormError(TANITA_DUPLICATE_MESSAGE)
+      return
+    }
     const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
     }
     reset({ ...MEASUREMENT_FORM_DEFAULT_VALUES, source: values.source })
+    setImportGeneration((value) => value + 1)
   }
 
   // Hızlı moddaki kilo alanında Enter'a basınca formu doğrudan gönderir —
@@ -163,30 +190,66 @@ export function MeasurementForm({
           />
           {errors.weightKg && <p className="text-sm text-destructive">{errors.weightKg.message}</p>}
         </div>
-        {mode === 'detailed' && (
+        {source === 'tanita' ? (
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="source">Kaynak</Label>
-            <Controller
-              control={control}
-              name="source"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="source" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MEASUREMENT_SOURCE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
+            <Label htmlFor="measuredTime">Ölçüm saati</Label>
+            <Input id="measuredTime" type="time" step="1" {...register('measuredTime')} />
+            {errors.measuredTime ? (
+              <p className="text-sm text-destructive">{errors.measuredTime.message}</p>
+            ) : null}
           </div>
-        )}
+        ) : null}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="source">Kaynak</Label>
+          <Controller
+            control={control}
+            name="source"
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  setValue('deviceImport', null)
+                  setFormError(null)
+                  setImportGeneration((generation) => generation + 1)
+                }}
+              >
+                <SelectTrigger id="source" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MEASUREMENT_SOURCE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
       </div>
+
+      {source === 'tanita' ? (
+        <TanitaImportControl
+          key={importGeneration}
+          onSelect={selectTanita}
+          existingFingerprints={existingImportFingerprints}
+        />
+      ) : null}
+      {deviceImport ? (
+        <>
+          <p data-tanita-preview className="text-sm">
+            Tanita önizleme: {deviceImport.normalizedPayload.heightCm} cm ·{' '}
+            {deviceImport.normalizedPayload.weightKg} kg · Yağ %
+            {deviceImport.normalizedPayload.bodyFatPct} · Kas{' '}
+            {deviceImport.normalizedPayload.muscleMassKg} kg · Visseral yağ{' '}
+            {deviceImport.normalizedPayload.visceralFatLevel} · Cihaz BKİ{' '}
+            {deviceImport.normalizedPayload.importedBmi}
+          </p>
+          <TanitaDeviceDetails deviceImport={deviceImport} />
+        </>
+      ) : null}
 
       {mode === 'detailed' && (
         <Tabs defaultValue="cevre">
