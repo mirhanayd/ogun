@@ -29,7 +29,23 @@ export async function login(page: Page, email: string, password: string): Promis
   await page.goto('/giris')
   await page.getByLabel('E-posta').fill(email)
   await page.getByLabel('Şifre', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Giriş yap' }).click()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const [response] = await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith('/api/auth/sign-in/email') && response.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Giriş yap' }).click(),
+    ])
+    if (response.ok()) return
+    if (response.status() !== 429 || attempt === 1) {
+      throw new Error(`E2E email login returned HTTP ${response.status()}`)
+    }
+    // Rapid real-login scenarios may exhaust Better Auth's production limit.
+    // Respect its Retry-After; never disable auth protection or fake a session.
+    const retryAfter = Number(response.headers()['retry-after'] ?? '10')
+    if (!Number.isFinite(retryAfter) || retryAfter < 0 || retryAfter > 60) {
+      throw new Error('Unexpected auth Retry-After header')
+    }
+    await page.waitForTimeout((retryAfter + 1) * 1000)
+  }
 }
 
 // GERÇEK BİR HATA NOTU (bu E2E'leri yazarken keşfedildi): shadcn'in

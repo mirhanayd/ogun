@@ -37,6 +37,33 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.3.4',
+    publishedAt: '2026-09-07',
+    notes: [
+      'E-posta/şifre girişi kayıtlı PIN hesaplarıyla aynı ekranda kalır; offline yönlendirme ve native PIN güvenlik sınırı korunur.',
+      'Canonical hastalık, ilaç ürünü ve etkin madde seçimleri tam yerel SQLite kataloğunda aranır; offline kayıt, yeniden başlatma ve web senkronizasyonunda korunur.',
+      'Klinik logosu ve marka rengi yerel kimlikten yüklenir; kaydetme, yeniden başlatma ve senkronizasyonda aynı kalır.',
+      'Danışan listesi gerçek ölçüm/randevu ve diyetisyen bilgilerini gösterir; owner offline atama yapabilir, diyetisyen kendi yeni danışanına otomatik atanır.',
+      'Web ve desktop araması modal yerine üst arama alanının altında açılır; Ctrl+K ve klavye gezinmesi aynı ortak yüzeyi kullanır.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: '/api/desktop/download?platform=windows&format=exe&version=0.3.4',
+        fileName: 'Ogun_0.3.4_x64-setup.exe',
+        sha256: 'f6a2852230003d9639fc6766f1850cd395edb3e66b35404ac330899b70778031',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: '/api/desktop/download?platform=windows&format=msi&version=0.3.4',
+        fileName: 'Ogun_0.3.4_x64_tr-TR.msi',
+        sha256: '7073e5ca642ba1fca423f80fa08a9da95e4dd7b441b73f8c38b329302f98d0b7',
+      },
+    ],
+  },
+  {
     version: '0.3.3',
     publishedAt: '2026-08-31',
     notes: [

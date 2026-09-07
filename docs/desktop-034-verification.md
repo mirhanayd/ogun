@@ -39,6 +39,8 @@ Canonical referans kopyasında 21.505 condition, 23.348 medication product ve 4.
 
 ## Regresyon komutları
 
+Sürüm yükseltmeden önceki test kapısı: native 71 PASS; desktop source 15 PASS; production CSS/layout 2 PASS; web 375 PASS (1 yalnız tip testi skip); DB 67 PASS; ETL 162 PASS; nutrition-core 139 PASS; PDF 10 PASS; browser E2E 10 PASS (packaged opt-in ayrı); typecheck ve lint PASS. Son 0.3.3 packaged tekrar 7 Eylül 2026 tarihinde 46,4 saniyede PASS verdi; EXE SHA-256 `9e6b8b65986a0a0b22d8590e57953a5e29fc47c59127bee144bbd52d45f67ae0`. Version bump bundan sonra yapıldı.
+
 - `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`
 - `pnpm typecheck`
 - `pnpm lint`
@@ -51,6 +53,25 @@ Turbo test environment'ını açıkça geçirmek, testlerin kök `.env` veritaba
 Eski analytics round-trip testi global ortalamanın yalnız kendi iki olayından oluştuğunu varsayıyordu. Artık repeatable-read transaction içinde mevcut duration'ları da hesaba katar; diğer test/kullanıcı olayları silinmez. Native OAuth unit testi de kendi cloud origin'ini açıkça stub eder ve test sonunda environment'ı geri alır.
 
 Web suite'indeki tek `it.skip`, `analytics/track.test.ts` içindeki yalnız derleme zamanı negatif tip testidir; typecheck bunun `@ts-expect-error` sözleşmesini kontrol eder. Packaged test normal browser suite'inde opt-in nedeniyle atlanır ve ayrıca gerçek EXE ile çalıştırılır.
+
+### Son 0.3.4 doğrulaması — 7 Eylül 2026
+
+- `pnpm --filter desktop build`: PASS; Windows EXE/NSIS ve MSI üretildi.
+- `pnpm --filter web build`: PASS.
+- `pnpm typecheck` (7 task), `pnpm lint` (2 task): PASS.
+- Desktop source + production CSS/layout: 17 PASS.
+- `OGUN_PACKAGED_SMOKE=1` ile `pnpm --filter @ogun/e2e test desktop-release.spec.ts`: gerçek 0.3.4 EXE ile PASS. Son rapor zamanı `2026-09-07T09:38:14.304Z`; EXE SHA-256 `61d4a94b13d2daa1d2070650be24eb5afd5ddf97e554294397e895ebf37afb95`.
+- `pnpm --filter @ogun/e2e test`: 10 PASS, 1 packaged opt-in skip; normal snapshot karşılaştırmaları dahil, 46,6 saniye. Packaged senaryo yukarıda ayrıca çalıştırıldı.
+- `pnpm --filter @ogun/e2e typecheck`: PASS (son auth test yardımcısı değişikliğinden sonra).
+- Package, Tauri, Cargo, Windows ProductVersion, web release ve yerel release metadata sürümleri `0.3.4`; installer boyutları ve SHA-256 değerleri metadata ile eşleşiyor.
+
+Tekrarlanan gerçek login koşularında Better Auth production rate limit'i HTTP 429 döndürdü; trace bunu `/api/auth/sign-in/email` yanıtında doğruladı. E2E login yardımcısı yalnız 429 için sunucunun `Retry-After` süresini izleyerek en fazla bir kez tekrar dener (en fazla 60 saniyelik header kabul eder). Diğer hatalar açık HTTP durumuyla başarısız olur. Production rate limit devre dışı bırakılmadı, session taklit edilmedi; bu düzeltmeden sonraki tam browser suite PASS verdi.
+
+## Yerel release teslimi ve sınırlar
+
+Installer dosyaları `apps/desktop/src-tauri/target/release-artifacts/0.3.4/` altında; dosya adı/boyut/hash bilgileri `apps/desktop/releases/0.3.4.json` içindedir. Bu yerel Windows release doğrulamasıdır: canlı web/GitHub yayını, kurulu kullanıcı uygulamasının yükseltilmesi, Authenticode veya updater imzalama yapılmadı. macOS paketi bu Windows makinede üretilmedi. Download metadata canlıya açılmadan önce uyumlu backend ve release dosyaları birlikte yayınlanmalıdır.
+
+Test sırasında mevcut native provisioning davranışı Windows Run kaydındaki `Öğün` hedefini `apps/desktop/src-tauri/target/release/ogun-desktop.exe --autostart-hidden` olarak değiştirdi. Önceden kurulu `AppData/Local/Öğün/ogun-desktop.exe` hedefi otomatik geri yüklenemedi; başlangıç hedefi kullanıcı tarafından kontrol edilmelidir. Diğer kayıtlı profiller ve önceki session token korundu. Sentetik yerel test veritabanı ve build kanıtları inceleme için bırakıldı; kullanıcının ETL dosyaları değiştirilmedi veya commit'e alınmadı.
 
 ## Görsel referans incelemesi
 

@@ -181,6 +181,8 @@ try {
   await page.getByRole('button', { name: 'Değişiklikleri kaydet', exact: true }).click()
   await until(async () => (await local('clinic'))[0].primaryColor === '#C05030', 'clinic save')
   const color = await page.locator('[data-clinic-branding]').evaluate((element) => getComputedStyle(element).getPropertyValue('--primary').trim())
+  // Reset viewport offset after the real Save click scrolled the form into view.
+  await page.evaluate(() => window.scrollTo(0, 0))
   await capture(7, 'settings-custom-brand-color')
   await stop()
   await start()
