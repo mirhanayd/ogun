@@ -45,3 +45,12 @@ Kök: `apps/desktop/src-tauri/target/release-smoke/`
 - `tanita-device-details.png`
 
 `report.json` yalnız bütün packaged assertion'lar geçince yazılır. Build ve smoke çıktıları `target/` altında kalır ve Git'e eklenmez.
+
+## Son 0.3.5 doğrulaması
+
+- Packaged smoke: PASS, `2026-09-07T23:44:20.798Z` (UTC).
+- Windows ProductVersion: `0.3.5`.
+- Test edilen EXE SHA-256: `748eadc0f6a636b2d85c1f39b5ae59a886c169344d6d56702ae8dc1a91e9b37d`.
+- NSIS: `Ogun_0.3.5_x64-setup.exe`, 7.434.646 byte, SHA-256 `b5e1f7ed41f8288c33d2065173ec1ddd7e3c9a14e2617fd1af7f3393bb59c496`.
+- MSI: `Ogun_0.3.5_x64_tr-TR.msi`, 9.699.328 byte, SHA-256 `87a3d5f5a618b6721e5a937ea58d15266b1766000ecadde4c00d0293e50d933e`.
+- Artifact dizini: `apps/desktop/src-tauri/target/release-artifacts/0.3.5/`.

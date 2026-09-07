@@ -37,6 +37,33 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.3.5',
+    publishedAt: '2026-09-08',
+    notes: [
+      'Panelde yaklaşan randevular ve hızlı başlangıç kartları geniş ekranda aynı grid satırında ve aynı üst hizada görünür.',
+      'Ekip, randevu hatırlatmaları, plan paylaşımı ve veri güvenliği kartları masaüstünde ayrı rotalara ve web ile ortak ekranlara açılır.',
+      'Çalışma alanı eşitlemesi katalog bakımından bağımsızdır; katalog hatası core Güncel durumunu bozmaz ve güvenli faz bilgisiyle ayrı gösterilir.',
+      'Tanita BC-601 CSV ve metin katmanlı PDF ölçümleri ortak formda önizlenir; segmental veriler ile kaynak provenance bilgisi korunur.',
+      'Tanita importu offline şifreli kayda, outbox/reconnect senkronuna ve danışan kapsamlı atomik duplicate korumasına sahiptir.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: '/api/desktop/download?platform=windows&format=exe&version=0.3.5',
+        fileName: 'Ogun_0.3.5_x64-setup.exe',
+        sha256: 'b5e1f7ed41f8288c33d2065173ec1ddd7e3c9a14e2617fd1af7f3393bb59c496',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: '/api/desktop/download?platform=windows&format=msi&version=0.3.5',
+        fileName: 'Ogun_0.3.5_x64_tr-TR.msi',
+        sha256: '87a3d5f5a618b6721e5a937ea58d15266b1766000ecadde4c00d0293e50d933e',
+      },
+    ],
+  },
+  {
     version: '0.3.4',
     publishedAt: '2026-09-07',
     notes: [

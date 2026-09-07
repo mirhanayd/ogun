@@ -1,0 +1,37 @@
+{
+  "version": "0.3.5",
+  "previousVersion": "0.3.4",
+  "releaseTag": "desktop-v0.3.5",
+  "builtOn": "2026-09-08",
+  "state": "local-verified",
+  "verifiedAt": "2026-09-07T23:44:20.798Z",
+  "testedExecutableSha256": "748eadc0f6a636b2d85c1f39b5ae59a886c169344d6d56702ae8dc1a91e9b37d",
+  "published": false,
+  "platform": "windows-x86_64",
+  "artifacts": [
+    {
+      "fileName": "Ogun_0.3.5_x64-setup.exe",
+      "bytes": 7434646,
+      "sha256": "b5e1f7ed41f8288c33d2065173ec1ddd7e3c9a14e2617fd1af7f3393bb59c496"
+    },
+    {
+      "fileName": "Ogun_0.3.5_x64_tr-TR.msi",
+      "bytes": 9699328,
+      "sha256": "87a3d5f5a618b6721e5a937ea58d15266b1766000ecadde4c00d0293e50d933e"
+    }
+  ],
+  "artifactDirectory": "apps/desktop/src-tauri/target/release-artifacts/0.3.5",
+  "verificationReport": "apps/desktop/src-tauri/target/release-smoke/report.json",
+  "authenticodeSigned": false,
+  "updater": {
+    "version": "0.3.5",
+    "published": false,
+    "signed": false,
+    "note": "Local build has no updater pubkey/endpoint. CI signing and publication are separate; no unsigned artifact is advertised as a signed update."
+  },
+  "macos": {
+    "built": false,
+    "note": "Not built or tested on this Windows host; no 0.3.5 DMG is advertised."
+  },
+  "deployment": "Deploy matching web workspace/catalog/mutation endpoints and publish assets before exposing the 0.3.5 download metadata."
+}
