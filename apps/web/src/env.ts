@@ -112,6 +112,8 @@ const optionalSchema = z.object({
   IYZICO_SINGLE_YEARLY_PLAN_REFERENCE_CODE: z.string().optional(),
   IYZICO_TEAM_MONTHLY_PLAN_REFERENCE_CODE: z.string().optional(),
   IYZICO_TEAM_YEARLY_PLAN_REFERENCE_CODE: z.string().optional(),
+  CLINICAL_REVIEW_ENABLED: z.enum(['true', 'false']).optional(),
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
 })
 
 const envShape = alwaysRequiredSchema.merge(optionalSchema)

@@ -120,6 +120,9 @@ importers:
       '@ogun/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ogun/etl':
+        specifier: workspace:*
+        version: link:../../packages/etl
       '@ogun/nutrition-core':
         specifier: workspace:*
         version: link:../../packages/nutrition-core

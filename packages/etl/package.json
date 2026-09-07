@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./clinical-review-policy": "./src/clinical-review-policy.ts",
+    "./clinical-review-artifact-store": "./src/clinical-review-artifact-store.ts",
+    "./clinical-review-web-bundle": "./src/clinical-review-web-bundle.ts"
+  },
   "scripts": {
     "etl:openfda:extract": "tsx src/extract-openfda-candidates.ts",
     "etl:openfda:corpus:verify": "tsx src/openfda-corpus-verifier.ts",
