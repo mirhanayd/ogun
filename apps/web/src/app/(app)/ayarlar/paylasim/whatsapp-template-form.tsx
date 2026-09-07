@@ -11,11 +11,10 @@ import {
   type WhatsappTemplateSettingFormValues,
 } from '@/lib/validation/share-schemas'
 import { WHATSAPP_TEMPLATE_PLACEHOLDERS } from '@/lib/share/message-template'
-import { updateWhatsappTemplateAction } from './actions'
 
 // GitHub issue #36 / Prompt 6.2, GÖREV 2 — data-retention-form.tsx ile AYNI
 // react-hook-form + zodResolver deseni.
-export function WhatsappTemplateForm({ defaultValues }: { defaultValues: WhatsappTemplateSettingFormValues }) {
+export function WhatsappTemplateForm({ defaultValues, onSave, disabled = false }: { defaultValues: WhatsappTemplateSettingFormValues; onSave: (values: WhatsappTemplateSettingFormValues) => Promise<{ success: boolean; error?: string }>; disabled?: boolean }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const {
@@ -30,7 +29,8 @@ export function WhatsappTemplateForm({ defaultValues }: { defaultValues: Whatsap
   async function onSubmit(values: WhatsappTemplateSettingFormValues) {
     setFormError(null)
     setSaved(false)
-    const result = await updateWhatsappTemplateAction(values)
+    if (disabled) return
+    const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
@@ -46,6 +46,7 @@ export function WhatsappTemplateForm({ defaultValues }: { defaultValues: Whatsap
           id="whatsappMessageTemplate"
           rows={4}
           placeholder="Merhaba {danisanAdi}, &quot;{planAdi}&quot; adlı beslenme planınız hazır: {link}"
+          disabled={disabled}
           aria-invalid={!!errors.whatsappMessageTemplate}
           {...register('whatsappMessageTemplate')}
         />
@@ -59,7 +60,7 @@ export function WhatsappTemplateForm({ defaultValues }: { defaultValues: Whatsap
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={isSubmitting}>
+        <Button type="submit" size="sm" disabled={isSubmitting || disabled}>
           {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
         </Button>
         {saved && <span className="text-sm text-muted-foreground">Kaydedildi.</span>}

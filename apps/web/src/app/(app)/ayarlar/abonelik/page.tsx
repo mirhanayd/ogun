@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
-
-// Abonelik ürünü şimdilik kullanıcı yüzeyinden kaldırıldı. Eski yer imleri
-// güvenli biçimde genel ayarlara döner; altyapı tabloları ileride tekrar
-// değerlendirilebilmesi için veri kaybına yol açacak bir migration ile silinmez.
-export default function AbonelikAyarlariPage() {
-  redirect('/ayarlar')
+import { requireClinic } from '@/lib/authz'
+import { SettingsSubpage, SubscriptionSettingsView } from '@/screens/settings-subpages'
+export default async function AbonelikAyarlariPage() {
+  const { role } = await requireClinic()
+  if (role !== 'owner') redirect('/ayarlar')
+  return <SettingsSubpage title="Abonelik"><SubscriptionSettingsView /></SettingsSubpage>
 }

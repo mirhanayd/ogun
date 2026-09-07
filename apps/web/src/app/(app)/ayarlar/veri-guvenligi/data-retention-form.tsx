@@ -10,9 +10,8 @@ import {
   dataRetentionSettingSchema,
   type DataRetentionSettingFormValues,
 } from '@/lib/validation/compliance-schemas'
-import { updateDataRetentionAction } from './actions'
 
-export function DataRetentionForm({ defaultValues }: { defaultValues: DataRetentionSettingFormValues }) {
+export function DataRetentionForm({ defaultValues, onSave, disabled = false }: { defaultValues: DataRetentionSettingFormValues; onSave: (values: DataRetentionSettingFormValues) => Promise<{ success: boolean; error?: string }>; disabled?: boolean }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const {
@@ -27,7 +26,8 @@ export function DataRetentionForm({ defaultValues }: { defaultValues: DataRetent
   async function onSubmit(values: DataRetentionSettingFormValues) {
     setFormError(null)
     setSaved(false)
-    const result = await updateDataRetentionAction(values)
+    if (disabled) return
+    const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
@@ -44,6 +44,7 @@ export function DataRetentionForm({ defaultValues }: { defaultValues: DataRetent
           type="number"
           min={30}
           max={36500}
+          disabled={disabled}
           aria-invalid={!!errors.dataRetentionDays}
           {...register('dataRetentionDays')}
         />
@@ -51,7 +52,7 @@ export function DataRetentionForm({ defaultValues }: { defaultValues: DataRetent
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={isSubmitting}>
+        <Button type="submit" size="sm" disabled={isSubmitting || disabled}>
           {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
         </Button>
         {saved && <span className="text-sm text-muted-foreground">Kaydedildi.</span>}

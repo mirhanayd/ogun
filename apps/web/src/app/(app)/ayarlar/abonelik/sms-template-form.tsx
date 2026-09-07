@@ -8,11 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { smsTemplateSettingSchema, type SmsTemplateSettingFormValues } from '@/lib/validation/subscription-schemas'
 import { SMS_TEMPLATE_PLACEHOLDERS } from '@/lib/sms/reminder-template'
-import { updateSmsTemplateAction } from './actions'
 
 // GitHub issue #41 / Prompt 7.3, GÖREV 3 — .../paylasim/whatsapp-template-form.tsx
 // ile AYNI react-hook-form + zodResolver deseni.
-export function SmsTemplateForm({ defaultValues }: { defaultValues: SmsTemplateSettingFormValues }) {
+export function SmsTemplateForm({ defaultValues, onSave, disabled = false }: { defaultValues: SmsTemplateSettingFormValues; onSave: (values: SmsTemplateSettingFormValues) => Promise<{ success: boolean; error?: string }>; disabled?: boolean }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const {
@@ -27,7 +26,8 @@ export function SmsTemplateForm({ defaultValues }: { defaultValues: SmsTemplateS
   async function onSubmit(values: SmsTemplateSettingFormValues) {
     setFormError(null)
     setSaved(false)
-    const result = await updateSmsTemplateAction(values)
+    if (disabled) return
+    const result = await onSave(values)
     if (!result.success) {
       setFormError(result.error ?? 'Kaydedilemedi, lütfen tekrar deneyin.')
       return
@@ -43,6 +43,7 @@ export function SmsTemplateForm({ defaultValues }: { defaultValues: SmsTemplateS
           id="smsReminderTemplate"
           rows={3}
           placeholder="Sayın {danisanAdi}, {klinikAdi} randevunuz {tarih} tarihinde saat {saat}'de."
+          disabled={disabled}
           aria-invalid={!!errors.smsReminderTemplate}
           {...register('smsReminderTemplate')}
         />
@@ -56,7 +57,7 @@ export function SmsTemplateForm({ defaultValues }: { defaultValues: SmsTemplateS
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={isSubmitting}>
+        <Button type="submit" size="sm" disabled={isSubmitting || disabled}>
           {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
         </Button>
         {saved && <span className="text-sm text-muted-foreground">Kaydedildi.</span>}

@@ -39,6 +39,8 @@ import {
   listBillingPackages,
   listClientPackagesForClinic,
   listClinicDietitians,
+  listClinicTeam,
+  listRecentAuditLogsForClinic,
   listExpensesForClinicInRange,
   getWorkingHoursForClinic,
   moveItem,
@@ -529,7 +531,7 @@ export async function GET() {
       ctx.scope.clinicId,
       clientRows.map((client) => client.id),
     )
-    const [billingPackages, clientPackages, expenses, workingHours, dietitians] = await Promise.all([
+    const [billingPackages, clientPackages, expenses, workingHours, dietitians, team, recentLogs] = await Promise.all([
       ctx.role === 'owner' ? listBillingPackages(db, ctx.scope.clinicId) : Promise.resolve([]),
       ctx.role === 'owner' ? listClientPackagesForClinic(db, ctx.scope.clinicId) : Promise.resolve([]),
       ctx.role === 'owner'
@@ -537,6 +539,8 @@ export async function GET() {
         : Promise.resolve([]),
       getWorkingHoursForClinic(db, ctx.scope.clinicId),
       listClinicDietitians(db, ctx.scope.clinicId),
+      ctx.role === 'owner' ? listClinicTeam(db, ctx.scope.clinicId) : Promise.resolve(null),
+      ctx.role === 'owner' ? listRecentAuditLogsForClinic(db, ctx.scope.clinicId, 50) : Promise.resolve([]),
     ])
 
     const plansWithDrafts = await Promise.all(
@@ -597,6 +601,16 @@ export async function GET() {
         name: clinic.name,
         logoUrl: clinic.logoUrl,
         primaryColor: clinic.primaryColor,
+        phone: clinic.phone,
+        address: clinic.address,
+        taxId: clinic.taxId,
+        ...(ctx.role === 'owner' ? { settings: {
+          team,
+          recentLogs,
+          smsReminderTemplate: clinic.smsReminderTemplate,
+          whatsappMessageTemplate: clinic.whatsappMessageTemplate,
+          dataRetentionDays: clinic.dataRetentionDays,
+        } } : {}),
       },
       clients: clientRows,
       ...clinicalWorkspace,

@@ -202,7 +202,12 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
       content = identity.role === 'owner' ? <LocalFinanceAdapter repository={repositories.records} month={routeMatch.month} /> : <NotFoundScreen />
       break
     case 'settings':
-      content = <LocalSettingsAdapter repository={repositories.records} user={{ userId: identity.userId, email: identity.email, displayName: identity.displayName, clinicId: identity.clinicId, clinicName: identity.clinicName, role: identity.role }} />
+    case 'settings_team':
+    case 'settings_reminders':
+    case 'settings_sharing':
+    case 'settings_security':
+    case 'settings_subscription':
+      content = <LocalSettingsAdapter key={routeMatch.kind} routeKind={routeMatch.kind} repository={repositories.records} user={{ userId: identity.userId, email: identity.email, displayName: identity.displayName, clinicId: identity.clinicId, clinicName: identity.clinicName, role: identity.role }} />
       break
     default:
       content = <NotFoundScreen />

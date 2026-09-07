@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import { Clock3, Crown, Mail, MailPlus, ShieldCheck, Trash2, UserRoundCheck } from 'lucide-react'
 import type { ClinicTeamMember, PendingClinicInvitation } from '@ogun/db/queries'
 import { toast } from 'sonner'
@@ -31,12 +30,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  inviteDietitianAction,
-  promoteClinicMemberAction,
-  removeClinicMemberAction,
-  revokeClinicInvitationAction,
-} from './actions'
+
+export interface TeamActions {
+  invite: (values: { name: string; email: string }) => Promise<{ success: boolean; error?: string }>
+  revoke: (id: string) => Promise<{ success: boolean; error?: string }>
+  promote: (id: string) => Promise<{ success: boolean; error?: string }>
+  remove: (id: string) => Promise<{ success: boolean; error?: string }>
+}
 
 const ROLE_LABELS = {
   owner: 'Yönetici',
@@ -48,17 +48,20 @@ export function TeamManager({
   members,
   invitations,
   currentUserId,
+  actions,
+  disabled = false,
 }: {
+  actions: TeamActions
+  disabled?: boolean
   members: ClinicTeamMember[]
   invitations: PendingClinicInvitation[]
   currentUserId: string
 }) {
-  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const offline = useConnectivityStatus() === 'offline'
+  const offline = useConnectivityStatus() === 'offline' || disabled
 
   function submitInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -68,7 +71,7 @@ export function TeamManager({
       return
     }
     startTransition(async () => {
-      const result = await inviteDietitianAction({ name, email })
+      const result = await actions.invite({ name, email })
       if (!result.success) {
         setFormError(result.error ?? 'Davet gönderilemedi.')
         return
@@ -85,7 +88,7 @@ export function TeamManager({
       return
     }
     startTransition(async () => {
-      const result = await revokeClinicInvitationAction(invitationId)
+      const result = await actions.revoke(invitationId)
       if (!result.success) {
         toast.error(result.error ?? 'Davet iptal edilemedi.')
         return
@@ -100,13 +103,12 @@ export function TeamManager({
       return
     }
     startTransition(async () => {
-      const result = await promoteClinicMemberAction(member.id)
+      const result = await actions.promote(member.id)
       if (!result.success) {
         toast.error(result.error ?? 'Yönetici rolü atanamadı.')
         return
       }
       toast.success(`${member.name} artık yönetici.`)
-      router.refresh()
     })
   }
 
@@ -116,13 +118,12 @@ export function TeamManager({
       return
     }
     startTransition(async () => {
-      const result = await removeClinicMemberAction(member.id)
+      const result = await actions.remove(member.id)
       if (!result.success) {
         toast.error(result.error ?? 'Ekip üyesi silinemedi.')
         return
       }
       toast.success(`${member.name} ekipten çıkarıldı.`)
-      router.refresh()
     })
   }
 

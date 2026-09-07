@@ -12,6 +12,7 @@ export type DesktopRouteMatch =
   | { kind: 'foods' }
   | { kind: 'finance'; month?: string }
   | { kind: 'settings' }
+  | { kind: 'settings_team' | 'settings_reminders' | 'settings_sharing' | 'settings_security' | 'settings_subscription' }
   | { kind: 'not_found' }
 
 export function routePath(route: string) { return route.split('?')[0] || '/panel' }
@@ -29,7 +30,12 @@ export function resolveDesktopRoute(route: string): DesktopRouteMatch {
   if (path === '/planlar') return { kind: 'plans' }
   if (path === '/tarifler') return { kind: 'foods' }
   if (path === '/finans') return { kind: 'finance', month: new URLSearchParams(route.split('?')[1] ?? '').get('month') ?? undefined }
-  if (path === '/ayarlar' || path.startsWith('/ayarlar/')) return { kind: 'settings' }
+  if (path === '/ayarlar') return { kind: 'settings' }
+  if (path === '/ayarlar/ekip') return { kind: 'settings_team' }
+  if (path === '/ayarlar/hatirlatmalar') return { kind: 'settings_reminders' }
+  if (path === '/ayarlar/paylasim') return { kind: 'settings_sharing' }
+  if (path === '/ayarlar/veri-guvenligi') return { kind: 'settings_security' }
+  if (path === '/ayarlar/abonelik') return { kind: 'settings_subscription' }
   return { kind: 'not_found' }
 }
 
