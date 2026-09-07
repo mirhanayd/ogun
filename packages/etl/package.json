@@ -6,7 +6,8 @@
   "exports": {
     "./clinical-review-policy": "./src/clinical-review-policy.ts",
     "./clinical-review-artifact-store": "./src/clinical-review-artifact-store.ts",
-    "./clinical-review-web-bundle": "./src/clinical-review-web-bundle.ts"
+    "./clinical-review-web-bundle": "./src/clinical-review-web-bundle.ts",
+    "./clinical-review-publisher": "./src/clinical-review-publisher.ts"
   },
   "scripts": {
     "etl:openfda:extract": "tsx src/extract-openfda-candidates.ts",
