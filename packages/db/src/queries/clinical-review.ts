@@ -573,6 +573,28 @@ export async function assignClinicalReviewTask(
   return assignment
 }
 
+export async function completeAssignment(
+  db: Database,
+  taskId: string,
+  reviewerUserId: string,
+) {
+  const [updated] = await db
+    .update(clinicalReviewAssignments)
+    .set({
+      status: 'completed',
+      completedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(clinicalReviewAssignments.taskId, taskId),
+        eq(clinicalReviewAssignments.reviewerUserId, reviewerUserId),
+      ),
+    )
+    .returning()
+
+  return updated ?? null
+}
+
 export async function getTaskAssignments(db: Database, taskId: string) {
   return db
     .select({

@@ -241,9 +241,12 @@ export function createClinicalReviewArtifactStore(options?: {
     return new VercelBlobArtifactStore(blobToken)
   }
 
-  const baseDir =
-    options?.baseDir ||
-    path.resolve(process.cwd(), 'packages/etl/data/clinical/openfda/bundles')
+  let baseDir = options?.baseDir
+  if (!baseDir) {
+    const candidate1 = path.resolve(process.cwd(), 'packages/etl/data/clinical/openfda/bundles')
+    const candidate2 = path.resolve(process.cwd(), '../../packages/etl/data/clinical/openfda/bundles')
+    baseDir = existsSync(candidate1) ? candidate1 : candidate2
+  }
 
   return new FilesystemArtifactStore(baseDir)
 }
