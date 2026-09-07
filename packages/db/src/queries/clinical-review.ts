@@ -221,6 +221,46 @@ export async function upsertClinicalReviewerProfile(
   return result
 }
 
+export async function updateClinicalReviewerStatus(
+  db: Database,
+  userId: string,
+  verificationStatus: ClinicalReviewerVerificationStatus,
+  isActive: boolean,
+  verifiedAt: Date | null,
+  verifiedBy: string | null,
+) {
+  const [updated] = await db
+    .update(clinicalReviewerProfiles)
+    .set({
+      verificationStatus,
+      isActive,
+      verifiedAt,
+      verifiedBy,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinicalReviewerProfiles.userId, userId))
+    .returning()
+
+  return updated ?? null
+}
+
+export async function updateClinicalReviewerCanPublish(
+  db: Database,
+  userId: string,
+  canPublish: boolean,
+) {
+  const [updated] = await db
+    .update(clinicalReviewerProfiles)
+    .set({
+      canPublish,
+      updatedAt: new Date(),
+    })
+    .where(eq(clinicalReviewerProfiles.userId, userId))
+    .returning()
+
+  return updated ?? null
+}
+
 export async function setClinicalReviewerCapabilities(
   db: Database,
   reviewerUserId: string,
