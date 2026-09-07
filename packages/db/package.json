@@ -19,6 +19,8 @@
     "db:seed": "tsx src/seed/index.ts",
     "db:seed:demo": "tsx src/seed/demo.ts",
     "db:translate-foods": "tsx src/seed/translate-foods.ts",
+    "platform-admin:grant": "tsx src/scripts/platform-admin.ts grant",
+    "platform-admin:revoke": "tsx src/scripts/platform-admin.ts revoke",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

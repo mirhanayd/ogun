@@ -30,6 +30,10 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name').notNull(),
   image: text('image'),
+  // Better Auth two-factor plugin field. The web app does not enable the
+  // plugin, so adding this column does not make MFA mandatory for clinic
+  // users; the isolated admin auth instance is the only consumer.
+  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
   // GitHub issue #47 / Prompt 8.3, GÖREV 1 — "İlk girişte 4 adımlı ürün turu".
   // Kullanıcı bazlı (klinik bazlı DEĞİL): bir kullanıcı birden fazla klinikte
   // üye olabilir (bkz. clinicMembers), ama ürün turu plan editörünün NASIL

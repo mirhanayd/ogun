@@ -31,4 +31,4 @@ export * from './clinical'
 export * from './clinical-catalog-snapshot'
 export * from './client-clinical'
 export * from './clinical-review'
-
+export * from './platform-admin'
