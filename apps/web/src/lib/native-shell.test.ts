@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearNativeSessionToken,
   exchangeNativeOneTimeToken,
@@ -20,7 +20,12 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 // bu şekilde test ediyoruz; "native" dalı için `window.__TAURI_INTERNALS__`
 // varlığını simüle etmek üzere globalThis.window'u geçici olarak stub'lıyoruz.
 describe('isNativeShell / getGoogleSignInRedirects', () => {
+  beforeEach(() => {
+    // The unit contract uses this explicit origin, independent of E2E env.
+    vi.stubEnv('NEXT_PUBLIC_BETTER_AUTH_URL', 'https://ogun-web.vercel.app')
+  })
   afterEach(() => {
+    vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     invoke.mockReset()

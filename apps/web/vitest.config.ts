@@ -8,6 +8,7 @@ import { defineConfig } from 'vitest/config'
 // açmaz) — audit.test.ts gerçek bir DB'ye hiç dokunmuyor (recorder enjekte
 // ediliyor), bu yüzden gerçek bir Postgres'in ayakta olmasına gerek yok.
 export default defineConfig({
+  esbuild: { jsx: 'automatic' },
   // GitHub issue #25 / Prompt 5.3 — bu issue'nun birim testleri (ör.
   // plan-nutrients.test.ts) ilk kez '@/...' (tsconfig.json paths) ile
   // içe aktarım yapan kaynak dosyaları test ediyor — vitest, tsconfig'in

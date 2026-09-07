@@ -207,3 +207,14 @@ test('Scenario N — client activity and owner-only assignment stay shared and l
   assert.match(route, /ctx\.role !== 'owner'/)
   assert.match(database, /mutation\.kind == "client\.assignDietitian" && scope\.role != "owner"/)
 })
+
+test('clinical IPC commands are granted to the embedded renderer', async () => {
+  const manifest = await read('apps/desktop/src-tauri/build.rs')
+  const capability = JSON.parse(await read('apps/desktop/src-tauri/capabilities/clinical-catalog.json'))
+  assert.equal(capability.local, true)
+  assert.equal(capability.remote, undefined)
+  for (const command of ['local_clinical_catalog_info', 'replace_local_clinical_catalog', 'search_local_conditions', 'search_local_medication_products', 'search_local_medication_substances']) {
+    assert.ok(manifest.includes(`"${command}"`))
+    assert.ok(capability.permissions.includes(`allow-${command.replaceAll('_', '-')}`))
+  }
+})

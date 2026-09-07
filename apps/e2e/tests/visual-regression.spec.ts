@@ -45,7 +45,7 @@ interface Screen {
 
 // Oturum GEREKTİREN ana ekranlar.
 const APP_SCREENS: Screen[] = [
-  { name: 'panel', path: '/panel', readyText: 'Bugüne dair özet' },
+  { name: 'panel', path: '/panel', readyText: 'Klinik özeti' },
   { name: 'danisanlar', path: '/danisanlar', readyText: 'Henüz danışan yok' },
   { name: 'planlar', path: '/planlar', readyText: 'Şablon kütüphanesi' },
   { name: 'sablonlar', path: '/planlar/sablonlar', readyText: 'Henüz şablon yok' },
@@ -54,8 +54,8 @@ const APP_SCREENS: Screen[] = [
     path: '/randevular?view=week&date=2026-03-02',
     readyText: 'Bu aralıkta randevu yok',
   },
-  { name: 'tarifler', path: '/tarifler', readyText: 'Henüz tarif yok' },
-  { name: 'finans', path: '/finans?month=2026-03', readyText: 'Aylık gelir/gider özeti' },
+  { name: 'tarifler', path: '/tarifler', readyText: 'Katalogda ara' },
+  { name: 'finans', path: '/finans?month=2026-03', readyText: 'Finans görünümü' },
 ]
 
 // Oturum GEREKTİRMEYEN ekranlar (landing, giriş, 404).
@@ -82,6 +82,9 @@ async function newThemedPage(browser: Browser, theme: (typeof THEMES)[number]): 
 async function captureScreen(page: Page, screen: Screen, theme: string): Promise<void> {
   await page.goto(screen.path, { waitUntil: 'domcontentloaded' })
   await expect(page.getByText(screen.readyText).first()).toBeVisible({ timeout: 30_000 })
+  if (screen.name === 'tarifler') {
+    await expect(page.getByPlaceholder('Besin adı, tarif veya porsiyon ara…')).toBeEnabled({ timeout: 30_000 })
+  }
   // Web fontları (next/font ile self-host edilen Inter) yüklenmeden alınan
   // görüntü sistem yazı tipiyle rasterize olur ve HER koşuda farklı çıkar.
   await page.evaluate(() =>
@@ -92,6 +95,11 @@ async function captureScreen(page: Page, screen: Screen, theme: string): Promise
   // ENGELLEMESİN — tek koşuda TÜM farklar raporlansın.
   await expect.soft(page).toHaveScreenshot(`${screen.name}-${theme}.png`, {
     animations: 'disabled',
+    // The shared dashboard now includes a server-rendered live greeting/date.
+    // Keep the layout under comparison, excluding only those variable strings.
+    mask: screen.name === 'panel'
+      ? [page.locator('main h1'), page.locator('main span.first-letter\\:uppercase')]
+      : [],
     // Alt piksel farklarına (font hinting, gölge kenarları) karşı küçük bir
     // tolerans; GERÇEK bir düzen/renk değişikliği bu eşiğin çok üstünde fark
     // üretir.

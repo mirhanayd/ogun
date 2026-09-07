@@ -44,14 +44,22 @@ describeWithDb('analytics query layer (round-trip, gerçek DB)', () => {
 
   it('logUsageEvent bir plan_created olayını kaydeder, averagePlanCreationDurationMs ortalamayı hesaplar', async () => {
     const { logUsageEvent, averagePlanCreationDurationMs } = await import('./analytics')
-
-    await logUsageEvent(db, { clinicId, userId: null, eventName: 'plan_created', durationMs: 1000 })
-    await logUsageEvent(db, { clinicId, userId: null, eventName: 'plan_created', durationMs: 3000 })
-    // Farklı bir olay adı ortalamaya KARIŞMAMALI.
-    await logUsageEvent(db, { clinicId, userId: null, eventName: 'screen_view', durationMs: 99999 })
-
-    const average = await averagePlanCreationDurationMs(db)
-    expect(average).toBe(2000)
+    const { usageEvents } = await import('../schema/analytics')
+    const { eq } = await import('drizzle-orm')
+    // The global metric also includes legitimate events created by prior E2E
+    // runs. Use a stable transaction snapshot instead of assuming an empty DB.
+    await db.transaction(async (tx) => {
+      const existing = await tx.select({ duration: usageEvents.durationMs }).from(usageEvents)
+        .where(eq(usageEvents.eventName, 'plan_created'))
+      const durations = existing.flatMap((row) => row.duration === null ? [] : [row.duration])
+      const queryDb = tx as unknown as Database
+      await logUsageEvent(queryDb, { clinicId, userId: null, eventName: 'plan_created', durationMs: 1000 })
+      await logUsageEvent(queryDb, { clinicId, userId: null, eventName: 'plan_created', durationMs: 3000 })
+      // Farklı bir olay adı ortalamaya KARIŞMAMALI.
+      await logUsageEvent(queryDb, { clinicId, userId: null, eventName: 'screen_view', durationMs: 99999 })
+      const expected = Math.round((durations.reduce((sum, value) => sum + value, 0) + 4000) / (durations.length + 2))
+      expect(await averagePlanCreationDurationMs(queryDb)).toBe(expected)
+    }, { isolationLevel: 'repeatable read' })
   })
 
   it('logFoodSearchQuery ile kaydedilen aramalar mostSearchedFoodQueries\'de sonuç>0 olanlar arasında görünür', async () => {
