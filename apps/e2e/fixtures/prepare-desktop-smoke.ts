@@ -13,10 +13,10 @@ async function main() {
   process.loadEnvFile(new URL('../../../.env', import.meta.url))
   const sourceUrl = process.env.CLINICAL_SOURCE_DATABASE_URL ?? process.env.DATABASE_URL
   if (!sourceUrl) throw new Error('Canonical source database is required')
-  const targetUrl = process.env.DESKTOP_SMOKE_DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5433/ogun_patch_034'
+  const targetUrl = process.env.DESKTOP_SMOKE_DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5433/ogun_patch_035'
   const targetLocation = new URL(targetUrl)
-  if (!['localhost', '127.0.0.1'].includes(targetLocation.hostname) || targetLocation.pathname !== '/ogun_patch_034') {
-    throw new Error('Smoke writes require the dedicated local ogun_patch_034 database')
+  if (!['localhost', '127.0.0.1'].includes(targetLocation.hostname) || targetLocation.pathname !== '/ogun_patch_035') {
+    throw new Error('Smoke writes require the dedicated local ogun_patch_035 database')
   }
   const source = postgres(sourceUrl, { max: 2 })
   const target = postgres(targetUrl, { max: 2 })
@@ -51,7 +51,7 @@ async function main() {
     }
     console.log(`${foodRows.length} real public foods copied for plan/PDF regression`)
     const suffix = Date.now().toString(36)
-    const password = 'ReleaseSmoke034!'
+    const password = 'ReleaseSmoke035!'
     const passwordHash = await hashPassword(password)
     const people = []
     for (const role of ['owner', 'dietitian', 'assistant'] as const) {

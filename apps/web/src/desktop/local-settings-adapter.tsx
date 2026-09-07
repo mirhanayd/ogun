@@ -3,9 +3,8 @@ import type { DomainEntity, OgunRepositories } from '@/data/repositories'
 import { SettingsScreen, type SettingsUserView, type WorkingHourView } from '@/screens/settings-screen'
 import type { ClinicIdentityFormValues } from '@/lib/validation/clinic-identity-schemas'
 import type { ClinicTeamMember, PendingClinicInvitation } from '@ogun/db/queries'
-import { SettingsSubpage, TeamSettingsView, ReminderSettingsView, SharingSettingsView, SecuritySettingsView, SubscriptionSettingsView, type SettingsAuditLog } from '@/screens/settings-subpages'
+import { SettingsSubpage, TeamSettingsView, ReminderSettingsView, ReminderSweepControl, SharingSettingsView, SecuritySettingsView, SubscriptionSettingsView, type SettingsAuditLog } from '@/screens/settings-subpages'
 import { useConnectivityStatus } from '@/components/connectivity-status-provider'
-import { Button } from '@/components/ui/button'
 import { cloudUrl } from '@/lib/cloud-origin'
 import { getCachedNativeSessionToken } from '@/lib/native-shell'
 import { useDesktopSync } from './sync-engine'
@@ -71,9 +70,9 @@ export function LocalSettingsAdapter({ repository, user, routeKind = 'settings' 
     }
     const titles = { settings_team: 'Ekip ve yetkiler', settings_reminders: 'Randevu hatırlatmaları', settings_sharing: 'Plan paylaşımı', settings_security: 'Veri güvenliği ve KVKK', settings_subscription: 'Abonelik' }
     const notice = connectivity !== 'online' ? 'İnternet bağlantısı gerekli. Kaydedilmiş ayarları görüntüleyebilirsiniz; sunucu işlemleri çevrimdışıyken kapalıdır.' : !settings ? 'Ayarların son hali eşitleniyor…' : null
-    return <SettingsSubpage title={titles[routeKind]} notice={notice}>
+    return <SettingsSubpage title={titles[routeKind]} notice={notice} showTitle={routeKind !== 'settings_team' && routeKind !== 'settings_reminders'}>
       {routeKind === 'settings_team' ? <TeamSettingsView clinicName={String(clinic.name)} members={settings?.team?.members ?? []} invitations={settings?.team?.invitations ?? []} currentUserId={user.userId} disabled={disabled || !settings} actions={{ invite: (values) => action('invite', values), revoke: (id) => action('revoke', id), promote: (id) => action('promote', id), remove: (id) => action('remove', id) }} /> : null}
-      {routeKind === 'settings_reminders' ? <ReminderSettingsView template={settings?.smsReminderTemplate} onSave={(values) => action('sms', values)} disabled={disabled || !settings} sweepControl={<><Button variant="outline" disabled={disabled || !settings} onClick={async () => { const result = await action('sweep'); setActionMessage(result.success ? 'Gönderim kontrolü tamamlandı.' : result.error ?? 'Gönderilemedi.') }}>SMS hatırlatmalarını şimdi gönder</Button>{actionMessage ? <p role="status">{actionMessage}</p> : null}</>} /> : null}
+      {routeKind === 'settings_reminders' ? <ReminderSettingsView template={settings?.smsReminderTemplate} onSave={(values) => action('sms', values)} disabled={disabled || !settings} sweepControl={<ReminderSweepControl disabled={disabled || !settings} message={actionMessage} onRun={async () => { const result = await action('sweep'); setActionMessage(result.success ? 'Gönderim kontrolü tamamlandı.' : result.error ?? 'Gönderilemedi.') }} />} /> : null}
       {routeKind === 'settings_sharing' ? <SharingSettingsView template={settings?.whatsappMessageTemplate} onSave={(values) => action('sharing', values)} disabled={disabled || !settings} /> : null}
       {routeKind === 'settings_security' ? <SecuritySettingsView retentionDays={settings?.dataRetentionDays} recentLogs={settings?.recentLogs ?? []} onSave={(values) => action('retention', values)} disabled={disabled || !settings} /> : null}
       {routeKind === 'settings_subscription' ? <SubscriptionSettingsView /> : null}

@@ -11,5 +11,5 @@ export default async function ReminderSettingsPage() {
   if (role !== 'owner') redirect('/ayarlar')
   const clinic = await getClinicById(db, scope.clinicId)
   if (!clinic) redirect('/ayarlar')
-  return <SettingsSubpage title="Randevu hatırlatmaları"><ReminderSettingsView template={clinic.smsReminderTemplate} onSave={updateSmsTemplateAction} sweepControl={<RunSmsSweepButton />} /></SettingsSubpage>
+  return <SettingsSubpage title="Randevu hatırlatmaları" showTitle={false}><ReminderSettingsView template={clinic.smsReminderTemplate} onSave={updateSmsTemplateAction} sweepControl={<RunSmsSweepButton />} /></SettingsSubpage>
 }

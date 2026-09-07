@@ -18,7 +18,7 @@ describe('desktop route registry', () => {
 
   it('enumerates every SettingsScreen internal href and resolves a distinct product route', () => {
     const source = readFileSync(new URL('../screens/settings-screen.tsx', import.meta.url), 'utf8')
-    const hrefs = [...source.matchAll(/href="(\/[^\"]+)"/g)].map((match) => match[1]!)
+    const hrefs = [...source.matchAll(/href="(\/[^"]+)"/g)].map((match) => match[1]!)
     const expected = {
       '/ayarlar': 'settings', '/ayarlar/ekip': 'settings_team',
       '/ayarlar/hatirlatmalar': 'settings_reminders', '/ayarlar/paylasim': 'settings_sharing',

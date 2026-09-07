@@ -10,5 +10,5 @@ export default async function TeamSettingsPage() {
   if (role !== 'owner') redirect('/ayarlar')
   const [clinic, team] = await Promise.all([getClinicById(db, scope.clinicId), listClinicTeam(db, scope.clinicId)])
   if (!clinic) redirect('/ayarlar')
-  return <SettingsSubpage title="Ekip ve yetkiler"><TeamSettingsView clinicName={clinic.name} members={team.members} invitations={team.invitations} currentUserId={user.id} actions={{ invite: inviteDietitianAction, revoke: revokeClinicInvitationAction, promote: promoteClinicMemberAction, remove: removeClinicMemberAction }} /></SettingsSubpage>
+  return <SettingsSubpage title="Ekip ve yetkiler" showTitle={false}><TeamSettingsView clinicName={clinic.name} members={team.members} invitations={team.invitations} currentUserId={user.id} actions={{ invite: inviteDietitianAction, revoke: revokeClinicInvitationAction, promote: promoteClinicMemberAction, remove: removeClinicMemberAction }} /></SettingsSubpage>
 }

@@ -13,12 +13,13 @@ const output = resolve(desktop, 'src-tauri/target/release-smoke')
 const fixture = JSON.parse(await readFile(resolve(output, 'fixture.json'), 'utf8'))
 const owner = fixture.people.find((person) => person.role === 'owner')
 const executable = resolve(desktop, 'src-tauri/target/release/ogun-desktop.exe')
+const tanitaFixture = resolve(desktop, '../web/src/lib/tanita/fixtures/Başlıksız.csv')
 const backend = process.env.OGUN_SMOKE_BACKEND ?? 'http://localhost:3100'
 assert.ok(['localhost', '127.0.0.1'].includes(new URL(backend).hostname))
 const endpoint = 'http://127.0.0.1:9333'
 const pin = '864209'
 const screenshots = [], checks = []
-let child, browser, context, page, priorToken
+let child, browser, context, page, priorToken, tanitaFingerprint
 let provisioned = false, offline = false
 const scope = { userId: owner.id, clinicId: fixture.clinic.id, role: 'owner', capabilities: ['*'] }
 const powershell = (script) => execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from("[Console]::OutputEncoding = New-Object Text.UTF8Encoding; $ProgressPreference='SilentlyContinue'; " + script, 'utf16le').toString('base64')], { windowsHide: true, encoding: 'utf8' }).trim()
@@ -50,9 +51,13 @@ async function start() {
   page.setDefaultTimeout(20000)
   await context.route('https://ogun-web.vercel.app/**', async (route) => {
     if (offline) return route.abort('internetdisconnected')
-    const url = new URL(route.request().url())
-    const response = await route.fetch({ url: `${backend}${url.pathname}${url.search}`, timeout: 60000 })
-    await route.fulfill({ response, headers: { ...response.headers(), 'access-control-allow-origin': 'http://tauri.localhost', 'access-control-allow-credentials': 'true', 'access-control-expose-headers': 'set-auth-token' } })
+    try {
+      const url = new URL(route.request().url())
+      const response = await route.fetch({ url: `${backend}${url.pathname}${url.search}`, timeout: 60000 })
+      await route.fulfill({ response, headers: { ...response.headers(), 'access-control-allow-origin': 'http://tauri.localhost', 'access-control-allow-credentials': 'true', 'access-control-expose-headers': 'set-auth-token' } })
+    } catch {
+      await route.abort('failed').catch(() => {})
+    }
   })
   await page.waitForURL('http://tauri.localhost/**', { waitUntil: 'domcontentloaded' })
   assert.equal(new URL(page.url()).hostname, 'tauri.localhost')
@@ -60,6 +65,7 @@ async function start() {
   if (offline) await setOffline(true)
 }
 async function stop() {
+  await context?.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {})
   await browser?.close().catch(() => {})
   if (child && child.exitCode === null) {
     child.kill()
@@ -80,13 +86,19 @@ async function setOffline(value) {
 }
 async function capture(order, name) {
   const path = resolve(output, `${String(order).padStart(2, '0')}-${name}.png`)
-  const mask = page.locator('[data-saved-accounts] button').filter({ hasNotText: owner.name }).filter({ has: page.locator('span.block.truncate') })
+  const mask = page.locator('[data-saved-accounts] button').filter({ hasNotText: owner.email }).filter({ has: page.locator('span.block.truncate') })
   await page.screenshot({ path, mask: [mask] })
   screenshots.push(path)
   console.log(`Captured ${order}: ${name}`)
 }
+async function captureNamed(name) {
+  const path = resolve(output, name)
+  await page.screenshot({ path })
+  screenshots.push(path)
+  console.log(`Captured: ${name}`)
+}
 async function pinLogin() {
-  await page.locator('[data-saved-accounts]').getByRole('button').filter({ hasText: owner.name }).click()
+  await page.locator('[data-saved-accounts]').getByRole('button').filter({ hasText: owner.email }).click()
   await page.getByPlaceholder('Hızlı giriş PIN’i').fill(pin)
   await page.getByRole('button', { name: 'PIN ile hızlı giriş', exact: true }).click()
   await page.locator('[data-app-shell]').waitFor()
@@ -97,6 +109,12 @@ async function anamnesis() {
   await page.getByText('Sürüm Doğrulama', { exact: true }).first().click()
   await page.getByRole('tab', { name: 'Anamnez', exact: true }).click()
   await page.getByRole('list', { name: 'Seçili hastalıklar' }).waitFor()
+}
+async function measurements() {
+  await navigate('Danışanlar')
+  await page.getByText('Sürüm Doğrulama', { exact: true }).first().click()
+  await page.getByRole('tab', { name: 'Ölçümler', exact: true }).click()
+  await page.getByRole('button', { name: 'Ölçümü kaydet', exact: true }).waitFor()
 }
 async function cloudWorkspace() {
   const token = await invoke('load_session_token')
@@ -139,6 +157,67 @@ try {
     return info.version === catalog.version && info.conditionCount === catalog.conditions.length && info.medicationProductCount === catalog.medicationProducts.length && info.medicationSubstanceCount === catalog.medicationSubstances.length
   }, 'full canonical SQLite catalog', 120000)
   checks.push('Better Auth → actual workspace → PIN setup → full canonical SQLite catalog')
+
+  if (!(await invoke('control_main_window', { action: 'isMaximized' }))) {
+    await invoke('control_main_window', { action: 'toggleMaximize' })
+    await delay(500)
+  }
+  await navigate('Panel')
+  const panelAlignment = await page.evaluate(() => {
+    const upcoming = document.querySelector('[data-panel-upcoming]')?.getBoundingClientRect()
+    const quickStart = document.querySelector('[data-panel-quickstart]')?.getBoundingClientRect()
+    if (!upcoming || !quickStart) throw new Error('Panel alignment targets are missing')
+    return {
+      width: window.innerWidth,
+      topDelta: Math.abs(upcoming.top - quickStart.top),
+      upcomingWidth: upcoming.width,
+      quickStartWidth: quickStart.width,
+      separated: quickStart.left >= upcoming.right,
+    }
+  })
+  assert.ok(panelAlignment.width >= 1440, `maximized packaged viewport was ${panelAlignment.width}px`)
+  assert.ok(panelAlignment.topDelta <= 1, `panel top edges differ by ${panelAlignment.topDelta}px`)
+  assert.ok(panelAlignment.upcomingWidth > panelAlignment.quickStartWidth)
+  assert.equal(panelAlignment.separated, true)
+  await captureNamed('panel-aligned-upcoming-quickstart.png')
+
+  await navigate('Ayarlar')
+  const settingsRoutes = [
+    ['Ekip ve yetkiler', 'Ekip ve yetkiler', 'settings-team.png'],
+    ['Randevu hatırlatmaları', 'Randevu hatırlatmaları', 'settings-reminders.png'],
+    ['Plan paylaşımı', 'Plan paylaşımı', 'settings-sharing.png'],
+    ['Veri güvenliği ve KVKK', 'Veri güvenliği ve KVKK', null],
+  ]
+  for (const [linkName, title, screenshot] of settingsRoutes) {
+    await page.getByRole('link').filter({ hasText: linkName }).click()
+    await page.locator(`[data-settings-subpage="${title}"]`).waitFor()
+    if (screenshot) await captureNamed(screenshot)
+    await page.getByRole('link', { name: /Ayarlara dön/ }).click()
+    await page.locator('[data-settings-screen]').waitFor()
+  }
+  checks.push('Packaged panel geometry and distinct shared settings subpages')
+
+  const syncIndicator = page.locator('[data-sync-status="current"]')
+  await syncIndicator.waitFor({ timeout: 120000 })
+  await syncIndicator.click()
+  await page.locator('[data-sync-details]').waitFor()
+  await captureNamed('sync-current.png')
+  await page.keyboard.press('Escape')
+
+  await page.route('https://ogun-web.vercel.app/api/clinical/index/version', (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'simulated catalog outage' }) }),
+  )
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await page.locator('[data-sync-status="current"] [data-catalog-warning]').waitFor({ timeout: 120000 })
+  await page.locator('[data-sync-status="current"]').click()
+  await page.locator('[data-sync-details]').getByText(/clinical_catalog_version · 503/).waitFor()
+  await captureNamed('sync-catalog-warning.png')
+  await page.keyboard.press('Escape')
+  await page.unroute('https://ogun-web.vercel.app/api/clinical/index/version')
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await until(async () => (await page.locator('[data-catalog-warning]').count()) === 0, 'catalog recovery', 120000)
+  checks.push('Core remains current during an isolated clinical catalog 503 and catalog recovers independently')
+
   await stop()
   offline = true
   await start()
@@ -198,6 +277,49 @@ try {
   await page.getByRole('list', { name: 'Seçili ilaçlar ve etkin maddeler' }).getByText(fixture.substance.name_tr, { exact: true }).waitFor()
   assert.equal((await local('anamneses')).filter((row) => row.clientId === fixture.client.id).length, 1)
   checks.push('Offline indexed searches, canonical autosave, process restart preserves product/substance/logo/color')
+
+  await measurements()
+  const beforeTanitaCount = (await local('measurements')).filter((row) => row.clientId === fixture.client.id).length
+  await page.getByLabel('Kaynak', { exact: true }).click()
+  await page.getByRole('option', { name: 'Tanita', exact: true }).click()
+  await page.locator('#tanita-file').waitFor()
+  await captureNamed('tanita-source-selected.png')
+  await page.locator('#tanita-file').setInputFiles(tanitaFixture)
+  await page.locator('[data-tanita-preview]').waitFor()
+  assert.equal(await page.locator('#measuredAt').inputValue(), '2026-08-24')
+  assert.equal(await page.locator('#measuredTime').inputValue(), '13:58:41')
+  assert.equal(await page.locator('#weightKg').inputValue(), '86.6')
+  assert.equal(await page.locator('#heightCm').inputValue(), '169')
+  await page.getByRole('tab', { name: 'Vücut kompozisyonu', exact: true }).click()
+  assert.equal(await page.locator('#bodyFatPct').inputValue(), '44.2')
+  assert.equal(await page.locator('#muscleMassKg').inputValue(), '45.9')
+  assert.equal(await page.locator('#visceralFatLevel').inputValue(), '9')
+  assert.equal(await page.locator('#bmrKcal').inputValue(), '')
+  assert.equal(await page.locator('#totalBodyWaterL').inputValue(), '')
+  assert.equal((await local('measurements')).filter((row) => row.clientId === fixture.client.id).length, beforeTanitaCount)
+  await captureNamed('tanita-csv-imported.png')
+  await page.locator('[data-tanita-device-details] summary').first().click()
+  await page.getByText('Günlük kalori değeri', { exact: true }).waitFor()
+  await captureNamed('tanita-device-details.png')
+  await page.getByRole('button', { name: 'Ölçümü kaydet', exact: true }).click()
+  await until(async () => {
+    const rows = (await local('measurements')).filter((row) => row.clientId === fixture.client.id && row.deviceImport?.source === 'tanita')
+    if (rows.length !== 1) return false
+    tanitaFingerprint = rows[0].deviceImport.fingerprint
+    return (await outbox()).some((mutation) => mutation.kind === 'measurement.create' && mutation.payload.deviceImport?.fingerprint === tanitaFingerprint)
+  }, 'offline Tanita save')
+  await page.locator('#tanita-file').setInputFiles(tanitaFixture)
+  await page.getByText('Bu Tanita ölçümü daha önce içe aktarılmış.', { exact: true }).waitFor()
+  assert.equal((await local('measurements')).filter((row) => row.deviceImport?.fingerprint === tanitaFingerprint).length, 1)
+
+  await stop()
+  await start()
+  await pinLogin()
+  await measurements()
+  await page.locator('[data-tanita-device-details]').filter({ hasText: '2026-08-24' }).waitFor()
+  assert.equal((await local('measurements')).filter((row) => row.deviceImport?.fingerprint === tanitaFingerprint).length, 1)
+  checks.push('Shared Tanita CSV form previews without autosave, persists encrypted offline, rejects duplicate, survives restart')
+
   await navigate('Danışanlar')
   await page.getByText(/77,2 kg/).first().waitFor()
   await page.getByText(/Geldi/).first().waitFor()
@@ -245,6 +367,12 @@ try {
   assert.equal(workspace.clinic.primaryColor.toLowerCase(), '#c05030')
   assert.equal(workspace.clinic.logoUrl, fixture.clinic.logoUrl)
   assert.equal(workspace.clients.find((row) => row.id === fixture.client.id).assignedDietitianId, owner.id)
+  const syncedTanita = workspace.measurements.find((row) => row.deviceImport?.fingerprint === tanitaFingerprint)
+  assert.ok(syncedTanita)
+  assert.equal(syncedTanita.deviceImport.normalizedPayload.dailyCalorieIntakeKcal, 2349)
+  assert.equal(syncedTanita.deviceImport.normalizedPayload.bodyWaterPct, 41.6)
+  assert.equal(syncedTanita.bmrKcal, null)
+  assert.equal(syncedTanita.totalBodyWaterL, null)
   const record = workspace.anamneses.find((row) => row.clientId === fixture.client.id)
   assert.ok(record.medicationSelections.some((row) => row.medicationProductId === fixture.product.id))
   assert.ok(record.medicationSelections.some((row) => row.medicationSubstanceId === fixture.substance.id))
@@ -252,7 +380,7 @@ try {
   const token = await invoke('load_session_token')
   const replay = await context.request.post(`${backend}/api/desktop/workspace`, { headers: { Authorization: `Bearer ${token}` }, data: { mutations: pending.map((mutation) => ({ id: mutation.mutationId, kind: mutation.kind, payload: mutation.payload, createdAt: mutation.createdAt })) } })
   assert.equal(replay.status(), 200)
-  checks.push('Actual reconnect and duplicate receipt replay preserve selections, assignment, branding')
+  checks.push('Actual reconnect syncs Tanita provenance and preserves selections, assignment, branding; duplicate receipt replay is idempotent')
   await until(async () => (await local('clinic'))[0].primaryColor.toLowerCase() === '#c05030', 'canonical branding pull')
   const webBrowser = await chromium.launch({ channel: 'chrome', headless: true })
   try {

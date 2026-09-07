@@ -154,25 +154,25 @@ export function DesktopSyncProvider({ scope, children }: { scope: DesktopLocalSc
 
   useEffect(() => {
     mounted.current = true
-    const online = () => void syncNow()
-    const offline = () => { setStatus('offline'); void loadLocalOutboxStatus(scope).then((row) => { if (mounted.current) setPendingCount(row.pendingCount) }).catch(() => undefined) }
+    const handleOnline = () => void syncNow()
+    const handleOffline = () => { setStatus('offline'); void loadLocalOutboxStatus(scope).then((row) => { if (mounted.current) setPendingCount(row.pendingCount) }).catch(() => undefined) }
     const mutation = (event: Event) => {
       if ((event as CustomEvent).detail?.source !== 'mutation') return
       // A mutation made during a running pull/push needs a subsequent pass.
-      if (active.current) void active.current.then(() => navigator.onLine ? syncNow() : offline())
+      if (active.current) void active.current.then(() => navigator.onLine ? syncNow() : handleOffline())
       else if (navigator.onLine) void syncNow()
-      else offline()
+      else handleOffline()
     }
     const focus = () => { if (Date.now() - lastCycle.current >= SYNC_INTERVAL_MS) void syncNow() }
     const visibility = () => { if (document.visibilityState === 'visible') focus() }
     void syncNow()
-    if (!navigator.onLine) offline()
-    window.addEventListener('online', online); window.addEventListener('offline', offline)
+    if (!navigator.onLine) handleOffline()
+    window.addEventListener('online', handleOnline); window.addEventListener('offline', handleOffline)
     window.addEventListener('focus', focus); window.addEventListener('ogun-local-data-changed', mutation)
     document.addEventListener('visibilitychange', visibility)
     return () => {
       mounted.current = false
-      window.removeEventListener('online', online); window.removeEventListener('offline', offline)
+      window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline)
       window.removeEventListener('focus', focus); window.removeEventListener('ogun-local-data-changed', mutation)
       document.removeEventListener('visibilitychange', visibility)
     }
