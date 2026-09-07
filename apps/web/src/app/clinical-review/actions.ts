@@ -16,7 +16,6 @@ import { isReviewerEligibleForTask } from '@ogun/etl/clinical-review-policy'
 import { requireAuth } from '@/lib/authz'
 import {
   assertClinicalReviewEnabled,
-  requireReviewer,
   requireVerifiedReviewer,
   IneligibleReviewerError,
 } from '@/lib/clinical-review/authz'
@@ -47,7 +46,7 @@ export async function requestReviewerRoleAction(
     }
 
     // Insert pending profile
-    const profile = await upsertClinicalReviewerProfile(db, {
+    await upsertClinicalReviewerProfile(db, {
       userId: session.user.id,
       professionalRole: role,
       specialty,

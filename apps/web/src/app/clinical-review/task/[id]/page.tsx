@@ -19,10 +19,6 @@ import {
   ArrowLeft,
   ChevronRight,
   AlertTriangle,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
   User,
   Users,
 } from 'lucide-react'
@@ -119,6 +115,19 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
           </Badge>
         </div>
       </div>
+
+      {/* Source Changed (Stale Snapshot) Warning Banner (Section 8 & 50) */}
+      {task.status === 'source_changed' && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-950 dark:text-rose-200">
+          <div className="flex items-center gap-2 font-bold">
+            <AlertTriangle className="h-5 w-5 text-rose-600" />
+            <span>Kaynak Veri Değişti (Stale Snapshot)</span>
+          </div>
+          <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
+            Bu adayın openFDA kaynak özeti ve semantik karması değişmiştir. Önceki onaylar geçersizdir ve yeniden inceleme gereklidir.
+          </p>
+        </div>
+      )}
 
       {/* Task Primary Header Card */}
       <Card className="border-border/80 shadow-sm overflow-hidden">

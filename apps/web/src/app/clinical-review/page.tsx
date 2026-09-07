@@ -5,7 +5,7 @@ import { getClinicalReviewDashboardKpis } from '@ogun/db/queries'
 import {
   requireReviewer,
 } from '@/lib/clinical-review/authz'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,6 @@ import {
   UserCheck,
   Clock,
   CheckCircle2,
-  AlertCircle,
   HelpCircle,
   ArrowRight,
   ShieldAlert,

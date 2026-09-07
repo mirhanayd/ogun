@@ -7,10 +7,8 @@ import {
   ShieldAlert,
   MoreHorizontal,
   CheckCircle2,
-  XCircle,
   Ban,
   Sparkles,
-  User,
   Sliders,
   Loader2,
 } from 'lucide-react'
@@ -48,7 +46,7 @@ import {
 } from '../actions'
 import type { ClinicalReviewerCapability, ClinicalReviewerVerificationStatus } from '@ogun/db/queries'
 
-interface ReviewerRow {
+export interface ReviewerRow {
   userId: string
   userName: string
   userEmail: string
@@ -67,7 +65,7 @@ interface ReviewerRow {
 
 interface ReviewerTableProps {
   reviewers: ReviewerRow[]
-  currentAdminId: string
+  currentAdminId?: string
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -80,15 +78,15 @@ const ROLE_LABELS: Record<string, string> = {
 const ALL_CAPABILITIES: { key: ClinicalReviewerCapability; label: string }[] = [
   { key: 'medication_food', label: 'İlaç - Besin' },
   { key: 'medication_supplement', label: 'İlaç - Takviye' },
-  { key: 'medication_timing', label: 'İlaç - Zamanlama' },
-  { key: 'condition_nutrient', label: 'Durum - Besin Öğesi' },
-  { key: 'condition_food', label: 'Durum - Besin' },
+  { key: 'medication_timing', label: 'İlaç - Yemek Zamanlaması' },
+  { key: 'condition_nutrient', label: 'Klinik Durum - Besin Öğesi' },
+  { key: 'condition_food', label: 'Klinik Durum - Besin' },
   { key: 'oncology_medication', label: 'Onkoloji İlaçları' },
   { key: 'renal_nutrition', label: 'Renal Beslenme' },
   { key: 'general_clinical', label: 'Genel Klinik' },
 ]
 
-export function ReviewerTable({ reviewers, currentAdminId }: ReviewerTableProps) {
+export function ReviewerTable({ reviewers }: ReviewerTableProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 

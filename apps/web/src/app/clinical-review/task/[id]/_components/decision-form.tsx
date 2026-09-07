@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Clock,
   Save,
-  AlertTriangle,
   Loader2,
   AlertCircle,
   ShieldCheck,
@@ -99,7 +98,7 @@ export function DecisionForm({
 
   // Form State
   const [decision, setDecision] = useState<'approve' | 'reject' | 'defer' | 'needs_more_evidence'>(
-    (existingDraft?.decision as any) ?? 'approve',
+    (existingDraft?.decision as 'approve' | 'reject' | 'defer' | 'needs_more_evidence') ?? 'approve',
   )
   const [severity, setSeverity] = useState<string>(existingDraft?.severity ?? '')
   const [evidenceStrength, setEvidenceStrength] = useState<string>(existingDraft?.evidenceStrength ?? '')

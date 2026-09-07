@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useTransition } from 'react'
+import React from 'react'
 import Link from 'next/link'
 import {
   FileText,
@@ -13,8 +13,6 @@ import {
   Clock,
   HelpCircle,
   XCircle,
-  Database,
-  Building,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,7 +25,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { claimTaskAction } from '../../actions'
 
 interface TaskItem {
   id: string
@@ -56,8 +53,8 @@ interface TaskItem {
 
 interface QueueListProps {
   tasks: TaskItem[]
-  currentUserId: string
-  isVerified: boolean
+  currentUserId?: string
+  isVerified?: boolean
 }
 
 const PRIORITY_STYLES: Record<string, { badge: string; text: string }> = {
@@ -92,15 +89,7 @@ function getStatusStyle(status: string) {
   return STATUS_STYLES[status] ?? DEFAULT_STATUS_STYLE
 }
 
-export function QueueList({ tasks, currentUserId, isVerified }: QueueListProps) {
-  const [isPending, startTransition] = useTransition()
-
-  const handleClaim = (taskId: string) => {
-    startTransition(async () => {
-      await claimTaskAction(taskId)
-    })
-  }
-
+export function QueueList({ tasks }: QueueListProps) {
   if (tasks.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-12 text-center">

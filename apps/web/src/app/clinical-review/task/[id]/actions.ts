@@ -13,6 +13,7 @@ import {
   type ClinicalProfessionalRole,
   type ClinicalReviewerCapability,
   type ClinicalReviewerVerificationStatus,
+  type ClinicalReviewTaskStatus,
 } from '@ogun/db/queries'
 import {
   evaluateTaskConsensus,
@@ -252,7 +253,7 @@ export async function submitReviewDecisionAction(
     const updatedTask = await updateClinicalReviewTaskStatus(
       db,
       task.id,
-      nextStatus as any,
+      nextStatus as ClinicalReviewTaskStatus,
       task.version,
     )
 
@@ -316,7 +317,7 @@ export async function saveDraftDecisionAction(
       id: draftId,
       taskId: task.id,
       reviewerUserId: session.user.id,
-      decision: decision as any,
+      decision: (decision || 'defer') as 'approve' | 'reject' | 'defer' | 'needs_more_evidence',
       severity,
       evidenceStrength,
       approvedTargetKey,

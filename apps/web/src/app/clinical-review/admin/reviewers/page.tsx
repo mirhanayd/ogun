@@ -3,15 +3,14 @@ import Link from 'next/link'
 import { db } from '@ogun/db'
 import { listClinicalReviewers } from '@ogun/db/queries'
 import { requireClinicalAdmin } from '@/lib/clinical-review/authz'
-import { ReviewerTable } from './_components/reviewer-table'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ReviewerTable, type ReviewerRow } from './_components/reviewer-table'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Users,
   ShieldCheck,
   ShieldAlert,
   Ban,
-  ArrowLeft,
   CheckCircle2,
 } from 'lucide-react'
 
@@ -105,7 +104,7 @@ export default async function ClinicalReviewAdminReviewersPage() {
 
       {/* Reviewer Table */}
       <ReviewerTable
-        reviewers={reviewers as any}
+        reviewers={reviewers as unknown as ReviewerRow[]}
         currentAdminId={session.user.id}
       />
     </div>

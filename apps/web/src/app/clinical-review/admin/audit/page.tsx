@@ -4,8 +4,6 @@ import { db } from '@ogun/db'
 import { getClinicalReviewAuditLogs } from '@ogun/db/queries'
 import { requireClinicalAdmin } from '@/lib/clinical-review/authz'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -16,7 +14,6 @@ import {
 } from '@/components/ui/table'
 import {
   History,
-  ShieldCheck,
   User,
   ArrowRight,
   ExternalLink,

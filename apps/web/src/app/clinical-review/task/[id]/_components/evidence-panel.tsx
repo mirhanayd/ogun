@@ -5,7 +5,6 @@ import {
   FileText,
   ExternalLink,
   ChevronDown,
-  Layers,
   Calendar,
   Compass,
 } from 'lucide-react'

@@ -26,7 +26,6 @@ interface TechnicalQaPanelProps {
 export function TechnicalQaPanel({
   technicalReview,
   ingredientAttribution,
-  candidateConfidence,
 }: TechnicalQaPanelProps) {
   const hasAttributionRisk =
     ingredientAttribution === 'multi_ingredient_unattributed' ||

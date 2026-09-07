@@ -10,9 +10,6 @@ import { PublishQueueList } from './_components/publish-queue-list'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  CheckCircle2,
-  Sparkles,
-  ArrowLeft,
   Users,
   History,
 } from 'lucide-react'

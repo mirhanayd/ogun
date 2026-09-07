@@ -7,16 +7,14 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   ChevronRight,
   ShieldCheck,
-  FileText,
   Loader2,
   ArrowRight,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { publishTaskAction } from '../actions'
 
