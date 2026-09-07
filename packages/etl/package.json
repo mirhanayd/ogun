@@ -25,6 +25,7 @@
     "etl:rxnorm-mappings:verify": "tsx src/verify-rxnorm-mappings.ts",
     "etl:openfda-labels": "tsx src/openfda-label-downloader.ts",
     "clinical-review:bundle-openfda": "tsx src/cli-bundle-openfda.ts",
+    "clinical-review:sync-openfda": "tsx src/clinical-review-sync.ts",
     "test": "vitest run"
   },
   "dependencies": {
