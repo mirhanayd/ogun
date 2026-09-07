@@ -83,7 +83,23 @@ test('production bundle renders the shared desktop shell as a computed layout', 
       assert.ok(layout.mainLeft >= layout.sidebarRight, `main ${layout.mainLeft} overlaps sidebar ${layout.sidebarRight}`)
       assert.equal(layout.navigationDirection, 'column')
       assert.equal(layout.navigationItemsDirection, 'column')
-      if (route === 'panel') { assert.equal(layout.panelGridDisplay, 'grid'); assert.ok(layout.panelGridColumns >= 2) }
+      if (route === 'panel') {
+        assert.equal(layout.panelGridDisplay, 'grid'); assert.ok(layout.panelGridColumns >= 2)
+        for (const width of [1440, 1920]) {
+          await page.setViewportSize({ width, height: 960 })
+          const upcoming = await page.locator('[data-panel-upcoming]').boundingBox()
+          const quickStart = await page.locator('[data-panel-quickstart]').boundingBox()
+          assert.ok(upcoming && quickStart)
+          assert.ok(Math.abs(upcoming.y - quickStart.y) <= 1, `panel top edges differ at ${width}px: ${upcoming.y} / ${quickStart.y}`)
+          assert.ok(quickStart.x >= upcoming.x + upcoming.width)
+          assert.ok(upcoming.width > quickStart.width)
+        }
+        await page.setViewportSize({ width: 768, height: 960 })
+        const upcoming = await page.locator('[data-panel-upcoming]').boundingBox()
+        const quickStart = await page.locator('[data-panel-quickstart]').boundingBox()
+        assert.ok(quickStart.y >= upcoming.y + upcoming.height, 'tablet cards should stack naturally')
+        await page.setViewportSize({ width: 1440, height: 960 })
+      }
       await page.screenshot({ path: join(dist, `layout-smoke-${route}.png`), fullPage: true })
     }
   } finally {

@@ -136,8 +136,8 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
         />
       </section>
 
-      <section>
-        <Card className="overflow-hidden border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
+      <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <Card data-panel-upcoming className="min-w-0 overflow-hidden border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
           <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 px-5 py-5 sm:px-6">
             <div className="space-y-1.5">
               <CardTitle className="text-base tracking-tight">Yaklaşan randevular</CardTitle>
@@ -169,11 +169,11 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
                 </div>
               </div>
             ) : (
-              <ul className="grid md:grid-cols-2 xl:grid-cols-3">
+              <ul className="grid md:grid-cols-2">
                 {feed.upcomingAppointments.map((appointment) => (
                   <li
                     key={appointment.id}
-                    className="border-border/60 md:border-r md:nth-[2n]:border-r-0 xl:nth-[2n]:border-r xl:nth-[3n]:border-r-0 [&:nth-child(n+3)]:border-t xl:[&:nth-child(3)]:border-t-0"
+                    className="border-border/60 md:border-r md:nth-[2n]:border-r-0 [&:nth-child(n+3)]:border-t"
                   >
                     <Link
                       href="/randevular"
@@ -208,9 +208,10 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
             )}
           </CardContent>
         </Card>
+        <QuickStartCard />
       </section>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
+      <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="overflow-hidden border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.03]">
           <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 px-5 py-5 sm:px-6">
             <div className="space-y-1.5">
@@ -265,32 +266,6 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
         </Card>
 
         <div className="grid gap-4">
-          <Card className="overflow-hidden border-primary/15 bg-primary text-primary-foreground shadow-lg shadow-primary/10">
-            <CardContent className="relative flex min-h-48 flex-col justify-between p-6">
-              <div className="pointer-events-none absolute -top-16 -right-12 size-44 rounded-full bg-primary-foreground/8 blur-2xl" />
-              <div className="relative">
-                <div className="mb-5 flex size-10 items-center justify-center rounded-2xl bg-primary-foreground/12 ring-1 ring-primary-foreground/15">
-                  <Plus className="size-5" />
-                </div>
-                <p className="text-xs font-semibold tracking-[0.14em] text-primary-foreground/65 uppercase">
-                  Hızlı başlangıç
-                </p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                  Yeni danışan kaydı oluşturun
-                </h2>
-                <p className="mt-2 max-w-sm text-sm leading-6 text-primary-foreground/70">
-                  Temel bilgileri ekleyin, ilk ölçümü alın ve bakım planını tek akışta başlatın.
-                </p>
-              </div>
-              <Button asChild variant="secondary" className="relative mt-5 w-fit rounded-xl px-4">
-                <Link href="/danisanlar/yeni">
-                  Kayıt oluştur
-                  <ArrowRight data-icon="inline-end" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
           <Card className="border-border/70 shadow-sm shadow-foreground/[0.03]">
             <CardHeader className="pb-3">
               <CardTitle className="text-base tracking-tight">Paket görünümü</CardTitle>
@@ -336,6 +311,20 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
       </section>
     </div>
   )
+}
+
+function QuickStartCard() {
+  return <Card data-panel-quickstart className="min-w-0 overflow-hidden border-primary/15 bg-primary text-primary-foreground shadow-lg shadow-primary/10">
+    <CardContent className="flex min-h-48 flex-col justify-between p-6">
+      <div>
+        <div className="mb-5 flex size-10 items-center justify-center rounded-2xl bg-primary-foreground/12 ring-1 ring-primary-foreground/15"><Plus className="size-5" /></div>
+        <p className="text-xs font-semibold tracking-[0.14em] text-primary-foreground/65 uppercase">Hızlı başlangıç</p>
+        <h2 className="mt-2 text-xl font-semibold tracking-tight">Yeni danışan kaydı oluşturun</h2>
+        <p className="mt-2 text-sm leading-6 text-primary-foreground/70">Temel bilgileri ekleyin, ilk ölçümü alın ve bakım planını tek akışta başlatın.</p>
+      </div>
+      <Button asChild variant="secondary" className="mt-5 w-fit rounded-xl px-4"><Link href="/danisanlar/yeni">Kayıt oluştur<ArrowRight data-icon="inline-end" /></Link></Button>
+    </CardContent>
+  </Card>
 }
 
 function SummaryCard({
