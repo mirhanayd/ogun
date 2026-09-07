@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/client.ts",
     "./schema": "./src/schema/index.ts",
+    "./measurement-device-import": "./src/domain/measurement-device-import.ts",
     "./queries": "./src/queries/index.ts"
   },
   "scripts": {
@@ -26,7 +27,8 @@
     "@paralleldrive/cuid2": "^2.2.2",
     "better-auth": "^1.6.29",
     "drizzle-orm": "^0.38.3",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@ogun/tsconfig": "workspace:*",
