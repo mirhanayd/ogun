@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { measurementDeviceImportSchema } from '@ogun/db/measurement-device-import'
 // TİP-ONLY içe aktarım — client-schemas.ts'teki AYNI desen (bkz. o dosyanın
 // başındaki not): drizzle-orm'u istemci paketine sürüklememek için değer
 // listeleri burada elle, İngilizce/Türkçe DB değerleriyle birebir eşleşecek
@@ -86,6 +87,11 @@ function decimalField(max: number, label: string) {
 
 export const measurementFormSchema = z.object({
   measuredAt: measuredAtSchema,
+  measuredTime: z
+    .string()
+    .regex(/^$|^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/, 'Ölçüm saati geçersiz.')
+    .optional(),
+  deviceImport: measurementDeviceImportSchema.nullable().optional(),
   source: z.enum(['manuel', 'inbody', 'tanita', 'accuniq']),
   weightKg: weightKgSchema,
   heightCm: decimalField(300, 'Boy'),
@@ -110,6 +116,8 @@ export type MeasurementFormValues = z.infer<typeof measurementFormSchema>
 export const MEASUREMENT_FORM_DEFAULT_VALUES: MeasurementFormValues = {
   measuredAt: new Date().toISOString().slice(0, 10),
   source: 'manuel',
+  measuredTime: '',
+  deviceImport: null,
   weightKg: '',
   heightCm: '',
   waistCm: '',

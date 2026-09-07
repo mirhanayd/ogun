@@ -1,4 +1,11 @@
 import { and, desc, eq, gte, isNull } from 'drizzle-orm'
+import { createHash } from 'node:crypto'
+import {
+  measurementDeviceImportSchema,
+  tanitaFingerprintInput,
+  TANITA_DUPLICATE_MESSAGE,
+  type MeasurementDeviceImport,
+} from '../domain/measurement-device-import'
 import { clients } from '../schema/clients'
 import {
   clientGoals,
@@ -21,6 +28,7 @@ export interface MeasurementInput {
   id?: string
   measuredAt: Date
   source: MeasurementSource
+  deviceImport?: MeasurementDeviceImport | null
   weightKg?: number | null
   heightCm?: number | null
   waistCm?: number | null
@@ -52,6 +60,7 @@ function toMeasurementValues(input: MeasurementInput) {
   return {
     measuredAt: input.measuredAt,
     source: input.source,
+    deviceImport: input.deviceImport ?? null,
     weightKg: toNumericString(input.weightKg),
     heightCm: toNumericString(input.heightCm),
     waistCm: toNumericString(input.waistCm),
@@ -98,12 +107,37 @@ export async function createMeasurement(
   input: MeasurementInput,
 ) {
   await assertClientInClinic(db, clinicId, clientId)
-  const [measurement] = await db
-    .insert(measurements)
-    .values({ ...(input.id !== undefined && { id: input.id }), clientId, ...toMeasurementValues(input) })
-    .returning()
-  if (!measurement) throw new Error('Ölçüm kaydedilemedi.')
-  return measurement
+  if (input.deviceImport) {
+    const device = measurementDeviceImportSchema.parse(input.deviceImport)
+    const fingerprint = createHash('sha256')
+      .update(tanitaFingerprintInput(device.normalizedPayload))
+      .digest('hex')
+    if (input.source !== 'tanita' || fingerprint !== device.fingerprint)
+      throw new Error('Tanita cihaz verisi doğrulanamadı.')
+    input = { ...input, deviceImport: device }
+  }
+  try {
+    const [measurement] = await db
+      .insert(measurements)
+      .values({
+        ...(input.id !== undefined && { id: input.id }),
+        clientId,
+        ...toMeasurementValues(input),
+      })
+      .returning()
+    if (!measurement) throw new Error('Ölçüm kaydedilemedi.')
+    return measurement
+  } catch (error) {
+    const detail =
+      (error as { cause?: { code?: string; constraint_name?: string } }).cause ??
+      (error as { code?: string; constraint_name?: string })
+    if (
+      detail.code === '23505' &&
+      detail.constraint_name === 'measurements_device_import_fingerprint_idx'
+    )
+      throw new Error(TANITA_DUPLICATE_MESSAGE)
+    throw error
+  }
 }
 
 // Grafikler + trend hesapları (GÖREV 3, GÖREV 4) için bir danışanın ölçüm
@@ -125,6 +159,7 @@ export async function listMeasurementsForClient(
       clientId: measurements.clientId,
       measuredAt: measurements.measuredAt,
       source: measurements.source,
+      deviceImport: measurements.deviceImport,
       weightKg: measurements.weightKg,
       heightCm: measurements.heightCm,
       waistCm: measurements.waistCm,
@@ -161,6 +196,7 @@ export async function getLatestMeasurement(db: Database, clinicId: string, clien
       clientId: measurements.clientId,
       measuredAt: measurements.measuredAt,
       source: measurements.source,
+      deviceImport: measurements.deviceImport,
       weightKg: measurements.weightKg,
       heightCm: measurements.heightCm,
       waistCm: measurements.waistCm,

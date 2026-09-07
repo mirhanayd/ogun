@@ -23,12 +23,16 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import type { MeasurementDeviceImport } from '../domain/measurement-device-import'
 import { clients } from './clients'
 import { users } from './tenancy'
 import { id, timestamps } from './_helpers'
@@ -67,6 +71,9 @@ export const measurements = pgTable(
     // dönük girebilir; grafikler ve trend hesapları measuredAt'e göre sıralanır.
     measuredAt: timestamp('measured_at', { withTimezone: true }).notNull().defaultNow(),
     source: measurementSourceEnum('source').notNull().default('manuel'),
+    // Typed source evidence stays with its scoped measurement, including
+    // fields whose units/semantics do not belong in canonical BMR/water-L.
+    deviceImport: jsonb('device_import').$type<MeasurementDeviceImport>(),
 
     // --- Temel (hızlı mod GÖREV 2'nin tek alanı) ----------------------------
     weightKg: numeric('weight_kg', { precision: 5, scale: 2 }),
@@ -108,6 +115,9 @@ export const measurements = pgTable(
     // Bir danışanın ölçüm geçmişini (grafikler, "önceki ölçüme göre fark")
     // en yeniden en eskiye çekmek — bu tablonun EN SIK kullanılan sorgu deseni.
     index('measurements_client_id_measured_at_idx').on(table.clientId, table.measuredAt.desc()),
+    uniqueIndex('measurements_device_import_fingerprint_idx')
+      .on(table.clientId, sql`(${table.deviceImport}->>'fingerprint')`)
+      .where(sql`${table.deviceImport} IS NOT NULL`),
   ],
 )
 

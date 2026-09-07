@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ComponentProps } from 'react'
+import { measurementFormInput } from '@/lib/measurement-input'
 import type { ClinicRole, DomainEntity, OgunRepositories } from '@/data/repositories'
 import type { ClinicDietitianOption } from '@ogun/db/queries'
 import { calculateAge } from '@/lib/client-age'
@@ -108,7 +109,7 @@ export function LocalClientDetailAdapter({ clientId, role, repositories }: { cli
   if (!client) return <ClientDetailLoadingView />
 
   const readOnly = role === 'assistant'
-  const measurements = records.measurements.map((row): ChartMeasurement => ({ id: row.id, measuredAt: String(row.measuredAt ?? row.updatedAt ?? new Date().toISOString()), source: String(row.source ?? 'manuel') as ChartMeasurement['source'], weightKg: numberOrNull(row.weightKg), heightCm: numberOrNull(row.heightCm), waistCm: numberOrNull(row.waistCm), hipCm: numberOrNull(row.hipCm), neckCm: numberOrNull(row.neckCm), armCm: numberOrNull(row.armCm), thighCm: numberOrNull(row.thighCm), chestCm: numberOrNull(row.chestCm), bodyFatPct: numberOrNull(row.bodyFatPct), notes: typeof row.notes === 'string' ? row.notes : null })).sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
+  const measurements = records.measurements.map((row): ChartMeasurement => ({ id: row.id, measuredAt: String(row.measuredAt ?? row.updatedAt ?? new Date().toISOString()), source: String(row.source ?? 'manuel') as ChartMeasurement['source'], weightKg: numberOrNull(row.weightKg), heightCm: numberOrNull(row.heightCm), waistCm: numberOrNull(row.waistCm), hipCm: numberOrNull(row.hipCm), neckCm: numberOrNull(row.neckCm), armCm: numberOrNull(row.armCm), thighCm: numberOrNull(row.thighCm), chestCm: numberOrNull(row.chestCm), bodyFatPct: numberOrNull(row.bodyFatPct), deviceImport: row.deviceImport as ChartMeasurement['deviceImport'], notes: typeof row.notes === 'string' ? row.notes : null })).sort((a, b) => a.measuredAt.localeCompare(b.measuredAt))
   const goals = records.goals.filter((row) => row.status !== 'tamamlandı').map((row): ActiveGoalRow => ({ id: row.id, type: String(row.type) as ActiveGoalRow['type'], targetValue: Number(row.targetValue), targetDate: text(row, 'targetDate') || null, startValue: Number(row.startValue), startedAt: String(row.startedAt ?? row.createdAt ?? new Date().toISOString()) }))
   const labResults = records.labResults.map((row): LabResultChartPoint => ({ id: row.id, testedAt: String(row.testedAt ?? row.createdAt ?? new Date().toISOString()), analyte: text(row, 'analyte'), value: Number(row.value ?? 0), unit: text(row, 'unit'), refMin: numberOrNull(row.refMin), refMax: numberOrNull(row.refMax), isAbnormal: typeof row.isAbnormal === 'boolean' ? row.isAbnormal : null }))
   const anamnesis = records.anamneses[0] ?? null
@@ -118,8 +119,7 @@ export function LocalClientDetailAdapter({ clientId, role, repositories }: { cli
   const clientName = `${text(client, 'firstName')} ${text(client, 'lastName')}`.trim()
 
   async function saveMeasurement(values: MeasurementFormValues) {
-    const projection = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, key === 'source' || key === 'measuredAt' || key === 'notes' ? value : numberOrNull(value)]))
-    try { await repositories.clinical.upsert('measurements', { id: crypto.randomUUID(), clientId, ...projection, measuredAt: new Date(values.measuredAt).toISOString(), recordedBy: 'local' }); return { success: true } } catch (reason) { return { success: false, error: String(reason) } }
+    try { const projection = measurementFormInput(values); await repositories.clinical.upsert('measurements', { id: crypto.randomUUID(), clientId, ...projection, measuredAt: projection.measuredAt.toISOString(), recordedBy: 'local' }); return { success: true } } catch (reason) { return { success: false, error: String(reason) } }
   }
   async function saveAnamnesis(values: AnamnesisFormValues) {
     const entity = buildLocalAnamnesisEntity(clientId, values)

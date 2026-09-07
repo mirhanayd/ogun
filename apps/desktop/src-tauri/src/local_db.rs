@@ -719,14 +719,22 @@ pub async fn replace_local_entities(
 
 // Check every queued mutation, including backed-off/blocked rows. Checking only
 // load_local_outbox in the renderer races with new writes and misses retries.
-fn ensure_workspace_can_be_replaced(connection: &Connection, scope_key: &str) -> Result<(), String> {
-    let pending: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM outbox WHERE scope_key=?1)",
-        params![scope_key],
-        |row| row.get(0),
-    ).map_err(|err| format!("Bekleyen yerel değişiklikler okunamadı: {err}"))?;
+fn ensure_workspace_can_be_replaced(
+    connection: &Connection,
+    scope_key: &str,
+) -> Result<(), String> {
+    let pending: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM outbox WHERE scope_key=?1)",
+            params![scope_key],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("Bekleyen yerel değişiklikler okunamadı: {err}"))?;
     if pending {
-        return Err("Bekleyen yerel değişiklikler korunuyor. Bulut verisi eşitleme tamamlanınca alınacak.".into());
+        return Err(
+            "Bekleyen yerel değişiklikler korunuyor. Bulut verisi eşitleme tamamlanınca alınacak."
+                .into(),
+        );
     }
     Ok(())
 }
@@ -790,6 +798,56 @@ pub async fn list_local_entities(
     }).await.map_err(|err| format!("Yerel sorgu tamamlanamadı: {err}"))?
 }
 
+fn assert_new_device_measurement(
+    connection: &Connection,
+    key: &[u8; 32],
+    scope: &str,
+    projection: &Value,
+) -> Result<(), String> {
+    let Some(device) = projection
+        .get("deviceImport")
+        .filter(|value| !value.is_null())
+    else {
+        return Ok(());
+    };
+    let fingerprint = device
+        .get("fingerprint")
+        .and_then(Value::as_str)
+        .ok_or("Tanita cihaz kimliği bulunamadı.")?;
+    let client_id = projection
+        .get("clientId")
+        .and_then(Value::as_str)
+        .ok_or("Ölçüm danışanı bulunamadı.")?;
+    if fingerprint.len() != 64
+        || !fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || projection.get("source").and_then(Value::as_str) != Some("tanita")
+    {
+        return Err("Tanita cihaz verisi geçersiz.".to_string());
+    }
+    let mut statement = connection
+        .prepare("SELECT entity_id, encrypted_payload FROM entities WHERE scope_key=?1 AND entity_type='measurements' AND deleted=0")
+        .map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map(params![scope], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+        })
+        .map_err(|err| err.to_string())?;
+    for row in rows {
+        let (id, encrypted) = row.map_err(|err| err.to_string())?;
+        let aad = format!("{scope}\u{1f}measurements\u{1f}{id}");
+        let existing = decrypt_json(key, aad.as_bytes(), &encrypted)?;
+        if existing.get("clientId").and_then(Value::as_str) == Some(client_id)
+            && existing
+                .pointer("/deviceImport/fingerprint")
+                .and_then(Value::as_str)
+                == Some(fingerprint)
+        {
+            return Err("Bu Tanita ölçümü daha önce içe aktarılmış.".to_string());
+        }
+    }
+    Ok(())
+}
+
 /// Applies the optimistic entity projection and inserts its encrypted outbox
 /// envelope in one SQLite transaction. Reusing a mutation id is a no-op.
 #[tauri::command]
@@ -842,6 +900,12 @@ pub async fn apply_local_mutation(
             return transaction
                 .commit()
                 .map_err(|err| format!("Yerel mutasyon doğrulanamadı: {err}"));
+        }
+        if mutation.kind == "measurement.create" {
+            if mutation.projection.get("deviceImport") != mutation.payload.get("deviceImport") {
+                return Err("Ölçüm cihaz verisi yerel kayıt ile eşleşmiyor.".to_string());
+            }
+            assert_new_device_measurement(&transaction, &key, &scope_key, &mutation.projection)?;
         }
         let entity_aad = format!(
             "{scope_key}\u{1f}{}\u{1f}{}",
@@ -964,12 +1028,18 @@ fn outbox_status(connection: &Connection, scope_key: &str) -> Result<Value, Stri
 }
 
 #[tauri::command]
-pub async fn local_outbox_status(app: AppHandle, state: State<'_, OfflineVaultState>, scope: LocalScope) -> Result<Value, String> {
+pub async fn local_outbox_status(
+    app: AppHandle,
+    state: State<'_, OfflineVaultState>,
+    scope: LocalScope,
+) -> Result<Value, String> {
     authorize(&app, &state, &scope)?;
     tauri::async_runtime::spawn_blocking(move || {
         let connection = open_database(&database_path(&app)?)?;
         outbox_status(&connection, &scope_key(&scope))
-    }).await.map_err(|err| format!("Outbox durum işlemi tamamlanamadı: {err}"))?
+    })
+    .await
+    .map_err(|err| format!("Outbox durum işlemi tamamlanamadı: {err}"))?
 }
 
 #[tauri::command]
@@ -1448,21 +1518,75 @@ mod tests {
     }
 
     #[test]
+    fn tanita_fingerprint_is_scoped_and_duplicate_safe() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&mut connection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO scopes(scope_key,user_id,clinic_id,role) VALUES('scope-a','u','c','owner')",
+                [],
+            )
+            .unwrap();
+        let key = [7_u8; 32];
+        let projection = serde_json::json!({
+            "id": "measurement-a",
+            "clientId": "client-a",
+            "source": "tanita",
+            "deviceImport": { "fingerprint": "a".repeat(64) }
+        });
+        assert_new_device_measurement(&connection, &key, "scope-a", &projection).unwrap();
+        let aad = b"scope-a\x1fmeasurements\x1fmeasurement-a";
+        let encrypted = encrypt_json(&key, aad, &projection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO entities(scope_key,entity_type,entity_id,encrypted_payload,updated_at,deleted) VALUES('scope-a','measurements','measurement-a',?1,'2026-09-08T00:00:00Z',0)",
+                params![encrypted],
+            )
+            .unwrap();
+        assert_eq!(
+            assert_new_device_measurement(&connection, &key, "scope-a", &projection).unwrap_err(),
+            "Bu Tanita ölçümü daha önce içe aktarılmış."
+        );
+        let another_client = serde_json::json!({
+            "clientId": "client-b",
+            "source": "tanita",
+            "deviceImport": { "fingerprint": "a".repeat(64) }
+        });
+        assert_new_device_measurement(&connection, &key, "scope-a", &another_client).unwrap();
+        assert_new_device_measurement(&connection, &key, "scope-b", &projection).unwrap();
+    }
+
+    #[test]
     fn workspace_pull_preserves_pending_and_backed_off_projections() {
         let mut connection = Connection::open_in_memory().unwrap();
         apply_migrations(&mut connection).unwrap();
-        connection.execute("INSERT INTO scopes(scope_key,user_id,clinic_id,role) VALUES('s','u','c','owner')", []).unwrap();
+        connection
+            .execute(
+                "INSERT INTO scopes(scope_key,user_id,clinic_id,role) VALUES('s','u','c','owner')",
+                [],
+            )
+            .unwrap();
         assert!(ensure_workspace_can_be_replaced(&connection, "s").is_ok());
         connection.execute("INSERT INTO outbox(mutation_id,scope_key,entity_type,entity_id,operation,encrypted_payload,created_at) VALUES('m','s','clinic','c','update',X'01','2026-09-05T00:00:00Z')", []).unwrap();
         assert!(ensure_workspace_can_be_replaced(&connection, "s").is_err());
-        connection.execute("UPDATE outbox SET sync_status='failed', next_attempt_at='2099-01-01'", []).unwrap();
+        connection
+            .execute(
+                "UPDATE outbox SET sync_status='failed', next_attempt_at='2099-01-01'",
+                [],
+            )
+            .unwrap();
         let status = outbox_status(&connection, "s").unwrap();
         assert_eq!(status["pendingCount"], 1);
         assert_eq!(status["nextRetryAt"], "2099-01-01T00:00:00.000Z");
-        assert_eq!(outbox_status(&connection, "another-scope").unwrap()["pendingCount"], 0);
+        assert_eq!(
+            outbox_status(&connection, "another-scope").unwrap()["pendingCount"],
+            0
+        );
         assert!(ensure_workspace_can_be_replaced(&connection, "s").is_err());
         assert!(ensure_workspace_can_be_replaced(&connection, "another-scope").is_ok());
-        connection.execute("DELETE FROM outbox WHERE mutation_id='m'", []).unwrap();
+        connection
+            .execute("DELETE FROM outbox WHERE mutation_id='m'", [])
+            .unwrap();
         assert!(ensure_workspace_can_be_replaced(&connection, "s").is_ok());
     }
 

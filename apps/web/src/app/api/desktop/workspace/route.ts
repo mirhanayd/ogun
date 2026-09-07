@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { measurementDeviceImportSchema } from '@ogun/db/measurement-device-import'
 import { db } from '@ogun/db'
 import {
   addAlternative,
@@ -191,6 +192,7 @@ const measurementCreateSchema = z.object({
   clientId: z.string().min(1),
   measuredAt: z.string().datetime(),
   source: z.enum(['manuel', 'inbody', 'tanita', 'accuniq']),
+  deviceImport: measurementDeviceImportSchema.nullable().optional(),
   weightKg: z.number().positive().max(500),
   heightCm: optionalPositiveNumber,
   waistCm: optionalPositiveNumber,
@@ -270,7 +272,11 @@ const clinicIdentityMutationSchema = z.object({
   address: z.string().trim().max(500).nullable().optional(),
   taxId: z.string().trim().max(50).nullable().optional(),
   logoUrl: z.string().max(700_000).nullable().optional(),
-  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  primaryColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable()
+    .optional(),
 })
 
 const planCreateSchema = z.object({
@@ -515,7 +521,11 @@ export async function GET() {
     } while (clientSummaries.length < clientTotal)
 
     const [clientRows, planRows, appointmentRows] = await Promise.all([
-      getClientsByIds(db, ctx.scope.clinicId, clientSummaries.map((summary) => summary.id)),
+      getClientsByIds(
+        db,
+        ctx.scope.clinicId,
+        clientSummaries.map((summary) => summary.id),
+      ),
       listPlans(db, ctx.scope.clinicId, {
         visibleToDietitianId: ctx.role === 'dietitian' ? ctx.user.id : undefined,
       }),
@@ -531,17 +541,25 @@ export async function GET() {
       ctx.scope.clinicId,
       clientRows.map((client) => client.id),
     )
-    const [billingPackages, clientPackages, expenses, workingHours, dietitians, team, recentLogs] = await Promise.all([
-      ctx.role === 'owner' ? listBillingPackages(db, ctx.scope.clinicId) : Promise.resolve([]),
-      ctx.role === 'owner' ? listClientPackagesForClinic(db, ctx.scope.clinicId) : Promise.resolve([]),
-      ctx.role === 'owner'
-        ? listExpensesForClinicInRange(db, ctx.scope.clinicId, { from: '2000-01-01', to: '2100-12-31' })
-        : Promise.resolve([]),
-      getWorkingHoursForClinic(db, ctx.scope.clinicId),
-      listClinicDietitians(db, ctx.scope.clinicId),
-      ctx.role === 'owner' ? listClinicTeam(db, ctx.scope.clinicId) : Promise.resolve(null),
-      ctx.role === 'owner' ? listRecentAuditLogsForClinic(db, ctx.scope.clinicId, 50) : Promise.resolve([]),
-    ])
+    const [billingPackages, clientPackages, expenses, workingHours, dietitians, team, recentLogs] =
+      await Promise.all([
+        ctx.role === 'owner' ? listBillingPackages(db, ctx.scope.clinicId) : Promise.resolve([]),
+        ctx.role === 'owner'
+          ? listClientPackagesForClinic(db, ctx.scope.clinicId)
+          : Promise.resolve([]),
+        ctx.role === 'owner'
+          ? listExpensesForClinicInRange(db, ctx.scope.clinicId, {
+              from: '2000-01-01',
+              to: '2100-12-31',
+            })
+          : Promise.resolve([]),
+        getWorkingHoursForClinic(db, ctx.scope.clinicId),
+        listClinicDietitians(db, ctx.scope.clinicId),
+        ctx.role === 'owner' ? listClinicTeam(db, ctx.scope.clinicId) : Promise.resolve(null),
+        ctx.role === 'owner'
+          ? listRecentAuditLogsForClinic(db, ctx.scope.clinicId, 50)
+          : Promise.resolve([]),
+      ])
 
     const plansWithDrafts = await Promise.all(
       planRows.map(async (plan) => {
@@ -604,13 +622,17 @@ export async function GET() {
         phone: clinic.phone,
         address: clinic.address,
         taxId: clinic.taxId,
-        ...(ctx.role === 'owner' ? { settings: {
-          team,
-          recentLogs,
-          smsReminderTemplate: clinic.smsReminderTemplate,
-          whatsappMessageTemplate: clinic.whatsappMessageTemplate,
-          dataRetentionDays: clinic.dataRetentionDays,
-        } } : {}),
+        ...(ctx.role === 'owner'
+          ? {
+              settings: {
+                team,
+                recentLogs,
+                smsReminderTemplate: clinic.smsReminderTemplate,
+                whatsappMessageTemplate: clinic.whatsappMessageTemplate,
+                dataRetentionDays: clinic.dataRetentionDays,
+              },
+            }
+          : {}),
       },
       clients: clientRows,
       ...clinicalWorkspace,
@@ -683,7 +705,7 @@ export async function POST(request: Request) {
               kvkkConsentAt: new Date(mutation.createdAt),
               kvkkConsentVersion: CURRENT_KVKK_CONSENT_VERSION,
               explicitConsentAt: new Date(mutation.createdAt),
-               assignedDietitianId: assignedDietitianForNewClient(ctx.role, ctx.user.id),
+              assignedDietitianId: assignedDietitianForNewClient(ctx.role, ctx.user.id),
             }))
           idMap[payload.id] = created.id
         }
@@ -739,18 +761,8 @@ export async function POST(request: Request) {
           } = payload
           if (conditionSelections && medicationSelections) {
             const [conditionResult, medicationResult] = await Promise.all([
-              replaceClientConditions(
-                db,
-                ctx.scope.clinicId,
-                clientId,
-                conditionSelections,
-              ),
-              replaceClientMedications(
-                db,
-                ctx.scope.clinicId,
-                clientId,
-                medicationSelections,
-              ),
+              replaceClientConditions(db, ctx.scope.clinicId, clientId, conditionSelections),
+              replaceClientMedications(db, ctx.scope.clinicId, clientId, medicationSelections),
             ])
             await upsertClientHealth(db, ctx.scope.clinicId, clientId, {
               ...health,

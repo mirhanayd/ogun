@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { measurementFormInput } from '@/lib/measurement-input'
 import { db } from '@ogun/db'
 import { createGoal, createMeasurement, markGoalAchieved } from '@ogun/db/queries'
 import { assertGoalAccess, withAuth, withClientAuth } from '@/lib/authz'
@@ -17,10 +18,6 @@ import type { ClientActionResult } from '../../actions'
 // danisanlar/actions.ts'teki ClientActionResult'la AYNI ("fırlatmak yerine
 // sonuç nesnesi döndür" deseni, bkz. o dosyanın üstündeki not).
 
-function toNullableNumber(value: string | undefined): number | null {
-  return value === undefined || value === '' ? null : Number(value)
-}
-
 // --- Ölçüm ekleme (GÖREV 2) -------------------------------------------------
 
 const createMeasurementForClinic = withClientAuth(
@@ -33,25 +30,7 @@ const createMeasurementForClinic = withClientAuth(
     },
     async (ctx, clientId: string, input: MeasurementFormValues) =>
       createMeasurement(db, ctx.scope.clinicId, clientId, {
-        measuredAt: new Date(input.measuredAt),
-        source: input.source,
-        weightKg: toNullableNumber(input.weightKg),
-        heightCm: toNullableNumber(input.heightCm),
-        waistCm: toNullableNumber(input.waistCm),
-        hipCm: toNullableNumber(input.hipCm),
-        neckCm: toNullableNumber(input.neckCm),
-        armCm: toNullableNumber(input.armCm),
-        thighCm: toNullableNumber(input.thighCm),
-        chestCm: toNullableNumber(input.chestCm),
-        bodyFatPct: toNullableNumber(input.bodyFatPct),
-        bodyFatKg: toNullableNumber(input.bodyFatKg),
-        leanMassKg: toNullableNumber(input.leanMassKg),
-        muscleMassKg: toNullableNumber(input.muscleMassKg),
-        totalBodyWaterL: toNullableNumber(input.totalBodyWaterL),
-        visceralFatLevel: toNullableNumber(input.visceralFatLevel),
-        bmrKcal: toNullableNumber(input.bmrKcal),
-        phaseAngle: toNullableNumber(input.phaseAngle),
-        notes: input.notes || null,
+        ...measurementFormInput(input),
         recordedBy: ctx.user.id,
       }),
   ),

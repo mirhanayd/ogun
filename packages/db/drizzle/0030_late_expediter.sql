@@ -1,0 +1,2 @@
+ALTER TABLE "measurements" ADD COLUMN "device_import" jsonb;--> statement-breakpoint
+CREATE UNIQUE INDEX "measurements_device_import_fingerprint_idx" ON "measurements" USING btree ("client_id",("device_import"->>'fingerprint')) WHERE "measurements"."device_import" IS NOT NULL;
