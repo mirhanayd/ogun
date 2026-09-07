@@ -30,3 +30,5 @@ export * from './desktop-workspace'
 export * from './clinical'
 export * from './clinical-catalog-snapshot'
 export * from './client-clinical'
+export * from './clinical-review'
+

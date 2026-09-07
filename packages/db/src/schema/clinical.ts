@@ -27,6 +27,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { clients } from './clients'
 import { nutrients } from './foods'
+import { users } from './tenancy'
 import { id, timestamps } from './_helpers'
 
 export const clinicalSources = pgTable(
@@ -641,3 +642,248 @@ export const clinicalInteractionEvidence = pgTable(
     ),
   ],
 )
+
+// ---------------------------------------------------------------------------
+// Clinical Review Portal Tables
+// ---------------------------------------------------------------------------
+
+export const clinicalReviewerProfiles = pgTable(
+  'clinical_reviewer_profiles',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    professionalRole: text('professional_role').notNull(),
+    specialty: text('specialty'),
+    verificationStatus: text('verification_status').notNull().default('pending'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    verifiedBy: text('verified_by').references(() => users.id),
+    isActive: boolean('is_active').notNull().default(true),
+    canPublish: boolean('can_publish').notNull().default(false),
+    ...timestamps(),
+  },
+  (table) => [
+    index('clinical_reviewer_role_status_idx').on(
+      table.professionalRole,
+      table.verificationStatus,
+      table.isActive,
+    ),
+    index('clinical_reviewer_status_idx').on(table.verificationStatus),
+    check(
+      'clinical_reviewer_role_check',
+      sql`${table.professionalRole} in ('pharmacist', 'dietitian', 'physician', 'clinical_admin')`,
+    ),
+    check(
+      'clinical_reviewer_status_check',
+      sql`${table.verificationStatus} in ('pending', 'verified', 'suspended', 'rejected')`,
+    ),
+  ],
+)
+
+export const clinicalReviewerCapabilities = pgTable(
+  'clinical_reviewer_capabilities',
+  {
+    reviewerUserId: text('reviewer_user_id')
+      .notNull()
+      .references(() => clinicalReviewerProfiles.userId, { onDelete: 'cascade' }),
+    capability: text('capability').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.reviewerUserId, table.capability] }),
+    index('clinical_reviewer_capabilities_cap_idx').on(table.capability),
+    check(
+      'clinical_reviewer_capability_check',
+      sql`${table.capability} in ('medication_food', 'medication_supplement', 'medication_timing', 'condition_nutrient', 'condition_food', 'oncology_medication', 'renal_nutrition', 'general_clinical')`,
+    ),
+  ],
+)
+
+export const clinicalReviewTasks = pgTable(
+  'clinical_review_tasks',
+  {
+    id: text('id').primaryKey(),
+    sourceSystem: text('source_system').notNull().default('openfda'),
+    candidateId: text('candidate_id').notNull(),
+    candidateSemanticHash: text('candidate_semantic_hash').notNull(),
+    subjectType: text('subject_type').notNull(),
+    medicationSubstanceId: text('medication_substance_id').references(
+      () => medicationSubstances.id,
+    ),
+    conditionId: text('condition_id').references(() => conditions.id),
+    targetType: text('target_type').notNull(),
+    targetKey: text('target_key').notNull(),
+    action: text('action').notNull(),
+    candidateConfidence: text('candidate_confidence').notNull(),
+    ingredientAttribution: text('ingredient_attribution'),
+    reviewPriority: text('review_priority').notNull(),
+    requiredCapability: text('required_capability').notNull(),
+    status: text('status').notNull().default('pending'),
+    artifactLocator: text('artifact_locator').notNull(),
+    evidenceCount: integer('evidence_count').notNull().default(0),
+    sourceDocumentCount: integer('source_document_count').notNull().default(0),
+    version: integer('version').notNull().default(1),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('clinical_review_tasks_candidate_idx').on(table.candidateId),
+    index('clinical_review_tasks_status_priority_idx').on(table.status, table.reviewPriority),
+    index('clinical_review_tasks_cap_status_idx').on(table.requiredCapability, table.status),
+    index('clinical_review_tasks_med_status_idx').on(table.medicationSubstanceId, table.status),
+    index('clinical_review_tasks_cond_status_idx').on(table.conditionId, table.status),
+    index('clinical_review_tasks_semantic_hash_idx').on(table.candidateSemanticHash),
+    check(
+      'clinical_review_tasks_subject_check',
+      sql`num_nonnulls(${table.medicationSubstanceId}, ${table.conditionId}) = 1`,
+    ),
+    check(
+      'clinical_review_tasks_subject_type_check',
+      sql`${table.subjectType} in ('medication', 'condition')`,
+    ),
+    check(
+      'clinical_review_tasks_status_check',
+      sql`${table.status} in ('pending', 'assigned', 'in_review', 'needs_more_evidence', 'approved', 'rejected', 'deferred', 'ready_to_publish', 'published', 'source_changed')`,
+    ),
+    check(
+      'clinical_review_tasks_priority_check',
+      sql`${table.reviewPriority} in ('P1', 'P2', 'P3', 'P4', 'P5')`,
+    ),
+    check(
+      'clinical_review_tasks_confidence_check',
+      sql`${table.candidateConfidence} in ('high', 'medium', 'low')`,
+    ),
+    check(
+      'clinical_review_tasks_target_type_check',
+      sql`${table.targetType} in ('nutrient', 'food_component', 'food', 'food_group', 'supplement', 'alcohol', 'meal_timing')`,
+    ),
+    check(
+      'clinical_review_tasks_action_check',
+      sql`${table.action} in ('avoid', 'limit', 'caution', 'monitor', 'consistency', 'separate_timing', 'take_with_food', 'take_without_food', 'avoid_alcohol', 'individualize')`,
+    ),
+    check('clinical_review_tasks_version_check', sql`${table.version} >= 1`),
+  ],
+)
+
+export const clinicalReviewAssignments = pgTable(
+  'clinical_review_assignments',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => clinicalReviewTasks.id, { onDelete: 'cascade' }),
+    reviewerUserId: text('reviewer_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    assignmentRole: text('assignment_role').notNull(),
+    status: text('status').notNull().default('assigned'),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
+    assignedBy: text('assigned_by').references(() => users.id),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('clinical_review_assignments_task_user_idx').on(
+      table.taskId,
+      table.reviewerUserId,
+    ),
+    index('clinical_review_assignments_user_status_idx').on(
+      table.reviewerUserId,
+      table.status,
+    ),
+    index('clinical_review_assignments_task_status_idx').on(table.taskId, table.status),
+    check(
+      'clinical_review_assignments_role_check',
+      sql`${table.assignmentRole} in ('primary', 'secondary', 'co_review')`,
+    ),
+    check(
+      'clinical_review_assignments_status_check',
+      sql`${table.status} in ('assigned', 'in_progress', 'completed', 'cancelled')`,
+    ),
+  ],
+)
+
+export const clinicalReviewDecisions = pgTable(
+  'clinical_review_decisions',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => clinicalReviewTasks.id, { onDelete: 'cascade' }),
+    reviewerUserId: text('reviewer_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    decision: text('decision').notNull(),
+    severity: text('severity'),
+    evidenceStrength: text('evidence_strength'),
+    approvedTargetKey: text('approved_target_key'),
+    approvedAction: text('approved_action'),
+    titleTr: text('title_tr'),
+    clinicalEffectTr: text('clinical_effect_tr'),
+    mechanismTr: text('mechanism_tr'),
+    recommendationTr: text('recommendation_tr'),
+    attributionConfirmed: boolean('attribution_confirmed'),
+    rejectReason: text('reject_reason'),
+    reviewNote: text('review_note'),
+    candidateSemanticHash: text('candidate_semantic_hash').notNull(),
+    isDraft: boolean('is_draft').notNull().default(false),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('clinical_review_decisions_task_user_draft_idx').on(
+      table.taskId,
+      table.reviewerUserId,
+      table.isDraft,
+    ),
+    index('clinical_review_decisions_task_idx').on(table.taskId),
+    index('clinical_review_decisions_reviewer_idx').on(table.reviewerUserId),
+    index('clinical_review_decisions_decision_idx').on(table.decision),
+    check(
+      'clinical_review_decisions_decision_check',
+      sql`${table.decision} in ('approve', 'reject', 'defer', 'needs_more_evidence')`,
+    ),
+    check(
+      'clinical_review_decisions_severity_check',
+      sql`${table.severity} is null or ${table.severity} in ('info', 'low', 'moderate', 'high', 'critical')`,
+    ),
+    check(
+      'clinical_review_decisions_evidence_strength_check',
+      sql`${table.evidenceStrength} is null or ${table.evidenceStrength} in ('strong', 'moderate', 'limited', 'expert_consensus', 'unknown')`,
+    ),
+    check(
+      'clinical_review_decisions_action_check',
+      sql`${table.approvedAction} is null or ${table.approvedAction} in ('avoid', 'limit', 'caution', 'monitor', 'consistency', 'separate_timing', 'take_with_food', 'take_without_food', 'avoid_alcohol', 'individualize')`,
+    ),
+    check(
+      'clinical_review_decisions_reject_reason_check',
+      sql`${table.rejectReason} is null or ${table.rejectReason} in ('false_positive', 'wrong_subject', 'wrong_target', 'wrong_action', 'non_clinical_instruction', 'duplicate', 'source_problem', 'other')`,
+    ),
+  ],
+)
+
+export const clinicalReviewAuditLog = pgTable(
+  'clinical_review_audit_log',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id').references(() => clinicalReviewTasks.id, {
+      onDelete: 'set null',
+    }),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'no action' }),
+    eventType: text('event_type').notNull(),
+    fromStatus: text('from_status'),
+    toStatus: text('to_status'),
+    compactChangeSummary: text('compact_change_summary').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('clinical_review_audit_log_task_idx').on(table.taskId),
+    index('clinical_review_audit_log_actor_idx').on(table.actorUserId),
+    index('clinical_review_audit_log_created_idx').on(table.createdAt),
+    check(
+      'clinical_review_audit_log_event_type_check',
+      sql`${table.eventType} in ('task_created', 'task_assigned', 'review_started', 'decision_saved', 'decision_changed', 'needs_evidence', 'approval_completed', 'source_changed', 'ready_to_publish', 'published', 'reviewer_verified', 'reviewer_suspended')`,
+    ),
+  ],
+)
+
