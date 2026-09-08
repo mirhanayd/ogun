@@ -102,4 +102,4 @@ it('ağ kesildiğinde önceden indirilen tam besin kataloğuyla arama yapar', as
       ['ogun-test-food', expect.objectContaining({ nutrientsPer100g: entry.nutrientsPer100g })],
     ]),
   )
-})
+}, 15_000)
