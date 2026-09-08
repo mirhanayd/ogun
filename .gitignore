@@ -53,3 +53,8 @@ apps/desktop/src-tauri/binaries
 # GİRMEMELİ, sadece CI'da üretilip tüketilen bir ARA dosya).
 apps/desktop/release-updater.conf.json
 NASIL-CALISTIRIRIM.md
+/packages/etl/data/clinical/rxnorm
+CLINICAL_DB_INSTALL_TR.md
+DATA_MERGE_AUDIT_TR.md
+/ogun-clinical-db-integration/
+/scripts/apply-clinical-integration.mjs
