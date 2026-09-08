@@ -18,9 +18,12 @@ Gerekli ortam değişkenleri:
 DATABASE_URL=postgresql://...
 ADMIN_BETTER_AUTH_SECRET=<en-az-32-byte-rastgele-ve-web-secretindan-farkli>
 ADMIN_BETTER_AUTH_URL=https://admin.example.com
+OGUN_WEB_URL=https://app.example.com
+RESEND_API_KEY=<resend-api-key>
+RESEND_FROM_EMAIL=Ogun <bildirim@example.com>
 ```
 
-Secret örneğin `openssl rand -base64 32` ile üretilebilir. Secret'ı repoya, dokümana veya build loguna yazmayın. Uygulama `ADMIN_BETTER_AUTH_SECRET` eksikse bilinçli olarak başlatılmaz; normal `BETTER_AUTH_SECRET` değerine düşmez.
+Secret örneğin `openssl rand -base64 32` ile üretilebilir. Secret'ı repoya, dokümana veya build loguna yazmayın. Uygulama `ADMIN_BETTER_AUTH_SECRET` eksikse bilinçli olarak başlatılmaz; normal `BETTER_AUTH_SECRET` değerine düşmez. `OGUN_WEB_URL`, admin server action'ının Better Auth 1.6.29 resmi `/api/auth/request-password-reset` endpoint'ine gittiği sabit normal web origin'idir; kullanıcı girdisinden türetilmez. Reset maili normal web auth callback'inde ortak `@ogun/email` paketi ve Resend üzerinden gönderilir.
 
 ## İlk super admin
 
@@ -72,7 +75,7 @@ Aynı GitHub reposundan ikinci bir Vercel Project oluşturun:
 - Build Command: `pnpm build`
 - Production domain: örneğin `admin.example.com`
 
-Vercel Production, Preview ve ihtiyaç varsa Development ortamlarına doğru `DATABASE_URL`, `ADMIN_BETTER_AUTH_SECRET` ve o ortamın kesin origin'ini taşıyan `ADMIN_BETTER_AUTH_URL` değerlerini ekleyin. Preview deployment'ları canonical production veritabanına bağlanacaksa erişim ve veri etkisini ayrıca değerlendirin; mümkünse ayrı bir preview veritabanı kullanın.
+Vercel Production, Preview ve ihtiyaç varsa Development ortamlarına doğru `DATABASE_URL`, `ADMIN_BETTER_AUTH_SECRET`, `ADMIN_BETTER_AUTH_URL`, `OGUN_WEB_URL`, `RESEND_API_KEY` ve `RESEND_FROM_EMAIL` değerlerini ekleyin. Preview deployment'ları canonical production veritabanına bağlanacaksa erişim ve veri etkisini ayrıca değerlendirin; mümkünse ayrı bir preview veritabanı kullanın.
 
 Normal web ve admin projelerinde farklı Better Auth secret'ları kullanın. Cookie domain'ini üst domaine genişletmeyin; varsayılan host-only cookie davranışı ve `ogun-admin` prefix'i iki auth boundary'sinin çakışmasını önler.
 
@@ -84,3 +87,5 @@ Normal web ve admin projelerinde farklı Better Auth secret'ları kullanın. Coo
 - Authorization-dependent sayfalar dinamik ve `revalidate=0` olarak işaretlidir.
 - `platform_audit_logs` append-only'dir; DB query paketinden update/delete fonksiyonu export edilmez.
 - Faz 1 admin sorguları danışan, ölçüm, laboratuvar, sağlık kaydı veya diyet planı tablolarını okumaz.
+- Faz 2 cihaz kaydı MAC adresi, BIOS UUID, seri numarası veya donanım fingerprint'i toplamaz. Ogun Desktop ilk çalıştırmada 256 bit random installation ID üretir ve Stronghold'da saklar; sunucu yalnız SHA-256 hash'ini tutar. Bu kimlik bir auth credential veya donanım doğrulaması değildir.
+- Device revoke yalnız ilgili `device_sessions` bağlarındaki normal `sessions` kayıtlarını sonlandırır; `admin_sessions` ve aynı kullanıcının browser oturumları etkilenmez.
