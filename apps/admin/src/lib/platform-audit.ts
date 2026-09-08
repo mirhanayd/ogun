@@ -15,12 +15,19 @@ export interface PlatformAuditDescriptor<Args extends unknown[], Result> {
 }
 
 export async function recordPlatformAudit(input: PlatformAuditLogInput) {
-  const requestHeaders = await headers()
+  const requestMetadata = await getPlatformRequestMetadata()
   await insertPlatformAuditLog(db, {
     ...input,
+    ...requestMetadata,
+  })
+}
+
+export async function getPlatformRequestMetadata() {
+  const requestHeaders = await headers()
+  return {
     ipAddress: requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? requestHeaders.get('x-real-ip'),
     userAgent: requestHeaders.get('user-agent'),
-  })
+  }
 }
 
 export function withPlatformAudit<Args extends unknown[], Result>(

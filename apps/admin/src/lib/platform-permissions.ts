@@ -32,7 +32,17 @@ const readOnlyPermissions = PLATFORM_PERMISSIONS.filter((permission) => permissi
 
 export const PLATFORM_ROLE_PERMISSIONS: Record<PlatformStaffRole, readonly PlatformPermission[]> = {
   super_admin: PLATFORM_PERMISSIONS,
-  support: ['dashboard.read', 'clinics.read', 'users.read', 'devices.read', 'tickets.read', 'tickets.manage'],
+  support: [
+    'dashboard.read',
+    'clinics.read',
+    'users.read',
+    'users.send_password_reset',
+    'users.revoke_session',
+    'devices.read',
+    'devices.manage',
+    'tickets.read',
+    'tickets.manage',
+  ],
   clinical_ops: [
     'dashboard.read',
     'clinical.reviewers.read',

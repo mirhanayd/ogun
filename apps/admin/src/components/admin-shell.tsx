@@ -6,7 +6,7 @@ import { SignOutButton } from './sign-out-button'
 const items: Array<{ label: string; href?: string; permission?: PlatformPermission }> = [
   { label: 'Genel Bakış', href: '/', permission: 'dashboard.read' },
   { label: 'Destek', permission: 'tickets.read' },
-  { label: 'Klinikler', permission: 'clinics.read' },
+  { label: 'Klinikler', href: '/klinikler', permission: 'clinics.read' },
   { label: 'Clinical Review', permission: 'clinical.tasks.read' },
   { label: 'Besinler', permission: 'foods.read' },
   { label: 'Abonelikler', permission: 'subscriptions.read' },
