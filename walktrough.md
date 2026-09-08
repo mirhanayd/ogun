@@ -364,78 +364,121 @@ Admin test kapsamı:
 - başarılı audit kaydı
 - başarısız audit kaydı ve hata propagation
 
-### Başarısız root test
+## 13. Operasyonel kapanış — final rapor
+
+Bu bölüm 8 Eylül 2026 tarihli disposable PostgreSQL doğrulamasından sonraki nihai durumu gösterir ve önceki ara durum notlarının yerine geçer.
+
+### A. Database
 
 ```text
-pnpm test
+Migration static validation: PASS
+Migration test target: disposable Docker PostgreSQL 16 (`ogun-admin-phase1-test`)
+Migration applied remotely: no
+Reason: kök `.env` hedefi uzak Neon (`ep-calm-heart-…neon.tech`, DB `neondb`); production/dev ayrımı güvenle doğrulanamadı.
+Root tests after migration: PASS — 8/8 Turbo task; 871 pass, 7 skip
 ```
 
-Nedenler:
+`0031_overrated_layla_miller.sql` statik incelemesinde yalnızca beklenen iki enum, dört tablo, `users.two_factor_enabled`, yedi foreign key ve sekiz index bulundu. `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`, destructive `ALTER` veya güvenli default'u olmayan yeni `NOT NULL` alan yoktur.
 
-1. ETL entegrasyon testleri uzak Neon veritabanında migration 0031 uygulanmadığı için `column "two_factor_enabled" of relation "users" does not exist` hatası verdi.
-2. `packages/etl/src/rxnorm-db.test.ts` 5 saniyelik timeout'a ulaştı.
+Boş DB migrasyon zinciri, dokümante edilmiş `pg_trgm` önkoşulu kurulduktan sonra 0000–0031 arasında başarıyla çalıştı. Mevcut kullanıcı senaryosu ayrıca `users.two_factor_enabled` alanı kaldırılıp kullanıcı eklendikten sonra migration'daki gerçek `ADD COLUMN ... DEFAULT false NOT NULL` ifadesiyle tekrar uygulandı; eski satır `false` aldı ve `NULL` oluşmadı. Normal web kullanıcısının parola girişi de `twoFactorRedirect=false` ile geçti.
 
-Admin, DB, web, desktop, PDF ve nutrition testlerinin root test çalışması sırasında tamamlanan kısımları başarılıydı. Root test migration sonrasında yeniden çalıştırılmalıdır.
+Uzak hedefe hiçbir schema değişikliği uygulanmadı. Ortam sahibi hedefi doğruladıktan ve yedek/rollback planını hazırladıktan sonra çalıştırılacak komut:
 
-## 13. Bilinen açık noktalar ve mimari riskler
+```bash
+pnpm --filter @ogun/db db:migrate
+```
 
-- Migration uzak veritabanına henüz uygulanmadı.
-- Gerçek kullanıcıyla uçtan uca login/TOTP testi migration sonrasında yapılmalı.
-- Root ETL testlerindeki RxNorm timeout'u admin kapsamı dışında ayrıca incelenmeli.
-- Better Auth 1.6.29, repodaki Drizzle 0.38.x için daha yeni bir peer sürümü öneriyor; mevcut web uygulamasında da görülen bu peer uyarısı Faz 2 öncesinde planlı upgrade/regresyon çalışması gerektiriyor.
-- Preview Vercel deployment'larının production veritabanına bağlanması veri ve erişim riski taşır; ayrı preview DB tercih edilmelidir.
-- Kritik gelecekteki admin mutasyonlarında business write ile audit write aynı DB transaction'ında yapılmalıdır.
+### B. Real auth smoke test
+
+Bağlı UI tarayıcısı bulunamadığı için browser-driven görsel admin smoke testi `NOT RUN` kaldı. Bunun yerine disposable DB'ye bağlı gerçek Next.js admin sunucusunda aynı auth uçları ve korumalı sayfalar HTTP üzerinden uçtan uca çalıştırıldı:
+
+```text
+browser-driven UI smoke: NOT RUN — bu oturumda bağlı tarayıcı yüzeyi yok
+password login: PASS
+MFA enrollment: PASS
+TOTP verify: PASS
+second login challenge: PASS
+logout: PASS
+staff revoke: PASS
+normal user denied: PASS
+inactive staff denied: PASS
+```
+
+Ek doğrulamalar:
+
+- MFA öncesi `/` isteği enrollment rotasına yönlendi; enrollment ve TOTP doğrulamasından sonra dashboard, `/denetim` ve `/platform-personeli` 200 döndü.
+- Logout sonrasında admin session silindi ve `/` yeniden `/giris` rotasına yönlendi.
+- Revoke işlemi mevcut `admin_sessions` satırını sildi; aynı cookie artık erişim sağlamadı ve yeni login genel 401 mesajıyla reddedildi.
+- Admin login normal `sessions` tablosuna yazmadı; admin oturumları yalnız `admin_sessions` tablosunda oluştu.
+- Cookie'ler `ogun-admin.*` prefix'i, `HttpOnly` ve `SameSite=Lax` kullandı. Test geliştirme HTTP ortamında olduğundan `Secure=false`; production build'de ayar `true` olur.
+- TOTP secret ve backup code değerleri sunucu loglarına yazılmadı.
+- Bootstrap grant/revoke işlemleri audit tablosuna kaydedildi ve transaction içinde yürüdü.
+
+### C. Commit inventory
+
+| Hash | Subject | Ana dosyalar | Feature | Push kararı |
+|---|---|---|---|---|
+| `5c4ed77` | `fix(panel): align appointments and quick-start cards` | `panel-screen.tsx`, desktop layout testi | Panel yerleşimi | Güvenli |
+| `30b21af` | `fix(settings): resolve desktop settings subroutes` | settings rotaları, desktop settings API/adapter | Desktop ayar alt rotaları | Güvenli |
+| `6fc94c4` | `fix(sync): separate workspace and catalog health` | sync engine/diagnostics, Tauri local DB | Workspace/catalog health ayrımı | Güvenli |
+| `445bc60` | `feat(measurements): parse Tanita BC-601 exports` | Tanita CSV/PDF parser ve 165 KB test fixture'ı | Tanita parse | Güvenli; binary yalnız test fixture'ı |
+| `da791c7` | `feat(measurements): persist Tanita device metrics` | migration 0030, measurement query/schema, desktop DB | Tanita persistence | Güvenli; Drizzle snapshot beklenen generated schema kaydı |
+| `9cab69e` | `feat(measurements): integrate Tanita import into shared form` | measurement form/view, import control | Tanita UI entegrasyonu | Güvenli |
+| `5fbd19d` | `test(desktop): cover panel settings sync and Tanita import` | desktop smoke/testler, doğrulama dokümanı | Desktop regresyon kapsamı | Güvenli |
+| `7103985` | `chore(release): bump Ogun version to 0.3.5` | Tauri/package sürümleri, release manifesti | 0.3.5 release metadata | Güvenli |
+| `e4ac566` | `feat(db): add platform staff and admin auth foundation` | migration 0031, admin schema/query/CLI | Admin DB temeli | Güvenli |
+| `4ed16df` | `feat(admin): scaffold operations app with isolated authentication and MFA` | `apps/admin`, lockfile | Ayrı admin auth ve MFA | Güvenli |
+| `df66e8f` | `feat(admin): add platform RBAC and audit foundation` | audit/personel sayfaları ve yardımcıları | RBAC ve audit | Güvenli |
+| `27ba86b` | `test(admin): add admin security tests and deployment documentation` | `.env.example`, admin docs, `turbo.json` | Test/deployment dokümantasyonu | Güvenli; yalnız placeholder env değerleri |
+| `60f126e` | `docs(admin): add phase one walkthrough report` | `walktrough.md` | Faz 1 raporu | Güvenli |
+| `d077583` | `feat(etl): add clinical catalog import and verification` | clinical importer/verifier, `.gitignore` | Clinical entegrasyon source'u | Güvenli |
+| `540a2c2` | `fix(admin): close platform staff CLI database connection` | admin bootstrap CLI | CLI'nin işlem sonunda kapanması | Güvenli |
+| `2864679` | `test(workspace): stabilize database integration validation` | `turbo.json`, `rxnorm-db.test.ts` | Test DB env aktarımı ve kanıtlı timeout sınırı | Güvenli |
+| `0462461` | `test(web): refresh panel visual baselines` | light/dark panel PNG snapshot'ları | Kasıtlı panel düzeni baseline'ı | Güvenli |
+| bu dokümantasyon commit'i | `docs(admin): finalize phase one operational walkthrough` | `walktrough.md` | Nihai kapanış raporu | Güvenli |
+
+Commit diffleri tek tek incelendi. Credential/private key yoktur; yalnız `.env.example` placeholder değerleri içerir. Büyük dosyalar iki Drizzle schema snapshot'ı ve kasıtlı Tanita/Playwright test fixture-baseline dosyalarıdır.
+
+### D. Pre-existing/uncommitted changes
+
+| Dosya | Sınıflandırma | İşlem | Commit |
+|---|---|---|---|
+| `.gitignore` | Amaçlı clinical artifact politikası | Clinical source commit'ine alındı; bundle/script de ignore edildi | `d077583` |
+| `packages/etl/src/importers/clinical.ts` | Gerçek, package script'i tarafından çağrılan source | Typecheck + disposable import sonrası commitlendi | `d077583` |
+| `packages/etl/src/verify-clinical.ts` | Gerçek doğrulama source'u | 21.505 condition / 23.348 ürün doğrulaması sonrası commitlendi | `d077583` |
+| `ogun-clinical-db-integration/` | Taşıma paketi + yaklaşık 13 MB generated veri kopyası | Silinmedi; repo kökünde ignore edildi | `d077583` (`.gitignore`) |
+| `scripts/apply-clinical-integration.mjs` | Değişiklikleri zaten uygulanmış tek seferlik taşıma betiği | Silinmedi; ignore edildi | `d077583` (`.gitignore`) |
+| `CLINICAL_DB_INSTALL_TR.md`, `DATA_MERGE_AUDIT_TR.md` | Taşıma paketindeki yerel kurulum/audit kopyaları | Kullanıcının mevcut ignore tercihi korundu | `d077583` (`.gitignore`) |
+| `walktrough.md` | Proje kökünde istenen Faz 1 raporu | Korundu, operasyonel sonuçlarla güncellendi | `60f126e` + nihai docs commit'i |
+
+### E. New commits created
+
+```text
+d077583 feat(etl): add clinical catalog import and verification
+540a2c2 fix(admin): close platform staff CLI database connection
+2864679 test(workspace): stabilize database integration validation
+0462461 test(web): refresh panel visual baselines
+<current> docs(admin): finalize phase one operational walkthrough
+```
+
+### F. Push
+
+Bu dosyanın nihai commit'inden sonra `git fetch origin`, divergence ve `git diff --check origin/master..HEAD` yeniden kontrol edilecek. Bütün öndeki commitler amaçlı ve güvenli, çalışma ağacı temiz ve remote ilerlememişse force kullanmadan `git push origin master` uygulanacaktır. Gerçek push sonucu aşağıdaki final repository çıktısı ve kullanıcıya verilen son mesajla birlikte raporlanır.
+
+### G. Final repository state
+
+Nihai docs commit'i ve push öncesi hedef durum:
+
+```text
+## master...origin/master [ahead 18]
+```
+
+Ignored yerel entegrasyon/veri paketleri diskte korunur fakat `git status --short` çıktısında görünmez ve push'a dahil değildir.
+
+## 14. Kalan teknik borçlar
+
+- Kritik platform mutasyonlarında business write ve platform audit write mümkün olduğunca aynı DB transaction içinde atomik yürütülmelidir.
 - Faz 1 kapsamında staff mutation UI eklenmedi; `/platform-personeli` salt okunurdur.
-
-## 14. Commit listesi
-
-Bu görevde oluşturulan commitler:
-
-```text
-27ba86b test(admin): add admin security tests and deployment documentation
-df66e8f feat(admin): add platform RBAC and audit foundation
-4ed16df feat(admin): scaffold operations app with isolated authentication and MFA
-e4ac566 feat(db): add platform staff and admin auth foundation
-```
-
-Bu `walktrough.md` dosyası yukarıdaki commitlerden sonra, kullanıcının son rapor talebi üzerine oluşturulmuştur ve ayrı bir dokümantasyon commit'inde tutulmalıdır.
-
-## 15. Push sonucu
-
-Push yapılmadı.
-
-Kontrol sırasında branch durumu:
-
-```text
-master...origin/master [ahead 12]
-```
-
-Bu görevden önce oluşturulmuş sekiz yerel commit de push kapsamına girecekti. Kullanıcıya ait geçmiş commitleri istemeden origin'e göndermemek için işlem durduruldu.
-
-## 16. Final `git status --short`
-
-Son rapor commit'inden önce çalışma ağacında kullanıcıya ait ve bu görev boyunca korunmuş değişiklikler:
-
-```text
- M .gitignore
-?? ogun-clinical-db-integration/
-?? packages/etl/src/importers/clinical.ts
-?? packages/etl/src/verify-clinical.ts
-?? scripts/apply-clinical-integration.mjs
-```
-
-`walktrough.md`, bu rapor için yeni eklenen dosyadır. Yukarıdaki mevcut kullanıcı değişiklikleri admin commitlerine dahil edilmemiş, silinmemiş veya değiştirilmemiştir.
-
-## Devam etme kontrol listesi
-
-Kredi yenilendiğinde veya çalışma başka bir oturumda sürdürüldüğünde:
-
-1. `git status --short` ile kullanıcı değişikliklerini yeniden doğrula.
-2. Hedef Neon veritabanının doğru ortam olduğundan emin ol.
-3. `pnpm --filter @ogun/db db:migrate` çalıştır.
-4. İlk staff kullanıcısını bootstrap et.
-5. Admin login → enrollment → TOTP challenge → dashboard akışını gerçek tarayıcı ve kullanıcıyla doğrula.
-6. `pnpm test` komutunu yeniden çalıştır.
-7. RxNorm timeout devam ederse admin değişikliklerinden bağımsız baseline olarak araştır.
-8. `walktrough.md` dosyasını dokümantasyon commit'i olarak kaydet.
-9. Push edilecek sekiz önceki commit için kullanıcı niyetini doğrula veya güvenli ayrı branch stratejisi belirle.
+- Better Auth/Drizzle peer sürümü planlı bir dependency upgrade ve regresyon çalışmasında ele alınmalıdır.
+- Preview ortamları production veritabanını paylaşmamalı; ayrı preview DB kullanılmalıdır.
+- Bağlı tarayıcı sağlandığında UI seviyesindeki admin login/enrollment/TOTP smoke’u ayrıca çalıştırılmalıdır.
