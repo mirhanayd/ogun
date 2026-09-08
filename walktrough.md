@@ -435,7 +435,8 @@ Ek doğrulamalar:
 | `540a2c2` | `fix(admin): close platform staff CLI database connection` | admin bootstrap CLI | CLI'nin işlem sonunda kapanması | Güvenli |
 | `2864679` | `test(workspace): stabilize database integration validation` | `turbo.json`, `rxnorm-db.test.ts` | Test DB env aktarımı ve kanıtlı timeout sınırı | Güvenli |
 | `0462461` | `test(web): refresh panel visual baselines` | light/dark panel PNG snapshot'ları | Kasıtlı panel düzeni baseline'ı | Güvenli |
-| bu dokümantasyon commit'i | `docs(admin): finalize phase one operational walkthrough` | `walktrough.md` | Nihai kapanış raporu | Güvenli |
+| `fbd48c9` | `docs(admin): finalize phase one operational walkthrough` | `walktrough.md` | Nihai kapanış raporu | Güvenli |
+| bu push-sonucu commit'i | `docs(admin): record phase one push result` | `walktrough.md` | Push sonucu ve senkron durum kaydı | Güvenli |
 
 Commit diffleri tek tek incelendi. Credential/private key yoktur; yalnız `.env.example` placeholder değerleri içerir. Büyük dosyalar iki Drizzle schema snapshot'ı ve kasıtlı Tanita/Playwright test fixture-baseline dosyalarıdır.
 
@@ -458,19 +459,27 @@ d077583 feat(etl): add clinical catalog import and verification
 540a2c2 fix(admin): close platform staff CLI database connection
 2864679 test(workspace): stabilize database integration validation
 0462461 test(web): refresh panel visual baselines
-<current> docs(admin): finalize phase one operational walkthrough
+fbd48c9 docs(admin): finalize phase one operational walkthrough
+<current> docs(admin): record phase one push result
 ```
 
 ### F. Push
 
-Bu dosyanın nihai commit'inden sonra `git fetch origin`, divergence ve `git diff --check origin/master..HEAD` yeniden kontrol edilecek. Bütün öndeki commitler amaçlı ve güvenli, çalışma ağacı temiz ve remote ilerlememişse force kullanmadan `git push origin master` uygulanacaktır. Gerçek push sonucu aşağıdaki final repository çıktısı ve kullanıcıya verilen son mesajla birlikte raporlanır.
+```text
+branch pushed: master
+remote: origin (https://github.com/mirhanayd/ogun.git)
+result: PASS — 8b486e3..fbd48c9 master -> master
+force push: no
+```
+
+Bu push-sonucu dokümantasyon commit'i ayrıca normal fast-forward push ile gönderilir; onun kesin hash'i kullanıcıya verilen son mesajdaki commit listesinde yer alır.
 
 ### G. Final repository state
 
-Nihai docs commit'i ve push öncesi hedef durum:
+Push-sonucu commit'inin normal fast-forward push'undan sonra doğrulanan hedef durum:
 
 ```text
-## master...origin/master [ahead 18]
+## master...origin/master
 ```
 
 Ignored yerel entegrasyon/veri paketleri diskte korunur fakat `git status --short` çıktısında görünmez ve push'a dahil değildir.
