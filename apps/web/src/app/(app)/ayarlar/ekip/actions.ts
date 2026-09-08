@@ -20,7 +20,7 @@ import {
   hashClinicInvitationToken,
 } from '@/lib/clinic-invitation-token'
 import { clinicInvitationEmail } from '@/lib/email/clinic-invitation-template'
-import { getEmailSender } from '@/lib/email'
+import { getEmailSender } from '@ogun/email'
 import { assertCanPromoteClinicMember, assertCanRemoveClinicMember } from '@/lib/team-management'
 import {
   inviteDietitianSchema,

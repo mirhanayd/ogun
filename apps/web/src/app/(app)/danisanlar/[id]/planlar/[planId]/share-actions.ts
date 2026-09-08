@@ -16,7 +16,7 @@ import { renderPlanPdfBuffer } from '@ogun/pdf/server'
 import { assertPlanAccess, assertPlanShareAccess, withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { resolvePlanPdfData } from '@/lib/pdf/resolve-plan-pdf-data'
-import { getEmailSender } from '@/lib/email'
+import { getEmailSender } from '@ogun/email'
 import { renderPlanShareEmail } from '@/lib/email/plan-share-template'
 import type { PlanActionResult } from '@/app/(app)/planlar/actions'
 

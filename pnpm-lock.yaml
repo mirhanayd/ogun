@@ -184,6 +184,9 @@ importers:
       '@ogun/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ogun/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@ogun/etl':
         specifier: workspace:*
         version: link:../../packages/etl
@@ -277,9 +280,6 @@ importers:
       recharts:
         specifier: ^2.15.0
         version: 2.15.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      resend:
-        specifier: ^6.20.0
-        version: 6.20.0
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
@@ -393,6 +393,28 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.12
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)(tsx@4.23.12)
+
+  packages/email:
+    dependencies:
+      resend:
+        specifier: ^6.20.0
+        version: 6.20.0
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+    devDependencies:
+      '@ogun/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       typescript:
         specifier: ^5
         version: 5.9.3

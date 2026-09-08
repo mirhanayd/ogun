@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import { bearer, oneTimeToken } from 'better-auth/plugins'
@@ -9,6 +10,9 @@ import {
   AUTH_SESSION_EXPIRES_IN_SECONDS,
   AUTH_SESSION_UPDATE_AGE_SECONDS,
 } from './auth-session-fields'
+import { getDeviceStatusByInstallationHash } from '@ogun/db/queries'
+import { hashInstallationId } from './device-identity'
+import { sendOgunPasswordResetEmail } from './password-reset-email'
 
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
 // üzerinde (Next.js App Router route handler'ı üzerinden) çalışır, bkz.
@@ -52,11 +56,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
-    // TODO: gerçek bir transactional e-posta sağlayıcısına (Resend, Postmark vb.)
-    // bağla. Şimdilik geliştirme ortamında linki konsola yazar; MVP kapsamında
-    // e-posta gönderim altyapısı bu prompt'un (3.1) kapsamı dışında.
     sendResetPassword: async ({ user, url }) => {
-      console.info(`[auth] Şifre sıfırlama bağlantısı — ${user.email}: ${url}`)
+      await sendOgunPasswordResetEmail({ email: user.email, resetUrl: url })
     },
   },
   socialProviders: {
@@ -77,6 +78,18 @@ export const auth = betterAuth({
       trustedProviders: ['google'],
       requireLocalEmailVerified: false,
     },
+  },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      const installationId = ctx.request?.headers.get('x-ogun-device-id')
+      if (!installationId) return
+      let installationIdHash: string
+      try { installationIdHash = hashInstallationId(installationId) }
+      catch { throw new APIError('BAD_REQUEST', { message: 'Geçersiz cihaz isteği.' }) }
+      if (await getDeviceStatusByInstallationHash(db, installationIdHash) === 'revoked') {
+        throw new APIError('FORBIDDEN', { message: 'Bu cihazın Ogun erişimi kaldırılmış.' })
+      }
+    }),
   },
   // KURAL (bkz. src/lib/authz.ts): bir kullanıcı birden fazla klinikte üye
   // olabildiği için "şu an hangi klinikte çalışıyor" bilgisi oturuma
