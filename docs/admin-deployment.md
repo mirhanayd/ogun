@@ -1,0 +1,86 @@
+# Ogun Operasyon dağıtımı
+
+`apps/admin`, son kullanıcı web uygulamasından ayrı bir Next.js uygulamasıdır. Aynı canonical PostgreSQL veritabanını ve mevcut `users`/`accounts` kimliklerini kullanır; buna karşılık ayrı Better Auth yapılandırması, `admin_sessions` tablosu, cookie prefix'i ve sekiz saatlik oturum ömrü vardır.
+
+## Ön koşullar
+
+Migration'ı canonical veritabanına uygulayın:
+
+```bash
+pnpm --filter @ogun/db db:migrate
+```
+
+Bu migration `platform_staff`, `admin_sessions`, `two_factors`, `platform_audit_logs`, iki platform enum'u ve `users.two_factor_enabled` alanını ekler. Migration dosyası: `packages/db/drizzle/0031_overrated_layla_miller.sql`.
+
+Gerekli ortam değişkenleri:
+
+```dotenv
+DATABASE_URL=postgresql://...
+ADMIN_BETTER_AUTH_SECRET=<en-az-32-byte-rastgele-ve-web-secretindan-farkli>
+ADMIN_BETTER_AUTH_URL=https://admin.example.com
+```
+
+Secret örneğin `openssl rand -base64 32` ile üretilebilir. Secret'ı repoya, dokümana veya build loguna yazmayın. Uygulama `ADMIN_BETTER_AUTH_SECRET` eksikse bilinçli olarak başlatılmaz; normal `BETTER_AUTH_SECRET` değerine düşmez.
+
+## İlk super admin
+
+Public admin signup kapalıdır. Önce kullanıcı normal Ogun hesabı olarak mevcut `users` tablosunda bulunmalıdır. Sonra repo kökünden:
+
+```bash
+pnpm --filter @ogun/db platform-admin:grant --email admin@example.com --role super_admin
+```
+
+Komut kullanıcı veya parola üretmez, secret basmaz ve yeniden çalıştırıldığında aynı personel kaydını güvenli biçimde aktifleştirip rolünü günceller. İşlem `source=bootstrap_cli` metadata'sıyla platform audit kaydı oluşturur.
+
+Erişimi kapatmak ve o kullanıcıya ait admin session'larını iptal etmek için:
+
+```bash
+pnpm --filter @ogun/db platform-admin:revoke --email admin@example.com
+```
+
+İlk girişte personel e-posta/şifre ile doğrulanır ve TOTP etkin değilse dashboard yerine zorunlu kurulum ekranına yönlendirilir. QR kodu tarandıktan sonra yedek kodlar yalnızca kurulum state'inde gösterilir; sunucu loguna veya sonradan okunabilen bir UI'a yazılmaz.
+
+## Yerel geliştirme
+
+Kök `.env` dosyanıza local değerleri ekleyin, ardından:
+
+```bash
+pnpm install
+pnpm --filter admin dev
+```
+
+Uygulama `http://localhost:3001` adresinde çalışır. Normal web uygulaması port 3000'de bağımsız kalır.
+
+Doğrulama:
+
+```bash
+pnpm --filter @ogun/db typecheck
+pnpm --filter @ogun/db test
+pnpm --filter admin typecheck
+pnpm --filter admin lint
+pnpm --filter admin test
+pnpm --filter admin build
+```
+
+## Vercel
+
+Aynı GitHub reposundan ikinci bir Vercel Project oluşturun:
+
+- Root Directory: `apps/admin`
+- Framework Preset: Next.js
+- Install Command: repo/pnpm varsayılanı
+- Build Command: `pnpm build`
+- Production domain: örneğin `admin.example.com`
+
+Vercel Production, Preview ve ihtiyaç varsa Development ortamlarına doğru `DATABASE_URL`, `ADMIN_BETTER_AUTH_SECRET` ve o ortamın kesin origin'ini taşıyan `ADMIN_BETTER_AUTH_URL` değerlerini ekleyin. Preview deployment'ları canonical production veritabanına bağlanacaksa erişim ve veri etkisini ayrıca değerlendirin; mümkünse ayrı bir preview veritabanı kullanın.
+
+Normal web ve admin projelerinde farklı Better Auth secret'ları kullanın. Cookie domain'ini üst domaine genişletmeyin; varsayılan host-only cookie davranışı ve `ogun-admin` prefix'i iki auth boundary'sinin çakışmasını önler.
+
+## Güvenlik ve operasyon notları
+
+- Platform yetkisi `clinic_members`, `owner` veya `clinical_admin` üzerinden türetilmez; tek kaynak `platform_staff` tablosudur.
+- Session oluşturulmadan önce ve her korumalı server request'inde aktif personel kaydı yeniden kontrol edilir.
+- Menü görünürlüğü yalnızca UX'tir; dashboard, audit ve personel sorguları server-side permission kontrolü yapar.
+- Authorization-dependent sayfalar dinamik ve `revalidate=0` olarak işaretlidir.
+- `platform_audit_logs` append-only'dir; DB query paketinden update/delete fonksiyonu export edilmez.
+- Faz 1 admin sorguları danışan, ölçüm, laboratuvar, sağlık kaydı veya diyet planı tablolarını okumaz.
