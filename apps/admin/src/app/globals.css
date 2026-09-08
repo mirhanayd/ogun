@@ -38,6 +38,7 @@ h2 { margin: 0; font-size: 18px; }
 .input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgb(27 122 90 / 12%); }
 .button { min-height: 43px; border: 0; border-radius: 10px; padding: 0 16px; background: var(--brand); color: white; font-weight: 700; cursor: pointer; }
 .button:hover { background: var(--brand-dark); }
+.action-link { display: inline-flex; align-items: center; margin-top: 12px; }
 .button:disabled { opacity: .55; cursor: wait; }
 .error { border-radius: 9px; background: #fef3f2; color: var(--danger); padding: 10px 12px; font-size: 13px; }
 .notice { border-radius: 9px; background: #edf8f3; color: #175e43; padding: 10px 12px; font-size: 13px; }

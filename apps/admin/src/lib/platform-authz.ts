@@ -1,5 +1,6 @@
 import 'server-only'
 import { headers } from 'next/headers'
+import { forbidden } from 'next/navigation'
 import { db } from '@ogun/db'
 import { getPlatformStaffByUserId } from '@ogun/db/queries'
 import type { PlatformStaffRole } from '@ogun/db/schema'
@@ -50,7 +51,7 @@ export async function requirePlatformStaff(options: { allowUnenrolled?: boolean 
 
 export async function requirePlatformPermission(permission: PlatformPermission) {
   const ctx = await requirePlatformStaff()
-  if (!roleHasPermission(ctx.staff.role, permission)) throw new PlatformAccessError('forbidden')
+  if (!roleHasPermission(ctx.staff.role, permission)) forbidden()
   return ctx
 }
 

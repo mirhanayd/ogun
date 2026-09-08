@@ -23,6 +23,8 @@ export default async function ClinicDetailPage({ params, searchParams }: { param
   const { clinicId } = await params
   const query = await searchParams
   const tab: Tab = query.tab && query.tab in tabs ? query.tab as Tab : 'genel'
+  if (tab === 'kullanicilar' || tab === 'oturumlar') await requirePlatformPermission('users.read')
+  if (tab === 'cihazlar') await requirePlatformPermission('devices.read')
   const clinic = await getClinicForPlatform(db, clinicId)
   if (!clinic) notFound()
   const returnTo = `/klinikler/${clinicId}?tab=${tab}`

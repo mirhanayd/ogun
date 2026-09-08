@@ -41,7 +41,8 @@ function clinicConditions(filters: PlatformClinicFilters) {
 }
 
 export async function listClinicsForPlatform(db: Database, filters: PlatformClinicFilters = {}) {
-  const page = Math.max(1, Math.trunc(filters.page ?? 1))
+  const requestedPage = Math.trunc(filters.page ?? 1)
+  const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1
   const pageSize = ([25, 50, 100] as const).includes(filters.pageSize as 25 | 50 | 100)
     ? filters.pageSize!
     : 25
@@ -230,7 +231,7 @@ export async function listUserDevicesForPlatform(db: Database, userId: string) {
     .from(deviceUserLinks)
     .innerJoin(devices, eq(devices.id, deviceUserLinks.deviceId))
     .leftJoin(deviceSessions, eq(deviceSessions.deviceId, devices.id))
-    .leftJoin(sessions, eq(sessions.id, deviceSessions.sessionId))
+    .leftJoin(sessions, and(eq(sessions.id, deviceSessions.sessionId), eq(sessions.userId, userId)))
     .where(eq(deviceUserLinks.userId, userId))
     .groupBy(...Object.values(deviceProjection))
     .orderBy(desc(devices.lastSeenAt))
@@ -311,7 +312,12 @@ export async function revokeDeviceForPlatform(db: Database, input: PlatformMutat
   clinicId?: string | null
 }) {
   return db.transaction(async (tx) => {
-    const [device] = await tx.select({ id: devices.id }).from(devices).where(eq(devices.id, input.deviceId)).limit(1)
+    const [device] = input.clinicId
+      ? await tx.select({ id: devices.id }).from(devices)
+        .innerJoin(deviceUserLinks, eq(deviceUserLinks.deviceId, devices.id))
+        .innerJoin(clinicMembers, and(eq(clinicMembers.userId, deviceUserLinks.userId), eq(clinicMembers.clinicId, input.clinicId)))
+        .where(eq(devices.id, input.deviceId)).limit(1)
+      : await tx.select({ id: devices.id }).from(devices).where(eq(devices.id, input.deviceId)).limit(1)
     if (!device) throw new Error('Cihaz bulunamadı.')
     const bound = await tx.select({ sessionId: deviceSessions.sessionId }).from(deviceSessions).where(eq(deviceSessions.deviceId, device.id))
     if (bound.length) await tx.delete(sessions).where(inArray(sessions.id, bound.map((row) => row.sessionId)))
@@ -330,6 +336,13 @@ export async function reactivateDeviceForPlatform(db: Database, input: PlatformM
   clinicId?: string | null
 }) {
   return db.transaction(async (tx) => {
+    if (input.clinicId) {
+      const [visible] = await tx.select({ id: devices.id }).from(devices)
+        .innerJoin(deviceUserLinks, eq(deviceUserLinks.deviceId, devices.id))
+        .innerJoin(clinicMembers, and(eq(clinicMembers.userId, deviceUserLinks.userId), eq(clinicMembers.clinicId, input.clinicId)))
+        .where(eq(devices.id, input.deviceId)).limit(1)
+      if (!visible) throw new Error('Cihaz klinik kapsamında bulunamadı.')
+    }
     const [device] = await tx.update(devices).set({ status: 'active', revokedAt: null, revokedByPlatformStaffId: null, revokedReason: null, updatedAt: new Date() })
       .where(eq(devices.id, input.deviceId)).returning({ id: devices.id })
     if (!device) throw new Error('Cihaz bulunamadı.')

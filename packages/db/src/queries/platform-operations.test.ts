@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../client'
 import { accounts, adminSessions, clinicMembers, clinics, deviceSessions, deviceUserLinks, devices, platformAuditLogs, platformStaff, sessions, subscriptions, users } from '../schema'
-import { getUserForPlatform, listClinicsForPlatform, listUserSessionsForPlatform, reactivateDeviceForPlatform, registerDesktopDevice, revokeAllUserSessionsForPlatform, revokeDeviceForPlatform, revokeUserSessionForPlatform } from './platform-operations'
+import { getUserForPlatform, listClinicDevicesForPlatform, listClinicsForPlatform, listUserDevicesForPlatform, listUserSessionsForPlatform, reactivateDeviceForPlatform, registerDesktopDevice, revokeAllUserSessionsForPlatform, revokeDeviceForPlatform, revokeUserSessionForPlatform } from './platform-operations'
 
 const describeWithDb = process.env.PLATFORM_OPERATION_WRITE_TESTS === '1' ? describe : describe.skip
 
@@ -51,6 +51,9 @@ describeWithDb('platform operations integration', () => {
     const staffId = `p2-device-staff-${suffix}`
     await db.insert(users).values([{ id: actorId, email: `da-${suffix}@example.test`, name: 'Actor' }, { id: firstUser, email: `du1-${suffix}@example.test`, name: 'One' }, { id: secondUser, email: `du2-${suffix}@example.test`, name: 'Two' }])
     await db.insert(platformStaff).values({ id: staffId, userId: actorId, role: 'super_admin' })
+    const clinicId = `p2-device-clinic-${suffix}`
+    await db.insert(clinics).values({ id: clinicId, name: 'Device Clinic', slug: `device-${suffix}`, createdBy: firstUser })
+    await db.insert(clinicMembers).values([{ id: `p2-device-member-a-${suffix}`, clinicId, userId: firstUser, role: 'owner' }, { id: `p2-device-member-b-${suffix}`, clinicId, userId: secondUser, role: 'assistant' }])
     await db.insert(sessions).values([{ id: `device-session-a-${suffix}`, token: `dsa-${suffix}`, userId: firstUser, expiresAt: new Date(Date.now() + 60_000) }, { id: `device-session-b-${suffix}`, token: `dsb-${suffix}`, userId: secondUser, expiresAt: new Date(Date.now() + 60_000) }, { id: `other-session-${suffix}`, token: `other-${suffix}`, userId: firstUser, expiresAt: new Date(Date.now() + 60_000) }])
     const common = { installationIdHash: `hash-${suffix}`, platform: 'windows', displayName: 'Windows Desktop', appVersion: '1.0.0' }
     const first = await registerDesktopDevice(db, { ...common, userId: firstUser, sessionId: `device-session-a-${suffix}` })
@@ -58,6 +61,8 @@ describeWithDb('platform operations integration', () => {
     expect(second.id).toBe(first.id)
     expect((await db.select().from(deviceUserLinks).where(eq(deviceUserLinks.deviceId, first.id))).length).toBe(2)
     expect((await db.select().from(deviceSessions).where(eq(deviceSessions.deviceId, first.id))).length).toBe(2)
+    expect((await listClinicDevicesForPlatform(db, clinicId))[0]).toMatchObject({ id: first.id, fingerprint: expect.any(String) })
+    expect((await listUserDevicesForPlatform(db, firstUser))[0]).toMatchObject({ id: first.id, activeSessionCount: 1 })
     await revokeDeviceForPlatform(db, { actorUserId: actorId, platformStaffId: staffId, deviceId: first.id, reason: 'Test iptali' })
     expect((await db.select().from(sessions).where(eq(sessions.id, `other-session-${suffix}`))).length).toBe(1)
     expect((await registerDesktopDevice(db, { ...common, userId: firstUser, sessionId: `other-session-${suffix}` })).status).toBe('revoked')

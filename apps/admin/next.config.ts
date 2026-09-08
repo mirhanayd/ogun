@@ -18,6 +18,7 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  experimental: { authInterrupts: true },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]
   },

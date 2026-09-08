@@ -13,6 +13,7 @@
         "NEXT_PUBLIC_BETTER_AUTH_URL",
         "ADMIN_BETTER_AUTH_SECRET",
         "ADMIN_BETTER_AUTH_URL",
+        "OGUN_WEB_URL",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "S3_ENDPOINT",
@@ -44,7 +45,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "CLINICAL_WRITE_TESTS"]
+      "env": ["DATABASE_URL", "CLINICAL_WRITE_TESTS", "PLATFORM_OPERATION_WRITE_TESTS"]
     },
     "typecheck": {
       "dependsOn": ["^build"]

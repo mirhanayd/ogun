@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('./native-workspace-repository', () => ({
   acknowledgeLocalOutbox: vi.fn(), failLocalOutboxMutation: vi.fn(), loadLocalOutbox: vi.fn(), loadLocalOutboxStatus: vi.fn(), replaceLocalWorkspace: vi.fn(), synchronizeLocalFoodCatalog: vi.fn(), synchronizeLocalClinicalCatalog: vi.fn(),
 }))
-vi.mock('@/lib/native-shell', () => ({ getCachedNativeSessionToken: () => 'secret-test-token' }))
+vi.mock('@/lib/native-shell', () => ({
+  getNativeRequestHeaders: () => ({ Authorization: 'Bearer secret-test-token', 'X-Ogun-Device-Id': 'device-id' }),
+  registerNativeDevice: vi.fn(async () => undefined),
+  NativeDeviceAccessError: class NativeDeviceAccessError extends Error {},
+}))
 import * as repository from './native-workspace-repository'
 import { coreSyncLabel, synchronizeCatalogs, synchronizeDesktopWorkspace } from './sync-engine'
 import { SyncPhaseError } from './sync-diagnostics'
