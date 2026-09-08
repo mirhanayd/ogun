@@ -35,7 +35,11 @@ async function main() {
   throw new Error('Kullanım: platform-admin.ts <grant|revoke> --email <adres> [--role <rol>]')
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
-})
+main()
+  .catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await db.$client.end()
+  })
