@@ -1,3 +1,153 @@
+# Ogun Operasyon / Admin Platform — Faz 2 Walkthrough ve Son Rapor
+
+Tarih: 9 Eylül 2026
+
+Bu bölüm Faz 2'nin nihai raporudur. Alttaki Faz 1 raporu tarihsel kayıt olarak korunmuştur.
+
+## 1. Architecture
+
+Faz 1'deki ayrı `apps/admin` auth/RBAC sınırı korunarak platform operasyon katmanı genişletildi. Klinik ve kullanıcı sorguları `@ogun/db`, transactional email altyapısı yeni `@ogun/email`, normal web auth/reset akışı `apps/web`, persistent kurulum kimliği ise Tauri/Stronghold sınırında tutuldu. Admin uygulaması normal web kaynaklarını import etmez ve normal `sessions` ile `admin_sessions` ayrımı bozulmaz.
+
+## 2. Database
+
+`device_status` (`active`, `revoked`) enum'u ile `devices`, `device_user_links` ve `device_sessions` tabloları eklendi. Migration toplam 5 foreign key ve 7 index oluşturur. Installation ID'nin yalnız SHA-256 hash'i saklanır; device-user ilişkisi çoktan çoğa uygundur, device-session bağı yalnız canonical normal `sessions` tablosunadır ve cascade silinir.
+
+Platform sorgu katmanı klinik liste/detail, üyelik, normal oturum ve cihaz okumalarını; tek/tüm session revoke ile device revoke/reactivate mutasyonlarını içerir. Kritik business mutation ile success audit aynı DB transaction'ında yürür.
+
+## 3. Clinic operations
+
+`/klinikler` gerçek DB üzerinde `q`, `plan`, `status`, `billing` ve `onboarding` filtreleriyle ve 25/50/100 server-side pagination ile çalışır. Liste klinik adı, plan, abonelik durumu, faturalama döngüsü, onboarding, kullanıcı sayısı, son normal session aktivitesi ve oluşturma tarihini gösterir.
+
+`/klinikler/[clinicId]` Genel, Kullanıcılar, Oturumlar, Cihazlar ve salt okunur Abonelik tablarını sunar. Tab bazında `clinics.read`, `users.read`, `devices.read` kontrolleri server component içinde tekrar yapılır; yetkisiz erişim HTTP 403 üretir.
+
+## 4. User/session operations
+
+`/kullanicilar/[userId]?clinicId=...` güvenli kullanıcı alanları, üyelikler, normal oturumlar ve cihazları gösterir. Tek session revoke ve tüm normal session revoke gerçek server action + DB transaction üzerinden geçti. Entegrasyon ve HTTP smoke sonucunda hedef normal oturumlar silindi; aynı kullanıcıya ait `admin_sessions` satırı korunmaya devam etti. Session tokenları hiçbir projection veya UI modeline dönmez.
+
+## 5. Password reset
+
+Admin, kullanıcı için parola seçmez ve token üretmez. Sabit, browser girdisinden türetilmeyen `OGUN_WEB_URL` origin'indeki resmi Better Auth 1.6.29 `POST /api/auth/request-password-reset` endpoint'ini `{ email, redirectTo }` gövdesiyle çağırır. Başarılı istekten sonra kullanıcı bazında 60 saniyelik server-side cooldown uygulanır; başarı ve hata ayrı audit outcome'larıdır.
+
+Disposable PostgreSQL testinde resmi Better Auth akışı gerçek verification tokenı üretti, callback'i çağırdı, tokenı tüketti ve yeni credential'ı açık metin yerine hash olarak oluşturdu. Token/URL loglanmadı ve admin audit metadata'sına girmedi.
+
+## 6. Email architecture
+
+Gönderici sözleşmesi, Resend implementasyonu ve Türkçe password-reset HTML/metin şablonu `packages/email` içindeki `@ogun/email` paketine taşındı. Web'in davet ve plan paylaşım e-postaları da ortak sender'ı kullanır. Better Auth `sendResetPassword` callback'i provider hatasını yutmaz; başarısız gönderim başarılı reset/audit gibi raporlanmaz.
+
+## 7. Device registry
+
+Desktop ilk ihtiyaçta Rust `OsRng` ile 32 bayt/256 bit rastgele bir installation ID üretir ve `ogun-installation-id` adıyla Stronghold'da kalıcı tutar. Bu değer credential değildir, MAC adresi değildir ve hardware attestation/fingerprint değildir. Native istekler değeri `X-Ogun-Device-Id` başlığında bearer session ile yollar; server kullanıcı ve session kimliğini yalnız doğrulanmış Better Auth session'dan alır. Raw ID DB'ye yazılmaz veya admin UI'da gösterilmez; yalnız 10 karakterlik hash fingerprint görünür. Last-seen yazımı 10 dakikaya throttle edilir.
+
+## 8. Device enforcement
+
+Device revoke yalnız o cihaza `device_sessions` üzerinden bağlı normal session'ları siler, revoke reason/time/staff kaydeder ve audit oluşturur. Aynı installation ID ile sonraki native Better Auth isteği `FORBIDDEN` olur. Header göndermeyen normal browser login/device akışı bu kontrolden etkilenmez. Reactivate cihazı yeniden aktif yapar; eski revoke olayı append-only audit geçmişinde kalır ve yeni login'e izin verilir.
+
+## 9. Security boundaries
+
+Admin projection'larında aşağıdakiler bilinçli olarak yoktur:
+
+- `accounts.password`, OAuth access/refresh/id tokenları
+- `sessions.token`, verification/reset tokenları
+- TOTP secret ve backup code'ları
+- raw installation ID
+- danışan, ölçüm, laboratuvar, tanı, klinik not ve diyet planı verileri
+
+Authorization istemci menüsüne bırakılmaz; her page/action kendi canonical permission'ını server-side doğrular. Klinik bağlamından gelen cihaz mutasyonları ayrıca cihazın o kliniğin bir üyesiyle ilişkisini DB join'iyle doğrular.
+
+## 10. Migration
+
+Canonical migration: `packages/db/drizzle/0032_panoramic_lockjaw.sql`.
+
+Disposable Docker PostgreSQL 16 üzerinde `pg_trgm` önkoşulundan sonra `0000`–`0032` migration zinciri geçti. Ana seed, clinical ETL (21.505 condition dahil), RxNorm mapping, Ogun food ETL ve E2E seed uygulandı; Faz 2 gerçek DB entegrasyonları geçti. Migration uzak veritabanına uygulanmadı: kök ortamındaki uzak hedefin production/dev sınıfı güvenle belirlenemedi. Doğru hedef ve yedek planı teyit edildikten sonra `pnpm --filter @ogun/db db:migrate` kontrollü çalıştırılmalıdır.
+
+## 11. Tests
+
+```text
+pnpm typecheck
+  PASS — 9/9 Turbo task
+
+pnpm lint
+  PASS — 3/3 Turbo task, hata/uyarı yok
+
+PLATFORM_OPERATION_WRITE_TESTS=1 pnpm test
+  PASS — 9/9 Turbo task
+  886 passed, 7 skipped toplamı
+
+pnpm --filter @ogun/db test
+  PASS — 14 files, 70 passed, 5 skipped
+
+pnpm --filter web test
+  PASS — 66 files, 426 passed, 1 skipped
+
+pnpm --filter admin test
+  PASS — 5 files, 17 passed
+
+pnpm --filter @ogun/e2e test
+  PASS — 10 passed, 1 packaged-Tauri release testi skipped
+
+pnpm --filter admin build
+  PASS
+
+pnpm --filter web build
+  PASS — mevcut Sentry/Turbopack external uyarıları non-fatal
+
+pnpm --filter desktop test:production
+  PASS — 2/2
+
+cargo check
+  PASS
+
+cargo test
+  PASS — 73/73
+```
+
+Kök testin yoğun paralel koşusunda offline besin indeksi testinin önceki 5 saniyelik sınırı bir kez aşıldı; tekil koşuda ürün davranışı geçti. Workspace yüküne uygun 15 saniyelik test sınırı verildikten sonra tam kök komutu geçti.
+
+## 12. Smoke
+
+```text
+Browser UI: NOT RUN — bu Codex oturumunda bağlanabilir in-app browser bulunamadı.
+HTTP: PASS — gerçek admin auth cookie/session ve disposable PostgreSQL ile.
+```
+
+HTTP smoke; filtreli klinik listesi, klinik detail, kullanıcı detail, kısıtlı rolde 403, token/parola sızıntısı kontrolü, tek/tüm normal session revoke, admin session korunması, device revoke/reactivate ve reset success/cooldown action transport'unu kapsadı. Normal web için otomatik Playwright browser suite'i ayrıca 10/10 geçti.
+
+## 13. Commits
+
+```text
+fe2449a | feat(db): add platform clinic operations and device registry
+9064004 | refactor(email): share transactional email and enable password reset
+70b8989 | feat(admin): add clinic user and session operations
+e950ad6 | feat(desktop): register persistent Ogun device identity
+491e97e | test(platform): harden operation authorization and integration coverage
+879ef07 | docs(admin): document phase two operations
+698a3d1 | test(web): stabilize offline index under workspace load
+<bu rapor commit'i> | docs(admin): add phase two final walkthrough
+```
+
+## 14. Push
+
+```text
+branch: master
+implementation range: 34a2eea..698a3d1
+result: PASS — normal fast-forward push
+force push: no
+```
+
+Bu walkthrough ayrıca ayrı bir normal fast-forward dokümantasyon commit'iyle gönderilir; kesin hash son kullanıcı mesajındaki commit listesinde yer alır.
+
+## 15. Final status
+
+Walkthrough push'undan sonra doğrulanan hedef durum:
+
+```text
+## master...origin/master
+```
+
+Tracked çalışma ağacı temizdir. Disposable `ogun-phase2-pg` doğrulama container'ı kapanışta durdurulup `--rm` politikasıyla kaldırılmıştır. Uzak DB şeması değiştirilmemiştir.
+
+---
+
 # Ogun Operasyon / Admin Platform — Faz 1 Walkthrough ve Son Rapor
 
 Tarih: 8 Eylül 2026
