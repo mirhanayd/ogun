@@ -90,6 +90,7 @@ pub fn run() {
         // olarak kullanılıyor — bu yüzden burada `tauri_plugin_stronghold::
         // Builder(...)` YOK, sadece kendi 3 dar kapsamlı komutumuz var).
         .invoke_handler(tauri::generate_handler![
+            secure_storage::get_or_create_installation_id,
             secure_storage::store_session_token,
             secure_storage::load_session_token,
             secure_storage::clear_session_token,

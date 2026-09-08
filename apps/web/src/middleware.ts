@@ -11,7 +11,7 @@ function corsHeaders(origin: string): HeadersInit {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-Ogun-Device-Id',
     'Access-Control-Expose-Headers': 'set-auth-token',
     Vary: 'Origin',
   }

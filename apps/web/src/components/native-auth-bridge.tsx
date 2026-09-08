@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event'
 import {
   exchangeNativeOneTimeToken,
   isNativeShell,
+  loadNativeInstallationId,
   loadNativeSessionToken,
 } from '@/lib/native-shell'
 
@@ -69,7 +70,7 @@ export function NativeAuthBridge({ children }: { children: React.ReactNode }) {
     setReady(false)
 
     let cancelled = false
-    void loadNativeSessionToken().finally(() => {
+    void Promise.all([loadNativeSessionToken(), loadNativeInstallationId()]).finally(() => {
       if (!cancelled) setReady(true)
     })
 

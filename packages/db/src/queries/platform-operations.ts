@@ -368,6 +368,19 @@ export async function registerDesktopDevice(db: Database, input: {
     if (!device) throw new Error('Cihaz kaydı oluşturulamadı.')
     if (device.status === 'revoked') return { id: device.id, status: device.status, created: false }
 
+    if (created) {
+      await tx.insert(platformAuditLogs).values({
+        actorUserId: input.userId,
+        platformStaffId: null,
+        action: 'device.registered',
+        entityType: 'device',
+        entityId: device.id,
+        outcome: 'success',
+        ipAddress: input.ipAddress ?? null,
+        metadata: { platform: input.platform, appVersion: input.appVersion },
+      })
+    }
+
     const shouldTouch = created || !('lastSeenAt' in device) || now.getTime() - device.lastSeenAt.getTime() >= DEVICE_LAST_SEEN_THROTTLE_MS
     if (shouldTouch && !created) {
       await tx.update(devices).set({ platform: input.platform, displayName: input.displayName, appVersion: input.appVersion, lastSeenAt: now, lastIpAddress: input.ipAddress ?? null, updatedAt: now }).where(eq(devices.id, device.id))

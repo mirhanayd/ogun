@@ -3,6 +3,7 @@ fn main() {
     // treats that page as remote content, so every custom command must have an
     // explicit generated permission before a remote capability can grant it.
     let app_manifest = tauri_build::AppManifest::new().commands(&[
+        "get_or_create_installation_id",
         "store_session_token",
         "load_session_token",
         "clear_session_token",

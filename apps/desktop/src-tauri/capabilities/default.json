@@ -12,6 +12,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
+    "allow-get-or-create-installation-id",
     "allow-store-session-token",
     "allow-load-session-token",
     "allow-clear-session-token",

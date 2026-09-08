@@ -6,7 +6,7 @@ import type { ClinicTeamMember, PendingClinicInvitation } from '@ogun/db/queries
 import { SettingsSubpage, TeamSettingsView, ReminderSettingsView, ReminderSweepControl, SharingSettingsView, SecuritySettingsView, SubscriptionSettingsView, type SettingsAuditLog } from '@/screens/settings-subpages'
 import { useConnectivityStatus } from '@/components/connectivity-status-provider'
 import { cloudUrl } from '@/lib/cloud-origin'
-import { getCachedNativeSessionToken } from '@/lib/native-shell'
+import { getNativeRequestHeaders } from '@/lib/native-shell'
 import { useDesktopSync } from './sync-engine'
 
 type SettingsRouteKind = 'settings' | 'settings_team' | 'settings_reminders' | 'settings_sharing' | 'settings_security' | 'settings_subscription'
@@ -57,9 +57,8 @@ export function LocalSettingsAdapter({ repository, user, routeKind = 'settings' 
       if (disabled) return { success: false, error: 'İnternet bağlantısı gerekli.' }
       setActionPending(true)
       try {
-        const token = getCachedNativeSessionToken()
         const response = await fetch(cloudUrl('/api/desktop/settings'), {
-          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          method: 'POST', credentials: 'include', headers: getNativeRequestHeaders(true),
           body: JSON.stringify({ userId: user.userId, clinicId: user.clinicId, operation, values }),
         })
         const result = await response.json() as { success: boolean; error?: string }

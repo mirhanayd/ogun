@@ -65,9 +65,66 @@ export function getNativeGoogleSignInURL(): string {
  * `loadNativeSessionToken()` ile (uygulama açılışında BİR KEZ) okunur.
  */
 let cachedSessionToken: string | undefined
+let cachedInstallationId: string | undefined
 
 export function getCachedNativeSessionToken(): string | undefined {
   return cachedSessionToken
+}
+
+export function getCachedNativeInstallationId(): string | undefined {
+  return cachedInstallationId
+}
+
+/** Loads or creates a random Ogun installation ID in Stronghold. It is not a credential. */
+export async function loadNativeInstallationId(): Promise<string | undefined> {
+  if (!isNativeShell()) return undefined
+  try {
+    cachedInstallationId = await invoke<string>('get_or_create_installation_id')
+  } catch (err) {
+    console.warn('[native-shell] installation ID hazırlanamadı', err)
+    cachedInstallationId = undefined
+  }
+  return cachedInstallationId
+}
+
+export function getNativeRequestHeaders(json = false): Record<string, string> {
+  if (!isNativeShell()) return json ? { 'Content-Type': 'application/json' } : {}
+  return {
+    ...(json ? { 'Content-Type': 'application/json' } : {}),
+    ...(cachedSessionToken ? { Authorization: `Bearer ${cachedSessionToken}` } : {}),
+    ...(cachedInstallationId ? { 'X-Ogun-Device-Id': cachedInstallationId } : {}),
+  }
+}
+
+let nativeDeviceMetadata: Promise<{ platform: string; displayName: string; appVersion: string }> | null = null
+
+async function getNativeDeviceMetadata() {
+  nativeDeviceMetadata ??= (async () => {
+    const { getVersion } = await import('@tauri-apps/api/app')
+    const userAgent = navigator.userAgent
+    const platform = /Windows/i.test(userAgent) ? 'windows' : /Mac/i.test(userAgent) ? 'macos' : /Linux/i.test(userAgent) ? 'linux' : 'unknown'
+    const displayName = platform === 'windows' ? 'Windows Desktop' : platform === 'macos' ? 'macOS Desktop' : platform === 'linux' ? 'Linux Desktop' : 'Ogun Desktop'
+    return { platform, displayName, appVersion: await getVersion() }
+  })()
+  return nativeDeviceMetadata
+}
+
+export class NativeDeviceAccessError extends Error {
+  constructor(public readonly reason: 'not-ready' | 'revoked' | 'registration-failed') {
+    super(reason === 'revoked' ? 'Bu cihazın Ogun erişimi yönetici tarafından kaldırılmış.' : 'Ogun cihaz kaydı doğrulanamadı.')
+  }
+}
+
+export async function registerNativeDevice(): Promise<void> {
+  if (!isNativeShell()) return
+  if (!cachedInstallationId || !cachedSessionToken) throw new NativeDeviceAccessError('not-ready')
+  const response = await fetch(cloudUrl('/api/desktop/device'), {
+    method: 'POST', credentials: 'include', cache: 'no-store',
+    headers: getNativeRequestHeaders(true),
+    body: JSON.stringify(await getNativeDeviceMetadata()),
+  })
+  if (response.status === 403) throw new NativeDeviceAccessError('revoked')
+  if (!response.ok) throw new NativeDeviceAccessError('registration-failed')
 }
 
 /**
@@ -141,7 +198,7 @@ export async function exchangeNativeOneTimeToken(
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getNativeRequestHeaders(true),
       body: JSON.stringify({ token: oneTimeToken }),
     })
 

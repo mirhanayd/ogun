@@ -4,7 +4,9 @@ import {
   exchangeNativeOneTimeToken,
   getGoogleSignInRedirects,
   getNativeGoogleSignInURL,
+  getNativeRequestHeaders,
   isNativeShell,
+  loadNativeInstallationId,
   persistNativeSessionToken,
   saveFileNatively,
 } from './native-shell'
@@ -45,6 +47,13 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
     expect(isNativeShell()).toBe(true)
   })
 
+  it('Stronghold installation ID değerini sonraki native isteklere ekler', async () => {
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
+    invoke.mockResolvedValueOnce('a'.repeat(64))
+    await expect(loadNativeInstallationId()).resolves.toBe('a'.repeat(64))
+    expect(getNativeRequestHeaders()).toMatchObject({ 'X-Ogun-Device-Id': 'a'.repeat(64) })
+  })
+
   it("web bağlamında Google girişi /panel ve /giris'e yönlenir (mevcut e-posta+şifre akışıyla PARALEL)", () => {
     // GitHub issue #67 — hedef /kurulum'dan /panel'e taşındı: giriş yapan
     // kullanıcının kliniği ÇOKTAN olabilir.
@@ -81,7 +90,10 @@ describe('isNativeShell / getGoogleSignInRedirects', () => {
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Ogun-Device-Id': 'a'.repeat(64),
+        }),
         body: JSON.stringify({ token: 'short-lived-ott' }),
       }),
     )

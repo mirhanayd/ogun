@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Cloud, CloudOff, LoaderCircle, TriangleAlert } from 'lucide-react'
 import { cloudUrl } from '@/lib/cloud-origin'
-import { getCachedNativeSessionToken } from '@/lib/native-shell'
+import { getNativeRequestHeaders, NativeDeviceAccessError, registerNativeDevice } from '@/lib/native-shell'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -23,8 +23,7 @@ const SyncContext = createContext<SyncContextValue | null>(null)
 const SYNC_INTERVAL_MS = 30_000
 const EMPTY_CATALOG: CatalogHealth = { status: 'stale', diagnostic: null, lastSuccessAt: null }
 function bearerHeaders(json = false): HeadersInit {
-  const token = getCachedNativeSessionToken()
-  return { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+  return getNativeRequestHeaders(json)
 }
 export function assertWorkspaceScope(scope: DesktopLocalScope, workspace: DesktopWorkspacePayload): void {
   if (!workspace.scope || workspace.scope.userId !== scope.userId || workspace.scope.clinicId !== scope.clinicId || workspace.scope.role !== scope.role) {
@@ -119,7 +118,7 @@ export function DesktopSyncProvider({ scope, children }: { scope: DesktopLocalSc
     if (active.current) return active.current
     setStatus('syncing')
     setDiagnostic(null)
-    const operation = synchronizeDesktopWorkspace(scope).then((outbox) => {
+    const operation = registerNativeDevice().then(() => synchronizeDesktopWorkspace(scope)).then((outbox) => {
       if (!mounted.current) return
       lastCycle.current = Date.now()
       setPendingCount(outbox.pendingCount)
@@ -128,7 +127,7 @@ export function DesktopSyncProvider({ scope, children }: { scope: DesktopLocalSc
       if (!outbox.pendingCount) { setLastSuccessAt(new Date().toISOString()); failures.current = 0 }
     }).catch(async (reason: unknown) => {
       if (!mounted.current) return
-      const error = reason instanceof SyncPhaseError ? reason : new SyncPhaseError('workspace_pull', null, 'operation')
+      const error = reason instanceof SyncPhaseError ? reason : reason instanceof NativeDeviceAccessError ? new SyncPhaseError('auth', 403, reason.reason) : new SyncPhaseError('workspace_pull', null, 'operation')
       const outbox = await loadLocalOutboxStatus(scope).catch(() => null)
       if (!mounted.current) return
       if (outbox) setPendingCount(outbox.pendingCount)

@@ -63,6 +63,6 @@ describeWithDb('platform operations integration', () => {
     expect((await registerDesktopDevice(db, { ...common, userId: firstUser, sessionId: `other-session-${suffix}` })).status).toBe('revoked')
     await reactivateDeviceForPlatform(db, { actorUserId: actorId, platformStaffId: staffId, deviceId: first.id })
     expect((await db.select({ status: devices.status }).from(devices).where(eq(devices.id, first.id)))[0]?.status).toBe('active')
-    expect((await db.select().from(platformAuditLogs).where(eq(platformAuditLogs.entityId, first.id))).map((row) => row.action)).toEqual(expect.arrayContaining(['device.revoked', 'device.reactivated']))
+    expect((await db.select().from(platformAuditLogs).where(eq(platformAuditLogs.entityId, first.id))).map((row) => row.action)).toEqual(expect.arrayContaining(['device.registered', 'device.revoked', 'device.reactivated']))
   })
 })

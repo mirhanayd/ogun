@@ -40,12 +40,48 @@
 //! metninde özellikle istendi) bunu bilinçli bir seçim olarak değerlendirsin.
 
 use tauri::AppHandle;
+use rand::{rngs::OsRng, RngCore};
 
 /// Stronghold "client" adı — tek bir mantıksal ad alanı yeterli, birden
 /// fazla client'a ihtiyacımız yok (sadece bir bearer token saklıyoruz).
 const CLIENT_PATH: &[u8] = b"ogun-native-auth";
 /// Client'ın store'u içindeki tek kayıt anahtarı.
 const SESSION_TOKEN_KEY: &[u8] = b"better-auth-session-token";
+/// Random Ogun installation identifier. It is not an auth credential and is
+/// deliberately unrelated to MAC addresses, serial numbers or other hardware.
+const INSTALLATION_ID_KEY: &[u8] = b"ogun-installation-id";
+
+fn random_installation_id() -> String {
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[tauri::command]
+pub async fn get_or_create_installation_id(app: AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::vault::with_vault(&app, |vault| {
+            let client = match crate::vault::open_client(vault, CLIENT_PATH)? {
+                Some(client) => client,
+                None => vault
+                    .create_client(CLIENT_PATH)
+                    .map_err(|err| format!("stronghold client oluşturulamadı: {err}"))?,
+            };
+            if let Some(bytes) = client.store().get(INSTALLATION_ID_KEY)
+                .map_err(|err| format!("installation ID stronghold'dan okunamadı: {err}"))?
+            {
+                if let Ok(value) = String::from_utf8(bytes) {
+                    return Ok(value);
+                }
+            }
+            let value = random_installation_id();
+            client.store().insert(INSTALLATION_ID_KEY.to_vec(), value.as_bytes().to_vec(), None)
+                .map_err(|err| format!("installation ID stronghold'a yazılamadı: {err}"))?;
+            vault.save().map_err(|err| format!("stronghold kasası diske kaydedilemedi: {err}"))?;
+            Ok(value)
+        })
+    }).await.map_err(|err| format!("stronghold işlemi tamamlanamadı: {err}"))?
+}
 
 // NOT (kod incelemesi PR #56): bu dosyadaki `.map_err(|err| format!("...:
 // {err}"))` deseni tekrar ediyor — DRY için jenerik bir yardımcıya (`impl
@@ -161,6 +197,15 @@ pub async fn clear_session_token(app: AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use tauri_plugin_stronghold::kdf::KeyDerivation;
+
+    #[test]
+    fn installation_ids_are_high_entropy_and_random() {
+        let first = super::random_installation_id();
+        let second = super::random_installation_id();
+        assert_eq!(first.len(), 64);
+        assert!(first.chars().all(|character| character.is_ascii_hexdigit()));
+        assert_ne!(first, second);
+    }
 
     // Bu testler Tauri çalışma zamanı GEREKTİRMEZ (AppHandle kullanmazlar) —
     // sadece argon2 anahtar türetiminin (kdf::KeyDerivation::argon2)

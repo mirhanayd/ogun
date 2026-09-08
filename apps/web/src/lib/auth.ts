@@ -11,7 +11,7 @@ import {
   AUTH_SESSION_UPDATE_AGE_SECONDS,
 } from './auth-session-fields'
 import { getDeviceStatusByInstallationHash } from '@ogun/db/queries'
-import { hashInstallationId } from './device-identity'
+import { resolveInstallationAccess } from './device-identity'
 import { sendOgunPasswordResetEmail } from './password-reset-email'
 
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
@@ -82,11 +82,10 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       const installationId = ctx.request?.headers.get('x-ogun-device-id')
-      if (!installationId) return
-      let installationIdHash: string
-      try { installationIdHash = hashInstallationId(installationId) }
+      let deviceAccess
+      try { deviceAccess = await resolveInstallationAccess(installationId ?? null, (hash) => getDeviceStatusByInstallationHash(db, hash)) }
       catch { throw new APIError('BAD_REQUEST', { message: 'Geçersiz cihaz isteği.' }) }
-      if (await getDeviceStatusByInstallationHash(db, installationIdHash) === 'revoked') {
+      if (deviceAccess === 'revoked') {
         throw new APIError('FORBIDDEN', { message: 'Bu cihazın Ogun erişimi kaldırılmış.' })
       }
     }),

@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { authClient } from '@/lib/auth-client'
 import { cloudUrl } from '@/lib/cloud-origin'
 import type { DesktopOfflineProfile } from '@/lib/desktop-offline'
-import { clearNativeSessionToken, getCachedNativeSessionToken, loadNativeSessionToken } from '@/lib/native-shell'
+import { clearNativeSessionToken, getNativeRequestHeaders, loadNativeInstallationId, loadNativeSessionToken, registerNativeDevice } from '@/lib/native-shell'
 import { getClinicBrandingVariables } from '@/lib/clinic-branding'
 import { useDesktopWindowControls } from '@/components/use-desktop-window-controls'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
@@ -56,8 +56,7 @@ function scopeOf(identity: DesktopIdentity) {
 }
 
 function authHeaders(): HeadersInit {
-  const token = getCachedNativeSessionToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return getNativeRequestHeaders()
 }
 
 function NativeDesktopTitlebar({ search }: { search?: React.ReactNode }) {
@@ -266,6 +265,7 @@ export function DesktopLogin({
   async function finishOnlineAuthentication() {
     const { data: session, error: sessionError } = await authClient.getSession()
     if (!session || sessionError) throw new Error('Doğrulanmış oturum bulunamadı.')
+    await registerNativeDevice()
     const response = await fetch(cloudUrl('/api/desktop/workspace'), { cache: 'no-store', credentials: 'include', headers: authHeaders() })
     if (!response.ok) throw new Error('Klinik çalışma alanı indirilemedi.')
     const workspace = await response.json() as DesktopWorkspacePayload
@@ -308,7 +308,7 @@ function DesktopRuntimeApp() {
   const [authState, setAuthState] = useState<DesktopAuthState>({ phase: 'booting' })
   useEffect(() => {
     let cancelled = false
-    void invoke<DesktopOfflineProfile[]>('list_offline_profiles').then((profiles) => {
+    void Promise.all([invoke<DesktopOfflineProfile[]>('list_offline_profiles'), loadNativeInstallationId()]).then(([profiles]) => {
       if (!cancelled) setAuthState(stateAfterProfileDetection(profiles))
     }).catch(() => {
       if (!cancelled) setAuthState({ phase: 'login', profiles: [] })

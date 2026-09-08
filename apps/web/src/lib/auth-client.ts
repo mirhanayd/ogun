@@ -4,6 +4,7 @@ import type { Auth } from './auth'
 import { getOgunCloudOrigin } from './cloud-origin'
 import {
   getCachedNativeSessionToken,
+  getCachedNativeInstallationId,
   isNativeShell,
   persistNativeSessionToken,
 } from './native-shell'
@@ -28,6 +29,11 @@ export const authClient = createAuthClient({
   baseURL: isNativeShell() ? getOgunCloudOrigin() : process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   plugins: [inferAdditionalFields<Auth>(), oneTimeTokenClient()],
   fetchOptions: {
+    onRequest: (ctx) => {
+      const installationId = isNativeShell() ? getCachedNativeInstallationId() : undefined
+      if (installationId) ctx.headers.set('X-Ogun-Device-Id', installationId)
+      return ctx
+    },
     auth: {
       type: 'Bearer',
       token: () => (isNativeShell() ? getCachedNativeSessionToken() : undefined),
