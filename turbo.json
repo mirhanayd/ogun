@@ -43,7 +43,8 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["DATABASE_URL", "CLINICAL_WRITE_TESTS"]
     },
     "typecheck": {
       "dependsOn": ["^build"]
