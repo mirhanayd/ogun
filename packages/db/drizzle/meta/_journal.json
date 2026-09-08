@@ -225,6 +225,13 @@
       "when": 1788825540902,
       "tag": "0031_overrated_layla_miller",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788892341843,
+      "tag": "0032_panoramic_lockjaw",
+      "breakpoints": true
     }
   ]
 }
