@@ -26,6 +26,9 @@ importers:
       '@ogun/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@ogun/etl':
+        specifier: workspace:*
+        version: link:../../packages/etl
       better-auth:
         specifier: ^1.6.29
         version: 1.6.29(@opentelemetry/api@1.9.1)(next@15.5.23(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(vitest@3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)(tsx@4.23.12))

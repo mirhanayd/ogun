@@ -95,6 +95,10 @@ details pre { max-width: 520px; overflow: auto; white-space: pre-wrap; font-size
 .support-filter label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
 .support-actions { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }
 .support-thread { display: grid; gap: 10px; }
+.check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.verification-check { display: flex; align-items: center; gap: 9px; font-weight: 700; }
+.reviewer-form { max-width: 920px; }
+.action-panels { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
 .internal-note { border-left: 4px solid #9b6b17; background: #fffaf0; }
 .textarea { min-height: 120px; height: auto; padding-block: 10px; resize: vertical; }
 @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
@@ -106,5 +110,5 @@ details pre { max-width: 520px; overflow: auto; white-space: pre-wrap; font-size
   .nav { display: flex; min-width: max-content; }
   .main { padding: 20px 14px; }
   .cards { grid-template-columns: 1fr; }
-  .filter-grid, .support-filter, .support-actions, .detail-grid { grid-template-columns: 1fr; }
+  .filter-grid, .support-filter, .support-actions, .detail-grid, .action-panels, .check-grid { grid-template-columns: 1fr; }
 }
