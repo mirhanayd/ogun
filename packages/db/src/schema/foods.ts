@@ -1,13 +1,16 @@
 import { sql } from 'drizzle-orm'
 import {
   boolean,
+  check,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
   primaryKey,
   text,
+  timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { id, timestamps } from './_helpers'
@@ -41,6 +44,14 @@ export const foodPreparationEnum = pgEnum('food_preparation', [
   'ızgara',
   'buğulama',
 ])
+
+export const catalogEditorialStatusEnum = pgEnum('catalog_editorial_status', [
+  'draft',
+  'in_review',
+  'published',
+  'archived',
+])
+export type CatalogEditorialStatus = (typeof catalogEditorialStatusEnum.enumValues)[number]
 
 // Bir besin öğesi değerinin nereden geldiğini ve kaynaklar çakıştığında
 // hangisinin kazanacağını belirler (priority ne kadar büyükse o kadar öncelikli).
@@ -85,6 +96,12 @@ export const foods = pgTable(
     groupNameTr: text('group_name_tr'),
     preparation: foodPreparationEnum('preparation'),
     isVerified: boolean('is_verified').notNull().default(false),
+    // Imported catalog rows remain published and ETL-owned. Only records explicitly
+    // created by the platform editor set isPlatformManaged=true and start as draft.
+    isPlatformManaged: boolean('is_platform_managed').notNull().default(false),
+    editorialStatus: catalogEditorialStatusEnum('editorial_status').notNull().default('published'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    publishedByPlatformStaffId: text('published_by_platform_staff_id'),
     // BLS gibi kaynaklarda nameTr geçici olarak nameEn ile dolduruluyor;
     // bu bayrak gerçek bir çeviri yapılana kadar true kalır.
     needsTranslation: boolean('needs_translation').notNull().default(false),
@@ -145,16 +162,68 @@ export const foodLinks = pgTable(
   (table) => [uniqueIndex('food_links_pair_idx').on(table.foodIdA, table.foodIdB)],
 )
 
-export const foodPortions = pgTable('food_portions', {
-  id: id(),
-  foodId: text('food_id')
-    .notNull()
-    .references(() => foods.id),
-  label: text('label').notNull(),
-  grams: numeric('grams', { precision: 10, scale: 2 }).notNull(),
-  isDefault: boolean('is_default').notNull().default(false),
-  sortOrder: integer('sort_order').notNull().default(0),
-})
+export const foodPortions = pgTable(
+  'food_portions',
+  {
+    id: id(),
+    foodId: text('food_id')
+      .notNull()
+      .references(() => foods.id),
+    label: text('label').notNull(),
+    grams: numeric('grams', { precision: 10, scale: 2 }).notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex('food_portions_one_default_idx')
+      .on(table.foodId)
+      .where(sql`${table.isDefault} = true`),
+    check('food_portions_positive_grams_check', sql`${table.grams} > 0`),
+    check('food_portions_nonempty_label_check', sql`length(trim(${table.label})) > 0`),
+  ],
+)
+
+export const foodSourceReferences = pgTable(
+  'food_source_references',
+  {
+    id: id(),
+    foodId: text('food_id')
+      .notNull()
+      .references(() => foods.id),
+    title: text('title').notNull(),
+    citation: text('citation').notNull(),
+    url: text('url'),
+    note: text('note'),
+    createdByPlatformStaffId: text('created_by_platform_staff_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('food_source_references_food_created_idx').on(table.foodId, table.createdAt.desc()),
+    check('food_source_references_title_check', sql`length(trim(${table.title})) > 0`),
+    check('food_source_references_citation_check', sql`length(trim(${table.citation})) > 0`),
+  ],
+)
+
+export const foodCatalogEvents = pgTable(
+  'food_catalog_events',
+  {
+    id: id(),
+    foodId: text('food_id')
+      .notNull()
+      .references(() => foods.id),
+    eventType: text('event_type').notNull(),
+    actorPlatformStaffId: text('actor_platform_staff_id').notNull(),
+    changes: jsonb('changes').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('food_catalog_events_food_created_idx').on(table.foodId, table.createdAt.desc()),
+    check(
+      'food_catalog_events_type_check',
+      sql`${table.eventType} in ('created', 'general_updated', 'nutrients_updated', 'portions_updated', 'reference_added', 'submitted_for_review', 'returned_to_draft', 'published', 'archived')`,
+    ),
+  ],
+)
 
 // Bileşik yemeklerin kaynakta açıkça verilen malzeme dökümü. Bu tablo tarifin
 // besin hesabını yeniden üretmez; plan editörünün alerji/intolerans kontrolünde
