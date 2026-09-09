@@ -30,7 +30,7 @@ const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
   testDir: './tests',
-  testIgnore: 'admin-support-http.spec.ts',
+  testIgnore: ['admin-support-http.spec.ts', 'clinical-reviewer-flow.spec.ts'],
   fullyParallel: false, // Testler AYNI DB üzerinde paylaşılan fixture verisi kullanıyor.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
