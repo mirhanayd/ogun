@@ -91,8 +91,14 @@ tr:last-child td { border-bottom: 0; }
 .compact-input { height: 36px; }
 .wrap-code, .wrap-cell { white-space: normal; overflow-wrap: anywhere; }
 details pre { max-width: 520px; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+.support-filter { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-bottom: 16px; }
+.support-filter label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.support-actions { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }
+.support-thread { display: grid; gap: 10px; }
+.internal-note { border-left: 4px solid #9b6b17; background: #fffaf0; }
+.textarea { min-height: 120px; height: auto; padding-block: 10px; resize: vertical; }
 @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1100px) { .filter-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1100px) { .filter-grid, .support-filter, .support-actions { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 680px) {
   .app-shell { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
   .topbar { grid-column: auto; padding: 14px 16px; }
@@ -100,5 +106,5 @@ details pre { max-width: 520px; overflow: auto; white-space: pre-wrap; font-size
   .nav { display: flex; min-width: max-content; }
   .main { padding: 20px 14px; }
   .cards { grid-template-columns: 1fr; }
-  .filter-grid, .detail-grid { grid-template-columns: 1fr; }
+  .filter-grid, .support-filter, .support-actions, .detail-grid { grid-template-columns: 1fr; }
 }
