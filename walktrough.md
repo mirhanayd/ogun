@@ -1,3 +1,166 @@
+# Ogun Operasyon / Admin Platform — Faz 3 Walkthrough ve Son Rapor
+
+Tarih: 9 Eylül 2026
+
+Bu bölüm Faz 3'ün nihai raporudur. Faz 2 ve Faz 1 raporları aşağıda tarihsel kayıt olarak korunmuştur.
+
+## Architecture
+
+Destek sistemi ayrı bir clinic-level domain olarak kuruldu. Ticket kapsamı yalnız `clinicId` ve `requesterUserId`; danışan, tanı, ölçüm, laboratuvar veya diyet planı bağı yoktur. Klinik web uygulaması owner-scoped query/action'ları, admin uygulaması platform permission kontrollü operasyon query/action'larını kullanır. `apps/admin` ile `apps/web/src` arasında cross-app import oluşturulmadı.
+
+## Database
+
+Dokuz canonical PostgreSQL enum'u ve dört tablo eklendi:
+
+- `support_tickets`: okunabilir `SUP-XXXXXXXX` referans, clinic/requester scope, type, area, reported impact, yalnız adminin belirlediği nullable priority, status ve assignment.
+- `support_ticket_messages`: public/internal thread, ticket + client request idempotency ve exactly-one-author CHECK.
+- `support_ticket_events`: append-only business history.
+- `support_email_notifications`: requester snapshot'lı `pending`/`sent`/`failed` outbox state'i.
+
+Queue, clinic activity, assignment, message/event chronology ve notification delivery kullanımlarına uygun index'ler; reference ve request idempotency unique constraint'leri eklendi. Ticket açıklaması ayrı bir description alanında tekrarlanmaz; ilk public mesaj canonical kaynaktır. Ticket/message silme veya düzenleme action'ı yoktur.
+
+## Clinic workflow
+
+Owner, `/ayarlar` içindeki **Destek & Geri Bildirim** kartından `/ayarlar/destek` sayfasına ulaşır. Tür, başlık, uygulama alanı, bildirilen etki ve 20–5000 karakter açıklamayla ticket oluşturur. P1–P4 seçimi gösterilmez. Açık ve geçmiş listeleri ayrıdır; detail sayfası public konuşmayı, durum ve insan-okunur referansı gösterir. Owner açık ticket'a yanıt verebilir ve resolved ticket'ta **Sorun devam ediyor** ile reopen yapabilir. Dietitian ve assistant hem UI hem DB action seviyesinde reddedilir.
+
+Create/reply formları server-generated client request id ile idempotenttir. Eşzamanlı double-submit unique constraint yarışı gerçek PostgreSQL testiyle doğrulandı; mevcut ticket döner, ikinci ticket oluşmaz.
+
+## Admin workflow
+
+Admin sidebar'daki Destek aktif olarak `/destek` route'una bağlandı. Queue `tickets.read` gerektirir; arama, status, priority, type, area, clinic, assigned staff ve triage edilmemiş filtreleri URL query params ile server-side uygulanır. Pagination varsayılan 25, seçenekler 25/50/100'dür. Varsayılan sıra triage bekleyenleri, sonra açık P1–P4 talepleri son aktiviteye göre öne alır.
+
+Detail ekranı priority, kendine/yetkili personele assignment, assignment kaldırma, canonical status geçişleri, public reply, belirgin internal note, zorunlu public açıklamalı resolve, close/reopen ve failed-email retry işlemlerini sunar. Mutasyonlar `tickets.manage` gerektirir; assignment hedefi active ve canonical permission matrix'e göre `tickets.manage` sahibi olmalıdır.
+
+## State machine
+
+Tek canonical helper tarafından server-side uygulanan graph:
+
+```text
+submitted          → triaged | in_progress | waiting_for_clinic | resolved
+triaged            → in_progress | waiting_for_clinic | resolved
+in_progress        → waiting_for_clinic | resolved
+waiting_for_clinic → in_progress | resolved
+resolved           → closed | reopened
+closed             → reopened
+reopened           → triaged | in_progress | waiting_for_clinic | resolved
+```
+
+Admin resolve geçişi yalnız zorunlu public çözüm action'ıyla yapılır. Klinik owner yalnız `resolved → reopened` yapabilir; closed ticket'ı reopen edemez. `waiting_for_clinic` ticket'a klinik yanıtı aynı transaction içinde `in_progress` durumu, activity timestamp'i ve event oluşturur. Mutation row'ları `FOR UPDATE` ile kilitlenerek eşzamanlı durum yarışları sıralanır.
+
+## Privacy
+
+Klinik sorguları `clinicId` zorunlu olacak şekilde ayrıdır; cross-clinic IDOR testi geçti. Clinic projection'ı priority, assignment, platform audit, delivery error veya internal metadata seçmez. Public mesaj sorgusu `visibility = 'public'` filtresini DB'de uygular; internal note RSC props/HTML/hydration/email'e taşınmaz. Form sağlık verisi ve kimlik bilgisi paylaşmama uyarısı gösterir. Attachment, upload ve client-health context yoktur.
+
+## Email delivery
+
+Ticket create, admin public reply, waiting-for-clinic, resolved, closed ve reopened olayları requester için transactional outbox kaydı oluşturur. Internal note, priority, assignment ve salt triage mail üretmez. DB commit sonrası mevcut `@ogun/email` sender ve Türkçe HTML/text template kullanılır; link origin'i server-side `OGUN_WEB_URL`'dir.
+
+Provider hatası ticket'ı rollback etmez, notification `failed` olur. Atomic claim attempt count'i artırır; admin aynı failed kaydı retry edebilir, `sent` kayıt yeniden claim edilemez. Bu akış gerçek DB + enjekte edilen fake `EmailSender` ile, gerçek Resend API'sine çıkmadan doğrulandı.
+
+## Audit
+
+`support_ticket_events` ticket'ın business history'sidir; `platform_audit_logs` privileged staff operasyon audit'idir. Priority, assignment/unassignment, status, public reply ve internal note mutasyonları business değişikliği + event + success platform audit'i aynı transaction'da yazar. Harici e-posta bu transaction'ın dışındadır. Audit metadata mesaj body'lerini kopyalamaz; yalnız message/ticket kimlikleri ve from/to değerleri tutulur.
+
+## Migration
+
+Canonical migration: `packages/db/drizzle/0033_wakeful_odin.sql`.
+
+Docker `postgres:16-alpine` disposable container'ında `pg_trgm` sonrası `0000`–`0033` zinciri geçti. Ana seed, clinical ETL (21.505 condition), RxNorm mapping (4.541 worklist / 3.548 candidate), Ogun food ETL (119 yemek / 2.380 değer) ve E2E seed başarılı oldu. Migration destructive `DROP`/`TRUNCATE` içermez. Uzak/Neon veritabanına migration uygulanmadı.
+
+## Tests
+
+```text
+pnpm typecheck
+  PASS — 9/9 Turbo task
+
+pnpm lint
+  PASS — 3/3 Turbo task
+
+CLINICAL_WRITE_TESTS=1 PLATFORM_OPERATION_WRITE_TESTS=1 SUPPORT_WRITE_TESTS=1 pnpm test
+  PASS — 9/9 Turbo task
+  925 passed, 2 skipped toplamı
+
+pnpm --filter @ogun/db exec vitest run src/queries/support.test.ts src/support-domain.test.ts
+  PASS — 30/30
+
+pnpm --filter @ogun/e2e test:admin-http
+  PASS — 1/1
+
+pnpm --filter web build
+  PASS — mevcut Sentry/Turbopack external uyarıları non-fatal
+
+pnpm --filter admin build
+  PASS
+
+pnpm --filter desktop test:production
+  PASS — 2/2
+
+cargo check
+  PASS
+
+cargo test
+  PASS — 73/73
+```
+
+Yoğun paralel ilk koşuda mevcut Tanita PDF ve clinical search testleri 5 saniyelik varsayılan sınırı birer kez aştı; ikisi de tekil koşuda hızlıca geçti. Mevcut testleri kapatmadan, Faz 2'deki offline-index stabilizasyonuyla aynı yaklaşımla bu iki I/O testi 15 saniyelik workspace-load sınırına alındı; tam kök komut sonrası geçti.
+
+## Playwright
+
+```text
+pnpm --filter @ogun/e2e test
+  PASS — 11 passed, 1 packaged-Tauri release testi skipped
+
+support-flow.spec.ts
+  PASS — owner Settings → create → SUP reference/list → admin fixture priority/public/internal/resolve → clinic public-only thread
+```
+
+Admin UI'nin MFA'lı authenticated browser fixture'ı mevcut değildir; admin mutation zinciri real-DB integration seviyesinde, admin route/auth sınırı ayrı production HTTP smoke seviyesinde doğrulandı.
+
+## Browser smoke
+
+```text
+Browser UI: NOT RUN — bu Codex oturumunda in-app Browser bağlantısı boş döndü.
+HTTP: PASS — production admin /giris 200; /destek ve /destek/[ticketId] unauthenticated istekleri login sınırında kaldı (1/1).
+```
+
+Tarayıcı bağlantısı olmadığı için UI doğrulaması repo Playwright Chromium ile yapıldı.
+
+## Commits
+
+```text
+c2adf5f | feat(db): add clinic support ticket domain
+d93c217 | feat(email): add support ticket notifications
+95bc5c1 | feat(web): add clinic support workflow
+bf95143 | feat(admin): add support triage operations
+fa80a15 | test(support): cover permissions lifecycle and delivery
+000d583 | docs(admin): document phase three support operations
+```
+
+Bu listenin ardından gelen `walktrough.md` son rapor commit'i, kendi hash'i dosya içeriğine self-reference olmadan yazılamayacağı için yukarıdaki implementation listesine dahil değildir; kesin hash teslim mesajında verilir.
+
+## Push
+
+```text
+branch: master
+implementation range: 74f60de..000d583
+result: PASS — origin/master'a normal fast-forward push
+force push: no
+```
+
+Bu walkthrough ayrı bir normal fast-forward dokümantasyon commit'iyle aynı branche gönderilir.
+
+## Final state
+
+Walkthrough push'undan ve disposable container temizliğinden sonra doğrulanan hedef durum:
+
+```text
+## master...origin/master
+```
+
+Tracked çalışma ağacı temizdir. Disposable `ogun-phase3-pg` container'ı `--rm` politikasıyla kaldırılmıştır. Uzak DB şeması değiştirilmemiştir.
+
+---
+
 # Ogun Operasyon / Admin Platform — Faz 2 Walkthrough ve Son Rapor
 
 Tarih: 9 Eylül 2026
