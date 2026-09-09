@@ -48,6 +48,7 @@ export async function searchFoods(
       AND (${input.groupCode ?? null}::text IS NULL OR f.group_code = ${input.groupCode ?? null})
       AND (${input.sourceCode ?? null}::text IS NULL OR ds.code = ${input.sourceCode ?? null})
       AND (${input.verifiedOnly ?? false} = false OR f.is_verified = true)
+      AND (f.is_platform_managed = false OR f.editorial_status = 'published')
     ORDER BY
       CASE
         WHEN f.search_text = ${normalizedQuery} THEN 0
@@ -360,6 +361,7 @@ export async function getAllFoodIndexEntries(db: Database): Promise<FoodIndexEnt
       FROM food_ingredients
       WHERE food_id = f.id
     ) fi ON true
+    WHERE f.is_platform_managed = false OR f.editorial_status = 'published'
   `)
 
   return rows.map((row) => {
@@ -456,6 +458,7 @@ export async function getAllFoodSearchIndexEntries(db: Database): Promise<FoodSe
       LEFT JOIN default_portions dp ON dp.food_id = f.id
       LEFT JOIN primary_exchanges pe ON pe.food_id = f.id
       LEFT JOIN ingredient_lists il ON il.food_id = f.id
+     WHERE f.is_platform_managed = false OR f.editorial_status = 'published'
   `)
 
   return rows.map((row) => ({
@@ -504,6 +507,7 @@ export async function getAllFoodNutrientPackEntries(
       FROM foods f
       LEFT JOIN food_nutrients fn ON fn.food_id = f.id AND fn.is_preferred = true
       LEFT JOIN nutrients n ON n.id = fn.nutrient_id
+     WHERE f.is_platform_managed = false OR f.editorial_status = 'published'
      GROUP BY f.id
   `)
 
@@ -567,9 +571,10 @@ export async function getFoodIndexVersion(db: Database): Promise<string> {
            max(updated_at) AS max_updated,
            (SELECT count(*) FROM food_ingredients) AS ingredient_count
       FROM foods
+     WHERE is_platform_managed = false OR editorial_status = 'published'
   `)
   const maxUpdated = row?.max_updated ? new Date(row.max_updated).getTime() : 0
-  // v2: arama ve tam besin paketinin ayrıldığı istemci şeması. Sabit önek,
-  // eski tek-parça önbelleklerin yeni bileşen listesini atlamasını engeller.
-  return `v2-${row?.count ?? 0}-${maxUpdated}-${row?.ingredient_count ?? 0}`
+  // v3: platform-managed editorial visibility cache fingerprint'e dahil edildi.
+  // Sabit önek, eski cache'in draft/arşiv kayıtlarını göstermesini engeller.
+  return `v3-${row?.count ?? 0}-${maxUpdated}-${row?.ingredient_count ?? 0}`
 }
