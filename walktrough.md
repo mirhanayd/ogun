@@ -1,3 +1,146 @@
+# Ogun Operasyon / Admin Platform — Faz 4 Walkthrough ve Son Rapor
+
+Tarih: 9 Eylül 2026
+
+Bu bölüm Faz 4'ün nihai raporudur. Faz 3, Faz 2 ve Faz 1 raporları aşağıda tarihsel kayıt olarak korunmuştur.
+
+## Architecture
+
+Reviewer yaşam döngüsü, davet, mesleki doğrulama, capability ve assignment operasyonlarının canonical yönetim yüzeyi `apps/admin` altına taşındı. Reviewer'ın çalışma alanı ve klinik karar akışı `apps/web/src/app/clinical-review` altında kaldı. `clinical_admin` bir reviewer governance rolüdür; otomatik platform personeli değildir. `clinical_ops` ise platform personelidir; otomatik reviewer değildir. Admin route ve action'ları `clinical.reviewers.*` ile `clinical.tasks.*` izinleriyle fail-closed korunur.
+
+## Invitation lifecycle
+
+Davet akışı `create → send → resend/revoke → accept` biçimindedir. Canonical durumlar `pending`, `accepted`, `revoked`; expiry ise `pending + expiresAt` üzerinden türetilir. Normalize e-posta için transaction advisory lock duplicate davet yarışını önler. Resend 60 saniye cooldown sonrasında yeni token ve expiry üretir, eski linki geçersiz kılar. Revoke neden gerektirir ve pending staging kayıtlarını iptal eder.
+
+Raw token 32 byte kriptografik rastgele kaynaktan üretilir; DB'de yalnız SHA-256 hash'i saklanır. Admin projection, audit metadata, e-posta delivery error ve loglar token hash/raw token döndürmez.
+
+## Account activation
+
+Davet sırasında placeholder Better Auth kullanıcısı veya admin tarafından parola oluşturulmaz. Yeni kullanıcı kilitli davet e-postasıyla resmi Better Auth `signUp.email` akışında kendi parolasını belirler. Mevcut Ogun kullanıcısı kendi hesabıyla giriş yapar. Session e-postası davet e-postasıyla server-side tekrar karşılaştırılır; yanlış hesap kabul edemez. Acceptance tek kullanımlı ve replay-safe transaction'dır.
+
+Browser auth istemcisi web ortamında çalışma anındaki `window.location.origin` değerini kullanır. Böylece farklı production/E2E portlarında build-time URL'nin yanlış origin'e gömülmesi engellenir; native shell cloud origin davranışı korunur.
+
+## Verification
+
+Hesap aktivasyonu ile professional verification ayrıdır. Preverified davet `verified + active`, normal davet `pending + inactive` profil üretir. Canonical geçişler `pending → verified/rejected`, `verified → suspended`, `suspended → verified`, `rejected → pending` olarak server-side uygulanır. Suspension geçmiş kararları ve assignment'ları silmez. Verification DB commit'inden sonra bildirim e-postası gönderilir; provider hatası doğrulamayı rollback etmez.
+
+## Capability model
+
+Specialty açıklayıcı metadata'dır. Atanabilirlik; professional role, canonical capability seti, assignment role, task durumu ve mevcut `isReviewerEligibleForTask` policy'siyle hesaplanır. Admin filtreleri güvenlik sınırı değildir: staging, materialization ve doğrudan/batch assignment sırasında her görev transaction içinde yeniden doğrulanır. Capability değişimi uyumsuz staged kayıtları `invalidated` yapar; mevcut gerçek assignment'ları sessizce silmez.
+
+## Pre-assignment ve materialization
+
+`clinical_reviewer_invitation_assignments`, hesap oluşmadan seçilen görevleri `pending/materialized/cancelled/invalidated` durumlarıyla saklar. Acceptance sırasında invitation ve task satırları kilitlenir; eligibility, terminal status ve duplicate assignment koşulları tekrar kontrol edilir. Uygun kayıtlar canonical `clinical_review_assignments` satırlarına dönüşür; uygun olmayanlar neden bilgisiyle invalidated kalır. Bir geçersiz staged görev tüm davet kabulünü bozmaz.
+
+Accepted reviewer detayında uygun görevler batch seçilebilir; sonuç assigned/rejected adetlerini ayrı bildirir. Assignment iptali hard delete yerine `cancelled` durumu kullanır.
+
+## Reviewer portal
+
+Standart reviewer yalnız kendisine atanmış görevleri görür. Global queue yalnız verified `clinical_admin` governance rolüne açıktır. Eski self-claim action'ı ve “Havuzdan Aday Seç” yüzeyi kaldırıldı. Task detail, draft ve submit action'ları aktif assignment'ı DB seviyesinde tekrar doğrular. Pending, suspended veya inactive reviewer klinik görev içeriğine erişemez. Existing publish policy ve `requirePublisherAdmin` sınırı korunmuştur.
+
+## Legacy reviewer admin
+
+Web'deki eski reviewer management mutation/table yüzeyi kaldırıldı; sayfa Ogun Operasyon'a yönlendiren salt bilgilendirme yüzeyi olarak bırakıldı. Parola yönetimi reviewer operasyon ekranına taşınmadı. Admin'deki reviewer detayında profil, capabilities, assignment geçmişi, tamamlanmış karar geçmişi, clinical status ve permission-aware mutation'lar bulunur.
+
+## Audit
+
+Privileged staff mutation'ları `platform_audit_logs`, klinik workflow olayları `clinical_review_audit_log` üretir. Invite, accept, verify, reject, suspend, reactivate, capability change, assign ve cancel olayları doğru semantik event adlarıyla kaydedilir. Capability update veya rejection yanlışlıkla `reviewer_verified` yazmaz. Raw token ve klinik içerik audit metadata'ya kopyalanmaz.
+
+## Email
+
+Invitation önce DB'ye commit edilir, sonra `@ogun/email` üzerinden gönderilir. Provider hatasında davet korunur ve delivery state `failed` olur. Resend token'ı döndürür ve yeni e-posta üretir. Davet e-postasında rol, uzmanlık, yedi günlük/tek kullanımlık bağlantı bulunur; task/evidence detayı bulunmaz. Verify bildirimi ayrı template ile gönderilir. Testlerde gerçek Resend çağrısı yerine enjekte edilen sender kullanıldı.
+
+## Migration
+
+Canonical migration `packages/db/drizzle/0034_old_vampiro.sql` ile iki invitation/preassignment tablosu, CHECK/FK/unique constraint'ler, operasyon index'leri ve audit event genişlemesi eklendi. Disposable PostgreSQL 16 üzerinde `pg_trgm` sonrasında `0000 → 0034` tam zinciri geçti. Ana seed, clinical ETL, RxNorm mapping, Ogun food ETL ve E2E fixture'ları başarıyla uygulandı. Uzak/Neon DB'ye migration uygulanmadı.
+
+## Tests
+
+```text
+pnpm typecheck
+  PASS — 9/9 Turbo task
+
+pnpm lint
+  PASS — 3/3 Turbo task
+
+DATABASE_URL=<disposable PostgreSQL 16>
+CLINICAL_WRITE_TESTS=1
+PLATFORM_OPERATION_WRITE_TESTS=1
+SUPPORT_WRITE_TESTS=1
+CLINICAL_REVIEWER_WRITE_TESTS=1
+pnpm test
+  PASS — 9/9 Turbo task
+  942 passed, 2 skipped
+
+clinical-reviewer-operations.test.ts
+  PASS — 9/9 gerçek PostgreSQL transaction testi
+
+Web production build
+  PASS — mevcut Sentry/Turbopack external uyarıları non-fatal
+
+Admin production build
+  PASS
+
+Cargo
+  PASS — 73/73
+```
+
+Kök `.env` içindeki eski şemalı harici DB özellikle migrate edilmedi. Entegrasyon testleri yalnız disposable PostgreSQL 16 üzerinde çalıştırıldı.
+
+## Playwright
+
+```text
+Canonical suite: 11 passed, 1 skipped
+  Skip: yalnız packaged Tauri native release round trip
+
+Faz 4 reviewer suite: 1 passed, 0 skipped
+  Gerçek Chromium + production admin/web server
+  MFA, invite, iki task preassignment, yeni hesap, mevcut hesap,
+  yanlış hesap, replay ve revoke durumları doğrulandı.
+```
+
+## Browser smoke
+
+```text
+Browser: NOT RUN — bağlı in-app browser yoktu.
+HTTP: PASS — admin reviewer list, invite-create permission ve reviewer portal auth gate
+       production serverlar üzerindeki gerçek Chromium akışında doğrulandı.
+```
+
+## Commits
+
+Faz 4 implementation ve doğrulama commit listesi:
+
+```text
+83db804 | feat(db): add clinical reviewer invitation lifecycle
+3299f80 | feat(email): add clinical reviewer invitation notifications
+c90ef0c | feat(admin): add reviewer onboarding and assignment operations
+60fccea | feat(web): add secure reviewer invitation activation flow
+0d69539 | refactor(clinical): restrict reviewer queue to assigned work
+1c7db39 | test(clinical): cover reviewer onboarding and assignment security
+66ab9ae | docs(admin): document phase four reviewer operations
+15c66f7 | test(clinical): include reviewer writes in root validation
+```
+
+Bu dosyayı ekleyen son dokümantasyon commit'i, içerik üretildikten sonra oluştuğu için yukarıdaki implementation listesine dahil değildir.
+
+## Push
+
+```text
+Branch: master
+Range: cfdb043..HEAD
+Force push: kullanılmadı
+Result: PASS — origin/master güncellendi
+```
+
+## Final state
+
+```text
+## master...origin/master
+```
+
+---
+
 # Ogun Operasyon / Admin Platform — Faz 3 Walkthrough ve Son Rapor
 
 Tarih: 9 Eylül 2026
