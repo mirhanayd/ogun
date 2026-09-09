@@ -26,7 +26,11 @@ import {
 //   çerez tabanlı oturum AYNEN mevcut haliyle çalışmaya devam eder.
 export const authClient = createAuthClient({
   // The packaged renderer stays local; only authentication talks to cloud.
-  baseURL: isNativeShell() ? getOgunCloudOrigin() : process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+  baseURL: isNativeShell()
+    ? getOgunCloudOrigin()
+    : typeof window === 'undefined'
+      ? process.env.NEXT_PUBLIC_BETTER_AUTH_URL
+      : window.location.origin,
   plugins: [inferAdditionalFields<Auth>(), oneTimeTokenClient()],
   fetchOptions: {
     onRequest: (ctx) => {

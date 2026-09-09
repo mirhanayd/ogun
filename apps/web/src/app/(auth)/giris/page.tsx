@@ -67,7 +67,10 @@ export default function GirisPage() {
       )
       return
     }
-    router.push('/panel')
+    const requestedNext = new URLSearchParams(window.location.search).get('next')
+    const next =
+      requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/panel'
+    router.push(next)
     router.refresh()
   }
 
