@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/client.ts",
     "./schema": "./src/schema/index.ts",
+    "./support": "./src/support-domain.ts",
     "./measurement-device-import": "./src/domain/measurement-device-import.ts",
     "./queries": "./src/queries/index.ts"
   },
