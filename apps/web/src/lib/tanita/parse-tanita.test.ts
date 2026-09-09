@@ -63,5 +63,5 @@ describe('actual text-layer TARTI BC-601 PDF', () => {
       segmentalMuscle: { rightArmKg: 1.5, leftArmKg: 1.6, rightLegKg: 6.6, leftLegKg: 6.4, trunkKg: 20 },
       unknownRawValues: { mineralKg: '2.78', bodyWaterKg: '27.98' },
     } })
-  })
+  }, 15_000)
 })

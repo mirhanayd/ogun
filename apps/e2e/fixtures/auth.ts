@@ -8,6 +8,7 @@ import type { Page } from '@playwright/test'
 // veriye SESSİZCE düşmek yerine net bir "önce seed çalıştır" hatası).
 export interface E2eCredentials {
   clinicA: { id: string; name: string; email: string; password: string }
+  supportStaff: { id: string; userId: string }
   // GitHub issue #62 — yalnızca görsel regresyon suite'inin kullandığı,
   // hiçbir testin veri YAZMADIĞI klinik (bkz. seed-e2e.ts'teki gerekçe).
   visual: { id: string; name: string; email: string; password: string }

@@ -8,6 +8,13 @@ describe('platform permission matrix', () => {
     expect(roleHasPermission('support', 'users.revoke_session')).toBe(true)
     expect(roleHasPermission('support', 'users.send_password_reset')).toBe(true)
     expect(roleHasPermission('support', 'devices.manage')).toBe(true)
+    expect(roleHasPermission('support', 'tickets.manage')).toBe(true)
+  })
+  it('keeps ticket read/manage boundaries canonical', () => {
+    expect(roleHasPermission('read_only', 'tickets.read')).toBe(true)
+    expect(roleHasPermission('read_only', 'tickets.manage')).toBe(false)
+    expect(roleHasPermission('clinical_ops', 'tickets.read')).toBe(false)
+    expect(roleHasPermission('clinical_ops', 'tickets.manage')).toBe(false)
   })
   it('allows clinical assignment to clinical_ops', () => expect(roleHasPermission('clinical_ops', 'clinical.tasks.assign')).toBe(true))
   it('allows food write to food_editor', () => expect(roleHasPermission('food_editor', 'foods.write')).toBe(true))

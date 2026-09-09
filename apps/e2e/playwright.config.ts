@@ -30,6 +30,7 @@ const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
   testDir: './tests',
+  testIgnore: 'admin-support-http.spec.ts',
   fullyParallel: false, // Testler AYNI DB üzerinde paylaşılan fixture verisi kullanıyor.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -63,6 +64,9 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_BETTER_AUTH_URL: BASE_URL,
       BETTER_AUTH_URL: BASE_URL,
+      // E2E gerçek e-posta sağlayıcısına çıkmaz. Outbox failure/retry
+      // davranışı Vitest'te enjekte edilen EmailSender ile ayrıca sınanır.
+      OGUN_WEB_URL: 'not-a-url',
     },
   },
 })

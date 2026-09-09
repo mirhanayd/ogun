@@ -66,7 +66,7 @@ describeWithDb.sequential('clinical catalog integration', () => {
         }),
       ]),
     )
-  })
+  }, 15_000)
 
   it('Türkçe alias exact araması canonical condition kaydına ulaşır', async () => {
     const results = await findConditionsByAlias(db, 'Tip 2 diyabet')

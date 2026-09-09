@@ -3,7 +3,7 @@ import path from 'node:path'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { hashPassword } from 'better-auth/crypto'
-import { accounts, clientHealth, clients, clinicMembers, clinics, users } from '@ogun/db/schema'
+import { accounts, clientHealth, clients, clinicMembers, clinics, platformStaff, users } from '@ogun/db/schema'
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 3 — E2E fixture verisi. GERÇEK bir
 // Postgres'e yazar (mock YOK) — apps/web/src/lib/authz.ts'teki ClinicScope
@@ -111,8 +111,22 @@ async function main() {
 
   const clinicVisual = await createClinicWithDietitian('gorsel')
 
+  const [supportUser] = await db.insert(users).values({
+    email: `e2e-support-${suffix}@ogun.test`,
+    name: 'E2E Destek Personeli',
+    emailVerified: true,
+  }).returning()
+  if (!supportUser) throw new Error('E2E destek kullanıcısı oluşturulamadı')
+  const [supportStaff] = await db.insert(platformStaff).values({
+    userId: supportUser.id,
+    role: 'support',
+    createdBy: supportUser.id,
+  }).returning()
+  if (!supportStaff) throw new Error('E2E destek personeli oluşturulamadı')
+
   const credentials = {
     clinicA: { id: clinicA.clinic.id, name: clinicA.clinic.name, email: clinicA.email, password: DEMO_PASSWORD },
+    supportStaff: { id: supportStaff.id, userId: supportUser.id },
     visual: {
       id: clinicVisual.clinic.id,
       name: clinicVisual.clinic.name,
