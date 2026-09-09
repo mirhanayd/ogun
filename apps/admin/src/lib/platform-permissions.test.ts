@@ -28,8 +28,18 @@ describe('platform permission matrix', () => {
     expect(roleHasPermission('read_only', 'clinical.reviewers.manage')).toBe(false)
     expect(roleHasPermission('read_only', 'clinical.tasks.assign')).toBe(false)
   })
-  it('allows food write to food_editor', () =>
-    expect(roleHasPermission('food_editor', 'foods.write')).toBe(true))
+  it('keeps food operations behind the canonical food permission matrix', () => {
+    for (const permission of ['foods.read', 'foods.write', 'foods.publish'] as const)
+      expect(roleHasPermission('food_editor', permission)).toBe(true)
+
+    for (const role of ['support', 'clinical_ops'] as const)
+      for (const permission of ['foods.read', 'foods.write', 'foods.publish'] as const)
+        expect(roleHasPermission(role, permission)).toBe(false)
+
+    expect(roleHasPermission('read_only', 'foods.read')).toBe(true)
+    expect(roleHasPermission('read_only', 'foods.write')).toBe(false)
+    expect(roleHasPermission('read_only', 'foods.publish')).toBe(false)
+  })
   it('denies all mutations to read_only', () => {
     expect(
       permissionsForRole('read_only').every((permission) => permission.endsWith('.read')),

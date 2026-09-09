@@ -8,11 +8,13 @@
     "test:ui": "playwright test --ui",
     "seed": "tsx fixtures/seed-e2e.ts",
     "seed:clinical-review": "tsx fixtures/seed-clinical-review-e2e.ts",
+    "seed:food-catalog": "tsx fixtures/seed-food-catalog-e2e.ts",
     "capture:plan-editor": "tsx scripts/capture-plan-editor.ts",
     "test:visual": "playwright test visual-regression",
     "test:visual:update": "playwright test visual-regression --update-snapshots",
     "test:admin-http": "playwright test --config playwright.admin.config.ts",
     "test:clinical-review": "playwright test --config playwright.clinical-review.config.ts",
+    "test:food-catalog": "playwright test --config playwright.food-catalog.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
