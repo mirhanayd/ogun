@@ -37,14 +37,37 @@ import {
 describe('clinical review portal authorization and UI validation', () => {
   const currentDir = path.dirname(fileURLToPath(import.meta.url))
   const navSource = readFileSync(path.join(currentDir, '_components/portal-nav.tsx'), 'utf8')
-  const queueListSource = readFileSync(path.join(currentDir, 'queue/_components/queue-list.tsx'), 'utf8')
-  const queueFiltersSource = readFileSync(path.join(currentDir, 'queue/_components/queue-filters.tsx'), 'utf8')
+  const queueListSource = readFileSync(
+    path.join(currentDir, 'queue/_components/queue-list.tsx'),
+    'utf8',
+  )
+  const queueFiltersSource = readFileSync(
+    path.join(currentDir, 'queue/_components/queue-filters.tsx'),
+    'utf8',
+  )
   const taskDetailSource = readFileSync(path.join(currentDir, 'task/[id]/page.tsx'), 'utf8')
-  const evidencePanelSource = readFileSync(path.join(currentDir, 'task/[id]/_components/evidence-panel.tsx'), 'utf8')
-  const decisionFormSource = readFileSync(path.join(currentDir, 'task/[id]/_components/decision-form.tsx'), 'utf8')
-  const technicalQaSource = readFileSync(path.join(currentDir, 'task/[id]/_components/technical-qa-panel.tsx'), 'utf8')
-  const publishQueueSource = readFileSync(path.join(currentDir, 'admin/publish/_components/publish-queue-list.tsx'), 'utf8')
-  const reviewerTableSource = readFileSync(path.join(currentDir, 'admin/reviewers/_components/reviewer-table.tsx'), 'utf8')
+  const evidencePanelSource = readFileSync(
+    path.join(currentDir, 'task/[id]/_components/evidence-panel.tsx'),
+    'utf8',
+  )
+  const decisionFormSource = readFileSync(
+    path.join(currentDir, 'task/[id]/_components/decision-form.tsx'),
+    'utf8',
+  )
+  const technicalQaSource = readFileSync(
+    path.join(currentDir, 'task/[id]/_components/technical-qa-panel.tsx'),
+    'utf8',
+  )
+  const publishQueueSource = readFileSync(
+    path.join(currentDir, 'admin/publish/_components/publish-queue-list.tsx'),
+    'utf8',
+  )
+  const legacyReviewerPageSource = readFileSync(
+    path.join(currentDir, 'admin/reviewers/page.tsx'),
+    'utf8',
+  )
+  const invitationPageSource = readFileSync(path.join(currentDir, 'davet/page.tsx'), 'utf8')
+  const reviewerActionsPath = path.join(currentDir, 'actions.ts')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -68,14 +91,18 @@ describe('clinical review portal authorization and UI validation', () => {
     })
 
     it('requireReviewer throws NotClinicalReviewerError when user has no reviewer profile', async () => {
-      mockRequireAuth.mockResolvedValue({ user: { id: 'usr_no_profile', email: 'none@ogun.test', name: 'None' } })
+      mockRequireAuth.mockResolvedValue({
+        user: { id: 'usr_no_profile', email: 'none@ogun.test', name: 'None' },
+      })
       mockGetReviewer.mockResolvedValue(null)
 
       await expect(requireReviewer()).rejects.toThrow(NotClinicalReviewerError)
     })
 
     it('requireVerifiedReviewer throws UnverifiedReviewerError when status is pending', async () => {
-      mockRequireAuth.mockResolvedValue({ user: { id: 'usr_pending', email: 'pending@ogun.test', name: 'Pending' } })
+      mockRequireAuth.mockResolvedValue({
+        user: { id: 'usr_pending', email: 'pending@ogun.test', name: 'Pending' },
+      })
       mockGetReviewer.mockResolvedValue({
         userId: 'usr_pending',
         professionalRole: 'pharmacist',
@@ -94,7 +121,9 @@ describe('clinical review portal authorization and UI validation', () => {
     })
 
     it('requireVerifiedReviewer throws InactiveReviewerError when isActive is false', async () => {
-      mockRequireAuth.mockResolvedValue({ user: { id: 'usr_inactive', email: 'inactive@ogun.test', name: 'Inactive' } })
+      mockRequireAuth.mockResolvedValue({
+        user: { id: 'usr_inactive', email: 'inactive@ogun.test', name: 'Inactive' },
+      })
       mockGetReviewer.mockResolvedValue({
         userId: 'usr_inactive',
         professionalRole: 'pharmacist',
@@ -113,7 +142,9 @@ describe('clinical review portal authorization and UI validation', () => {
     })
 
     it('requireClinicalAdmin throws ClinicalAdminRequiredError for non-admin roles', async () => {
-      mockRequireAuth.mockResolvedValue({ user: { id: 'usr_pharm', email: 'pharm@ogun.test', name: 'Pharmacist' } })
+      mockRequireAuth.mockResolvedValue({
+        user: { id: 'usr_pharm', email: 'pharm@ogun.test', name: 'Pharmacist' },
+      })
       mockGetReviewer.mockResolvedValue({
         userId: 'usr_pharm',
         professionalRole: 'pharmacist',
@@ -132,7 +163,9 @@ describe('clinical review portal authorization and UI validation', () => {
     })
 
     it('requirePublisherAdmin throws ClinicalPublisherRequiredError when canPublish is false', async () => {
-      mockRequireAuth.mockResolvedValue({ user: { id: 'usr_admin', email: 'admin@ogun.test', name: 'Admin' } })
+      mockRequireAuth.mockResolvedValue({
+        user: { id: 'usr_admin', email: 'admin@ogun.test', name: 'Admin' },
+      })
       mockGetReviewer.mockResolvedValue({
         userId: 'usr_admin',
         professionalRole: 'clinical_admin',
@@ -225,11 +258,18 @@ describe('clinical review portal authorization and UI validation', () => {
   // SECTION 70: TEST 47 - REVIEWER ASSIGNMENT & ADMIN
   // -------------------------------------------------------------------------
   describe('47. reviewer assignment', () => {
-    it('reviewer administration allows verification, role assignment, and publishing permissions', () => {
-      expect(reviewerTableSource).toContain('Doğrula')
-      expect(reviewerTableSource).toContain('Askıya Al')
-      expect(reviewerTableSource).toContain('canPublish')
-      expect(reviewerTableSource).toContain('verificationStatus')
+    it('moves reviewer administration to Ogun Operasyon and removes self-service actions', () => {
+      expect(legacyReviewerPageSource).toContain('Hakem yönetimi taşındı')
+      expect(legacyReviewerPageSource.replace(/\s+/g, ' ')).toContain('Ogun Operasyon')
+      expect(() => readFileSync(reviewerActionsPath, 'utf8')).toThrow()
+      expect(navSource).not.toContain('Hakem Yönetimi')
+    })
+
+    it('keeps invitation activation free of clinical task details', () => {
+      expect(invitationPageSource.replace(/\s+/g, ' ')).toContain(
+        'görev ve klinik içerik göstermez',
+      )
+      expect(invitationPageSource).not.toContain('requiredCapability')
     })
   })
 
@@ -261,7 +301,9 @@ describe('clinical review portal authorization and UI validation', () => {
   describe('50. source changed warning', () => {
     it('task detail and queue display prominent stale source warning banner when semantic hash changes', () => {
       expect(taskDetailSource).toContain('Kaynak Veri Değişti (Stale Snapshot)')
-      expect(taskDetailSource).toContain('Bu adayın openFDA kaynak özeti ve semantik karması değişmiştir')
+      expect(taskDetailSource).toContain(
+        'Bu adayın openFDA kaynak özeti ve semantik karması değişmiştir',
+      )
       expect(queueListSource).toContain('Kaynak Değişti')
     })
   })

@@ -1,5 +1,5 @@
 import 'server-only'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { db } from '@ogun/db'
 import {
   getClinicalReviewerWithCapabilities,
@@ -11,7 +11,7 @@ import {
   isReviewerEligibleToReview,
   type ClinicalReviewerContext,
 } from '@ogun/etl/clinical-review-policy'
-import { requireAuth } from '../authz'
+import { requireAuth, UnauthenticatedError } from '../authz'
 
 export class ClinicalReviewDisabledError extends Error {
   constructor(message = 'Klinik İnceleme Portalı bu ortamda devre dışı bırakılmıştır.') {
@@ -60,7 +60,9 @@ export class ClinicalPublisherRequiredError extends Error {
 }
 
 export class IneligibleReviewerError extends Error {
-  constructor(message = 'Bu adayın incelemesi için uzmanlık veya rol gereksiniminiz uygun değildir.') {
+  constructor(
+    message = 'Bu adayın incelemesi için uzmanlık veya rol gereksiniminiz uygun değildir.',
+  ) {
     super(message)
     this.name = 'IneligibleReviewerError'
   }
@@ -104,7 +106,13 @@ export interface ReviewerAuthSession {
  */
 export async function requireReviewer(): Promise<ReviewerAuthSession> {
   assertClinicalReviewEnabled()
-  const authSession = await requireAuth()
+  let authSession
+  try {
+    authSession = await requireAuth()
+  } catch (error) {
+    if (error instanceof UnauthenticatedError) redirect('/giris?next=/clinical-review')
+    throw error
+  }
 
   const profileWithCaps = await getClinicalReviewerWithCapabilities(db, authSession.user.id)
   if (!profileWithCaps) {

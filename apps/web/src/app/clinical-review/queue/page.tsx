@@ -6,7 +6,7 @@ import {
   type ClinicalReviewPriority,
   type ClinicalReviewTaskStatus,
 } from '@ogun/db/queries'
-import { requireReviewer } from '@/lib/clinical-review/authz'
+import { requireClinicalAdmin } from '@/lib/clinical-review/authz'
 import { QueueFilters } from './_components/queue-filters'
 import { QueueList } from './_components/queue-list'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,7 @@ interface QueuePageProps {
 }
 
 export default async function ClinicalReviewQueuePage({ searchParams }: QueuePageProps) {
-  const session = await requireReviewer()
+  const session = await requireClinicalAdmin()
   const params = await searchParams
 
   const limit = 25
@@ -33,11 +33,18 @@ export default async function ClinicalReviewQueuePage({ searchParams }: QueuePag
 
   const { tasks, total } = await listClinicalReviewTasks(db, {
     searchQuery: params.search,
-    priority: (params.priority && params.priority !== 'all' ? params.priority : undefined) as ClinicalReviewPriority | undefined,
-    status: (params.status && params.status !== 'all' ? params.status : undefined) as ClinicalReviewTaskStatus | undefined,
-    requiredCapability: params.requiredCapability && params.requiredCapability !== 'all' ? params.requiredCapability : undefined,
-    candidateConfidence: params.confidence && params.confidence !== 'all' ? params.confidence : undefined,
-    ingredientAttribution: params.attribution && params.attribution !== 'all' ? params.attribution : undefined,
+    priority: (params.priority && params.priority !== 'all' ? params.priority : undefined) as
+      ClinicalReviewPriority | undefined,
+    status: (params.status && params.status !== 'all' ? params.status : undefined) as
+      ClinicalReviewTaskStatus | undefined,
+    requiredCapability:
+      params.requiredCapability && params.requiredCapability !== 'all'
+        ? params.requiredCapability
+        : undefined,
+    candidateConfidence:
+      params.confidence && params.confidence !== 'all' ? params.confidence : undefined,
+    ingredientAttribution:
+      params.attribution && params.attribution !== 'all' ? params.attribution : undefined,
     limit,
     offset,
   })
@@ -69,7 +76,8 @@ export default async function ClinicalReviewQueuePage({ searchParams }: QueuePag
             Klinik İnceleme Havuzu
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Toplam <strong className="text-foreground">{total}</strong> aday listeleniyor (Sayfa {currentPage} / {totalPages})
+            Toplam <strong className="text-foreground">{total}</strong> aday listeleniyor (Sayfa{' '}
+            {currentPage} / {totalPages})
           </p>
         </div>
       </div>
@@ -87,17 +95,14 @@ export default async function ClinicalReviewQueuePage({ searchParams }: QueuePag
       />
 
       {/* Task List (Responsive: Cards on Mobile, Table on Desktop) */}
-      <QueueList
-        tasks={tasks}
-        currentUserId={session.user.id}
-        isVerified={isVerified}
-      />
+      <QueueList tasks={tasks} currentUserId={session.user.id} isVerified={isVerified} />
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-border/80 pt-4 text-xs text-muted-foreground">
           <div>
-            Gösterilen: <strong>{offset + 1}</strong> - <strong>{Math.min(offset + limit, total)}</strong> / Toplam: <strong>{total}</strong>
+            Gösterilen: <strong>{offset + 1}</strong> -{' '}
+            <strong>{Math.min(offset + limit, total)}</strong> / Toplam: <strong>{total}</strong>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -105,7 +110,12 @@ export default async function ClinicalReviewQueuePage({ searchParams }: QueuePag
               aria-disabled={offset === 0}
               className={offset === 0 ? 'pointer-events-none opacity-50' : ''}
             >
-              <Button variant="outline" size="sm" disabled={offset === 0} className="gap-1 h-8 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={offset === 0}
+                className="gap-1 h-8 text-xs"
+              >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 Önceki
               </Button>
@@ -120,7 +130,12 @@ export default async function ClinicalReviewQueuePage({ searchParams }: QueuePag
               aria-disabled={offset + limit >= total}
               className={offset + limit >= total ? 'pointer-events-none opacity-50' : ''}
             >
-              <Button variant="outline" size="sm" disabled={offset + limit >= total} className="gap-1 h-8 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={offset + limit >= total}
+                className="gap-1 h-8 text-xs"
+              >
                 Sonraki
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>

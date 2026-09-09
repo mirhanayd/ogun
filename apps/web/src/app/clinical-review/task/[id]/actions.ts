@@ -7,6 +7,7 @@ import {
   getClinicalReviewDecisions,
   getClinicalReviewTaskById,
   getClinicalReviewerWithCapabilities,
+  hasActiveClinicalReviewAssignment,
   insertClinicalReviewAuditLog,
   saveClinicalReviewDecision,
   updateClinicalReviewTaskStatus,
@@ -67,12 +68,22 @@ export async function submitReviewDecisionAction(
     if (!task) {
       return { success: false, error: 'İnceleme görevi bulunamadı.' }
     }
+    if (
+      session.profile.professionalRole !== 'clinical_admin' &&
+      !(await hasActiveClinicalReviewAssignment(db, task.id, session.user.id))
+    ) {
+      return {
+        success: false,
+        error: 'Yalnızca size atanmış görevlerde klinik karar verebilirsiniz.',
+      }
+    }
 
     // 2. Optimistic concurrency check (Section 22)
     if (task.version !== expectedVersion) {
       return {
         success: false,
-        error: 'Bu aday siz incelerken başka bir kullanıcı veya işlem tarafından güncellendi. Lütfen sayfayı yenileyip tekrar deneyin.',
+        error:
+          'Bu aday siz incelerken başka bir kullanıcı veya işlem tarafından güncellendi. Lütfen sayfayı yenileyip tekrar deneyin.',
       }
     }
 
@@ -101,7 +112,8 @@ export async function submitReviewDecisionAction(
     if (!evidenceExists) {
       return {
         success: false,
-        error: 'Kanıt deposuna (artifact store) ulaşılamadı. Kaynak kanıtlar doğrulanmadan inceleme tamamlanamaz (fail-closed).',
+        error:
+          'Kanıt deposuna (artifact store) ulaşılamadı. Kaynak kanıtlar doğrulanmadan inceleme tamamlanamaz (fail-closed).',
       }
     }
 
@@ -126,10 +138,16 @@ export async function submitReviewDecisionAction(
 
     if (decision === 'approve') {
       if (!severity || !VALID_SEVERITIES.has(severity)) {
-        return { success: false, error: 'Onay için geçerli bir klinik şiddet derecesi (Severity) seçilmelidir.' }
+        return {
+          success: false,
+          error: 'Onay için geçerli bir klinik şiddet derecesi (Severity) seçilmelidir.',
+        }
       }
       if (!evidenceStrength || !VALID_EVIDENCE_STRENGTHS.has(evidenceStrength)) {
-        return { success: false, error: 'Onay için geçerli bir kanıt gücü (Evidence Strength) seçilmelidir.' }
+        return {
+          success: false,
+          error: 'Onay için geçerli bir kanıt gücü (Evidence Strength) seçilmelidir.',
+        }
       }
       if (!approvedTargetKey) {
         return { success: false, error: 'Onaylanan hedef (Approved Target) boş bırakılamaz.' }
@@ -145,7 +163,8 @@ export async function submitReviewDecisionAction(
       if (hasAttributionRisk && !attributionConfirmed) {
         return {
           success: false,
-          error: 'Çoklu etken madde atıf riski bulunan adaylar için etken madde atıf onayı (Attribution Confirmation) zorunludur.',
+          error:
+            'Çoklu etken madde atıf riski bulunan adaylar için etken madde atıf onayı (Attribution Confirmation) zorunludur.',
         }
       }
     } else if (decision === 'reject') {
@@ -157,7 +176,10 @@ export async function submitReviewDecisionAction(
       }
     } else if (decision === 'needs_more_evidence') {
       if (!reviewNote) {
-        return { success: false, error: 'Daha fazla kanıt talebi için gereken araştırma/kaynak notu zorunludur.' }
+        return {
+          success: false,
+          error: 'Daha fazla kanıt talebi için gereken araştırma/kaynak notu zorunludur.',
+        }
       }
     }
 
@@ -280,7 +302,8 @@ export async function submitReviewDecisionAction(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Karar kaydedilirken beklenmeyen bir hata oluştu.',
+      error:
+        error instanceof Error ? error.message : 'Karar kaydedilirken beklenmeyen bir hata oluştu.',
     }
   }
 }
@@ -297,6 +320,12 @@ export async function saveDraftDecisionAction(
     const task = await getClinicalReviewTaskById(db, taskId)
     if (!task) {
       return { success: false, error: 'İnceleme görevi bulunamadı.' }
+    }
+    if (
+      session.profile.professionalRole !== 'clinical_admin' &&
+      !(await hasActiveClinicalReviewAssignment(db, task.id, session.user.id))
+    ) {
+      return { success: false, error: 'Yalnızca size atanmış görevlerde taslak kaydedebilirsiniz.' }
     }
 
     const decision = (formData.get('decision') as string) || 'approve'

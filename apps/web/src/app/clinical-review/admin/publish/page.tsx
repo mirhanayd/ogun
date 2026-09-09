@@ -1,18 +1,12 @@
 import React from 'react'
 import Link from 'next/link'
 import { db } from '@ogun/db'
-import {
-  getClinicalReviewDecisions,
-  listClinicalReviewTasks,
-} from '@ogun/db/queries'
+import { getClinicalReviewDecisions, listClinicalReviewTasks } from '@ogun/db/queries'
 import { requireClinicalAdmin } from '@/lib/clinical-review/authz'
 import { PublishQueueList } from './_components/publish-queue-list'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Users,
-  History,
-} from 'lucide-react'
+import { History } from 'lucide-react'
 
 export default async function ClinicalReviewAdminPublishPage() {
   const session = await requireClinicalAdmin()
@@ -63,7 +57,10 @@ export default async function ClinicalReviewAdminPublishPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Yayınlamaya Hazır İncelemeler
             </h1>
-            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-semibold">
+            <Badge
+              variant="outline"
+              className="text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-semibold"
+            >
               {tasks.length} Aday
             </Badge>
           </div>
@@ -73,12 +70,6 @@ export default async function ClinicalReviewAdminPublishPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/clinical-review/admin/reviewers">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Users className="h-3.5 w-3.5" />
-              <span>Hakemler</span>
-            </Button>
-          </Link>
           <Link href="/clinical-review/admin/audit">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
               <History className="h-3.5 w-3.5" />
@@ -90,16 +81,14 @@ export default async function ClinicalReviewAdminPublishPage() {
 
       {!canPublish && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-xs sm:text-sm text-amber-800 dark:text-amber-300">
-          <strong>Yayınlama İzni Kısıtlı:</strong> Profilinizde yayınlama yetkisi (<code>can_publish</code>) tanımlı değildir.
-          Adayları ve onay durumlarını inceleyebilirsiniz ancak canlıya aktarma butonu yalnızca tam yetkili yöneticilere açıktır.
+          <strong>Yayınlama İzni Kısıtlı:</strong> Profilinizde yayınlama yetkisi (
+          <code>can_publish</code>) tanımlı değildir. Adayları ve onay durumlarını
+          inceleyebilirsiniz ancak canlıya aktarma butonu yalnızca tam yetkili yöneticilere açıktır.
         </div>
       )}
 
       {/* Publish Queue List */}
-      <PublishQueueList
-        tasks={tasksWithDecisions}
-        canPublish={canPublish}
-      />
+      <PublishQueueList tasks={tasksWithDecisions} canPublish={canPublish} />
     </div>
   )
 }

@@ -9,19 +9,13 @@ import {
   getUserDecisionForTask,
 } from '@ogun/db/queries'
 import { createClinicalReviewArtifactStore } from '@ogun/etl/clinical-review-artifact-store'
-import { requireReviewer } from '@/lib/clinical-review/authz'
+import { requireVerifiedReviewer } from '@/lib/clinical-review/authz'
 import { EvidencePanel } from './_components/evidence-panel'
 import { TechnicalQaPanel } from './_components/technical-qa-panel'
 import { DecisionForm } from './_components/decision-form'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  ArrowLeft,
-  ChevronRight,
-  AlertTriangle,
-  User,
-  Users,
-} from 'lucide-react'
+import { ArrowLeft, ChevronRight, AlertTriangle, User, Users } from 'lucide-react'
 
 interface TaskPageProps {
   params: Promise<{ id: string }>
@@ -49,7 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) {
-  const session = await requireReviewer()
+  const session = await requireVerifiedReviewer()
   const { id: taskId } = await params
 
   const task = await getClinicalReviewTaskById(db, taskId)
@@ -62,6 +56,12 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
     getClinicalReviewDecisions(db, task.id, false),
     getUserDecisionForTask(db, task.id, session.user.id, true),
   ])
+  const isAssigned = assignments.some(
+    (assignment) =>
+      assignment.reviewerUserId === session.user.id &&
+      ['assigned', 'in_progress', 'completed'].includes(assignment.status),
+  )
+  if (!isAssigned && session.profile.professionalRole !== 'clinical_admin') notFound()
 
   // Fetch candidate detail and evidence from artifact store
   const artifactStore = createClinicalReviewArtifactStore()
@@ -124,7 +124,8 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
             <span>Kaynak Veri Değişti (Stale Snapshot)</span>
           </div>
           <p className="text-xs text-rose-800 dark:text-rose-300 mt-1">
-            Bu adayın openFDA kaynak özeti ve semantik karması değişmiştir. Önceki onaylar geçersizdir ve yeniden inceleme gereklidir.
+            Bu adayın openFDA kaynak özeti ve semantik karması değişmiştir. Önceki onaylar
+            geçersizdir ve yeniden inceleme gereklidir.
           </p>
         </div>
       )}
@@ -142,17 +143,24 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
                   {task.reviewPriority}
                 </Badge>
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {task.subjectType === 'medication' ? 'Drug–Food Interaction' : 'Condition–Nutrient Interaction'}
+                  {task.subjectType === 'medication'
+                    ? 'Drug–Food Interaction'
+                    : 'Condition–Nutrient Interaction'}
                 </span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground uppercase mt-2">
-                {task.medicationNameTr ?? task.conditionNameTr ?? task.medicationSubstanceId ?? 'Bilinmeyen'}
+                {task.medicationNameTr ??
+                  task.conditionNameTr ??
+                  task.medicationSubstanceId ??
+                  'Bilinmeyen'}
               </h1>
               <div className="flex items-center gap-2 text-base font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
                 <span>→</span>
                 <span>{task.targetKey.replace(/_/g, ' ')}</span>
-                <span className="text-xs font-normal text-muted-foreground font-mono">({task.action})</span>
+                <span className="text-xs font-normal text-muted-foreground font-mono">
+                  ({task.action})
+                </span>
               </div>
             </div>
 
@@ -163,7 +171,10 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
                 <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase block">
                   Çıkarım Güveni
                 </span>
-                <Badge variant="secondary" className="text-xs font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20">
+                <Badge
+                  variant="secondary"
+                  className="text-xs font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20"
+                >
                   {task.candidateConfidence.toUpperCase()}
                 </Badge>
               </div>
@@ -211,17 +222,24 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
             </span>
             <span>•</span>
             <span className="text-muted-foreground">
-              Semantik Hash: <strong className="font-mono text-foreground">{task.candidateSemanticHash.slice(0, 12)}...</strong>
+              Semantik Hash:{' '}
+              <strong className="font-mono text-foreground">
+                {task.candidateSemanticHash.slice(0, 12)}...
+              </strong>
             </span>
             <span>•</span>
             <span className="text-muted-foreground">
-              Gerekli Yetkinlik: <strong className="text-foreground">{task.requiredCapability}</strong>
+              Gerekli Yetkinlik:{' '}
+              <strong className="text-foreground">{task.requiredCapability}</strong>
             </span>
           </div>
 
           <div>
             {hasAttributionRisk ? (
-              <Badge variant="outline" className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+              <Badge
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+              >
                 <AlertTriangle className="h-3 w-3" />
                 <span>Çoklu Etken Madde (Çift Hakem Onayı Zorunlu)</span>
               </Badge>
@@ -240,12 +258,16 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
         <div className="lg:col-span-7 space-y-6">
           {/* Technical Pre-Review / QA Panel (Section 38) */}
           <TechnicalQaPanel
-            technicalReview={bundle?.technicalPreReview ? {
-              technicalRecommendation: `Önerilen Öncelik: ${bundle.technicalPreReview.suggestedReviewPriority}, Çözümleme Durumu: ${bundle.technicalPreReview.targetResolutionStatus}`,
-              scopeWarning: bundle.technicalPreReview.scopeWarning,
-              suggestedCorrectedTarget: bundle.technicalPreReview.suggestedTargetKey,
-              attributionWarning: bundle.technicalPreReview.attributionWarning,
-            } : null}
+            technicalReview={
+              bundle?.technicalPreReview
+                ? {
+                    technicalRecommendation: `Önerilen Öncelik: ${bundle.technicalPreReview.suggestedReviewPriority}, Çözümleme Durumu: ${bundle.technicalPreReview.targetResolutionStatus}`,
+                    scopeWarning: bundle.technicalPreReview.scopeWarning,
+                    suggestedCorrectedTarget: bundle.technicalPreReview.suggestedTargetKey,
+                    attributionWarning: bundle.technicalPreReview.attributionWarning,
+                  }
+                : null
+            }
             ingredientAttribution={task.ingredientAttribution}
             candidateConfidence={task.candidateConfidence}
           />
@@ -304,8 +326,8 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
                           dec.decision === 'approve'
                             ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
                             : dec.decision === 'reject'
-                            ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
-                            : 'bg-muted'
+                              ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
+                              : 'bg-muted'
                         }`}
                       >
                         {dec.decision}
@@ -314,7 +336,9 @@ export default async function ClinicalReviewTaskPage({ params }: TaskPageProps) 
 
                     {dec.severity && (
                       <div className="text-muted-foreground">
-                        Şiddet: <strong className="text-foreground uppercase">{dec.severity}</strong> • Kanıt: <strong className="text-foreground">{dec.evidenceStrength}</strong>
+                        Şiddet:{' '}
+                        <strong className="text-foreground uppercase">{dec.severity}</strong> •
+                        Kanıt: <strong className="text-foreground">{dec.evidenceStrength}</strong>
                       </div>
                     )}
 

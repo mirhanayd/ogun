@@ -2,9 +2,7 @@ import React from 'react'
 import Link from 'next/link'
 import { db } from '@ogun/db'
 import { getClinicalReviewDashboardKpis } from '@ogun/db/queries'
-import {
-  requireReviewer,
-} from '@/lib/clinical-review/authz'
+import { requireReviewer } from '@/lib/clinical-review/authz'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,7 +14,6 @@ import {
   HelpCircle,
   ArrowRight,
   ShieldAlert,
-  Users,
   Layers,
   Sparkles,
   FileSearch,
@@ -24,8 +21,48 @@ import {
 
 export default async function ClinicalReviewDashboardPage() {
   const session = await requireReviewer()
+  const isVerified = session.profile.verificationStatus === 'verified' && session.profile.isActive
+  if (!isVerified) {
+    return (
+      <div className="mx-auto max-w-2xl py-12">
+        <Card>
+          <CardHeader>
+            <CardTitle>Clinical reviewer durumu</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Badge variant="outline">{session.profile.verificationStatus}</Badge>
+            <p className="text-sm text-muted-foreground">
+              Hesabınız etkinleştirildi. Mesleki doğrulamanız tamamlanana kadar görev listesi,
+              klinik aday içeriği, karar formu ve yayınlama alanlarına erişemezsiniz.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   const kpis = await getClinicalReviewDashboardKpis(db, session.user.id)
   const isClinicalAdmin = session.profile.professionalRole === 'clinical_admin'
+  if (!isClinicalAdmin) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Clinical Review</h1>
+          <p className="text-sm text-muted-foreground">
+            Yalnızca Ogun Operasyon ekibinin size atadığı görevleri inceleyebilirsiniz.
+          </p>
+        </div>
+        <Link href="/clinical-review/assigned">
+          <Card className="max-w-md">
+            <CardContent className="p-6">
+              <UserCheck className="h-5 w-5 text-emerald-600" />
+              <div className="mt-3 text-3xl font-bold">{kpis.assignedToMe}</div>
+              <p className="text-sm text-muted-foreground">Bana atanan aktif incelemeler</p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+    )
+  }
 
   const primaryCards = [
     {
@@ -77,7 +114,9 @@ export default async function ClinicalReviewDashboardPage() {
       title: 'Yayınlamaya Hazır',
       value: kpis.readyToPublish,
       description: 'Tüm kural & konsensüs şartlarını tamamlamış',
-      href: isClinicalAdmin ? '/clinical-review/admin/publish' : '/clinical-review/queue?status=ready_to_publish',
+      href: isClinicalAdmin
+        ? '/clinical-review/admin/publish'
+        : '/clinical-review/queue?status=ready_to_publish',
       icon: Sparkles,
       color: 'text-emerald-700 dark:text-emerald-300',
       bg: 'bg-emerald-600/20',
@@ -94,7 +133,8 @@ export default async function ClinicalReviewDashboardPage() {
             Klinik İnceleme Portalı
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            openFDA ve klinik kaynaklardan türetilen ilaç-besin etkileşim adaylarını doğrulayın, inceleyin ve yönetin.
+            openFDA ve klinik kaynaklardan türetilen ilaç-besin etkileşim adaylarını doğrulayın,
+            inceleyin ve yönetin.
           </p>
         </div>
 
@@ -113,10 +153,12 @@ export default async function ClinicalReviewDashboardPage() {
         <div className="flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-rose-800 dark:text-rose-300">
           <ShieldAlert className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
           <div className="flex-1">
-            <h4 className="font-semibold text-sm">Kaynak Metni Değişen Adaylar ({kpis.sourceChanged})</h4>
+            <h4 className="font-semibold text-sm">
+              Kaynak Metni Değişen Adaylar ({kpis.sourceChanged})
+            </h4>
             <p className="text-xs sm:text-sm mt-0.5 opacity-90">
-              Yeni FDA etiket güncellemesi nedeniyle semantik hash&apos;i değişen adaylar tespit edildi. Eski onaylar
-              geçersiz kılınmış olup adayın tekrar incelenmesi gerekmektedir.
+              Yeni FDA etiket güncellemesi nedeniyle semantik hash&apos;i değişen adaylar tespit
+              edildi. Eski onaylar geçersiz kılınmış olup adayın tekrar incelenmesi gerekmektedir.
             </p>
             <div className="mt-2">
               <Link
@@ -138,11 +180,19 @@ export default async function ClinicalReviewDashboardPage() {
           {primaryCards.map((card) => {
             const Icon = card.icon
             return (
-              <Link key={card.title} href={card.href} className="block transition-transform hover:-translate-y-0.5">
-                <Card className={`h-full border-border/80 transition-shadow hover:shadow-md ${card.highlight ? 'border-emerald-600/40' : ''}`}>
+              <Link
+                key={card.title}
+                href={card.href}
+                className="block transition-transform hover:-translate-y-0.5"
+              >
+                <Card
+                  className={`h-full border-border/80 transition-shadow hover:shadow-md ${card.highlight ? 'border-emerald-600/40' : ''}`}
+                >
                   <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground line-clamp-1">{card.title}</span>
+                      <span className="text-xs font-medium text-muted-foreground line-clamp-1">
+                        {card.title}
+                      </span>
                       <div className={`p-1.5 rounded-md ${card.bg} ${card.color}`}>
                         <Icon className="h-4 w-4" />
                       </div>
@@ -169,15 +219,11 @@ export default async function ClinicalReviewDashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-foreground/90">Klinik Yönetici Paneli</h2>
-              <p className="text-xs text-muted-foreground">Öncelik dağılımı, hakem havuzu ve sistem metrikleri</p>
+              <p className="text-xs text-muted-foreground">
+                Öncelik dağılımı, hakem havuzu ve sistem metrikleri
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              <Link href="/clinical-review/admin/reviewers">
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <Users className="h-3.5 w-3.5" />
-                  <span>Hakemler ({kpis.activeReviewersCount})</span>
-                </Button>
-              </Link>
               <Link href="/clinical-review/admin/publish">
                 <Button variant="outline" size="sm" className="gap-1.5 text-xs">
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -192,11 +238,15 @@ export default async function ClinicalReviewDashboardPage() {
               <Card className="border-border/80 hover:border-red-500/40 hover:bg-red-500/5 transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <Badge variant="destructive" className="font-semibold text-xs">P1</Badge>
+                    <Badge variant="destructive" className="font-semibold text-xs">
+                      P1
+                    </Badge>
                     <span className="text-xs text-muted-foreground">Yüksek Öncelik</span>
                   </div>
                   <div className="mt-2 text-2xl font-bold text-foreground">{kpis.p1}</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">Doğrudan SPL Eşleşmesi</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    Doğrudan SPL Eşleşmesi
+                  </div>
                 </CardContent>
               </Card>
             </Link>
@@ -205,7 +255,12 @@ export default async function ClinicalReviewDashboardPage() {
               <Card className="border-border/80 hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400 font-semibold text-xs">P2</Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500 text-amber-700 dark:text-amber-400 font-semibold text-xs"
+                    >
+                      P2
+                    </Badge>
                     <span className="text-xs text-muted-foreground">Öncelik 2</span>
                   </div>
                   <div className="mt-2 text-2xl font-bold text-foreground">{kpis.p2}</div>
@@ -218,11 +273,18 @@ export default async function ClinicalReviewDashboardPage() {
               <Card className="border-border/80 hover:border-blue-500/40 hover:bg-blue-500/5 transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="border-blue-500 text-blue-700 dark:text-blue-400 font-semibold text-xs">P3</Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-blue-500 text-blue-700 dark:text-blue-400 font-semibold text-xs"
+                    >
+                      P3
+                    </Badge>
                     <span className="text-xs text-muted-foreground">Öncelik 3</span>
                   </div>
                   <div className="mt-2 text-2xl font-bold text-foreground">{kpis.p3}</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">Genişletilmiş Kanıt</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    Genişletilmiş Kanıt
+                  </div>
                 </CardContent>
               </Card>
             </Link>
@@ -231,7 +293,9 @@ export default async function ClinicalReviewDashboardPage() {
               <Card className="border-border/80 hover:border-border transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs font-semibold">P4</Badge>
+                    <Badge variant="outline" className="text-xs font-semibold">
+                      P4
+                    </Badge>
                     <span className="text-xs text-muted-foreground">Öncelik 4</span>
                   </div>
                   <div className="mt-2 text-2xl font-bold text-foreground">{kpis.p4}</div>
@@ -244,7 +308,9 @@ export default async function ClinicalReviewDashboardPage() {
               <Card className="border-border/80 hover:border-border transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs font-semibold">P5</Badge>
+                    <Badge variant="outline" className="text-xs font-semibold">
+                      P5
+                    </Badge>
                     <span className="text-xs text-muted-foreground">Öncelik 5</span>
                   </div>
                   <div className="mt-2 text-2xl font-bold text-foreground">{kpis.p5}</div>
@@ -263,7 +329,9 @@ export default async function ClinicalReviewDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-foreground">{kpis.totalTasks}</div>
-                <p className="text-xs text-muted-foreground mt-1">openFDA snapshot verisinden senkronize edildi</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  openFDA snapshot verisinden senkronize edildi
+                </p>
               </CardContent>
             </Card>
 
@@ -275,7 +343,9 @@ export default async function ClinicalReviewDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-foreground">{kpis.unassigned}</div>
-                <p className="text-xs text-muted-foreground mt-1">Herhangi bir hakeme henüz zimmetlenmemiş</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Herhangi bir hakeme henüz zimmetlenmemiş
+                </p>
               </CardContent>
             </Card>
 
@@ -304,7 +374,8 @@ export default async function ClinicalReviewDashboardPage() {
           <div>
             <h3 className="text-base font-semibold">İnceleme İş Akışına Başlayın</h3>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Uzmanlık alanınıza uygun P1 ve P2 adayları inceleyerek klinik konsensüs sürecine katkı sağlayın.
+              Uzmanlık alanınıza uygun P1 ve P2 adayları inceleyerek klinik konsensüs sürecine katkı
+              sağlayın.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">

@@ -12,27 +12,78 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  History,
-  User,
-  ArrowRight,
-  ExternalLink,
-  Lock,
-} from 'lucide-react'
+import { History, User, ArrowRight, ExternalLink, Lock } from 'lucide-react'
 
 const EVENT_BADGES: Record<string, { label: string; badge: string }> = {
   task_created: { label: 'Görev Yaratıldı', badge: 'bg-muted text-muted-foreground' },
-  task_assigned: { label: 'Görev Atandı', badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20' },
-  review_started: { label: 'İnceleme Başladı', badge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20' },
-  decision_saved: { label: 'Karar Kaydedildi', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' },
-  decision_changed: { label: 'Karar Değişti', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20' },
-  needs_evidence: { label: 'Kanıt İstendi', badge: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20' },
-  approval_completed: { label: 'Onay Tamamlandı', badge: 'bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30' },
-  source_changed: { label: 'Kaynak Değişti', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20' },
-  ready_to_publish: { label: 'Yayınlamaya Hazır', badge: 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40' },
-  published: { label: 'Yayınlandı (Prod)', badge: 'bg-teal-500/20 text-teal-800 dark:text-teal-300 border-teal-500/40' },
-  reviewer_verified: { label: 'Hakem Doğrulandı', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' },
-  reviewer_suspended: { label: 'Hakem Askıya Alındı', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20' },
+  task_assigned: {
+    label: 'Görev Atandı',
+    badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+  },
+  task_assignment_cancelled: {
+    label: 'Görev Ataması İptal Edildi',
+    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+  },
+  review_started: {
+    label: 'İnceleme Başladı',
+    badge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20',
+  },
+  decision_saved: {
+    label: 'Karar Kaydedildi',
+    badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  },
+  decision_changed: {
+    label: 'Karar Değişti',
+    badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+  },
+  needs_evidence: {
+    label: 'Kanıt İstendi',
+    badge: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20',
+  },
+  approval_completed: {
+    label: 'Onay Tamamlandı',
+    badge: 'bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
+  },
+  source_changed: {
+    label: 'Kaynak Değişti',
+    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+  },
+  ready_to_publish: {
+    label: 'Yayınlamaya Hazır',
+    badge: 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40',
+  },
+  published: {
+    label: 'Yayınlandı (Prod)',
+    badge: 'bg-teal-500/20 text-teal-800 dark:text-teal-300 border-teal-500/40',
+  },
+  reviewer_verified: {
+    label: 'Hakem Doğrulandı',
+    badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  },
+  reviewer_invited: {
+    label: 'Hakem Davet Edildi',
+    badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+  },
+  reviewer_invite_accepted: {
+    label: 'Hakem Daveti Kabul Edildi',
+    badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  },
+  reviewer_rejected: {
+    label: 'Hakem Reddedildi',
+    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+  },
+  reviewer_suspended: {
+    label: 'Hakem Askıya Alındı',
+    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+  },
+  reviewer_reactivated: {
+    label: 'Hakem Yeniden Etkinleştirildi',
+    badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  },
+  reviewer_capabilities_changed: {
+    label: 'Hakem Yetkinlikleri Değişti',
+    badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+  },
 }
 
 export default async function ClinicalReviewAdminAuditPage() {
@@ -59,7 +110,8 @@ export default async function ClinicalReviewAdminAuditPage() {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Eklemeli (append-only) güvenli denetim kaydı. Tüm hakem kararları, durum geçişleri ve yayınlama olayları mühürlenir.
+            Eklemeli (append-only) güvenli denetim kaydı. Tüm hakem kararları, durum geçişleri ve
+            yayınlama olayları mühürlenir.
           </p>
         </div>
 
@@ -98,7 +150,10 @@ export default async function ClinicalReviewAdminAuditPage() {
 
                   {/* Event Type */}
                   <TableCell>
-                    <Badge variant="outline" className={`text-[11px] font-medium ${eventInfo.badge}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[11px] font-medium ${eventInfo.badge}`}
+                    >
                       {eventInfo.label}
                     </Badge>
                   </TableCell>

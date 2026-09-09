@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   ListFilter,
   UserCheck,
-  Users,
   CheckCircle2,
   History,
   Menu,
@@ -48,10 +47,26 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; bg: string }
 > = {
-  verified: { label: 'Doğrulandı', variant: 'default', bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' },
-  pending: { label: 'Doğrulama Bekliyor', variant: 'secondary', bg: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20' },
-  suspended: { label: 'Askıya Alındı', variant: 'destructive', bg: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20' },
-  rejected: { label: 'Reddedildi', variant: 'destructive', bg: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20' },
+  verified: {
+    label: 'Doğrulandı',
+    variant: 'default',
+    bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  },
+  pending: {
+    label: 'Doğrulama Bekliyor',
+    variant: 'secondary',
+    bg: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+  },
+  suspended: {
+    label: 'Askıya Alındı',
+    variant: 'destructive',
+    bg: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+  },
+  rejected: {
+    label: 'Reddedildi',
+    variant: 'destructive',
+    bg: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+  },
 }
 
 export function PortalNav({ user, profile }: PortalNavProps) {
@@ -59,22 +74,28 @@ export function PortalNav({ user, profile }: PortalNavProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const isClinicalAdmin = profile?.professionalRole === 'clinical_admin'
+  const isVerified = profile?.verificationStatus === 'verified' && profile.isActive
 
   const navItems = [
     { href: '/clinical-review', label: 'Genel Bakış', icon: LayoutDashboard },
-    { href: '/clinical-review/queue', label: 'İnceleme Havuzu', icon: ListFilter },
-    { href: '/clinical-review/assigned', label: 'Bana Atananlar', icon: UserCheck },
+    ...(isVerified
+      ? [{ href: '/clinical-review/assigned', label: 'Bana Atananlar', icon: UserCheck }]
+      : []),
+    ...(isVerified && isClinicalAdmin
+      ? [{ href: '/clinical-review/queue', label: 'Yönetim Havuzu', icon: ListFilter }]
+      : []),
   ]
 
   const adminNavItems = isClinicalAdmin
     ? [
-        { href: '/clinical-review/admin/reviewers', label: 'Hakem Yönetimi', icon: Users },
         { href: '/clinical-review/admin/publish', label: 'Yayınlama Kuyruğu', icon: CheckCircle2 },
         { href: '/clinical-review/admin/audit', label: 'Denetim İzi (Audit)', icon: History },
       ]
     : []
 
-  const statusInfo = profile ? STATUS_CONFIG[profile.verificationStatus] ?? STATUS_CONFIG.pending : null
+  const statusInfo = profile
+    ? (STATUS_CONFIG[profile.verificationStatus] ?? STATUS_CONFIG.pending)
+    : null
 
   return (
     <>
@@ -211,7 +232,9 @@ export function PortalNav({ user, profile }: PortalNavProps) {
             )}
 
             <div className="flex flex-col gap-1">
-              <span className="px-2 text-xs font-semibold uppercase text-muted-foreground">İnceleme</span>
+              <span className="px-2 text-xs font-semibold uppercase text-muted-foreground">
+                İnceleme
+              </span>
               {navItems.map((item) => {
                 const active = pathname === item.href
                 const Icon = item.icon
@@ -287,7 +310,7 @@ export function PortalNav({ user, profile }: PortalNavProps) {
         <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-center text-xs sm:text-sm text-amber-800 dark:text-amber-300">
           <strong>Hakem Doğrulaması Bekleniyor:</strong> Klinik karar (onay/ret) verme ve yayınlama
           yetkileri, profiliniz bir Klinik Yönetici tarafından doğrulandıktan sonra aktifleşecektir.
-          Adayları ve kanıtları inceleyebilirsiniz.
+          Doğrulama tamamlanana kadar görev ve klinik aday içeriğine erişemezsiniz.
         </div>
       )}
 
