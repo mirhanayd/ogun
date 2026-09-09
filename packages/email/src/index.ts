@@ -4,6 +4,7 @@ import type { EmailSender } from './types'
 
 export type { EmailAttachment, EmailSender, SendEmailInput } from './types'
 export { createResendEmailSender } from './resend-sender'
+export { buildSupportTicketEmail, type SupportEmailData, type SupportEmailType } from './support-ticket'
 
 let cachedSender: EmailSender | null = null
 

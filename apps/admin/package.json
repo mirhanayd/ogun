@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ogun/db": "workspace:*",
+    "@ogun/email": "workspace:*",
     "better-auth": "^1.6.29",
     "next": "15.5.23",
     "qrcode": "^1.5.4",
