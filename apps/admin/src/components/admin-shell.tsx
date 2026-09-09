@@ -3,12 +3,20 @@ import type { PlatformStaffContext } from '@/lib/platform-authz'
 import type { PlatformPermission } from '@/lib/platform-permissions'
 import { SignOutButton } from './sign-out-button'
 
-const items: Array<{ label: string; href?: string; permission?: PlatformPermission }> = [
+const items: Array<{
+  label: string
+  href?: string
+  permission?: PlatformPermission
+  heading?: boolean
+  child?: boolean
+}> = [
   { label: 'Genel Bakış', href: '/', permission: 'dashboard.read' },
   { label: 'Destek', href: '/destek', permission: 'tickets.read' },
   { label: 'Klinikler', href: '/klinikler', permission: 'clinics.read' },
   { label: 'Clinical Review', href: '/clinical-inceleme', permission: 'clinical.tasks.read' },
-  { label: 'Besinler', permission: 'foods.read' },
+  { label: 'Besin Veritabanı', permission: 'foods.read', heading: true },
+  { label: 'Besinler', href: '/besinler', permission: 'foods.read', child: true },
+  { label: 'Tarifler', href: '/tarifler', permission: 'foods.read', child: true },
   { label: 'Abonelikler', permission: 'subscriptions.read' },
   { label: 'Denetim', href: '/denetim', permission: 'audit.read' },
   { label: 'Platform Personeli', href: '/platform-personeli', permission: 'platform_staff.read' },
@@ -40,8 +48,12 @@ export function AdminShell({
       <aside className="sidebar" aria-label="Ana navigasyon">
         <nav className="nav">
           {visible.map((item) =>
-            item.href ? (
-              <Link href={item.href} key={item.label}>
+            item.heading ? (
+              <span className="nav-heading" key={item.label}>
+                {item.label}
+              </span>
+            ) : item.href ? (
+              <Link className={item.child ? 'nav-child' : ''} href={item.href} key={item.label}>
                 {item.label}
               </Link>
             ) : (
