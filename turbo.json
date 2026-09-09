@@ -45,7 +45,13 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "CLINICAL_WRITE_TESTS", "PLATFORM_OPERATION_WRITE_TESTS", "SUPPORT_WRITE_TESTS"]
+      "env": [
+        "DATABASE_URL",
+        "CLINICAL_WRITE_TESTS",
+        "PLATFORM_OPERATION_WRITE_TESTS",
+        "SUPPORT_WRITE_TESTS",
+        "CLINICAL_REVIEWER_WRITE_TESTS"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^build"]

@@ -94,9 +94,14 @@ pnpm typecheck
 pnpm lint
   PASS — 3/3 Turbo task
 
-DATABASE_URL=<disposable PostgreSQL 16> pnpm test
+DATABASE_URL=<disposable PostgreSQL 16>
+CLINICAL_WRITE_TESTS=1
+PLATFORM_OPERATION_WRITE_TESTS=1
+SUPPORT_WRITE_TESTS=1
+CLINICAL_REVIEWER_WRITE_TESTS=1
+pnpm test
   PASS — 9/9 Turbo task
-  920 passed, 24 skipped (canonical Playwright dahil)
+  942 passed, 2 skipped (canonical Playwright dahil)
 
 CLINICAL_REVIEWER_WRITE_TESTS=1 vitest clinical-reviewer-operations.test.ts
   PASS — 9/9
