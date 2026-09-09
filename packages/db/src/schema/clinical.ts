@@ -28,6 +28,7 @@ import {
 import { clients } from './clients'
 import { nutrients } from './foods'
 import { users } from './tenancy'
+import { platformStaff } from './platform-admin'
 import { id, timestamps } from './_helpers'
 
 export const clinicalSources = pgTable(
@@ -647,6 +648,68 @@ export const clinicalInteractionEvidence = pgTable(
 // Clinical Review Portal Tables
 // ---------------------------------------------------------------------------
 
+export const clinicalReviewerInvitations = pgTable(
+  'clinical_reviewer_invitations',
+  {
+    id: id(),
+    email: text('email').notNull(),
+    normalizedEmail: text('normalized_email').notNull(),
+    name: text('name').notNull(),
+    professionalRole: text('professional_role').notNull(),
+    specialty: text('specialty'),
+    capabilities: jsonb('capabilities').$type<string[]>().notNull().default([]),
+    professionalVerificationConfirmed: boolean('professional_verification_confirmed')
+      .notNull()
+      .default(false),
+    verifiedByUserId: text('verified_by_user_id').references(() => users.id),
+    professionalVerifiedAt: timestamp('professional_verified_at', { withTimezone: true }),
+    status: text('status').notNull().default('pending'),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedByUserId: text('accepted_by_user_id').references(() => users.id),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByPlatformStaffId: text('revoked_by_platform_staff_id').references(
+      () => platformStaff.id,
+    ),
+    revokedReason: text('revoked_reason'),
+    createdByPlatformStaffId: text('created_by_platform_staff_id')
+      .notNull()
+      .references(() => platformStaff.id),
+    emailDeliveryStatus: text('email_delivery_status').notNull().default('pending'),
+    emailAttemptCount: integer('email_attempt_count').notNull().default(0),
+    lastEmailAttemptAt: timestamp('last_email_attempt_at', { withTimezone: true }),
+    lastEmailSentAt: timestamp('last_email_sent_at', { withTimezone: true }),
+    lastEmailError: text('last_email_error'),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('clinical_reviewer_invitations_token_hash_idx').on(table.tokenHash),
+    index('clinical_reviewer_invitations_email_idx').on(table.normalizedEmail),
+    index('clinical_reviewer_invitations_status_expiry_idx').on(table.status, table.expiresAt),
+    check(
+      'clinical_reviewer_invitations_role_check',
+      sql`${table.professionalRole} in ('pharmacist', 'dietitian', 'physician', 'clinical_admin')`,
+    ),
+    check(
+      'clinical_reviewer_invitations_status_check',
+      sql`${table.status} in ('pending', 'accepted', 'revoked')`,
+    ),
+    check(
+      'clinical_reviewer_invitations_email_status_check',
+      sql`${table.emailDeliveryStatus} in ('pending', 'sent', 'failed')`,
+    ),
+    check(
+      'clinical_reviewer_invitations_verification_check',
+      sql`(${table.professionalVerificationConfirmed} = false and ${table.verifiedByUserId} is null and ${table.professionalVerifiedAt} is null) or (${table.professionalVerificationConfirmed} = true and ${table.verifiedByUserId} is not null and ${table.professionalVerifiedAt} is not null)`,
+    ),
+    check(
+      'clinical_reviewer_invitations_revocation_check',
+      sql`${table.status} <> 'revoked' or (${table.revokedAt} is not null and ${table.revokedByPlatformStaffId} is not null and length(${table.revokedReason}) >= 3)`,
+    ),
+  ],
+)
+
 export const clinicalReviewerProfiles = pgTable(
   'clinical_reviewer_profiles',
   {
@@ -782,14 +845,8 @@ export const clinicalReviewAssignments = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex('clinical_review_assignments_task_user_idx').on(
-      table.taskId,
-      table.reviewerUserId,
-    ),
-    index('clinical_review_assignments_user_status_idx').on(
-      table.reviewerUserId,
-      table.status,
-    ),
+    uniqueIndex('clinical_review_assignments_task_user_idx').on(table.taskId, table.reviewerUserId),
+    index('clinical_review_assignments_user_status_idx').on(table.reviewerUserId, table.status),
     index('clinical_review_assignments_task_status_idx').on(table.taskId, table.status),
     check(
       'clinical_review_assignments_role_check',
@@ -798,6 +855,51 @@ export const clinicalReviewAssignments = pgTable(
     check(
       'clinical_review_assignments_status_check',
       sql`${table.status} in ('assigned', 'in_progress', 'completed', 'cancelled')`,
+    ),
+  ],
+)
+
+export const clinicalReviewerInvitationAssignments = pgTable(
+  'clinical_reviewer_invitation_assignments',
+  {
+    id: id(),
+    invitationId: text('invitation_id')
+      .notNull()
+      .references(() => clinicalReviewerInvitations.id, { onDelete: 'cascade' }),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => clinicalReviewTasks.id, { onDelete: 'cascade' }),
+    assignmentRole: text('assignment_role').notNull().default('primary'),
+    status: text('status').notNull().default('pending'),
+    materializedAssignmentId: text('materialized_assignment_id').references(
+      () => clinicalReviewAssignments.id,
+    ),
+    createdByPlatformStaffId: text('created_by_platform_staff_id')
+      .notNull()
+      .references(() => platformStaff.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    materializedAt: timestamp('materialized_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    invalidatedAt: timestamp('invalidated_at', { withTimezone: true }),
+    invalidationReason: text('invalidation_reason'),
+  },
+  (table) => [
+    uniqueIndex('clinical_reviewer_invitation_assignments_invite_task_idx').on(
+      table.invitationId,
+      table.taskId,
+    ),
+    index('clinical_reviewer_invitation_assignments_invite_status_idx').on(
+      table.invitationId,
+      table.status,
+    ),
+    index('clinical_reviewer_invitation_assignments_task_idx').on(table.taskId),
+    check(
+      'clinical_reviewer_invitation_assignments_role_check',
+      sql`${table.assignmentRole} in ('primary', 'secondary', 'co_review')`,
+    ),
+    check(
+      'clinical_reviewer_invitation_assignments_status_check',
+      sql`${table.status} in ('pending', 'materialized', 'cancelled', 'invalidated')`,
     ),
   ],
 )
@@ -882,8 +984,7 @@ export const clinicalReviewAuditLog = pgTable(
     index('clinical_review_audit_log_created_idx').on(table.createdAt),
     check(
       'clinical_review_audit_log_event_type_check',
-      sql`${table.eventType} in ('task_created', 'task_assigned', 'review_started', 'decision_saved', 'decision_changed', 'needs_evidence', 'approval_completed', 'source_changed', 'ready_to_publish', 'published', 'reviewer_verified', 'reviewer_suspended')`,
+      sql`${table.eventType} in ('task_created', 'task_assigned', 'task_assignment_cancelled', 'review_started', 'decision_saved', 'decision_changed', 'needs_evidence', 'approval_completed', 'source_changed', 'ready_to_publish', 'published', 'reviewer_invited', 'reviewer_invite_accepted', 'reviewer_verified', 'reviewer_rejected', 'reviewer_suspended', 'reviewer_reactivated', 'reviewer_capabilities_changed')`,
     ),
   ],
 )
-

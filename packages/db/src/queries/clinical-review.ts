@@ -12,17 +12,9 @@ import {
 } from '../schema/clinical'
 import { users } from '../schema/tenancy'
 
-export type ClinicalProfessionalRole =
-  | 'pharmacist'
-  | 'dietitian'
-  | 'physician'
-  | 'clinical_admin'
+export type ClinicalProfessionalRole = 'pharmacist' | 'dietitian' | 'physician' | 'clinical_admin'
 
-export type ClinicalReviewerVerificationStatus =
-  | 'pending'
-  | 'verified'
-  | 'suspended'
-  | 'rejected'
+export type ClinicalReviewerVerificationStatus = 'pending' | 'verified' | 'suspended' | 'rejected'
 
 export type ClinicalReviewerCapability =
   | 'medication_food'
@@ -445,10 +437,7 @@ export function buildListClinicalReviewTasksQuery(
   }
 }
 
-export async function listClinicalReviewTasks(
-  db: Database,
-  options: ListReviewTasksOptions = {},
-) {
+export async function listClinicalReviewTasks(db: Database, options: ListReviewTasksOptions = {}) {
   const { countQuery, itemsQuery, limit, offset } = buildListClinicalReviewTasksQuery(db, options)
   const [countResult, tasks] = await Promise.all([countQuery, itemsQuery])
 
@@ -460,10 +449,7 @@ export async function listClinicalReviewTasks(
   }
 }
 
-export async function getClinicalReviewDashboardKpis(
-  db: Database,
-  currentUserId?: string,
-) {
+export async function getClinicalReviewDashboardKpis(db: Database, currentUserId?: string) {
   const [stats] = await db
     .select({
       totalTasks: sql<number>`count(*)::int`,
@@ -564,10 +550,7 @@ export async function updateClinicalReviewTaskStatus(
       updatedAt: new Date(),
     })
     .where(
-      and(
-        eq(clinicalReviewTasks.id, taskId),
-        eq(clinicalReviewTasks.version, expectedVersion),
-      ),
+      and(eq(clinicalReviewTasks.id, taskId), eq(clinicalReviewTasks.version, expectedVersion)),
     )
     .returning()
 
@@ -613,11 +596,7 @@ export async function assignClinicalReviewTask(
   return assignment
 }
 
-export async function completeAssignment(
-  db: Database,
-  taskId: string,
-  reviewerUserId: string,
-) {
+export async function completeAssignment(db: Database, taskId: string, reviewerUserId: string) {
   const [updated] = await db
     .update(clinicalReviewAssignments)
     .set({
@@ -657,6 +636,25 @@ export async function getTaskAssignments(db: Database, taskId: string) {
     )
     .where(eq(clinicalReviewAssignments.taskId, taskId))
     .orderBy(asc(clinicalReviewAssignments.assignedAt))
+}
+
+export async function hasActiveClinicalReviewAssignment(
+  db: Database,
+  taskId: string,
+  reviewerUserId: string,
+) {
+  const [row] = await db
+    .select({ id: clinicalReviewAssignments.id })
+    .from(clinicalReviewAssignments)
+    .where(
+      and(
+        eq(clinicalReviewAssignments.taskId, taskId),
+        eq(clinicalReviewAssignments.reviewerUserId, reviewerUserId),
+        inArray(clinicalReviewAssignments.status, ['assigned', 'in_progress']),
+      ),
+    )
+    .limit(1)
+  return Boolean(row)
 }
 
 // ---------------------------------------------------------------------------

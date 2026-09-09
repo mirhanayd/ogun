@@ -73,10 +73,21 @@ export interface TaskConsensusResult {
   defers: RecordedDecision[]
 }
 
-const ATTRIBUTION_RISKS = new Set([
-  'multi_ingredient_unattributed',
-  'secondary_match_uncertain',
-])
+export const CLINICAL_REVIEW_ASSIGNABLE_STATUSES = [
+  'pending',
+  'assigned',
+  'in_review',
+  'needs_more_evidence',
+  'deferred',
+  'source_changed',
+] as const
+
+/** Single source of truth for whether a task may receive a new assignment. */
+export function isClinicalReviewTaskAssignable(status: string): boolean {
+  return (CLINICAL_REVIEW_ASSIGNABLE_STATUSES as readonly string[]).includes(status)
+}
+
+const ATTRIBUTION_RISKS = new Set(['multi_ingredient_unattributed', 'secondary_match_uncertain'])
 
 const HIGH_CRITICAL_SEVERITIES = new Set(['high', 'critical'])
 
@@ -302,9 +313,7 @@ export function evaluateTaskConsensus(options: {
   }
 
   // Check high / critical severity requirement
-  const hasHighOrCritical = approvals.some((a) =>
-    HIGH_CRITICAL_SEVERITIES.has(a.severity ?? ''),
-  )
+  const hasHighOrCritical = approvals.some((a) => HIGH_CRITICAL_SEVERITIES.has(a.severity ?? ''))
   const minRequiredCount = hasHighOrCritical
     ? Math.max(policy.requiredReviewCount, 2)
     : policy.requiredReviewCount
