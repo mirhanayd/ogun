@@ -141,6 +141,128 @@ Result: PASS — origin/master güncellendi
 
 ---
 
+# Faz 6 Final Walkthrough — Abonelik Operasyonları
+
+## Architecture
+
+Plan kataloğu, limitler, fiyat sunumu, status policy, downgrade kontrolü ve drift detector `@ogun/subscription-core` ortak package'ına taşındı. Web ve admin bu kaynağı kullanır. Current state `clinics` + tek canonical `subscriptions` satırında, history append-only `subscription_events` içinde kalır. Web plan/iptal ve provider webhook yazımları transaction-aware ortak DB servislerine bağlandı.
+
+## Subscription list/detail
+
+Admin navigasyonundaki Abonelikler aktif edildi. `/abonelikler`, `subscriptions.read` ile server-side 25/50/100 pagination; search, plan, status, billing cycle, provider, cancel, trial-soon ve drift URL filtreleri sunar. Detail; klinik, plan, durum, dönem, masked provider referansları, usage, event timeline ve consistency sonucunu gösterir. `checkoutToken` platform projection'a girmez.
+
+## SaaS vs clinic finance boundary
+
+Bu yüzey yalnız Ogun → Klinik SaaS aboneliğidir. Danışan ödemeleri, seans paketleri, klinik gelir/gideri, MRR iddiası, card charge, refund, invoice ve payment-method operasyonu eklenmedi.
+
+## Plans and limits
+
+Canonical planlar `başlangıç`, `klinik`, `kurumsal` olarak korundu. Fiyat/limitler DB-editable yapılmadı. Kurumsal sıfır katalog fiyatı “Ücretsiz” değil “Özel fiyatlandırma” gösterilir. Downgrade, aktif danışan ve aktif kullanıcı limiti aşılırsa reddedilir; force downgrade yoktur.
+
+## Usage
+
+Aktif danışanlar soft-delete ve `aktif` status koşuluyla; kullanıcılar canonical clinic membership üzerinden; SMS mevcut subscription period içindeki `gönderildi` logları üzerinden hesaplanır. Üçü de ortak plan limitleriyle yan yana sunulur.
+
+## Reconciliation
+
+Injectable clock kullanan policy aktif klinik/eksik subscription, expired trial, süresi geçmiş cancel-pending aktif abonelik ve eksik manuel reference durumlarını açık mesajlarla raporlar. Generic “fix all” yoktur.
+
+## Manual operations
+
+`subscriptions.manage` altında ayrı actions: 1–90 gün trial uzatma, plan değişimi, billing-cycle değişimi, manuel aktivasyon, dönem sonu iptal, iptal reversal ve explicit state-machine kontrollü status correction. Her action 5–500 karakter gerekçe ister.
+
+## External providers
+
+Iyzico/PayTR için unsafe DB-only admin mutation server-side reddedilir; UI açıklayıcı fail-closed bildirim gösterir ve butonları sunmaz. Provider veya provider ID edit alanı yoktur. Provider webhook gerçek event ID'sini nullable unique idempotency alanında kullanır; sahte ID üretilmez.
+
+## Event history
+
+Event source değerleri `clinic_user`, `platform_staff`, `provider`, `system`; actor user/staff ve nullable unique provider event ID alanları eklendi. Timeline actor/source gösterir. Recursive secret redaction ve safe event projection raw payload sızıntısını engeller.
+
+## Notifications
+
+Anlamlı admin değişikliklerinde deterministic tek owner için transaction içinde outbox satırı açılır. Gönderim transaction sonrasındadır; provider failure business state'i geri almaz, delivery `failed` kalır ve retry ile `sent` olabilir. İçerik allow-list üzerinden üretildiği için provider secret/ID içermez.
+
+## Audit
+
+Business state + subscription event + platform audit aynı transaction'dadır. Event failure ve audit failure ayrı ayrı enjekte edilerek plan state rollback doğrulandı. Trial, plan, billing, cancel/reversal ve status action'ları ayrı audit isimleri taşır.
+
+## Migration
+
+```text
+PostgreSQL: 16-alpine
+Extensions: pg_trgm, unaccent
+Migration: 0000 → 0036_cold_glorian
+Result: PASS
+Remote migration: NOT RUN
+```
+
+Ana seed, clinical ETL, RxNorm mapping ve OGUN food ETL aynı disposable veritabanında geçti. Container finalde durdurulup kaldırıldı.
+
+## Tests
+
+```text
+pnpm typecheck: PASS — 10/10 Turbo task
+pnpm lint: PASS — 3/3 Turbo task
+pnpm test (all integration flags): PASS — 960 passed, 2 skipped
+subscription DB integration: PASS — 5/5
+subscription e-mail integration: PASS — 1/1
+admin build: PASS
+web build: PASS — existing Sentry/Turbopack warnings non-fatal
+cargo check: PASS
+cargo test: PASS — 73/73
+```
+
+İki root skip mevcut analytics ortam vakası ve packaged-Tauri release senaryosudur; test kapatılmadı.
+
+## Playwright
+
+```text
+Canonical Chromium: PASS — 11 passed, 1 packaged-Tauri skipped
+Faz 6 subscription Chromium: PASS — 1/1
+```
+
+Faz 6 akışı billing_ops login + MFA, subscription navigation/list/filter/detail, trial extension/event, activation, plan upgrade/limit sunumu, cancel/reversal, Iyzico mutation-button exclusion ve ayrı support-role permission denial'ını production admin build üzerinde doğruladı.
+
+## Browser smoke
+
+```text
+Browser UI: NOT RUN — bağlı in-app browser bulunmadı.
+HTTP/UI: PASS — list, detail, permission denied ve safe manual mutations gerçek Chromium production-server akışında doğrulandı.
+```
+
+## Commits
+
+Faz 6 implementation commit'leri (bu final walkthrough/docs commit'i hariç):
+
+```text
+89a2659 | refactor(subscription): share plan definitions and policies
+c48f1e5 | feat(db): add atomic subscription operations and history
+ac1254c | feat(email): notify clinic owners about subscription operations
+107c104 | feat(admin): add subscription operations dashboard
+0a6092a | test(subscription): cover billing operations and provider safety
+fe35b28 | test(subscription): isolate rollback and pagination coverage
+```
+
+## Push
+
+```text
+branch: master
+range: 2ddec34..final Faz 6 docs commit
+method: normal fast-forward
+force push: no
+```
+
+## Final state
+
+Final docs commit'i ve normal push sonrasında hedef durum:
+
+```text
+## master...origin/master
+```
+
+---
+
 # Ogun Operasyon / Admin Platform — Faz 3 Walkthrough ve Son Rapor
 
 Tarih: 9 Eylül 2026
