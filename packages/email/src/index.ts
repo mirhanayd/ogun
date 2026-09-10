@@ -15,6 +15,10 @@ export {
   type ClinicalReviewerInvitationEmailData,
   type ClinicalReviewerVerificationEmailData,
 } from './clinical-reviewer-invitation'
+export {
+  buildSubscriptionOperationEmail,
+  type SubscriptionOperationEmailData,
+} from './subscription-operation'
 
 let cachedSender: EmailSender | null = null
 
