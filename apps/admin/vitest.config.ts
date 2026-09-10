@@ -10,6 +10,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    env: { DATABASE_URL: 'postgresql://test:test@localhost:5432/ogun_test' },
+    env: {
+      DATABASE_URL:
+        process.env.DATABASE_URL ?? 'postgresql://test:test@localhost:5432/ogun_test',
+    },
   },
 })

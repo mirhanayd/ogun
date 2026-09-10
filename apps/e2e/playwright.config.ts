@@ -34,6 +34,7 @@ export default defineConfig({
     'admin-support-http.spec.ts',
     'clinical-reviewer-flow.spec.ts',
     'food-catalog-flow.spec.ts',
+    'subscription-flow.spec.ts',
   ],
   fullyParallel: false, // Testler AYNI DB üzerinde paylaşılan fixture verisi kullanıyor.
   forbidOnly: !!process.env.CI,

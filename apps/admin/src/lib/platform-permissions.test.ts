@@ -40,6 +40,14 @@ describe('platform permission matrix', () => {
     expect(roleHasPermission('read_only', 'foods.write')).toBe(false)
     expect(roleHasPermission('read_only', 'foods.publish')).toBe(false)
   })
+  it('allows billing_ops and denies support subscription access', () => {
+    expect(roleHasPermission('billing_ops', 'subscriptions.read')).toBe(true)
+    expect(roleHasPermission('billing_ops', 'subscriptions.manage')).toBe(true)
+    expect(roleHasPermission('support', 'subscriptions.read')).toBe(false)
+    expect(roleHasPermission('support', 'subscriptions.manage')).toBe(false)
+    expect(roleHasPermission('read_only', 'subscriptions.read')).toBe(true)
+    expect(roleHasPermission('read_only', 'subscriptions.manage')).toBe(false)
+  })
   it('denies all mutations to read_only', () => {
     expect(
       permissionsForRole('read_only').every((permission) => permission.endsWith('.read')),
