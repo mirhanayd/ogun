@@ -233,7 +233,7 @@ HTTP/UI: PASS — list, detail, permission denied ve safe manual mutations gerç
 
 ## Commits
 
-Faz 6 implementation commit'leri (bu final walkthrough/docs commit'i hariç):
+Faz 6 implementation ve status commit'leri (bu walkthrough handoff güncellemesi hariç):
 
 ```text
 89a2659 | refactor(subscription): share plan definitions and policies
@@ -242,14 +242,16 @@ ac1254c | feat(email): notify clinic owners about subscription operations
 107c104 | feat(admin): add subscription operations dashboard
 0a6092a | test(subscription): cover billing operations and provider safety
 fe35b28 | test(subscription): isolate rollback and pagination coverage
+66ed22d | docs(admin): document phase six subscription operations
 ```
 
 ## Push
 
 ```text
 branch: master
-range: 2ddec34..final Faz 6 docs commit
+range: 2ddec34..66ed22d
 method: normal fast-forward
+result: PASS — origin/master güncellendi
 force push: no
 ```
 
@@ -260,6 +262,8 @@ Final docs commit'i ve normal push sonrasında hedef durum:
 ```text
 ## master...origin/master
 ```
+
+Bu walkthrough handoff güncellemesi ayrıca normal fast-forward push ile gönderilir; kesin hash'i kullanıcıya verilen son mesajdaki commit listesinde yer alır.
 
 ---
 
