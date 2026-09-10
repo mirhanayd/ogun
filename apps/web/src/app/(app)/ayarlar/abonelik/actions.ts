@@ -4,10 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { db } from '@ogun/db'
 import {
   getSubscriptionForClinic,
-  insertSubscriptionEvent,
+  applyClinicSubscriptionSelection,
+  requestClinicSubscriptionCancellation,
   updateClinicSmsTemplate,
-  updateClinicSubscriptionStatus,
-  upsertSubscriptionForClinic,
 } from '@ogun/db/queries'
 import { requireRole } from '@/lib/authz'
 import { getPaymentProvider } from '@/lib/subscription/payment-provider'
@@ -56,7 +55,7 @@ export async function selectSubscriptionPlanAction(
     planCode: parsed.data.planCode,
   })
 
-  const subscription = await upsertSubscriptionForClinic(db, ctx.scope.clinicId, {
+  await applyClinicSubscriptionSelection(db, ctx.scope.clinicId, {
     planCode: parsed.data.planCode,
     billingCycle: parsed.data.billingCycle,
     provider: checkout.provider,
@@ -65,13 +64,8 @@ export async function selectSubscriptionPlanAction(
     currentPeriodStart: checkout.currentPeriodStart,
     currentPeriodEnd: checkout.currentPeriodEnd,
     cancelAtPeriodEnd: false,
+    actorUserId: ctx.user.id,
   })
-  await insertSubscriptionEvent(db, ctx.scope.clinicId, {
-    subscriptionId: subscription.id,
-    eventType: 'plan_selected',
-    payload: { planCode: parsed.data.planCode, provider: checkout.provider },
-  })
-  await updateClinicSubscriptionStatus(db, ctx.scope.clinicId, 'active')
 
   revalidatePath('/ayarlar/abonelik')
   revalidatePath('/panel')
@@ -99,19 +93,10 @@ export async function cancelSubscriptionAction(): Promise<SubscriptionActionResu
     })
   }
 
-  await upsertSubscriptionForClinic(db, ctx.scope.clinicId, {
-    planCode: subscription.planCode,
-    provider: subscription.provider,
-    providerCustomerId: subscription.providerCustomerId,
-    providerSubscriptionId: subscription.providerSubscriptionId,
-    currentPeriodStart: subscription.currentPeriodStart,
-    currentPeriodEnd: subscription.currentPeriodEnd,
-    cancelAtPeriodEnd: true,
-  })
-  await insertSubscriptionEvent(db, ctx.scope.clinicId, {
+  await requestClinicSubscriptionCancellation(db, {
+    clinicId: ctx.scope.clinicId,
     subscriptionId: subscription.id,
-    eventType: 'cancel_requested',
-    payload: { planCode: subscription.planCode },
+    actorUserId: ctx.user.id,
   })
 
   revalidatePath('/ayarlar/abonelik')

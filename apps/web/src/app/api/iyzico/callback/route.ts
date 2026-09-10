@@ -23,6 +23,7 @@ async function handle(request: NextRequest, token: string | null) {
       await insertSubscriptionEvent(db, subscription.clinicId, {
         subscriptionId: subscription.id,
         eventType: 'checkout_not_active',
+        source: 'provider',
         payload: { subscriptionStatus: verified.subscriptionStatus },
       })
       return NextResponse.redirect(failure, 303)
@@ -43,6 +44,7 @@ async function handle(request: NextRequest, token: string | null) {
     await insertSubscriptionEvent(db, subscription.clinicId, {
       subscriptionId: subscription.id,
       eventType: 'subscription_activated',
+      source: 'provider',
       payload: { provider: 'iyzico' },
     })
     return NextResponse.redirect(new URL('/panel', request.nextUrl.origin), 303)

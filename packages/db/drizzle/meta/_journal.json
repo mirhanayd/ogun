@@ -253,6 +253,13 @@
       "when": 1788990658045,
       "tag": "0035_exotic_otto_octavius",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789025753842,
+      "tag": "0036_cold_glorian",
+      "breakpoints": true
     }
   ]
 }

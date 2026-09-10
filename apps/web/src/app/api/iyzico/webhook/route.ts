@@ -3,8 +3,7 @@ import { z } from 'zod'
 import { db } from '@ogun/db'
 import {
   getSubscriptionByProviderReference,
-  insertSubscriptionEvent,
-  updateClinicSubscriptionStatus,
+  recordProviderSubscriptionStatus,
 } from '@ogun/db/queries'
 import {
   verifyIyzicoSubscriptionWebhook,
@@ -36,10 +35,12 @@ export async function POST(request: NextRequest) {
   if (!subscription) return NextResponse.json({ error: 'subscription_not_found' }, { status: 404 })
 
   const successful = parsed.data.iyziEventType === 'subscription.order.success'
-  await updateClinicSubscriptionStatus(db, subscription.clinicId, successful ? 'active' : 'past_due')
-  await insertSubscriptionEvent(db, subscription.clinicId, {
+  await recordProviderSubscriptionStatus(db, {
+    clinicId: subscription.clinicId,
     subscriptionId: subscription.id,
+    status: successful ? 'active' : 'past_due',
     eventType: parsed.data.iyziEventType,
+    providerEventId: parsed.data.iyziReferenceCode,
     occurredAt: new Date(parsed.data.iyziEventTime),
     payload: {
       orderReferenceCode: parsed.data.orderReferenceCode,

@@ -9,13 +9,14 @@
 // SADECE plan seçimi + sağlayıcı detayını ekler: klinik başına TEK satır
 // (uniqueIndex clinicId) — billingPackages/clientPackages'taki "tanım vs.
 // örnek" ayrımından FARKLI olarak burada plan TANIMLARI (Başlangıç/Klinik/
-// Kurumsal fiyat/limit) DB'de DEĞİL, apps/web/src/lib/subscription/plans.ts'te
+// Kurumsal fiyat/limit) DB'de DEĞİL, @ogun/subscription-core package'ında
 // statik bir sabit — "basit tut" kuralı (bkz. schema/billing.ts expenses
 // notundaki aynı gerekçe), üç sabit plan için ayrı bir plan-tanımı tablosu
 // gereksiz normalizasyon olurdu.
-import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { clinics, users } from './tenancy'
 import { id, timestamps } from './_helpers'
+import { platformStaff } from './platform-admin'
 
 // Roadmap'te (Prompt 7.3, GÖREV 1) bire bir Türkçe verilen plan adları —
 // clientStatusEnum/appointmentTypeEnum ile AYNI gerekçe: ürünün kendi ticari
@@ -33,6 +34,20 @@ export type PaymentProviderNameValue = (typeof paymentProviderNameEnum.enumValue
 
 export const subscriptionBillingCycleEnum = pgEnum('subscription_billing_cycle', ['monthly', 'yearly'])
 export type SubscriptionBillingCycle = (typeof subscriptionBillingCycleEnum.enumValues)[number]
+
+export const subscriptionEventSourceEnum = pgEnum('subscription_event_source', [
+  'clinic_user',
+  'platform_staff',
+  'provider',
+  'system',
+])
+export type SubscriptionEventSource = (typeof subscriptionEventSourceEnum.enumValues)[number]
+
+export const subscriptionEmailDeliveryStatusEnum = pgEnum('subscription_email_delivery_status', [
+  'pending',
+  'sent',
+  'failed',
+])
 
 // Hesap oluşturulduktan hemen sonra, klinik henüz kurulmadan yapılan zorunlu
 // paket seçimi. Klinik tamamlandığında seçim subscriptions satırına taşınır.
@@ -105,11 +120,48 @@ export const subscriptionEvents = pgTable(
     subscriptionId: text('subscription_id').references(() => subscriptions.id),
     eventType: text('event_type').notNull(),
     payload: jsonb('payload').$type<Record<string, unknown>>(),
+    source: subscriptionEventSourceEnum('source').notNull().default('clinic_user'),
+    actorUserId: text('actor_user_id').references(() => users.id),
+    actorPlatformStaffId: text('actor_platform_staff_id').references(() => platformStaff.id),
+    providerEventId: text('provider_event_id'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Abonelik geçmişi zaman sırasıyla (bkz. /ayarlar/abonelik "geçmiş" listesi).
     index('subscription_events_clinic_id_occurred_at_idx').on(table.clinicId, table.occurredAt.desc()),
+    uniqueIndex('subscription_events_provider_event_id_idx').on(table.providerEventId),
+  ],
+)
+
+/**
+ * Transactional outbox for owner notifications. Delivery happens after the
+ * subscription transaction, so an e-mail provider outage never rolls back the
+ * business operation.
+ */
+export const subscriptionEmailNotifications = pgTable(
+  'subscription_email_notifications',
+  {
+    id: id(),
+    clinicId: text('clinic_id')
+      .notNull()
+      .references(() => clinics.id),
+    subscriptionEventId: text('subscription_event_id')
+      .notNull()
+      .references(() => subscriptionEvents.id),
+    recipientUserId: text('recipient_user_id')
+      .notNull()
+      .references(() => users.id),
+    recipientEmail: text('recipient_email').notNull(),
+    status: subscriptionEmailDeliveryStatusEnum('status').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex('subscription_email_notifications_event_idx').on(table.subscriptionEventId),
+    index('subscription_email_notifications_status_created_idx').on(table.status, table.createdAt),
   ],
 )

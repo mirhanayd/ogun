@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
     await insertSubscriptionEvent(db, context.scope.clinicId, {
       subscriptionId: subscription.id,
       eventType: 'checkout_initialized',
+      source: 'clinic_user',
+      actorUserId: context.user.id,
       payload: { planCode: selection.planCode, billingCycle: selection.billingCycle },
     })
 

@@ -102,8 +102,6 @@ export async function getClinicForPlatform(db: Database, clinicId: string) {
       currentPeriodStart: subscriptions.currentPeriodStart,
       currentPeriodEnd: subscriptions.currentPeriodEnd,
       cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd,
-      providerCustomerId: subscriptions.providerCustomerId,
-      providerSubscriptionId: subscriptions.providerSubscriptionId,
     })
     .from(clinics)
     .leftJoin(subscriptions, eq(subscriptions.clinicId, clinics.id))
