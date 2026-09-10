@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@ogun/nutrition-core": "workspace:*",
+    "@ogun/subscription-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
     "better-auth": "^1.6.29",
     "drizzle-orm": "^0.38.3",

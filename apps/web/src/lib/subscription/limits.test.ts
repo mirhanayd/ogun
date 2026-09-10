@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeUsageWarnings, hasAnyExceededLimit } from './limits'
-import { PLAN_DEFINITIONS, TRIAL_PLAN_LIMITS, getPlanLimits } from './plans'
+import { PLAN_DEFINITIONS, TRIAL_PLAN_LIMITS, getPlanLimits } from '@ogun/subscription-core'
 
 describe('getPlanLimits', () => {
   it('deneme sürümünde Başlangıç planıyla aynı limitleri kullanır', () => {

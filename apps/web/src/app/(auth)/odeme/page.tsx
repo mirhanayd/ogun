@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { requireRole, UnauthenticatedError } from '@/lib/authz'
-import { PLAN_DEFINITIONS } from '@/lib/subscription/plans'
+import { PLAN_DEFINITIONS } from '@ogun/subscription-core'
 
 function splitName(fullName: string) {
   const parts = fullName.trim().split(/\s+/)

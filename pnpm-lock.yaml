@@ -29,6 +29,9 @@ importers:
       '@ogun/etl':
         specifier: workspace:*
         version: link:../../packages/etl
+      '@ogun/subscription-core':
+        specifier: workspace:*
+        version: link:../../packages/subscription-core
       better-auth:
         specifier: ^1.6.29
         version: 1.6.29(@opentelemetry/api@1.9.1)(next@15.5.23(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(vitest@3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)(tsx@4.23.12))
@@ -202,6 +205,9 @@ importers:
       '@ogun/pdf':
         specifier: workspace:*
         version: link:../../packages/pdf
+      '@ogun/subscription-core':
+        specifier: workspace:*
+        version: link:../../packages/subscription-core
       '@orama/orama':
         specifier: ^3.1.18
         version: 3.1.18
@@ -371,6 +377,9 @@ importers:
       '@ogun/nutrition-core':
         specifier: workspace:*
         version: link:../nutrition-core
+      '@ogun/subscription-core':
+        specifier: workspace:*
+        version: link:../subscription-core
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
         version: 2.3.1
@@ -522,6 +531,18 @@ importers:
       react:
         specifier: 19.1.0
         version: 19.1.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.50.0)(tsx@4.23.12)
+
+  packages/subscription-core:
+    devDependencies:
+      '@ogun/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       typescript:
         specifier: ^5
         version: 5.9.3

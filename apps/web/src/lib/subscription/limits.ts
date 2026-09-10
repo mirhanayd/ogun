@@ -13,7 +13,7 @@
 // GÖSTERİR. Bu, roadmap'in "asla kesilmemeli" kuralını, bir yetkilendirme
 // kontrolü (authz.ts requireRole gibi) yerine, tasarım/mimari düzeyde
 // (fonksiyonun kendisi bir "izin ver/verme" API'si SUNMAZ) garanti eder.
-import type { PlanLimits } from './plans'
+import type { PlanLimits } from '@ogun/subscription-core'
 
 export interface UsageSnapshot {
   clientCount: number

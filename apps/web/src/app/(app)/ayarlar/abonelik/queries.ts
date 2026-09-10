@@ -11,7 +11,7 @@ import { withAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
 import { getSmsUsageThisPeriod } from '@/lib/sms/reminder-runner'
 import { computeUsageWarnings } from '@/lib/subscription/limits'
-import { getPlanLimits } from '@/lib/subscription/plans'
+import { getPlanLimits } from '@ogun/subscription-core'
 
 // /ayarlar/abonelik okumaları — finans/queries.ts (GitHub #40) ile AYNI
 // desen: server action DEĞİL, withAuth(withAudit(...)) ile sarılmış normal

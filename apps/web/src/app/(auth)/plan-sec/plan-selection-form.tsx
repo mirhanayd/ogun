@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Check, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { PLAN_DEFINITIONS } from '@/lib/subscription/plans'
+import { PLAN_DEFINITIONS } from '@ogun/subscription-core'
 import { saveRequiredPlanSelectionAction } from './actions'
 
 type PlanCode = 'başlangıç' | 'klinik'

@@ -5,7 +5,7 @@ import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { PLAN_DEFINITIONS } from '@/lib/subscription/plans'
+import { PLAN_DEFINITIONS } from '@ogun/subscription-core'
 import type { SubscriptionPlan } from '@ogun/db/schema'
 import { selectSubscriptionPlanAction } from './actions'
 
