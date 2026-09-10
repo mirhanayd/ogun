@@ -872,41 +872,41 @@ Ek doğrulamalar:
 
 ### C. Commit inventory
 
-| Hash | Subject | Ana dosyalar | Feature | Push kararı |
-|---|---|---|---|---|
-| `5c4ed77` | `fix(panel): align appointments and quick-start cards` | `panel-screen.tsx`, desktop layout testi | Panel yerleşimi | Güvenli |
-| `30b21af` | `fix(settings): resolve desktop settings subroutes` | settings rotaları, desktop settings API/adapter | Desktop ayar alt rotaları | Güvenli |
-| `6fc94c4` | `fix(sync): separate workspace and catalog health` | sync engine/diagnostics, Tauri local DB | Workspace/catalog health ayrımı | Güvenli |
-| `445bc60` | `feat(measurements): parse Tanita BC-601 exports` | Tanita CSV/PDF parser ve 165 KB test fixture'ı | Tanita parse | Güvenli; binary yalnız test fixture'ı |
-| `da791c7` | `feat(measurements): persist Tanita device metrics` | migration 0030, measurement query/schema, desktop DB | Tanita persistence | Güvenli; Drizzle snapshot beklenen generated schema kaydı |
-| `9cab69e` | `feat(measurements): integrate Tanita import into shared form` | measurement form/view, import control | Tanita UI entegrasyonu | Güvenli |
-| `5fbd19d` | `test(desktop): cover panel settings sync and Tanita import` | desktop smoke/testler, doğrulama dokümanı | Desktop regresyon kapsamı | Güvenli |
-| `7103985` | `chore(release): bump Ogun version to 0.3.5` | Tauri/package sürümleri, release manifesti | 0.3.5 release metadata | Güvenli |
-| `e4ac566` | `feat(db): add platform staff and admin auth foundation` | migration 0031, admin schema/query/CLI | Admin DB temeli | Güvenli |
-| `4ed16df` | `feat(admin): scaffold operations app with isolated authentication and MFA` | `apps/admin`, lockfile | Ayrı admin auth ve MFA | Güvenli |
-| `df66e8f` | `feat(admin): add platform RBAC and audit foundation` | audit/personel sayfaları ve yardımcıları | RBAC ve audit | Güvenli |
-| `27ba86b` | `test(admin): add admin security tests and deployment documentation` | `.env.example`, admin docs, `turbo.json` | Test/deployment dokümantasyonu | Güvenli; yalnız placeholder env değerleri |
-| `60f126e` | `docs(admin): add phase one walkthrough report` | `walktrough.md` | Faz 1 raporu | Güvenli |
-| `d077583` | `feat(etl): add clinical catalog import and verification` | clinical importer/verifier, `.gitignore` | Clinical entegrasyon source'u | Güvenli |
-| `540a2c2` | `fix(admin): close platform staff CLI database connection` | admin bootstrap CLI | CLI'nin işlem sonunda kapanması | Güvenli |
-| `2864679` | `test(workspace): stabilize database integration validation` | `turbo.json`, `rxnorm-db.test.ts` | Test DB env aktarımı ve kanıtlı timeout sınırı | Güvenli |
-| `0462461` | `test(web): refresh panel visual baselines` | light/dark panel PNG snapshot'ları | Kasıtlı panel düzeni baseline'ı | Güvenli |
-| `fbd48c9` | `docs(admin): finalize phase one operational walkthrough` | `walktrough.md` | Nihai kapanış raporu | Güvenli |
-| bu push-sonucu commit'i | `docs(admin): record phase one push result` | `walktrough.md` | Push sonucu ve senkron durum kaydı | Güvenli |
+| Hash                    | Subject                                                                     | Ana dosyalar                                         | Feature                                        | Push kararı                                               |
+| ----------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------- |
+| `5c4ed77`               | `fix(panel): align appointments and quick-start cards`                      | `panel-screen.tsx`, desktop layout testi             | Panel yerleşimi                                | Güvenli                                                   |
+| `30b21af`               | `fix(settings): resolve desktop settings subroutes`                         | settings rotaları, desktop settings API/adapter      | Desktop ayar alt rotaları                      | Güvenli                                                   |
+| `6fc94c4`               | `fix(sync): separate workspace and catalog health`                          | sync engine/diagnostics, Tauri local DB              | Workspace/catalog health ayrımı                | Güvenli                                                   |
+| `445bc60`               | `feat(measurements): parse Tanita BC-601 exports`                           | Tanita CSV/PDF parser ve 165 KB test fixture'ı       | Tanita parse                                   | Güvenli; binary yalnız test fixture'ı                     |
+| `da791c7`               | `feat(measurements): persist Tanita device metrics`                         | migration 0030, measurement query/schema, desktop DB | Tanita persistence                             | Güvenli; Drizzle snapshot beklenen generated schema kaydı |
+| `9cab69e`               | `feat(measurements): integrate Tanita import into shared form`              | measurement form/view, import control                | Tanita UI entegrasyonu                         | Güvenli                                                   |
+| `5fbd19d`               | `test(desktop): cover panel settings sync and Tanita import`                | desktop smoke/testler, doğrulama dokümanı            | Desktop regresyon kapsamı                      | Güvenli                                                   |
+| `7103985`               | `chore(release): bump Ogun version to 0.3.5`                                | Tauri/package sürümleri, release manifesti           | 0.3.5 release metadata                         | Güvenli                                                   |
+| `e4ac566`               | `feat(db): add platform staff and admin auth foundation`                    | migration 0031, admin schema/query/CLI               | Admin DB temeli                                | Güvenli                                                   |
+| `4ed16df`               | `feat(admin): scaffold operations app with isolated authentication and MFA` | `apps/admin`, lockfile                               | Ayrı admin auth ve MFA                         | Güvenli                                                   |
+| `df66e8f`               | `feat(admin): add platform RBAC and audit foundation`                       | audit/personel sayfaları ve yardımcıları             | RBAC ve audit                                  | Güvenli                                                   |
+| `27ba86b`               | `test(admin): add admin security tests and deployment documentation`        | `.env.example`, admin docs, `turbo.json`             | Test/deployment dokümantasyonu                 | Güvenli; yalnız placeholder env değerleri                 |
+| `60f126e`               | `docs(admin): add phase one walkthrough report`                             | `walktrough.md`                                      | Faz 1 raporu                                   | Güvenli                                                   |
+| `d077583`               | `feat(etl): add clinical catalog import and verification`                   | clinical importer/verifier, `.gitignore`             | Clinical entegrasyon source'u                  | Güvenli                                                   |
+| `540a2c2`               | `fix(admin): close platform staff CLI database connection`                  | admin bootstrap CLI                                  | CLI'nin işlem sonunda kapanması                | Güvenli                                                   |
+| `2864679`               | `test(workspace): stabilize database integration validation`                | `turbo.json`, `rxnorm-db.test.ts`                    | Test DB env aktarımı ve kanıtlı timeout sınırı | Güvenli                                                   |
+| `0462461`               | `test(web): refresh panel visual baselines`                                 | light/dark panel PNG snapshot'ları                   | Kasıtlı panel düzeni baseline'ı                | Güvenli                                                   |
+| `fbd48c9`               | `docs(admin): finalize phase one operational walkthrough`                   | `walktrough.md`                                      | Nihai kapanış raporu                           | Güvenli                                                   |
+| bu push-sonucu commit'i | `docs(admin): record phase one push result`                                 | `walktrough.md`                                      | Push sonucu ve senkron durum kaydı             | Güvenli                                                   |
 
 Commit diffleri tek tek incelendi. Credential/private key yoktur; yalnız `.env.example` placeholder değerleri içerir. Büyük dosyalar iki Drizzle schema snapshot'ı ve kasıtlı Tanita/Playwright test fixture-baseline dosyalarıdır.
 
 ### D. Pre-existing/uncommitted changes
 
-| Dosya | Sınıflandırma | İşlem | Commit |
-|---|---|---|---|
-| `.gitignore` | Amaçlı clinical artifact politikası | Clinical source commit'ine alındı; bundle/script de ignore edildi | `d077583` |
-| `packages/etl/src/importers/clinical.ts` | Gerçek, package script'i tarafından çağrılan source | Typecheck + disposable import sonrası commitlendi | `d077583` |
-| `packages/etl/src/verify-clinical.ts` | Gerçek doğrulama source'u | 21.505 condition / 23.348 ürün doğrulaması sonrası commitlendi | `d077583` |
-| `ogun-clinical-db-integration/` | Taşıma paketi + yaklaşık 13 MB generated veri kopyası | Silinmedi; repo kökünde ignore edildi | `d077583` (`.gitignore`) |
-| `scripts/apply-clinical-integration.mjs` | Değişiklikleri zaten uygulanmış tek seferlik taşıma betiği | Silinmedi; ignore edildi | `d077583` (`.gitignore`) |
-| `CLINICAL_DB_INSTALL_TR.md`, `DATA_MERGE_AUDIT_TR.md` | Taşıma paketindeki yerel kurulum/audit kopyaları | Kullanıcının mevcut ignore tercihi korundu | `d077583` (`.gitignore`) |
-| `walktrough.md` | Proje kökünde istenen Faz 1 raporu | Korundu, operasyonel sonuçlarla güncellendi | `60f126e` + nihai docs commit'i |
+| Dosya                                                 | Sınıflandırma                                              | İşlem                                                             | Commit                          |
+| ----------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------- |
+| `.gitignore`                                          | Amaçlı clinical artifact politikası                        | Clinical source commit'ine alındı; bundle/script de ignore edildi | `d077583`                       |
+| `packages/etl/src/importers/clinical.ts`              | Gerçek, package script'i tarafından çağrılan source        | Typecheck + disposable import sonrası commitlendi                 | `d077583`                       |
+| `packages/etl/src/verify-clinical.ts`                 | Gerçek doğrulama source'u                                  | 21.505 condition / 23.348 ürün doğrulaması sonrası commitlendi    | `d077583`                       |
+| `ogun-clinical-db-integration/`                       | Taşıma paketi + yaklaşık 13 MB generated veri kopyası      | Silinmedi; repo kökünde ignore edildi                             | `d077583` (`.gitignore`)        |
+| `scripts/apply-clinical-integration.mjs`              | Değişiklikleri zaten uygulanmış tek seferlik taşıma betiği | Silinmedi; ignore edildi                                          | `d077583` (`.gitignore`)        |
+| `CLINICAL_DB_INSTALL_TR.md`, `DATA_MERGE_AUDIT_TR.md` | Taşıma paketindeki yerel kurulum/audit kopyaları           | Kullanıcının mevcut ignore tercihi korundu                        | `d077583` (`.gitignore`)        |
+| `walktrough.md`                                       | Proje kökünde istenen Faz 1 raporu                         | Korundu, operasyonel sonuçlarla güncellendi                       | `60f126e` + nihai docs commit'i |
 
 ### E. New commits created
 
@@ -947,3 +947,174 @@ Ignored yerel entegrasyon/veri paketleri diskte korunur fakat `git status --shor
 - Better Auth/Drizzle peer sürümü planlı bir dependency upgrade ve regresyon çalışmasında ele alınmalıdır.
 - Preview ortamları production veritabanını paylaşmamalı; ayrı preview DB kullanılmalıdır.
 - Bağlı tarayıcı sağlandığında UI seviyesindeki admin login/enrollment/TOTP smoke’u ayrıca çalıştırılmalıdır.
+
+---
+
+# OGUN Admin — Faz 5 Final Walkthrough
+
+Tarih: 10 Eylül 2026
+
+## Architecture
+
+Besin ve tarif backoffice'i aynı `foods.read / foods.write / foods.publish` yetki sınırını paylaşır fakat sahiplik ve canonical veri modelleri ayrıdır. Admin food yazmaları yalnız `isPlatformManaged=true + source=OGUN` kayıtlarına gider. Tarif editörü yalnız `clinicId=null + isPlatformManaged=true` global sistem tariflerini yönetir. Tarif nutrient sonucu materialize edilmez; `recipe_nutrients` eklenmedi. Canonical tarif gerçeği ingredient food referansları, gramlar, cooked yield, servings ve exact cooking semantics'tir; sonuç `@ogun/nutrition-core` tarafından hesaplanır.
+
+Admin route'ları:
+
+```text
+/besinler
+/besinler/yeni
+/besinler/[foodId]
+/tarifler
+/tarifler/yeni
+/tarifler/[recipeId]
+```
+
+Besin listesi server-side arama/filtreleme ve 25 satırlık varsayılan pagination kullanır. Sidebar'da `Besin Veritabanı → Besinler / Tarifler` açıldı. Dashboard gerçek draft/review/published food ve draft/review recipe sayımlarını yalnız `foods.read` olduğunda gösterir.
+
+## External source policy
+
+BLS4, USDA_FDN, USDA_SR, TURKOMP ve OFF kayıtları admin detayında salt okunurdur. DB operasyon katmanı external row mutation'ını reddeder; dolayısıyla external `food_nutrients.valuePer100g` overwrite edilemez. Imported/ETL kayıtları migration default'uyla `isPlatformManaged=false / published` kalır. `CUSTOM` tenant domain'ine dokunulmadı. Yeni admin food, gerçek `data_sources.code=OGUN` satırını çözer; hardcoded source UUID veya silent fallback yoktur.
+
+## Editorial lifecycle
+
+Canonical transition graph hem food hem global recipe için server-side uygulanır:
+
+```text
+draft → in_review
+in_review → draft | published
+published → archived
+archived → draft
+```
+
+Yeni kayıtlar draft başlar. Food publish `isVerified=true` ve publish metadata'sını set eder. Editorial status görünürlük/workflow durumudur; `isVerified` veri kalitesi işaretidir ve ikisi birleştirilmedi. Recipe publish `isPublic=true`, diğer durumlar `false` olur.
+
+## Nutrient editor
+
+Editör canonical `nutrients` kayıtlarını Makrolar, Vitaminler, Mineraller, Yağ asitleri, Amino asitler ve Diğer gruplarıyla gösterir. Ad/kod/birim serbest metin değildir. Değerler server-side decimal parse edilir; yalnız finite ve `>= 0` kabul edilir, duplicate nutrient reddedilir. OGUN nutrient satırları OGUN source ve `isPreferred=true` ile yazılır. Publish validator seed'deki gerçek `ENERC_KCAL`, `PROCNT`, `CHOCDF`, `FAT` kodlarını çözer. Mikro kapsam `known / total` olarak görünür.
+
+## Provenance
+
+Food ve recipe için ayrı `*_source_references` tabloları başlık, citation, opsiyonel HTTP(S) URL, not, oluşturan platform staff ve zamanı saklar. En az bir reference olmadan publish engellenir. `data_sources` sistem sahipliğini, reference ise gerçek citation/provenance'ı temsil eder.
+
+## Portion model
+
+Canonical standart porsiyon `food_portions.isDefault=true` ile tutulur. Duplicate `standardPortionGrams` alanı eklenmedi. Server ve DB; pozitif gram, boş olmayan etiket ve food başına en fazla bir default uygular. OGUN food publish için default portion zorunludur.
+
+## Recipe calculation
+
+`calculateRecipeNutrition` ingredient contribution'larını `valuePer100g × amountGrams / 100` ile toplar ve aynı sonuçtan total, cooked yield üzerinden 100 g ve servings üzerinden tek porsiyon değerlerini üretir. Admin ikinci bir manual nutrient override sunmaz. DB adapter yalnız preferred food nutrient satırlarını calculator'a verir.
+
+## Missing nutrient semantics
+
+Boş food nutrient alanı DB'ye yazılmaz. Recipe calculator bir ingredient'ta bilinmeyen nutrient'ı sıfır saymaz; o ingredient'ın gramını known coverage dışında bırakır. Sonuç her nutrient için `coveragePercent` ve `complete` taşır. Golden testte bir food'da eksik nutrient'ın kısmi coverage verdiği ve toplama sahte sıfır katmadığı doğrulandı.
+
+## Cooking/yield
+
+Cooked total ağırlık explicit `totalYieldGrams` üzerinden per-100g paydayı belirler. Cooking method, mevcut `retention_factors.method` ile exact eşleşirse canonical nutrient factor'ları uygulanır. Eşleşme yoksa rastgele factor seçilmez; admin `hesap malzeme bazlıdır / retention factor bulunamadı` uyarısını görür.
+
+## Publication
+
+Food publish; geçerli Türkçe ad, platform-managed OGUN sahipliği, dört required macro, default portion, provenance ve geçerli numeric satırlar ister. Recipe publish; ad, `servings >= 1`, pozitif yield, en az bir pozitif gramlı eligible ingredient, geçerli food/portion referansları, provenance, hesaplanmış sonuç ve required macro'larda tam coverage ister. Düşük micronutrient coverage gösterilir ancak keyfi threshold ile bloklanmaz.
+
+## User-facing visibility
+
+Server food search, tam offline index, hafif search index, nutrient pack ve index version sorguları yalnız published platform food'ları dahil eder; imported food'lar görünür kalır. Draft ve archive yeni plan/search seçimlerine sızmaz. ID bazlı tarihsel detail çözümleme eski plan/PDF referanslarını kırmamak için korunur. Dedicated Chromium testi ayrı web context'inde published food'un göründüğünü, draft food'un görünmediğini doğruladı.
+
+## Audit/history
+
+Food ve recipe mutation'ları append-only domain event üretir; platform audit ayrı privileged operator kaydıdır ve kontrollü metadata taşır. Publish status mutation + domain event + platform audit tek DB transaction'ındadır. Hem food hem recipe için audit FK insert failure enjekte edilerek publish rollback doğrulandı. Published kayıtlar hard-delete edilmez. Published global recipe bağımlılığı bulunan food archive işlemi dependency sayısıyla bloklanır.
+
+## Migration
+
+```text
+PostgreSQL: 16-alpine
+Extension: pg_trgm
+Migration: 0000 → 0035_exotic_otto_octavius
+Result: PASS
+```
+
+Temiz disposable DB üzerinde ana seed, clinical ETL, RxNorm mapping ve OGUN ETL uygulandı. Food doğrulaması `119 food / 2380 preferred nutrient / 119 portion / 708 ingredient / 119 indexed food` geçti. Migration additive'dir; destructive DDL yoktur. Remote/Neon migration uygulanmadı. Adı ve image'i doğrulanmış disposable container finalde durdurulup `--rm` ile kaldırıldı.
+
+## Tests
+
+```text
+pnpm typecheck
+  PASS — 9/9 Turbo task
+
+pnpm lint
+  PASS — 3/3 Turbo task
+
+pnpm test
+  PASS — 9/9 Turbo task
+  948 passed, 2 skipped
+
+@ogun/db food-catalog-operations.test.ts
+  PASS — 3/3
+
+@ogun/nutrition-core recipe.test.ts
+  PASS — 3/3
+
+admin build
+  PASS
+
+web build
+  PASS — mevcut Sentry/Turbopack external uyarıları non-fatal
+
+cargo check
+  PASS
+
+cargo test
+  PASS — 73/73
+```
+
+Final root toplamındaki iki skip: web analytics ortam-bağımlı vaka ve packaged-Tauri release senaryosudur. Mevcut testler kapatılmadı.
+
+## Playwright
+
+```text
+Canonical suite: PASS — 11 passed, 1 packaged-Tauri skipped
+Faz 5 food catalog suite: PASS — 1/1 gerçek Chromium
+```
+
+Faz 5 suite'i production admin/web build'lerinde `food_editor` login + MFA enrollment, food create, macro/micro edit, default portion, reference, review/publish, global recipe create, published ingredient/grams, yield/servings, total/100g/serving preview, recipe review/publish ve web visibility akışını tamamladı.
+
+## Browser smoke
+
+```text
+Browser: NOT RUN — in-app Browser bağlantısı kullanılabilir tarayıcı döndürmedi.
+HTTP: PASS — production admin/web sunucuları ve user-facing food search endpoint'i gerçek Chromium Playwright akışında doğrulandı.
+```
+
+## Commits
+
+Faz 5 implementation ve status commit'leri (bu walkthrough handoff commit'i hariç):
+
+```text
+1d40086 | feat(db): add food catalog editorial lifecycle and provenance
+6773f66 | feat(nutrition): calculate system recipe nutrition coverage
+8c38593 | feat(db): add transactional food and recipe operations
+2b9723d | refactor(web): enforce published food catalog visibility
+b8cfe99 | feat(admin): add food catalog operations
+c80c08e | feat(admin): add system recipe editor and food dashboard
+4799636 | test(food): cover permissions and catalog browser flow
+f9df263 | docs(admin): document phase five food operations
+```
+
+## Push
+
+```text
+branch: master
+range: c3ac4a7..f9df263
+result: PASS — normal fast-forward push to origin/master
+force push: no
+```
+
+Bu walkthrough handoff commit'i ayrıca normal fast-forward push ile gönderilir; kesin hash'i kullanıcıya verilen son mesajdaki commit listesinde yer alır.
+
+## Final state
+
+Walkthrough commit'inin normal fast-forward push'undan sonra hedeflenen ve yeniden doğrulanan durum:
+
+```text
+## master...origin/master
+```
