@@ -36,6 +36,7 @@ apps/e2e/fixtures/.e2e-credentials.json
 apps/e2e/fixtures/.clinical-review-credentials.json
 apps/e2e/fixtures/.clinical-review-invite.json
 apps/e2e/fixtures/.food-catalog-credentials.json
+apps/e2e/fixtures/.subscription-credentials.json
 apps/web/.next/analyze
 apps/web/.lighthouse-reports
 

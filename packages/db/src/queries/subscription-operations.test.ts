@@ -163,7 +163,17 @@ describeWithDb('subscription operations integration', () => {
       now: new Date('2026-09-10T00:00:00Z'),
     })
     expect(list.rows).toHaveLength(1)
+    expect(list.total).toBe(1)
     expect(list.pageSize).toBe(25)
+    expect(
+      (
+        await listSubscriptionsForPlatform(db, {
+          search: item.suffix,
+          page: 2,
+          pageSize: 25,
+        })
+      ).rows,
+    ).toHaveLength(0)
     const detail = await getSubscriptionForPlatform(
       db,
       item.clinicId,
