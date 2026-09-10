@@ -17,7 +17,7 @@ const items: Array<{
   { label: 'Besin Veritabanı', permission: 'foods.read', heading: true },
   { label: 'Besinler', href: '/besinler', permission: 'foods.read', child: true },
   { label: 'Tarifler', href: '/tarifler', permission: 'foods.read', child: true },
-  { label: 'Abonelikler', permission: 'subscriptions.read' },
+  { label: 'Abonelikler', href: '/abonelikler', permission: 'subscriptions.read' },
   { label: 'Denetim', href: '/denetim', permission: 'audit.read' },
   { label: 'Platform Personeli', href: '/platform-personeli', permission: 'platform_staff.read' },
 ]

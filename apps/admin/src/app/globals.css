@@ -418,6 +418,30 @@ details pre {
   font-size: 12px;
   font-weight: 650;
 }
+.quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.quick-filters a {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: var(--card);
+}
+.subscription-filter {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+.timeline {
+  display: grid;
+  gap: 10px;
+}
+.timeline .card p {
+  margin: 8px 0;
+}
+.success-text { color: #166534; font-weight: 700; }
+.error-text { color: var(--danger); font-weight: 700; }
 .support-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));

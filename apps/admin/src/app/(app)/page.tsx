@@ -1,5 +1,5 @@
 import { db } from '@ogun/db'
-import { getFoodOperationsSummary, getPlatformDashboardSummary } from '@ogun/db/queries'
+import { getFoodOperationsSummary, getPlatformDashboardSummary, getSubscriptionDashboardSummary } from '@ogun/db/queries'
 import { requirePlatformPermission } from '@/lib/platform-authz'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +10,9 @@ export default async function DashboardPage() {
   const summary = await getPlatformDashboardSummary(db)
   const foodSummary = ctx.permissions.includes('foods.read')
     ? await getFoodOperationsSummary(db)
+    : null
+  const subscriptionSummary = ctx.permissions.includes('subscriptions.read')
+    ? await getSubscriptionDashboardSummary(db)
     : null
   const metrics = [
     ['Toplam klinik', summary.clinics],
@@ -34,6 +37,21 @@ export default async function DashboardPage() {
           </article>
         ))}
       </section>
+      {subscriptionSummary ? (
+        <section className="section">
+          <h2>Ogun SaaS abonelikleri</h2>
+          <div className="cards section">
+            {[
+              ['Aktif', subscriptionSummary.active],
+              ['Deneme', subscriptionSummary.trialing],
+              ['Past due', subscriptionSummary.pastDue],
+              ['İptal bekleyen', subscriptionSummary.cancelPending],
+              ['Yakında bitecek denemeler', subscriptionSummary.trialsEndingSoon],
+              ['Tutarsız kayıtlar', subscriptionSummary.drift],
+            ].map(([label, value]) => <article className="card" key={label}><div className="muted">{label}</div><div className="metric">{value}</div></article>)}
+          </div>
+        </section>
+      ) : null}
       {foodSummary ? (
         <section className="section">
           <h2>Besin operasyonları</h2>
