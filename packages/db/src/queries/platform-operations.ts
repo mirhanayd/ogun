@@ -411,6 +411,19 @@ export async function getDeviceStatusByInstallationHash(db: Database, installati
   return row?.status ?? null
 }
 
+/** User-facing device lookup. Platform-wide device reads use the separate,
+ * permission-gated platform operations; ordinary identities must match the
+ * link table as well as the opaque device id. */
+export async function getDeviceForUser(db: Database, userId: string, deviceId: string) {
+  const [row] = await db
+    .select({ id: devices.id, status: devices.status, displayName: devices.displayName })
+    .from(devices)
+    .innerJoin(deviceUserLinks, eq(deviceUserLinks.deviceId, devices.id))
+    .where(and(eq(devices.id, deviceId), eq(deviceUserLinks.userId, userId)))
+    .limit(1)
+  return row ?? null
+}
+
 export async function hasRecentPasswordResetRequest(db: Database, userId: string, since: Date) {
   const [row] = await db.select({ id: platformAuditLogs.id }).from(platformAuditLogs)
     .where(and(eq(platformAuditLogs.entityType, 'user'), eq(platformAuditLogs.entityId, userId), eq(platformAuditLogs.action, 'user.password_reset.requested'), eq(platformAuditLogs.outcome, 'success'), gt(platformAuditLogs.createdAt, since)))

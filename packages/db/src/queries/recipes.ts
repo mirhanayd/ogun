@@ -1,4 +1,4 @@
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { recipes } from '../schema/recipes'
 import type { Database } from '../client'
 
@@ -14,12 +14,21 @@ import type { Database } from '../client'
 // olduğu PR açıklamasında ayrıca not düşüldü.
 export async function getRecipeNamesByIds(
   db: Database,
+  clinicId: string,
   recipeIds: string[],
 ): Promise<Map<string, string>> {
   if (recipeIds.length === 0) return new Map()
   const rows = await db
     .select({ id: recipes.id, nameTr: recipes.nameTr })
     .from(recipes)
-    .where(inArray(recipes.id, recipeIds))
+    .where(
+      and(
+        inArray(recipes.id, recipeIds),
+        or(
+          eq(recipes.clinicId, clinicId),
+          and(isNull(recipes.clinicId), eq(recipes.editorialStatus, 'published')),
+        ),
+      ),
+    )
   return new Map(rows.map((r) => [r.id, r.nameTr]))
 }

@@ -178,7 +178,7 @@ export async function resolvePlanPdfData(
   const { foodIds, recipeIds } = collectFoodAndRecipeIds(tree)
   const [foodDetails, recipeNames] = await Promise.all([
     getFoodDetailsByIds(db, foodIds),
-    getRecipeNamesByIds(db, recipeIds),
+    getRecipeNamesByIds(db, clinicId, recipeIds),
   ])
 
   const format = tree.plan.outputFormat
