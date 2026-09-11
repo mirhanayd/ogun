@@ -8,6 +8,7 @@ import { withAudit } from '@/lib/audit'
 import { buildDocumentStorageKey, createPresignedDownloadUrl, createPresignedUploadUrl, deleteStorageObject, verifyUploadedDocumentObject } from '@/lib/storage'
 import { createDocumentUploadIntent, verifyDocumentUploadIntent } from '@/lib/document-upload-intent'
 import { logger } from '@/lib/monitoring/logger'
+import { enforceUserRateLimit } from '@/lib/abuse-rate-limit'
 import {
   confirmUploadSchema,
   presignUploadSchema,
@@ -40,6 +41,7 @@ const presignUploadForClinic = withClientAuth(
       }),
     },
     async (_ctx, clientId: string, input: PresignUploadInput) => {
+      await enforceUserRateLimit('document-presign', _ctx.user.id, { max: 20, windowSeconds: 300 })
       const storageKey = buildDocumentStorageKey(clientId, input.fileName)
       const signed = await createPresignedUploadUrl(storageKey, input.mimeType, input.sizeBytes)
       return { ...signed, uploadToken: createDocumentUploadIntent(clientId, storageKey, input) }
@@ -71,6 +73,7 @@ const confirmDocumentUploadForClinic = withClientAuth(
       entityId: (_args: [string, ConfirmUploadInput], result: { id: string } | undefined) => result?.id ?? null,
     },
     async (ctx, clientId: string, input: ConfirmUploadInput) => {
+      await enforceUserRateLimit('document-confirm', ctx.user.id, { max: 30, windowSeconds: 300 })
       if (!verifyDocumentUploadIntent(clientId, input.storageKey, input, input.uploadToken)) {
         throw new Error('Yükleme anahtarı bu danışanla eşleşmiyor.')
       }

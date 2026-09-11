@@ -3,6 +3,7 @@ import { db } from '@ogun/db'
 import { getClinicById, getPublicShareByToken, recordPublicShareView } from '@ogun/db/queries'
 import { resolvePlanPdfData } from '@/lib/pdf/resolve-plan-pdf-data'
 import { SharePlanView } from './share-plan-view'
+import { enforcePublicRateLimit } from '@/lib/abuse-rate-limit'
 
 // GitHub issue #36 / Prompt 6.2, GÖREV 1 — "/p/[token] — auth gerektirmeyen,
 // mobil öncelikli plan görüntüleme sayfası. Sadece plan içeriği görünsün;
@@ -34,6 +35,10 @@ export default async function PublicPlanSharePage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
+  const rate = await enforcePublicRateLimit('public-plan-share', { max: 60, windowSeconds: 60 })
+  if (!rate.allowed) {
+    return <StateScreen title="Çok fazla istek" description="Lütfen kısa bir süre sonra tekrar deneyin." />
+  }
   const lookup = await getPublicShareByToken(db, token)
 
   if (lookup.status === 'not_found') {

@@ -8,12 +8,14 @@ import { SUPPORT_REPORTED_IMPACTS, SUPPORT_TICKET_AREAS, SUPPORT_TICKET_TYPES } 
 import type { SupportTicketArea, SupportTicketReportedImpact, SupportTicketType } from '@ogun/db/schema'
 import { requireRole } from '@/lib/authz'
 import { dispatchSupportNotification } from '@/lib/support-email'
+import { enforceUserRateLimit } from '@/lib/abuse-rate-limit'
 
 const field = (data: FormData, name: string) => typeof data.get(name) === 'string' ? String(data.get(name)).trim() : ''
 const messagePath = (path: string, key: 'mesaj' | 'hata' | 'mail', value: string) => { const url = new URL(path, 'http://local'); url.searchParams.set(key, value); return `${url.pathname}${url.search}` }
 
 export async function createSupportTicketAction(formData: FormData) {
   const ctx = await requireRole('owner')
+  await enforceUserRateLimit('support-create', ctx.user.id, { max: 10, windowSeconds: 300 })
   try {
     const type = field(formData, 'type') as SupportTicketType
     const area = field(formData, 'area') as SupportTicketArea
@@ -32,6 +34,7 @@ export async function createSupportTicketAction(formData: FormData) {
 
 export async function replySupportTicketAction(formData: FormData) {
   const ctx = await requireRole('owner')
+  await enforceUserRateLimit('support-reply', ctx.user.id, { max: 30, windowSeconds: 300 })
   const ticketId = field(formData, 'ticketId')
   try {
     await addClinicSupportReply(db, { clinicId: ctx.scope.clinicId, userId: ctx.user.id, ticketId, clientRequestId: field(formData, 'clientRequestId'), body: field(formData, 'body') })
@@ -44,6 +47,7 @@ export async function replySupportTicketAction(formData: FormData) {
 
 export async function reopenSupportTicketAction(formData: FormData) {
   const ctx = await requireRole('owner')
+  await enforceUserRateLimit('support-reopen', ctx.user.id, { max: 10, windowSeconds: 300 })
   const ticketId = field(formData, 'ticketId')
   try {
     const result = await reopenSupportTicketForClinic(db, { clinicId: ctx.scope.clinicId, userId: ctx.user.id, ticketId })
