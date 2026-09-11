@@ -1,3 +1,200 @@
+# Ogun Operasyon / Admin Platform — Faz 7 Walkthrough ve Son Rapor
+
+Tarih: 11 Eylül 2026
+
+Faz 7 production operations hardening implementasyonu tamamlandı ve doğrulandı. Ancak bu yürütme sırasında `0037` migration'ı yanlışlıkla uzak Neon veritabanına uygulandığı için şartnamedeki “remote DB'ye migration otomatik uygulanmıyor” acceptance kriteri ihlal edildi. Bu nedenle aşağıdaki teknik kapsam tamamlanmış olsa da Faz 7 bütünüyle kabul edilmiş olarak raporlanmamaktadır.
+
+## Architecture
+
+Scheduled execution PostgreSQL-backed ve serverless-friendly tasarlandı. Code-defined allowlist dört işi içerir: `sms_reminders`, `email_retry`, `subscription_reconciliation`, `maintenance`. Vercel yalnız authenticated HTTP dispatcher'ı tetikler; Redis, BullMQ, Kafka veya uzun yaşayan in-memory worker eklenmedi. Her iş bounded batch ile çalışır ve PII içermeyen kalıcı `operational_job_runs` sonucu üretir.
+
+## Job locking
+
+`withOperationalJobLock`, `operational_job_leases` üzerinde atomik `INSERT ... ON CONFLICT ... WHERE expires_at <= now` ile lease alır. Lease 10 dakikalık expiry ve heartbeat taşır; external provider çağrısı boyunca SQL transaction açık tutulmaz. Aynı job için ikinci instance lease alamazsa `skipped/already_running` job history satırı üretir. Cron ve admin manual reconciliation aynı helper/policy yolunu kullanır.
+
+## SMS reminders
+
+`runAppointmentReminderJob` karşılığı olan `runSmsReminderOperationalJob`, ayar/abonelik/aktiflik kurallarına uyan en fazla 100 kliniği dörderli concurrency ile tarar. Her appointment için provider çağrısından önce `(appointmentId, reminderType)` DB unique claim alınır. Claim sonrasında provider'a en yakın noktada rıza, telefon, appointment status ve zaman penceresi yeniden okunur; iptal/tamamlanma/zaman değişiminde delivery `cancelled` olur ve provider çağrılmaz.
+
+Retry yalnız retryable provider hatalarında 1/5/30 dakika backoff ve dört attempt sınırıyla yapılır. Permanent recipient/consent hataları terminaldir; appointment zamanı geçecek retry planlanmaz. Başarılı gerçek SMS yalnız bir `sms_logs.status='gönderildi'` satırı üretir, failed attempt kota sayımına girmez. Rızasız kayıt görünür `skipped_no_consent` olur ve provider çağrısı yapılmaz.
+
+## SMS uncertain delivery
+
+Provider isteği kabul ettikten sonra DB finalize başarısız olursa otomatik retry yapılmaz. Worker mümkünse delivery'yi `unknown` yapar; DB de erişilemezse expiring `processing` claim bir sonraki taramada `unknown/claim_expired` durumuna geçirilir. Mevcut manual provider lookup/idempotency garantisi olmadığı için gerçek “exactly once” iddiası yoktur; durum admin incelemesine açılır ve blind duplicate riskinden kaçınılır.
+
+## Email retry
+
+Durable outbox bulunan support ve subscription notification domainleri automatic retry kapsamındadır. Ortak policy attempt 1 immediate, ardından 1 dakika, 5 dakika, 30 dakika ve 2 saat; en fazla beş attempt'tir. Claim token + expiry, cron/manual retry yarışında yalnız bir sender çağrısına izin verir. Business mutation e-posta hatasıyla rollback olmaz; terminal failure admin dashboard'da görünür.
+
+Reviewer invitation mevcut resend/yeni token/expiry semantiğini korumak, password reset ise eski token'ı gecikmeli göndermemek için generic retry job'a dahil edilmedi.
+
+## Webhook hardening
+
+iyzico HMAC signature doğrulaması korundu. Invalid signature DB receipt veya business mutation üretmez. `provider_webhook_receipts` transport state'i `(provider, providerEventId)` DB-level unique kimlikle claim eder; business event, clinic mutation ve receipt finalize aynı transaction içindedir. Duplicate paralel delivery yalnız attempt sayısını artırır ve tek business event bırakır. Raw body saklanmaz; SHA-256 payload hash ve normalize güvenli alanlar kullanılır.
+
+Provider timestamp'ı daha yeni işlenmiş event'ten eskiyse history korunur fakat current clinic subscription state'i geriye alınmaz. `0038_backfill-provider-event-namespace`, Faz 7 öncesi iyzico provider event ID'lerini namespace'e alarak historical replay'in `NULL` provider üzerinden unique kuralını aşmasını engeller.
+
+## Reconciliation
+
+Saatlik job en fazla 100 kliniğin clinic/subscription görünümünü canonical drift policy ile karşılaştırır. Bulgular stable `kind + entity + reason` fingerprint'iyle upsert edilir, tekrar taramada duplicate spam oluşmaz, ortadan kalkan bulgular resolved edilir. Reconciliation hiçbir subscription state'ini otomatik düzeltmez.
+
+## System Status
+
+Admin'e `/sistem`, `/sistem/isler` ve `/sistem/isler/[runId]` eklendi. Ekran gerçek DB aggregate'leriyle database/admin durumu, web health yapılandırması, environment/SHA, son job'lar, open findings, pending/terminal email, unknown SMS ve duplicate webhook sayılarını gösterir; sahte uptime veya danışan sağlık verisi göstermez.
+
+`system.read` ve `system.manage` server-side enforce edilir. `super_admin` manage; `read_only`, `support` ve `billing_ops` read alır. `clinical_ops` ve `food_editor` erişmez. Manual reconciliation ve finding acknowledgement platform audit üretir.
+
+## Health
+
+Web ve admin `/api/health/live` yalnız process liveness döndürür ve DB'ye gitmez. `/api/health/ready` hafif `select 1` ile DB dependency'sini doğrular; DB hatasında 503 verir. Resend, SMS provider veya iyzico outage readiness'i düşürmez ve restart loop üretmez.
+
+## Monitoring
+
+Structured job logları yalnız `jobName`, `runId`, `status`, `durationMs` ve aggregate counts taşır. PII scrub anahtarları telefon, e-posta, client name, raw message/support body, token ve authorization header örnekleriyle genişletildi. Operational finding/job metadata entity ID ve safe reason code ile sınırlıdır. Mevcut Sentry abstraction korundu; yeni vendor eklenmedi.
+
+## Backup/restore
+
+Disposable PostgreSQL 16 üzerinde gerçek `pg_dump -Fc` → yeni `ogun_phase7_restore` → `pg_restore` drill'i tamamlandı. Kaynak ve restore sayımları birebir eşleşti:
+
+| Tablo | Kaynak | Restore |
+| --- | ---: | ---: |
+| users | 212 | 212 |
+| clinics | 76 | 76 |
+| foods | 124 | 124 |
+| conditions | 21.505 | 21.505 |
+| operational_job_runs | 18 | 18 |
+| sms_reminder_deliveries | 12 | 12 |
+| provider_webhook_receipts | 12 | 12 |
+
+RPO/RTO, Neon PITR/branch, credential handling, production overwrite yasağı, isolated restore ve validation checklist'i `docs/production-backup-restore.md` içindedir. Drill sonunda `ogun-phase7-pg` konteyneri ve ona ait doğrulanmış anonim volume kaldırıldı.
+
+## Cron/deployment
+
+Vercel schedules: SMS 15 dakikada bir, email retry 5 dakikada bir, reconciliation saatlik, maintenance her gün 02:15 UTC. `Authorization: Bearer <CRON_SECRET>` constant-time digest comparison ile doğrulanır. Secret eksik/yanlışsa 401; `OPERATIONAL_JOBS_ENABLED=true` değilse job çalışmaz. Vercel preview, enable flag yanlışlıkla kopyalansa bile kapalıdır. Production dışı gerçek delivery ayrıca `EXTERNAL_DELIVERY_ENABLED=true` ister.
+
+Deployment, migration, health, post-deploy smoke, rollback ve incident akışları `docs/production-operations.md` içindedir.
+
+## Migration
+
+```text
+0037_cool_madripoor
+  Operational tables, SMS delivery state, email claims/backoff,
+  webhook provider namespace/indexes
+
+0038_backfill-provider-event-namespace
+  Historical iyzico provider-event namespace backfill
+```
+
+Temiz PostgreSQL 16 üzerinde `0000 → 0038` zinciri geçti; `drizzle.__drizzle_migrations` 39 kayıt içerdi. Ana disposable DB'de seed, clinical ETL, RxNorm mapping, Ogun food ETL ve clinical review sync geçti: 63 nutrient/6 exchange group/7 source; 21.505 condition/90.259 alias; 4.541 worklist/3.548 candidate; 119 food/2.380 nutrient row/119 portion/708 ingredient; 323 review task.
+
+Remote durum: doğrulamanın erken aşamasında açık local override unutulduğu için kök `.env` içindeki Neon hedefinde `0037` istemeden uygulandı. Aynı hatayla eklenen sadece `s7-*` fixture'ları hedefli transaction ile temizlendi: 3 SMS log, 6 SMS delivery, 3 subscription email, 6 webhook receipt, 9 subscription event, 12 subscription, 12 appointment, 12 client, 12 clinic member, 12 clinic, 12 user ve 3 job run; lease kaydı yoktu. Business satırları hedeflenmedi. `0037` migration geri alınmadı; `0038` remote'a uygulanmadı. Bu olay nedeniyle remote-migration acceptance kriteri karşılanmış sayılmamaktadır.
+
+## Tests
+
+```text
+pnpm typecheck
+  PASS — 10/10 Turbo task
+
+pnpm lint
+  PASS — 3/3 Turbo task
+
+DATABASE_URL=<disposable PostgreSQL 16>
+OPERATIONAL_WRITE_TESTS=1
+pnpm test
+  PASS — 10/10 Turbo task
+  945 passed, 31 opt-in/packaged skipped
+
+Tüm DB write flag'leri açık @ogun/db
+  PASS — 127/127
+
+Web production build
+  PASS — 62 route; mevcut Sentry/Turbopack warnings non-fatal
+
+Admin production build
+  PASS — ayrı geçici build-only ADMIN_BETTER_AUTH_SECRET ile
+
+cargo check
+  PASS
+
+cargo test
+  PASS — 73/73
+```
+
+## Concurrency tests
+
+Gerçek PostgreSQL integration suite'i 5/5 geçti:
+
+- Worker A lease alırken worker B `skipped/already_running`.
+- Aynı appointment için iki paralel claim → sender mock tam 1, canonical success log tam 1.
+- Expired SMS processing claim → `unknown`, yeniden claim yok.
+- Aynı email notification için iki paralel claim → sender mock tam 1; due/backoff/max-attempt terminal davranışı doğru.
+- Aynı provider event için iki paralel transaction → tek business event; attempt count 2; eski event state regression üretmiyor.
+
+Invalid iyzico signature için ayrıca gerçek DB'de HTTP route testi geçti: 401 ve receipt sayısı 0.
+
+## Playwright
+
+```text
+Canonical suite: PASS — 11 passed, 1 skipped
+  Skip: yalnız packaged Tauri native release round trip
+
+Faz 7 operations suite: PASS — 3/3
+  system.read gerçek job/warning/delivery aggregate görünürlüğü
+  system.manage safe manual reconciliation + history
+  izinsiz clinical_ops access denied
+  external SMS/e-posta delivery kapalı
+```
+
+## Browser smoke
+
+```text
+Browser: NOT RUN — in-app Browser bağlantısında available browsers=[] döndü.
+         Admin UI aynı production build üzerinde gerçek Chromium Playwright ile 3/3 doğrulandı.
+
+HTTP: PASS
+  web live 200 / ready 200
+  admin live 200 / ready 200
+  cron unauthorized 401
+  cron authorized safe reconciliation 200 + durable runId
+  admin /sistem unauthenticated 307 auth redirect
+```
+
+## Commits
+
+Faz 7 implementasyon ve runbook commit'leri (bu walkthrough finalization commit'i hariç):
+
+```text
+8da9530 | feat(db): add operational job and delivery state
+e4e25b1 | feat(operations): add durable execution and delivery queries
+c9a9844 | refactor(sms): make reminder delivery concurrency safe
+011f12d | fix(subscription): harden webhook idempotency and ordering
+22ad6fd | feat(operations): add scheduled retries and health checks
+4cb53c6 | feat(admin): add system operations dashboard
+e630f47 | test(ops): cover concurrency retries and system status
+6fcfed6 | docs(ops): add production and restore runbooks
+```
+
+## Push
+
+```text
+branch: master
+implementation range: a458439..6fcfed6
+result: PASS — normal fast-forward push, force kullanılmadı
+walkthrough: bu raporu taşıyan ayrı final documentation commit'i normal fast-forward push edilir
+```
+
+## Final state
+
+```text
+## master...origin/master
+working tree: clean
+disposable PostgreSQL container/volume: removed
+external SMS/email: gönderilmedi
+acceptance: implementation doğrulandı; remote 0037 olayı nedeniyle Faz 7 bütünüyle kabul edilmiş sayılmıyor
+```
+
+---
+
 # Ogun Operasyon / Admin Platform — Faz 4 Walkthrough ve Son Rapor
 
 Tarih: 9 Eylül 2026
