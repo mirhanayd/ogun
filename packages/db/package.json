@@ -35,15 +35,15 @@
     "@ogun/nutrition-core": "workspace:*",
     "@ogun/subscription-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
-    "better-auth": "^1.6.29",
-    "drizzle-orm": "^0.38.3",
+    "better-auth": "^1.6.31",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@ogun/tsconfig": "workspace:*",
     "@types/node": "^20",
-    "drizzle-kit": "^0.30.1",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
     "typescript": "^5",
     "vitest": "^3.0.4"

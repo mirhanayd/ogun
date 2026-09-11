@@ -24,7 +24,7 @@
 # `drizzle-kit migrate` çalıştırmak için, bkz. docs/deployment.md
 # "Migration-on-deploy".
 
-FROM node:20-alpine AS base
+FROM node:22.19-alpine AS base
 # Next.js'in derleme/çalışma zamanı bağımlılıkları için glibc uyumluluk
 # katmanı (sharp, better-sqlite3 gibi native modüller alpine'de bunu ister;
 # bu projede doğrudan yok ama transitif bağımlılıklarda çıkabilir — ucuz bir

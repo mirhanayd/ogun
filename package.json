@@ -4,8 +4,20 @@
   "version": "0.0.0",
   "packageManager": "pnpm@9.15.4",
   "engines": {
-    "node": ">=20",
+    "node": ">=22.19",
     "pnpm": ">=9"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": "3.1.7",
+      "hono": "4.13.7",
+      "joi": "18.2.9",
+      "js-yaml": "4.3.2",
+      "postcss": "8.5.26",
+      "qs": "6.16.0",
+      "rollup@>=3.0.0 <3.30.0": "3.30.0",
+      "sharp": "0.35.4"
+    }
   },
   "scripts": {
     "build": "turbo run build",
