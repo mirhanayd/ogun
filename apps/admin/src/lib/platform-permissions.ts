@@ -21,6 +21,8 @@ export const PLATFORM_PERMISSIONS = [
   'foods.publish',
   'subscriptions.read',
   'subscriptions.manage',
+  'system.read',
+  'system.manage',
   'audit.read',
   'platform_staff.read',
   'platform_staff.manage',
@@ -42,6 +44,7 @@ export const PLATFORM_ROLE_PERMISSIONS: Record<PlatformStaffRole, readonly Platf
     'devices.manage',
     'tickets.read',
     'tickets.manage',
+    'system.read',
   ],
   clinical_ops: [
     'dashboard.read',
@@ -52,7 +55,7 @@ export const PLATFORM_ROLE_PERMISSIONS: Record<PlatformStaffRole, readonly Platf
     'clinical.publish',
   ],
   food_editor: ['dashboard.read', 'foods.read', 'foods.write', 'foods.publish'],
-  billing_ops: ['dashboard.read', 'clinics.read', 'subscriptions.read', 'subscriptions.manage'],
+  billing_ops: ['dashboard.read', 'clinics.read', 'subscriptions.read', 'subscriptions.manage', 'system.read'],
   read_only: readOnlyPermissions,
 }
 

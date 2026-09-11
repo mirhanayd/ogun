@@ -18,6 +18,7 @@ const items: Array<{
   { label: 'Besinler', href: '/besinler', permission: 'foods.read', child: true },
   { label: 'Tarifler', href: '/tarifler', permission: 'foods.read', child: true },
   { label: 'Abonelikler', href: '/abonelikler', permission: 'subscriptions.read' },
+  { label: 'Sistem Durumu', href: '/sistem', permission: 'system.read' },
   { label: 'Denetim', href: '/denetim', permission: 'audit.read' },
   { label: 'Platform Personeli', href: '/platform-personeli', permission: 'platform_staff.read' },
 ]

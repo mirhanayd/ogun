@@ -53,4 +53,12 @@ describe('platform permission matrix', () => {
       permissionsForRole('read_only').every((permission) => permission.endsWith('.read')),
     ).toBe(true)
   })
+  it('separates system visibility from operational mutation', () => {
+    expect(roleHasPermission('support', 'system.read')).toBe(true)
+    expect(roleHasPermission('support', 'system.manage')).toBe(false)
+    expect(roleHasPermission('billing_ops', 'system.read')).toBe(true)
+    expect(roleHasPermission('read_only', 'system.read')).toBe(true)
+    expect(roleHasPermission('read_only', 'system.manage')).toBe(false)
+    expect(roleHasPermission('clinical_ops', 'system.read')).toBe(false)
+  })
 })
