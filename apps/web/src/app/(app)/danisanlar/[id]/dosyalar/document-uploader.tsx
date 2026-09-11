@@ -121,7 +121,7 @@ export function DocumentUploader({
     }
 
     const presign = await persistence.presign(clientId, presignInput)
-    if (!presign.success || !presign.uploadUrl || !presign.storageKey) {
+    if (!presign.success || !presign.uploadUrl || !presign.storageKey || !presign.uploadToken) {
       setError(presign.error ?? 'Yükleme başlatılamadı.')
       setStatus('idle')
       return
@@ -141,6 +141,7 @@ export function DocumentUploader({
     const confirm = await persistence.confirm(clientId, {
       ...presignInput,
       storageKey: presign.storageKey,
+      uploadToken: presign.uploadToken,
     })
     if (!confirm.success) {
       setError(confirm.error ?? 'Belge kaydedilemedi.')

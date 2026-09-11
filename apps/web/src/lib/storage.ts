@@ -1,6 +1,7 @@
 import 'server-only'
-import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { matchesDocumentSignature, type SupportedDocumentMime } from './file-signature'
 
 // S3 uyumlu depolama soyutlaması — GitHub issue #19 / Prompt 4.3, GÖREV 3:
 // "S3 uyumlu depolama (yerel: MinIO, üretim: Cloudflare R2 veya S3).
@@ -50,7 +51,7 @@ function getBucket(): string {
   return requireEnv('S3_BUCKET')
 }
 
-const PRESIGNED_URL_TTL_SECONDS = 5 * 60
+export const PRESIGNED_URL_TTL_SECONDS = 5 * 60
 
 // Presigned PUT URL — istemci dosyayı DOĞRUDAN MinIO/S3'e yükler, sunucudan
 // geçmez (büyük BİA çıktısı fotoğrafları/PDF'ler için gereksiz bir sunucu
@@ -59,14 +60,34 @@ const PRESIGNED_URL_TTL_SECONDS = 5 * 60
 export async function createPresignedUploadUrl(
   storageKey: string,
   contentType: string,
+  contentLength: number,
 ): Promise<{ uploadUrl: string; storageKey: string }> {
   const command = new PutObjectCommand({
     Bucket: getBucket(),
     Key: storageKey,
     ContentType: contentType,
+    ContentLength: contentLength,
   })
   const uploadUrl = await getSignedUrl(getS3Client(), command, { expiresIn: PRESIGNED_URL_TTL_SECONDS })
   return { uploadUrl, storageKey }
+}
+
+export async function verifyUploadedDocumentObject(
+  storageKey: string,
+  expected: { mimeType: SupportedDocumentMime; sizeBytes: number },
+): Promise<void> {
+  const client = getS3Client()
+  const metadata = await client.send(new HeadObjectCommand({ Bucket: getBucket(), Key: storageKey }))
+  if (metadata.ContentLength !== expected.sizeBytes || metadata.ContentType !== expected.mimeType) {
+    throw new Error('Uploaded object metadata does not match the signed request.')
+  }
+  const response = await client.send(
+    new GetObjectCommand({ Bucket: getBucket(), Key: storageKey, Range: 'bytes=0-31' }),
+  )
+  const signature = await response.Body?.transformToByteArray()
+  if (!signature || !matchesDocumentSignature(signature, expected.mimeType)) {
+    throw new Error('Uploaded object signature does not match its declared file type.')
+  }
 }
 
 // Presigned GET URL — "dosyalar asla public olmasın" kuralı: bucket'ın
@@ -107,10 +128,10 @@ export async function deleteStorageObject(storageKey: string): Promise<void> {
 // danışanın TÜM dosyalarını sil" gibi toplu bir işlem gerekirse (KVKK veri
 // sahibi hakları, bkz. lib/data-subject-rights.ts) prefix listeleme ile
 // bulunabilsinler diye.
-export function buildDocumentStorageKey(clientId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+export function buildDocumentStorageKey(_clientId: string, fileName: string): string {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_')
   const unique = crypto.randomUUID()
-  return `clients/${clientId}/documents/${unique}-${safeName}`
+  return `documents/${unique}/${safeName || 'document'}`
 }
 
 // GitHub issue #35 / Prompt 6.1 — üretilen PDF'ler documents.storageKey'i
@@ -121,5 +142,5 @@ export function buildDocumentStorageKey(clientId: string, fileName: string): str
 // için BİLEREK aynı prefix altında, ayrı bir "pdfs/" kökü AÇILMADI.
 export function buildPlanPdfStorageKey(clientId: string, planId: string): string {
   const unique = crypto.randomUUID()
-  return `clients/${clientId}/documents/${unique}-plan-${planId}.pdf`
+  return `documents/${unique}/plan-${clientId.slice(0, 8)}-${planId.slice(0, 8)}.pdf`
 }

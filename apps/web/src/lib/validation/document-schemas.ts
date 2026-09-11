@@ -64,6 +64,7 @@ export const presignUploadSchema = z.object({
 export type PresignUploadInput = z.infer<typeof presignUploadSchema>
 
 export const confirmUploadSchema = presignUploadSchema.extend({
-  storageKey: z.string().trim().min(1),
+  storageKey: z.string().trim().regex(/^documents\/[0-9a-f-]{36}\/[a-zA-Z0-9._-]+$/),
+  uploadToken: z.string().trim().min(40).max(128),
 })
 export type ConfirmUploadInput = z.infer<typeof confirmUploadSchema>

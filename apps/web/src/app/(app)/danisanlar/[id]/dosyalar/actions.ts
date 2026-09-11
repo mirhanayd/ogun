@@ -5,7 +5,9 @@ import { db } from '@ogun/db'
 import { createDocument, deleteDocument, getDocumentById } from '@ogun/db/queries'
 import { assertDocumentAccess, withAuth, withClientAuth } from '@/lib/authz'
 import { withAudit } from '@/lib/audit'
-import { buildDocumentStorageKey, createPresignedDownloadUrl, createPresignedUploadUrl, deleteStorageObject } from '@/lib/storage'
+import { buildDocumentStorageKey, createPresignedDownloadUrl, createPresignedUploadUrl, deleteStorageObject, verifyUploadedDocumentObject } from '@/lib/storage'
+import { createDocumentUploadIntent, verifyDocumentUploadIntent } from '@/lib/document-upload-intent'
+import { logger } from '@/lib/monitoring/logger'
 import {
   confirmUploadSchema,
   presignUploadSchema,
@@ -39,7 +41,8 @@ const presignUploadForClinic = withClientAuth(
     },
     async (_ctx, clientId: string, input: PresignUploadInput) => {
       const storageKey = buildDocumentStorageKey(clientId, input.fileName)
-      return createPresignedUploadUrl(storageKey, input.mimeType)
+      const signed = await createPresignedUploadUrl(storageKey, input.mimeType, input.sizeBytes)
+      return { ...signed, uploadToken: createDocumentUploadIntent(clientId, storageKey, input) }
     },
   ),
 )
@@ -47,16 +50,16 @@ const presignUploadForClinic = withClientAuth(
 export async function presignDocumentUploadAction(
   clientId: string,
   input: PresignUploadInput,
-): Promise<(ClientActionResult & { uploadUrl?: string; storageKey?: string })> {
+): Promise<(ClientActionResult & { uploadUrl?: string; storageKey?: string; uploadToken?: string })> {
   const parsed = presignUploadSchema.safeParse(input)
   if (!parsed.success) {
     return { success: false, error: firstZodMessage(parsed.error) }
   }
   try {
-    const { uploadUrl, storageKey } = await presignUploadForClinic(clientId, parsed.data)
-    return { success: true, uploadUrl, storageKey }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Yükleme başlatılamadı.' }
+    const { uploadUrl, storageKey, uploadToken } = await presignUploadForClinic(clientId, parsed.data)
+    return { success: true, uploadUrl, storageKey, uploadToken }
+  } catch {
+    return { success: false, error: 'Yükleme başlatılamadı.' }
   }
 }
 
@@ -68,9 +71,13 @@ const confirmDocumentUploadForClinic = withClientAuth(
       entityId: (_args: [string, ConfirmUploadInput], result: { id: string } | undefined) => result?.id ?? null,
     },
     async (ctx, clientId: string, input: ConfirmUploadInput) => {
-      if (!input.storageKey.startsWith(`clients/${clientId}/documents/`)) {
+      if (!verifyDocumentUploadIntent(clientId, input.storageKey, input, input.uploadToken)) {
         throw new Error('Yükleme anahtarı bu danışanla eşleşmiyor.')
       }
+      await verifyUploadedDocumentObject(input.storageKey, {
+        mimeType: input.mimeType,
+        sizeBytes: input.sizeBytes,
+      })
       return createDocument(db, ctx.scope.clinicId, clientId, {
         fileName: input.fileName,
         mimeType: input.mimeType,
@@ -93,8 +100,8 @@ export async function confirmDocumentUploadAction(
   }
   try {
     await confirmDocumentUploadForClinic(clientId, parsed.data)
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Belge kaydedilemedi.' }
+  } catch {
+    return { success: false, error: 'Belge kaydedilemedi; dosya türü ve boyutunu kontrol edin.' }
   }
   revalidatePath(`/danisanlar/${clientId}`)
   return { success: true }
@@ -121,8 +128,8 @@ export async function getDocumentDownloadUrlAction(
   try {
     const { url, mimeType } = await getDocumentDownloadUrlForClinic(documentId)
     return { success: true, url, mimeType }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Belge açılamadı.' }
+  } catch {
+    return { success: false, error: 'Belge bulunamadı veya erişim izniniz yok.' }
   }
 }
 
@@ -146,10 +153,10 @@ export async function deleteDocumentAction(documentId: string, clientId: string)
     try {
       await deleteStorageObject(document.storageKey)
     } catch (storageError) {
-      console.error('[documents] Depolama nesnesi silinemedi:', storageError)
+      logger.warn({ errorType: storageError instanceof Error ? storageError.name : 'unknown' }, 'Depolama nesnesi silinemedi')
     }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Belge silinemedi.' }
+  } catch {
+    return { success: false, error: 'Belge bulunamadı veya silme izniniz yok.' }
   }
   revalidatePath(`/danisanlar/${clientId}`)
   return { success: true }
