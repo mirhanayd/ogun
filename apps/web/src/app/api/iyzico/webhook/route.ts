@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '@ogun/db'
 import {
   getSubscriptionByProviderReference,
   recordProviderSubscriptionStatus,
+  recordProviderWebhookFailure,
 } from '@ogun/db/queries'
 import {
   verifyIyzicoSubscriptionWebhook,
@@ -32,21 +34,35 @@ export async function POST(request: NextRequest) {
   }
 
   const subscription = await getSubscriptionByProviderReference(db, parsed.data.subscriptionReferenceCode)
-  if (!subscription) return NextResponse.json({ error: 'subscription_not_found' }, { status: 404 })
+  const payloadHash = createHash('sha256').update(JSON.stringify(parsed.data)).digest('hex')
+  const receiptIdentity = {
+    provider: 'iyzico' as const,
+    providerEventId: parsed.data.iyziReferenceCode,
+    eventType: parsed.data.iyziEventType,
+    payloadHash,
+    occurredAt: new Date(parsed.data.iyziEventTime),
+  }
+  if (!subscription) {
+    await recordProviderWebhookFailure(db, { ...receiptIdentity, errorCode: 'subscription_not_found' })
+    return NextResponse.json({ error: 'subscription_not_found' }, { status: 404 })
+  }
 
   const successful = parsed.data.iyziEventType === 'subscription.order.success'
-  await recordProviderSubscriptionStatus(db, {
-    clinicId: subscription.clinicId,
-    subscriptionId: subscription.id,
-    status: successful ? 'active' : 'past_due',
-    eventType: parsed.data.iyziEventType,
-    providerEventId: parsed.data.iyziReferenceCode,
-    occurredAt: new Date(parsed.data.iyziEventTime),
-    payload: {
-      orderReferenceCode: parsed.data.orderReferenceCode,
-      customerReferenceCode: parsed.data.customerReferenceCode,
-      iyziReferenceCode: parsed.data.iyziReferenceCode,
-    },
-  })
+  try {
+    await recordProviderSubscriptionStatus(db, {
+      ...receiptIdentity,
+      clinicId: subscription.clinicId,
+      subscriptionId: subscription.id,
+      status: successful ? 'active' : 'past_due',
+      payload: {
+        orderReferenceCode: parsed.data.orderReferenceCode,
+        customerReferenceCode: parsed.data.customerReferenceCode,
+        iyziReferenceCode: parsed.data.iyziReferenceCode,
+      },
+    })
+  } catch {
+    await recordProviderWebhookFailure(db, { ...receiptIdentity, errorCode: 'processing_failed' }).catch(() => undefined)
+    return NextResponse.json({ error: 'processing_failed' }, { status: 503 })
+  }
   return NextResponse.json({ received: true })
 }
