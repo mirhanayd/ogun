@@ -31,6 +31,9 @@
         "SENTRY_PROJECT",
         "SENTRY_AUTH_TOKEN",
         "LOG_LEVEL",
+        "CRON_SECRET",
+        "OPERATIONAL_JOBS_ENABLED",
+        "EXTERNAL_DELIVERY_ENABLED",
         "APP_ENV",
         "ANALYZE",
         "STANDALONE_BUILD"
@@ -52,7 +55,8 @@
         "SUPPORT_WRITE_TESTS",
         "CLINICAL_REVIEWER_WRITE_TESTS",
         "FOOD_CATALOG_WRITE_TESTS",
-        "SUBSCRIPTION_OPERATION_WRITE_TESTS"
+        "SUBSCRIPTION_OPERATION_WRITE_TESTS",
+        "OPERATIONAL_WRITE_TESTS"
       ]
     },
     "typecheck": {

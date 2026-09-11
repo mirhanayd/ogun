@@ -42,6 +42,9 @@ const SENSITIVE_FIELD_NAMES: ReadonlySet<string> = new Set(
     'email',
     'occupation',
     'notes',
+    'messagebody',
+    'supportbody',
+    'rawmessagebody',
     'referralsource',
     // clients.ts — clientHealth (anamnez)
     'conditions',
@@ -111,7 +114,7 @@ const SENSITIVE_FIELD_NAMES: ReadonlySet<string> = new Set(
 // "client_phone_number", "x-auth-token" gibi bileşik/kebab-case anahtarları
 // yakalar (SENSITIVE_FIELD_NAMES tam eşleşme istiyor, bu ek bir güvenlik ağı).
 const SENSITIVE_KEY_PATTERN =
-  /(password|secret|token|authorization|cookie|apikey|api[-_]key|ssn|tckimlik|creditcard|cardnumber|\bcvv\b|\biban\b|email|phone|notes?\b)/i
+  /(password|secret|token|authorization|cookie|apikey|api[-_]key|ssn|tckimlik|creditcard|cardnumber|\bcvv\b|\biban\b|email|phone|notes?\b|message[-_]?body|support[-_]?body|raw[-_]?payload)/i
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[_-]/g, '')

@@ -43,6 +43,14 @@ describe('scrubPiiFromText', () => {
 })
 
 describe('scrubValue — anahtar tabanlı kırpma', () => {
+  it('operational job payloadlarında iletişim, içerik ve kimlik doğrulama verisini kırpar', () => {
+    const result = scrubRecord({ jobName: 'email_retry', phone: '05321234567', email: 'owner@example.test', messageBody: 'özel içerik', authorization: 'Bearer secret-token' })
+    expect(result.jobName).toBe('email_retry')
+    expect(result.phone).toBe(REDACTED_VALUE)
+    expect(result.email).toBe(REDACTED_VALUE)
+    expect(result.authorization).toBe(REDACTED_VALUE)
+    expect(result.messageBody).toBe(REDACTED_VALUE)
+  })
   it('clients tablosundaki demografik/iletişim alanlarını kırpar', () => {
     const client = {
       id: 'client_123', // hassas DEĞİL — kırpılmamalı
