@@ -70,6 +70,10 @@ function streamFoundationEnergy(
 
 async function main() {
   const { apply, dataDir } = parseArgs()
+  if (apply) {
+    const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+    assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+  }
   const foodNutrientPath = path.join(dataDir, 'food_nutrient.csv')
   if (!existsSync(foodNutrientPath)) {
     throw new Error(`USDA food_nutrient.csv bulunamadı: ${foodNutrientPath}`)

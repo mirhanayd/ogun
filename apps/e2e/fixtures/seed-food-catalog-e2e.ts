@@ -5,14 +5,15 @@ import { inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { accounts, nutrients, platformStaff, users } from '@ogun/db/schema'
+import { assertLocalDatabaseTarget } from '@ogun/db/database-target'
 
 const PASSWORD = 'FoodEditor2026!'
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) throw new Error('DATABASE_URL is required')
+  assertLocalDatabaseTarget(databaseUrl, 'E2E fixture writes')
 
-  const sql = postgres(databaseUrl)
+  const sql = postgres(databaseUrl!)
   const db = drizzle(sql)
   const suffix = Date.now().toString(36)
   const email = `food-editor-${suffix}@ogun.test`

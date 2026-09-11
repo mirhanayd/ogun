@@ -11,13 +11,14 @@ import {
   platformStaff,
   users,
 } from '@ogun/db/schema'
+import { assertLocalDatabaseTarget } from '@ogun/db/database-target'
 
 const ADMIN_PASSWORD = 'ClinicalOps2026!'
 const EXISTING_PASSWORD = 'ExistingReviewer2026!'
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) throw new Error('DATABASE_URL is required')
-  const sql = postgres(databaseUrl)
+  assertLocalDatabaseTarget(databaseUrl, 'E2E fixture writes')
+  const sql = postgres(databaseUrl!)
   const db = drizzle(sql)
   const suffix = Date.now().toString(36)
   const adminEmail = `clinical-ops-${suffix}@ogun.test`

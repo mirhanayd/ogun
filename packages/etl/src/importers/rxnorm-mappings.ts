@@ -47,6 +47,10 @@ async function main() {
   const packageDir = packageDirFromArgs()
   const dryRun = process.argv.includes('--dry-run')
   verifyRxNormPackage(packageDir)
+  if (!dryRun) {
+    const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+    assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+  }
 
   const { db } = await import('@ogun/db')
   if (!dryRun) await registerClinicalTerminologySources(db)

@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 import path from 'node:path'
+import { requireLocalE2eDatabase } from './database-safety'
+
+requireLocalE2eDatabase()
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 3 — E2E test kurulumu (Playwright).
 //

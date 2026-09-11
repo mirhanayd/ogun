@@ -445,10 +445,15 @@ async function main() {
     baseArgument?.slice('--dir='.length) ??
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../data/clinical/openfda'),
   )
+  const dryRun = process.argv.includes('--dry-run')
+  if (!dryRun) {
+    const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+    assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+  }
   const result = await importApprovedClinicalInteractions({
     baseDir,
     decisionsPath: decisionArgument?.slice('--decisions='.length),
-    dryRun: process.argv.includes('--dry-run'),
+    dryRun,
   })
   console.log(JSON.stringify(result, null, 2))
 }

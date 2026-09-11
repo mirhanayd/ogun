@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test'
 import path from 'node:path'
+import { requireLocalE2eDatabase } from './database-safety'
+
+requireLocalE2eDatabase()
 
 const PORT = process.env.ADMIN_E2E_PORT ?? '3200'
 const BASE_URL = `http://localhost:${PORT}`

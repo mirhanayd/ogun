@@ -383,6 +383,9 @@ async function main() {
   )
   if (auditOnly) return
 
+  const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+  assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+
   const { db } = await import('@ogun/db')
   try {
     const [source] = await db

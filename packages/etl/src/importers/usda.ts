@@ -148,6 +148,9 @@ async function main() {
     return
   }
 
+  const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+  assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+
   // DATABASE_URL gerektiren bağlantı, sadece burada (--list-nutrients modundan
   // sonra) kurulur.
   const { db } = await import('@ogun/db')

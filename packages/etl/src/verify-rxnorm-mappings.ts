@@ -515,6 +515,10 @@ async function main() {
   const dryRun = process.argv.includes('--dry-run')
   const apply = process.argv.includes('--apply')
   if (dryRun === apply) throw new Error('Tam olarak bir mod seçin: --dry-run veya --apply')
+  if (apply) {
+    const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+    assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+  }
   const result = await runRxNormVerification(dryRun ? 'dry-run' : 'apply')
   console.log(JSON.stringify(result, null, 2))
 }

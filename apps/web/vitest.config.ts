@@ -1,5 +1,8 @@
 import path from 'node:path'
 import { defineConfig } from 'vitest/config'
+import { assertLocalDatabaseTarget } from '@ogun/db/database-target'
+
+if (process.env.DATABASE_URL) assertLocalDatabaseTarget(process.env.DATABASE_URL, 'web tests')
 
 // apps/web'in ilk vitest kurulumu (bkz. src/lib/audit.test.ts — GitHub issue
 // #12 / Prompt 3.3). DATABASE_URL burada bir DUMMY değer: @ogun/db/client.ts

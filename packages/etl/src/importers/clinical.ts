@@ -36,7 +36,9 @@ const REQUIRED = [
 
 function resolveDataDir() {
   const arg = process.argv.slice(2).find((x) => x.startsWith('--dir='))
-  return arg ? path.resolve(arg.slice('--dir='.length)) : path.resolve(process.cwd(), 'data/clinical/processed')
+  return arg
+    ? path.resolve(arg.slice('--dir='.length))
+    : path.resolve(process.cwd(), 'data/clinical/processed')
 }
 
 async function* readJsonlGzip<T>(filePath: string): AsyncGenerator<T> {
@@ -48,7 +50,11 @@ async function* readJsonlGzip<T>(filePath: string): AsyncGenerator<T> {
   }
 }
 
-async function inBatches<T>(filePath: string, batchSize: number, work: (rows: T[]) => Promise<void>) {
+async function inBatches<T>(
+  filePath: string,
+  batchSize: number,
+  work: (rows: T[]) => Promise<void>,
+) {
   let batch: T[] = []
   let count = 0
   for await (const row of readJsonlGzip<T>(filePath)) {
@@ -57,7 +63,8 @@ async function inBatches<T>(filePath: string, batchSize: number, work: (rows: T[
       await work(batch)
       count += batch.length
       batch = []
-      if (count % 10_000 === 0) console.log(`... ${path.basename(filePath)}: ${count.toLocaleString('tr-TR')}`)
+      if (count % 10_000 === 0)
+        console.log(`... ${path.basename(filePath)}: ${count.toLocaleString('tr-TR')}`)
     }
   }
   if (batch.length) {
@@ -105,6 +112,8 @@ function sourceIdFromMappingMethod(value: string) {
 }
 
 async function main() {
+  const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+  assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
   const dir = resolveDataDir()
   const missing = REQUIRED.filter((name) => !existsSync(path.join(dir, name)))
   if (missing.length) {
@@ -117,7 +126,9 @@ async function main() {
 
   const { db } = await import('@ogun/db')
   try {
-    const sourceRows = JSON.parse(readFileSync(path.join(dir, 'sources.json'), 'utf8')) as SourceRow[]
+    const sourceRows = JSON.parse(
+      readFileSync(path.join(dir, 'sources.json'), 'utf8'),
+    ) as SourceRow[]
     for (const row of sourceRows) {
       await db
         .insert(clinicalSources)
@@ -166,57 +177,60 @@ async function main() {
         })
     }
 
-    const conditionCount = await inBatches<ConditionRow>(path.join(dir, 'conditions.jsonl.gz'), 500, async (rows) => {
-      await db
-        .insert(conditions)
-        .values(
-          rows.map((r) => ({
-            id: r.id,
-            primarySourceId: r.primarySource,
-            sourceCode: r.sourceCode,
-            nameTr: r.nameTr,
-            nameEn: r.nameEn,
-            definitionEn: (r.definitionEn as string | null) ?? null,
-            definitionTr: (r.definitionTr as string | null) ?? null,
-            semanticType: (r.semanticType as string | null) ?? null,
-            rootCategory: (r.rootCategory as string | null) ?? null,
-            isNeoplasm: Boolean(r.isNeoplasm),
-            isSupplementalCondition: Boolean(r.isSupplementalCondition),
-            isActive: Boolean(r.isActive),
-            isUiReady: Boolean(r.isUiReady),
-            needsReview: Boolean(r.needsReview),
-            translationStatus: (r.translationStatus as string | null) ?? null,
-            translationConfidence: (r.translationConfidence as number | null) ?? null,
-            translationDisplaySource: (r.translationDisplaySource as string | null) ?? null,
-            isDietRelevant: (r.isDietRelevant as boolean | null) ?? null,
-            dietRelevanceStatus: (r.dietRelevanceStatus as string) ?? 'not_curated',
-            searchText: r.searchText,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: conditions.id,
-          set: {
-            primarySourceId: sql`excluded.primary_source_id`,
-            sourceCode: sql`excluded.source_code`,
-            nameTr: sql`excluded.name_tr`,
-            nameEn: sql`excluded.name_en`,
-            definitionEn: sql`excluded.definition_en`,
-            definitionTr: sql`excluded.definition_tr`,
-            semanticType: sql`excluded.semantic_type`,
-            rootCategory: sql`excluded.root_category`,
-            isNeoplasm: sql`excluded.is_neoplasm`,
-            isSupplementalCondition: sql`excluded.is_supplemental_condition`,
-            isActive: sql`excluded.is_active`,
-            isUiReady: sql`excluded.is_ui_ready`,
-            needsReview: sql`excluded.needs_review`,
-            translationStatus: sql`excluded.translation_status`,
-            translationConfidence: sql`excluded.translation_confidence`,
-            translationDisplaySource: sql`excluded.translation_display_source`,
-            isDietRelevant: sql`excluded.is_diet_relevant`,
-            dietRelevanceStatus: sql`excluded.diet_relevance_status`,
-            searchText: sql`excluded.search_text`,
-          },
-          setWhere: sql`(
+    const conditionCount = await inBatches<ConditionRow>(
+      path.join(dir, 'conditions.jsonl.gz'),
+      500,
+      async (rows) => {
+        await db
+          .insert(conditions)
+          .values(
+            rows.map((r) => ({
+              id: r.id,
+              primarySourceId: r.primarySource,
+              sourceCode: r.sourceCode,
+              nameTr: r.nameTr,
+              nameEn: r.nameEn,
+              definitionEn: (r.definitionEn as string | null) ?? null,
+              definitionTr: (r.definitionTr as string | null) ?? null,
+              semanticType: (r.semanticType as string | null) ?? null,
+              rootCategory: (r.rootCategory as string | null) ?? null,
+              isNeoplasm: Boolean(r.isNeoplasm),
+              isSupplementalCondition: Boolean(r.isSupplementalCondition),
+              isActive: Boolean(r.isActive),
+              isUiReady: Boolean(r.isUiReady),
+              needsReview: Boolean(r.needsReview),
+              translationStatus: (r.translationStatus as string | null) ?? null,
+              translationConfidence: (r.translationConfidence as number | null) ?? null,
+              translationDisplaySource: (r.translationDisplaySource as string | null) ?? null,
+              isDietRelevant: (r.isDietRelevant as boolean | null) ?? null,
+              dietRelevanceStatus: (r.dietRelevanceStatus as string) ?? 'not_curated',
+              searchText: r.searchText,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: conditions.id,
+            set: {
+              primarySourceId: sql`excluded.primary_source_id`,
+              sourceCode: sql`excluded.source_code`,
+              nameTr: sql`excluded.name_tr`,
+              nameEn: sql`excluded.name_en`,
+              definitionEn: sql`excluded.definition_en`,
+              definitionTr: sql`excluded.definition_tr`,
+              semanticType: sql`excluded.semantic_type`,
+              rootCategory: sql`excluded.root_category`,
+              isNeoplasm: sql`excluded.is_neoplasm`,
+              isSupplementalCondition: sql`excluded.is_supplemental_condition`,
+              isActive: sql`excluded.is_active`,
+              isUiReady: sql`excluded.is_ui_ready`,
+              needsReview: sql`excluded.needs_review`,
+              translationStatus: sql`excluded.translation_status`,
+              translationConfidence: sql`excluded.translation_confidence`,
+              translationDisplaySource: sql`excluded.translation_display_source`,
+              isDietRelevant: sql`excluded.is_diet_relevant`,
+              dietRelevanceStatus: sql`excluded.diet_relevance_status`,
+              searchText: sql`excluded.search_text`,
+            },
+            setWhere: sql`(
             ${conditions.primarySourceId},
             ${conditions.sourceCode},
             ${conditions.nameTr},
@@ -257,8 +271,9 @@ async function main() {
             excluded.diet_relevance_status,
             excluded.search_text
           )`,
-        })
-    })
+          })
+      },
+    )
 
     const substanceCount = await inBatches<MedicationSubstanceRow>(
       path.join(dir, 'medication_substances.jsonl.gz'),
@@ -420,45 +435,58 @@ async function main() {
       path.join(dir, 'condition_aliases.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(conditionAliases).values(
-          rows.map((r) => ({
-            id: String(r.id),
-            conditionId: String(r.conditionId),
-            alias: String(r.alias),
-            language: String(r.language),
-            aliasType: String(r.aliasType),
-            sourceId: String(r.source),
-            translationStatus: (r.translationStatus as string | null) ?? null,
-            searchNormalized: String(r.searchNormalized),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(conditionAliases)
+          .values(
+            rows.map((r) => ({
+              id: String(r.id),
+              conditionId: String(r.conditionId),
+              alias: String(r.alias),
+              language: String(r.language),
+              aliasType: String(r.aliasType),
+              sourceId: String(r.source),
+              translationStatus: (r.translationStatus as string | null) ?? null,
+              searchNormalized: String(r.searchNormalized),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const parentCount = await inBatches<Record<string, unknown>>(
       path.join(dir, 'condition_parents.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(conditionParents).values(
-          rows.map((r) => ({
-            childConditionId: String(r.childConditionId),
-            parentConditionId: String(r.parentConditionId),
-            relationType: String(r.relationType),
-            sourceId: String(r.source),
-            sourceDistance: Number(r.sourceDistance ?? 1),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(conditionParents)
+          .values(
+            rows.map((r) => ({
+              childConditionId: String(r.childConditionId),
+              parentConditionId: String(r.parentConditionId),
+              relationType: String(r.relationType),
+              sourceId: String(r.source),
+              sourceDistance: Number(r.sourceDistance ?? 1),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const externalIdCount = await inBatches<Record<string, unknown>>(
       path.join(dir, 'condition_external_ids.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(conditionExternalIds).values(
-          rows.map((r) => ({
-            id: String(r.id), conditionId: String(r.conditionId), system: String(r.system),
-            externalId: String(r.externalId), mappingType: String(r.mappingType), sourceId: String(r.source),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(conditionExternalIds)
+          .values(
+            rows.map((r) => ({
+              id: String(r.id),
+              conditionId: String(r.conditionId),
+              system: String(r.system),
+              externalId: String(r.externalId),
+              mappingType: String(r.mappingType),
+              sourceId: String(r.source),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const crosswalkCount = await inBatches<Record<string, unknown>>(
@@ -466,63 +494,93 @@ async function main() {
       500,
       async (rows) => {
         if (!rows.length) return
-        await db.insert(conditionCrosswalks).values(
-          rows.map((r) => ({
-            id: String(r.id), conditionId: String(r.conditionId), targetSystem: String(r.targetSystem),
-            targetId: String(r.targetId), mappingStatus: String(r.mappingStatus), sourceId: String(r.source),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(conditionCrosswalks)
+          .values(
+            rows.map((r) => ({
+              id: String(r.id),
+              conditionId: String(r.conditionId),
+              targetSystem: String(r.targetSystem),
+              targetId: String(r.targetId),
+              mappingStatus: String(r.mappingStatus),
+              sourceId: String(r.source),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const categoryCount = await inBatches<Record<string, unknown>>(
       path.join(dir, 'condition_categories.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(conditionCategories).values(
-          rows.map((r) => ({
-            id: String(r.id), conditionId: String(r.conditionId), categoryCode: String(r.categoryCode),
-            categoryEn: (r.categoryEn as string | null) ?? null, categoryTr: (r.categoryTr as string | null) ?? null,
-            sourceId: String(r.source),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(conditionCategories)
+          .values(
+            rows.map((r) => ({
+              id: String(r.id),
+              conditionId: String(r.conditionId),
+              categoryCode: String(r.categoryCode),
+              categoryEn: (r.categoryEn as string | null) ?? null,
+              categoryTr: (r.categoryTr as string | null) ?? null,
+              sourceId: String(r.source),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const productAliasCount = await inBatches<Record<string, unknown>>(
       path.join(dir, 'medication_product_aliases.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(medicationProductAliases).values(
-          rows.map((r) => ({
-            id: String(r.id), medicationProductId: String(r.medicationProductId), alias: String(r.alias),
-            aliasType: String(r.aliasType), sourceId: String(r.source), searchNormalized: String(r.searchNormalized),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(medicationProductAliases)
+          .values(
+            rows.map((r) => ({
+              id: String(r.id),
+              medicationProductId: String(r.medicationProductId),
+              alias: String(r.alias),
+              aliasType: String(r.aliasType),
+              sourceId: String(r.source),
+              searchNormalized: String(r.searchNormalized),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const substanceAliasCount = await inBatches<Record<string, unknown>>(
       path.join(dir, 'medication_substance_aliases.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(medicationSubstanceAliases).values(
-          rows.map((r) => ({
-            id: String(r.id), medicationSubstanceId: String(r.medicationSubstanceId), alias: String(r.alias),
-            aliasType: String(r.aliasType), sourceId: String(r.source), searchNormalized: String(r.searchNormalized),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(medicationSubstanceAliases)
+          .values(
+            rows.map((r) => ({
+              id: String(r.id),
+              medicationSubstanceId: String(r.medicationSubstanceId),
+              alias: String(r.alias),
+              aliasType: String(r.aliasType),
+              sourceId: String(r.source),
+              searchNormalized: String(r.searchNormalized),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
     const productSubstanceCount = await inBatches<Record<string, unknown>>(
       path.join(dir, 'medication_product_substances.jsonl.gz'),
       750,
       async (rows) => {
-        await db.insert(medicationProductSubstances).values(
-          rows.map((r) => ({
-            medicationProductId: String(r.medicationProductId),
-            medicationSubstanceId: String(r.medicationSubstanceId),
-            relationType: String(r.relationType),
-            sourceId: sourceIdFromMappingMethod(String(r.source)),
-          })),
-        ).onConflictDoNothing()
+        await db
+          .insert(medicationProductSubstances)
+          .values(
+            rows.map((r) => ({
+              medicationProductId: String(r.medicationProductId),
+              medicationSubstanceId: String(r.medicationSubstanceId),
+              relationType: String(r.relationType),
+              sourceId: sourceIdFromMappingMethod(String(r.source)),
+            })),
+          )
+          .onConflictDoNothing()
       },
     )
 

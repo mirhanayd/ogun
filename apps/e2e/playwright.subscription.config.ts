@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 import path from 'node:path'
+import { requireLocalE2eDatabase } from './database-safety'
+
+requireLocalE2eDatabase()
 
 export default defineConfig({
   testDir: './tests',

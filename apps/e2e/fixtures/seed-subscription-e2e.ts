@@ -11,13 +11,14 @@ import {
   subscriptions,
   users,
 } from '@ogun/db/schema'
+import { assertLocalDatabaseTarget } from '@ogun/db/database-target'
 
 const PASSWORD = 'BillingOps2026!'
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) throw new Error('DATABASE_URL is required')
-  const client = postgres(databaseUrl)
+  assertLocalDatabaseTarget(databaseUrl, 'E2E fixture writes')
+  const client = postgres(databaseUrl!)
   const db = drizzle(client)
   const suffix = Date.now().toString(36)
   const billingEmail = `billing-ops-${suffix}@ogun.test`

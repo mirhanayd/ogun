@@ -61,11 +61,9 @@ export async function syncOpenFdaReviewTasks(
 ): Promise<SyncOpenFdaTasksResult> {
   const dryRun = options.dryRun ?? false
   const database = options.database ?? defaultDb
-  const bundlesDir =
-    options.bundlesDir ?? path.join(options.baseDir, 'bundles')
+  const bundlesDir = options.bundlesDir ?? path.join(options.baseDir, 'bundles')
 
-  const store =
-    options.artifactStore ?? new FilesystemArtifactStore(bundlesDir)
+  const store = options.artifactStore ?? new FilesystemArtifactStore(bundlesDir)
 
   // Expected semantic hash for current openFDA snapshot
   const expectedSemanticHash = '4b971d4a85f3eb2a75066266e9f4154bbe0f91c0802167fc7fded28e76aabbdd'
@@ -110,8 +108,22 @@ export async function syncOpenFdaReviewTasks(
   const countsByPriority: Record<string, number> = { P1: 0, P2: 0, P3: 0, P4: 0, P5: 0 }
   const tasksToInsert: Array<typeof clinicalReviewTasks.$inferInsert> = []
   const auditLogsToInsert: Array<typeof clinicalReviewAuditLog.$inferInsert> = []
-  const tasksToMarkStale: Array<{ existing: typeof existingTasks[0]; locator: string; evidenceCount: number; splCount: number }> = []
-  const tasksToUpdateMetadata: Array<{ id: string; targetKey: string; action: string; priority: string; confidence: string; cap: string; evidenceCount: number; splCount: number }> = []
+  const tasksToMarkStale: Array<{
+    existing: (typeof existingTasks)[0]
+    locator: string
+    evidenceCount: number
+    splCount: number
+  }> = []
+  const tasksToUpdateMetadata: Array<{
+    id: string
+    targetKey: string
+    action: string
+    priority: string
+    confidence: string
+    cap: string
+    evidenceCount: number
+    splCount: number
+  }> = []
   let unchanged = 0
 
   for (const candidate of index.candidates) {
@@ -281,6 +293,10 @@ export async function syncOpenFdaReviewTasks(
 
 async function main() {
   const isDryRun = process.argv.includes('--dry-run')
+  if (!isDryRun) {
+    const { assertDatabaseWriteTarget } = await import('@ogun/db/database-target')
+    assertDatabaseWriteTarget({ operation: 'etl', databaseUrl: process.env.DATABASE_URL })
+  }
   const baseArgument = process.argv.slice(2).find((item) => item.startsWith('--dir='))
   const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   const baseDir = path.resolve(

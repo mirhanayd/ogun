@@ -3,7 +3,16 @@ import path from 'node:path'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { hashPassword } from 'better-auth/crypto'
-import { accounts, clientHealth, clients, clinicMembers, clinics, platformStaff, users } from '@ogun/db/schema'
+import {
+  accounts,
+  clientHealth,
+  clients,
+  clinicMembers,
+  clinics,
+  platformStaff,
+  users,
+} from '@ogun/db/schema'
+import { assertLocalDatabaseTarget } from '@ogun/db/database-target'
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 3 — E2E fixture verisi. GERÇEK bir
 // Postgres'e yazar (mock YOK) — apps/web/src/lib/authz.ts'teki ClinicScope
@@ -21,11 +30,9 @@ const DEMO_PASSWORD = 'E2eDemo2026!'
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is not set — bkz. .env.example, E2E testleri GERÇEK bir Postgres gerektirir.')
-  }
+  assertLocalDatabaseTarget(databaseUrl, 'E2E fixture writes')
 
-  const sql = postgres(databaseUrl)
+  const sql = postgres(databaseUrl!)
   const db = drizzle(sql)
   const suffix = Date.now().toString(36)
   const passwordHash = await hashPassword(DEMO_PASSWORD)
@@ -111,21 +118,32 @@ async function main() {
 
   const clinicVisual = await createClinicWithDietitian('gorsel')
 
-  const [supportUser] = await db.insert(users).values({
-    email: `e2e-support-${suffix}@ogun.test`,
-    name: 'E2E Destek Personeli',
-    emailVerified: true,
-  }).returning()
+  const [supportUser] = await db
+    .insert(users)
+    .values({
+      email: `e2e-support-${suffix}@ogun.test`,
+      name: 'E2E Destek Personeli',
+      emailVerified: true,
+    })
+    .returning()
   if (!supportUser) throw new Error('E2E destek kullanıcısı oluşturulamadı')
-  const [supportStaff] = await db.insert(platformStaff).values({
-    userId: supportUser.id,
-    role: 'support',
-    createdBy: supportUser.id,
-  }).returning()
+  const [supportStaff] = await db
+    .insert(platformStaff)
+    .values({
+      userId: supportUser.id,
+      role: 'support',
+      createdBy: supportUser.id,
+    })
+    .returning()
   if (!supportStaff) throw new Error('E2E destek personeli oluşturulamadı')
 
   const credentials = {
-    clinicA: { id: clinicA.clinic.id, name: clinicA.clinic.name, email: clinicA.email, password: DEMO_PASSWORD },
+    clinicA: {
+      id: clinicA.clinic.id,
+      name: clinicA.clinic.name,
+      email: clinicA.email,
+      password: DEMO_PASSWORD,
+    },
     supportStaff: { id: supportStaff.id, userId: supportUser.id },
     visual: {
       id: clinicVisual.clinic.id,
