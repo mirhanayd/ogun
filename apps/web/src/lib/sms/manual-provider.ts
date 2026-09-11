@@ -12,10 +12,11 @@ export function createManualSmsSender(): SmsSender {
   return {
     name: 'manuel',
     async send(input: SendSmsInput): Promise<SendSmsResult> {
+      void input
       // Manuel sağlayıcının TEK "gönderim mekanizması" bu — gerçek Netgsm
       // entegrasyonu gelene kadar SMS'in gerçekten "gönderildiğini"
       // görebilmenin tek yolu.
-      console.info(`[sms:manuel] -> ${input.to}: ${input.message}`)
+      console.info('[sms:manuel] delivery simulated')
       return { provider: 'manuel', externalMessageId: crypto.randomUUID() }
     },
   }
