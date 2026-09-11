@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "db:migrate:check": "tsx src/scripts/migrate.ts --check",
+    "db:compatibility:check": "tsx src/scripts/check-migration-compatibility.ts",
     "db:verify:phase7-incident": "tsx src/scripts/verify-phase7-incident.ts",
     "db:push": "tsx src/scripts/push.ts",
     "db:studio": "drizzle-kit studio",
