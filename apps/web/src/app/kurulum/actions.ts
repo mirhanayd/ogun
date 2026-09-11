@@ -41,6 +41,15 @@ function firstZodMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? 'Geçersiz veri gönderildi.'
 }
 
+function emailOwnershipError(emailVerified: boolean | undefined): OnboardingActionResult | null {
+  return emailVerified
+    ? null
+    : {
+        success: false,
+        error: 'Klinik oluşturmadan önce e-posta adresinizi doğrulamanız gerekir. Gelen kutunuzdaki bağlantıyı kullanın.',
+      }
+}
+
 async function getOrCreateDraftClinic(userId: string, input: ClinicInfoFormValues) {
   const draft = await getDraftClinicForUser(db, userId)
   if (draft) {
@@ -65,6 +74,8 @@ export async function saveClinicInfoAction(input: ClinicInfoFormValues): Promise
   }
 
   const { user } = await requireAuth()
+  const ownershipError = emailOwnershipError(user.emailVerified)
+  if (ownershipError) return ownershipError
   const clinic = await getOrCreateDraftClinic(user.id, parsed.data)
   revalidatePath('/kurulum')
   return { success: true, clinicId: clinic.id }
@@ -82,6 +93,8 @@ export async function saveBrandingAction(input: BrandingFormValues): Promise<Onb
   }
 
   const { user } = await requireAuth()
+  const ownershipError = emailOwnershipError(user.emailVerified)
+  if (ownershipError) return ownershipError
   const draft = await getDraftClinicForUser(db, user.id)
   if (!draft) {
     return { success: false, error: 'Önce klinik bilgilerini kaydetmelisiniz.' }
@@ -111,6 +124,8 @@ export async function saveWorkingHoursAction(input: WorkingHoursFormValues): Pro
   }
 
   const { user } = await requireAuth()
+  const ownershipError = emailOwnershipError(user.emailVerified)
+  if (ownershipError) return ownershipError
   const draft = await getDraftClinicForUser(db, user.id)
   if (!draft) {
     return { success: false, error: 'Önce klinik bilgilerini kaydetmelisiniz.' }

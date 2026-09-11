@@ -1,5 +1,5 @@
 // Kimlik ve çok kiracılı yapı — users, clinics, clinic_members, Better Auth tabloları.
-import { boolean, integer, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, boolean, integer, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { id, timestamps } from './_helpers'
 
 export const clinicMemberRoleEnum = pgEnum('clinic_member_role', ['owner', 'dietitian', 'assistant'])
@@ -185,3 +185,29 @@ export const verifications = pgTable('verifications', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   ...timestamps(),
 })
+
+// Better Auth 1.6.29 database rate-limit schema. The installed implementation
+// addresses the logical model `rateLimit`; `usePlural: true` maps it to the
+// `rateLimits` export. Admin receives a different schema mapping in its auth
+// configuration so the two trust boundaries never consume the same buckets.
+export const rateLimits = pgTable(
+  'rate_limits',
+  {
+    id: id(),
+    key: text('key').notNull(),
+    count: integer('count').notNull(),
+    lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+  },
+  (table) => [uniqueIndex('rate_limits_key_idx').on(table.key)],
+)
+
+export const adminRateLimits = pgTable(
+  'admin_rate_limits',
+  {
+    id: id(),
+    key: text('key').notNull(),
+    count: integer('count').notNull(),
+    lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+  },
+  (table) => [uniqueIndex('admin_rate_limits_key_idx').on(table.key)],
+)

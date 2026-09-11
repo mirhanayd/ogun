@@ -114,7 +114,7 @@ function toClinicScope(clinicId: string): ClinicScope {
 // ---------------------------------------------------------------------------
 
 export interface AuthContext {
-  user: { id: string; email: string; name: string }
+  user: { id: string; email: string; name: string; emailVerified?: boolean }
   sessionId: string
 }
 
@@ -135,7 +135,12 @@ export async function requireAuth(): Promise<AuthContext> {
     throw new UnauthenticatedError()
   }
   return {
-    user: { id: session.user.id, email: session.user.email, name: session.user.name },
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      emailVerified: session.user.emailVerified,
+    },
     sessionId: session.session.id,
   }
 }
@@ -178,7 +183,12 @@ export async function requireClinic(): Promise<ClinicContext> {
     // (bkz. setActiveClinic üstündeki aynı not).
     await updateSessionActiveClinic(db, session.session.id, only.clinicId, only.role)
     return {
-      user: { id: session.user.id, email: session.user.email, name: session.user.name },
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        emailVerified: session.user.emailVerified,
+      },
       sessionId: session.session.id,
       scope: toClinicScope(only.clinicId),
       role: only.role,
@@ -210,7 +220,12 @@ export async function requireClinic(): Promise<ClinicContext> {
   }
 
   return {
-    user: { id: session.user.id, email: session.user.email, name: session.user.name },
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      emailVerified: session.user.emailVerified,
+    },
     sessionId: session.session.id,
     scope: toClinicScope(reconciled.clinicId),
     role: reconciled.role,

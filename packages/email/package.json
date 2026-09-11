@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./password-reset": "./src/password-reset.ts",
+    "./email-verification": "./src/email-verification.ts",
     "./support-ticket": "./src/support-ticket.ts",
     "./subscription-operation": "./src/subscription-operation.ts"
   },

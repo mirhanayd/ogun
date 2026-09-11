@@ -13,6 +13,7 @@ import {
 import { getDeviceStatusByInstallationHash } from '@ogun/db/queries'
 import { resolveInstallationAccess } from './device-identity'
 import { sendOgunPasswordResetEmail } from './password-reset-email'
+import { sendOgunVerificationEmail } from './verification-email'
 
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
 // üzerinde (Next.js App Router route handler'ı üzerinden) çalışır, bkz.
@@ -56,8 +57,18 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
+    maxPasswordLength: 128,
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       await sendOgunPasswordResetEmail({ email: user.email, resetUrl: url })
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendOgunVerificationEmail({ email: user.email, verificationUrl: url })
     },
   },
   socialProviders: {
@@ -106,6 +117,21 @@ export const auth = betterAuth({
     expiresIn: AUTH_SESSION_EXPIRES_IN_SECONDS,
     updateAge: AUTH_SESSION_UPDATE_AGE_SECONDS,
     additionalFields: AUTH_SESSION_ADDITIONAL_FIELDS,
+  },
+  rateLimit: {
+    enabled: true,
+    storage: 'database',
+    window: 60,
+    max: 60,
+    customRules: {
+      '/sign-in/email': { window: 60, max: 5 },
+      '/sign-up/email': { window: 60, max: 5 },
+      '/forget-password': { window: 300, max: 3 },
+      '/request-password-reset': { window: 300, max: 3 },
+      '/reset-password': { window: 300, max: 5 },
+      '/send-verification-email': { window: 300, max: 3 },
+      '/one-time-token/verify': { window: 60, max: 10 },
+    },
   },
   // GitHub issue #52 / Prompt 9.2, GÖREV 1 ve GÖREV 3 — masaüstü (Tauri)
   // native kimlik doğrulama akışı için eklenenler:

@@ -4,6 +4,7 @@ import type { EmailSender } from './types'
 
 export type { EmailAttachment, EmailSender, SendEmailInput } from './types'
 export { createResendEmailSender } from './resend-sender'
+export { renderEmailVerificationEmail, type EmailVerificationEmailInput } from './email-verification'
 export {
   buildSupportTicketEmail,
   type SupportEmailData,
