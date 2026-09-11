@@ -124,13 +124,14 @@ export const subscriptionEvents = pgTable(
     actorUserId: text('actor_user_id').references(() => users.id),
     actorPlatformStaffId: text('actor_platform_staff_id').references(() => platformStaff.id),
     providerEventId: text('provider_event_id'),
+    provider: paymentProviderNameEnum('provider'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Abonelik geçmişi zaman sırasıyla (bkz. /ayarlar/abonelik "geçmiş" listesi).
     index('subscription_events_clinic_id_occurred_at_idx').on(table.clinicId, table.occurredAt.desc()),
-    uniqueIndex('subscription_events_provider_event_id_idx').on(table.providerEventId),
+    uniqueIndex('subscription_events_provider_event_id_idx').on(table.provider, table.providerEventId),
   ],
 )
 
@@ -156,12 +157,16 @@ export const subscriptionEmailNotifications = pgTable(
     status: subscriptionEmailDeliveryStatusEnum('status').notNull().default('pending'),
     attemptCount: integer('attempt_count').notNull().default(0),
     lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    claimToken: text('claim_token'),
+    claimExpiresAt: timestamp('claim_expires_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    terminalAt: timestamp('terminal_at', { withTimezone: true }),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     lastError: text('last_error'),
     ...timestamps(),
   },
   (table) => [
     uniqueIndex('subscription_email_notifications_event_idx').on(table.subscriptionEventId),
-    index('subscription_email_notifications_status_created_idx').on(table.status, table.createdAt),
+    index('subscription_email_notifications_status_created_idx').on(table.status, table.nextAttemptAt),
   ],
 )

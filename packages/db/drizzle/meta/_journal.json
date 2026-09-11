@@ -260,6 +260,20 @@
       "when": 1789025753842,
       "tag": "0036_cold_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789055622275,
+      "tag": "0037_cool_madripoor",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789133002405,
+      "tag": "0038_backfill-provider-event-namespace",
+      "breakpoints": true
     }
   ]
 }

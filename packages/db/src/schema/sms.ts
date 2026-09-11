@@ -9,11 +9,12 @@
 // tablosunun currentPeriodStart/End'i ile AYNI dönem sınırını kullanır.
 // Bu, billing.ts payments'ın "aylık gelir" hesabını AYRI bir sayaç sütunu
 // yerine ham satırlardan türetmesiyle AYNI tasarım tercihi.
-import { index, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { index, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { appointments } from './appointments'
 import { clients } from './clients'
 import { clinics } from './tenancy'
 import { id } from './_helpers'
+import { smsReminderDeliveries } from './operations'
 
 export const smsLogStatusEnum = pgEnum('sms_log_status', ['gönderildi', 'başarısız', 'rıza_yok'])
 export type SmsLogStatus = (typeof smsLogStatusEnum.enumValues)[number]
@@ -32,6 +33,7 @@ export const smsLogs = pgTable(
     // kullanabilsin diye nullable — bugün TEK kullanım "24 saat önce
     // hatırlatma" (bkz. apps/web/src/lib/sms/reminder-eligibility.ts).
     appointmentId: text('appointment_id').references(() => appointments.id),
+    reminderDeliveryId: text('reminder_delivery_id').references(() => smsReminderDeliveries.id),
     phone: text('phone').notNull(),
     message: text('message').notNull(),
     status: smsLogStatusEnum('status').notNull(),
@@ -51,5 +53,6 @@ export const smsLogs = pgTable(
     // göndermediğini doğrulamak (dedupe) İÇİN — bkz.
     // packages/db/src/queries/sms.ts getSmsLogForAppointment.
     index('sms_logs_appointment_id_idx').on(table.appointmentId),
+    uniqueIndex('sms_logs_reminder_delivery_idx').on(table.reminderDeliveryId),
   ],
 )
