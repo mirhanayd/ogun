@@ -10,12 +10,12 @@ Cron istekleri `Authorization: Bearer <CRON_SECRET>` ile doğrulanır. Secret yo
 
 ## Job kataloğu ve UTC zamanlaması
 
-| Endpoint | Canonical job | Vercel cron (UTC) | Davranış |
-| --- | --- | --- | --- |
-| `/api/internal/cron/sms-reminders` | `sms_reminders` | `*/15 * * * *` | En fazla 100 uygun kliniği, dörderli concurrency ile tarar. |
-| `/api/internal/cron/email-retry` | `email_retry` | `*/5 * * * *` | Destek ve abonelik outbox'larından 50'şer due kaydı tarar. |
-| `/api/internal/cron/subscription-reconciliation` | `subscription_reconciliation` | `0 * * * *` | En fazla 100 kliniği tarar; yalnız bulgu üretir, düzeltme yapmaz. |
-| `/api/internal/cron/maintenance` | `maintenance` | `15 2 * * *` | Expired admin session/auth verification ve 90 günden eski başarılı/atlanmış job telemetry'sini temizler. |
+| Endpoint                                         | Canonical job                 | Vercel cron (UTC) | Davranış                                                                                                 |
+| ------------------------------------------------ | ----------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `/api/internal/cron/sms-reminders`               | `sms_reminders`               | `*/15 * * * *`    | En fazla 100 uygun kliniği, dörderli concurrency ile tarar.                                              |
+| `/api/internal/cron/email-retry`                 | `email_retry`                 | `*/5 * * * *`     | Destek ve abonelik outbox'larından 50'şer due kaydı tarar.                                               |
+| `/api/internal/cron/subscription-reconciliation` | `subscription_reconciliation` | `0 * * * *`       | En fazla 100 kliniği tarar; yalnız bulgu üretir, düzeltme yapmaz.                                        |
+| `/api/internal/cron/maintenance`                 | `maintenance`                 | `15 2 * * *`      | Expired admin session/auth verification ve 90 günden eski başarılı/atlanmış job telemetry'sini temizler. |
 
 Business tarih karşılaştırmaları UTC timestamp ile yapılır; scheduler timezone'una güvenilmez. Business audit, support history, subscription events, clinical/food history maintenance tarafından silinmez.
 
@@ -29,14 +29,19 @@ Business tarih karşılaştırmaları UTC timestamp ile yapılır; scheduler tim
 ## Dağıtım
 
 1. Hedef branch/SHA ve iki uygulamanın aynı schema beklentisinde olduğunu doğrulayın.
-2. [Backup/restore runbook](./production-backup-restore.md) uyarınca checkpoint alın.
-3. `0037` schema ve `0038` historical provider namespace migration'larını statik inceleyin. Production build içinde migration çalıştırmayın.
-4. Neon direct bağlantısıyla tek kontrollü adımda `DATABASE_URL=<direct-url> pnpm --filter @ogun/db db:migrate` çalıştırın.
-5. Web ve admin uygulamalarını deploy edin. Önce jobs kapalı kalsın.
-6. `/api/health/live` için `200 {"status":"ok"}`, `/api/health/ready` için `200 {"status":"ready"}` doğrulayın.
-7. Admin `/sistem` ekranında Database/Admin durumunu, deployment label/SHA'yı ve mevcut bulguları kontrol edin.
-8. Yetkili bir test isteğiyle reconciliation çalıştırın; job history'de bir satır oluştuğunu doğrulayın.
-9. Yalnız production environment'ta `OPERATIONAL_JOBS_ENABLED=true` yapın ve ilk cron sonuçlarını izleyin.
+2. [Backup/restore runbook](./production-backup-restore.md) uyarınca backup/checkpoint alın.
+3. Uygulanacak migration SQL'ini statik inceleyin. Production build içinde migration çalıştırmayın.
+4. Neon direct `DATABASE_URL` değerini onaylı secret store'dan süreç ortamına açıkça enjekte edin; CLI hiçbir `.env` dosyasını kendiliğinden yüklemez.
+5. `DB_WRITE_TARGET=production` ve `DB_ALLOW_REMOTE_WRITE=true` değerlerini açıkça verin.
+6. `DB_EXPECTED_HOST` ile `DB_EXPECTED_DATABASE` değerlerini provider metadata'sı ve change record ile eşleştirin.
+7. `pnpm --filter @ogun/db db:migrate:check` ile bağlantısız preflight çalıştırın.
+8. Gösterilen sanitized target/fingerprint ikinci operatör tarafından doğrulandıktan sonra aynı fingerprint'i `DB_PRODUCTION_WRITE_CONFIRM` olarak verin ve preflight'ı yeniden başarılı çalıştırın.
+9. Aynı onaylı süreç ortamında `pnpm --filter @ogun/db db:migrate` çalıştırın. Remote `db:push` ve seed komutları yasaktır; override yoktur.
+10. Read-only migration journal/hash kontrolüyle beklenen migration state'ini doğrulayın. Faz 7 olayı için `pnpm --filter @ogun/db db:verify:phase7-incident` yalnız aggregate/schema sonucu verir.
+11. Web ve admin uygulamalarını jobs kapalı olarak deploy edin; `/api/health/live` ve `/api/health/ready` yanıtlarını doğrulayın.
+12. Admin `/sistem` ekranında Database/Admin durumunu, deployment label/SHA'yı ve mevcut bulguları kontrol edin.
+13. Yetkili bir test isteğiyle reconciliation çalıştırın; job history'de bir satır oluştuğunu doğrulayın.
+14. Yalnız production environment'ta `OPERATIONAL_JOBS_ENABLED=true` yapın ve ilk cron sonuçlarını izleyin.
 
 ## Post-deploy smoke
 
@@ -59,7 +64,7 @@ Structured job logları yalnız `jobName`, `runId`, `status`, `durationMs` ve ag
 
 ## Migration ve rollback
 
-Migration öncesi hedef hostname/database adı ikinci kişi veya change record ile doğrulanır. `0037` additive tablolar ve nullable/default kolonlar ekler; index değişimini içerir. `0038`, eski iyzico webhook event'lerine provider namespace'i backfill eder ve tekrar çalıştırıldığında ek değişiklik üretmez. Migration sonrası health ve `/sistem` kontrol edilir. Uygulama rollback'i eski build'e dönmekle yapılabilir; DB kolonlarını aceleyle düşürmeyin. Veri yazılmış migration'larda destructive rollback yerine forward-fix migration hazırlayın. Remote/Neon migration yalnız yetkili operatör tarafından uygulanır.
+Migration öncesi hedef hostname/database adı ikinci kişi veya change record ile doğrulanır. Guard ayrıntıları ve local akış [Database Write Safety](./database-write-safety.md) belgesindedir. Preflight çıktısında credential bulunmaz; full URL'yi log veya ticket'a kopyalamayın. `0037` additive tablolar ve nullable/default kolonlar ekler; index değişimini içerir. `0038`, eski iyzico webhook event'lerine provider namespace'i backfill eder ve tekrar çalıştırıldığında ek değişiklik üretmez. Migration sonrası health ve `/sistem` kontrol edilir. Uygulama rollback'i eski build'e dönmekle yapılabilir; DB kolonlarını aceleyle düşürmeyin. Veri yazılmış migration'larda destructive rollback yerine forward-fix migration hazırlayın. Remote/Neon migration yalnız yetkili operatör tarafından guarded akışla uygulanır.
 
 ## Olay müdahalesi
 

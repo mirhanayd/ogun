@@ -38,8 +38,9 @@ Production veritabanını drop/overwrite etmek yasaktır. Önce yeni, ağ ve eri
 3. Boş hedefe `pg_restore --no-owner --no-privileges --exit-on-error --dbname=<isolated-url> <dump>` çalıştırın.
 4. Schema/table sayısı ve kritik tablolar (`clinics`, `users`, `clients`, `appointments`, `subscriptions`, `subscription_events`, `platform_audit_logs`, `operational_job_runs`) için aggregate count karşılaştırın.
 5. FK/index varlığını, en son migration kaydını ve `select 1` readiness'i doğrulayın.
-6. Web/admin uygulamalarını delivery jobs kapalı olarak izole hedefe bağlayıp login ve read-only smoke yapın.
-7. Sonucu, süreyi ve sapmaları kaydedin; test hedefini ve geçici backup'ı retention politikasına göre kaldırın.
+6. Restore hedefinde ileri migration gerekiyorsa [Database Write Safety](./database-write-safety.md) akışını kullanın. Remote Neon branch için hedefi `staging` olarak açıkça sınıflandırın, host/database eşleşmesini verin ve önce `db:migrate:check` çalıştırın; `db:push` kullanmayın.
+7. Web/admin uygulamalarını delivery jobs kapalı olarak izole hedefe bağlayıp login ve read-only smoke yapın.
+8. Sonucu, süreyi ve sapmaları kaydedin; test hedefini ve geçici backup'ı retention politikasına göre kaldırın.
 
 ## Production kurtarma kararı
 
