@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto'
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database } from '../client'
+import { DELIVERY_CLAIM_MS, EMAIL_MAX_ATTEMPTS, nextRetryAt } from '../operational-policy'
+import { createId } from '@paralleldrive/cuid2'
 import { canAdminTransitionSupportTicket, canClinicReopenSupportTicket, SUPPORT_PRIORITIES, SUPPORT_REPORTED_IMPACTS, SUPPORT_TICKET_AREAS, SUPPORT_TICKET_TYPES } from '../support-domain'
 import {
   clinicMembers, clinics, platformAuditLogs, platformStaff, supportEmailNotifications,
@@ -379,13 +381,31 @@ export async function resolveSupportTicketForPlatform(db: Database, input: Suppo
   })
 }
 
-export async function claimSupportNotification(db: Database, notificationId: string, retry: boolean) {
-  const now = new Date()
-  const condition = retry
-    ? and(eq(supportEmailNotifications.id, notificationId), eq(supportEmailNotifications.status, 'failed'))
-    : and(eq(supportEmailNotifications.id, notificationId), eq(supportEmailNotifications.status, 'pending'), isNull(supportEmailNotifications.lastAttemptAt))
-  const [claimed] = await db.update(supportEmailNotifications).set({ status: 'pending', attemptCount: sql`${supportEmailNotifications.attemptCount} + 1`, lastAttemptAt: now, lastError: null, updatedAt: now }).where(condition).returning({ id: supportEmailNotifications.id })
+export async function claimSupportNotification(db: Database, notificationId: string, retry: boolean, now = new Date()) {
+  const claimToken = createId()
+  const condition = and(
+    eq(supportEmailNotifications.id, notificationId),
+    retry ? eq(supportEmailNotifications.status, 'failed') : or(eq(supportEmailNotifications.status, 'pending'), eq(supportEmailNotifications.status, 'failed')),
+    isNull(supportEmailNotifications.terminalAt),
+    retry ? undefined : lte(supportEmailNotifications.nextAttemptAt, now),
+    sql`${supportEmailNotifications.attemptCount} < ${EMAIL_MAX_ATTEMPTS}`,
+    or(isNull(supportEmailNotifications.claimExpiresAt), lte(supportEmailNotifications.claimExpiresAt, now)),
+  )
+  const [claimed] = await db.update(supportEmailNotifications).set({
+    status: 'pending', attemptCount: sql`${supportEmailNotifications.attemptCount} + 1`,
+    lastAttemptAt: now, claimToken, claimExpiresAt: new Date(now.getTime() + DELIVERY_CLAIM_MS),
+    lastError: null, updatedAt: now,
+  }).where(condition).returning({ id: supportEmailNotifications.id, claimToken: supportEmailNotifications.claimToken })
   return claimed ?? null
+}
+
+export async function listDueSupportNotificationIds(db: Database, now = new Date(), limit = 100) {
+  return db.select({ id: supportEmailNotifications.id }).from(supportEmailNotifications).where(and(
+    or(eq(supportEmailNotifications.status, 'pending'), eq(supportEmailNotifications.status, 'failed')),
+    isNull(supportEmailNotifications.terminalAt), lte(supportEmailNotifications.nextAttemptAt, now),
+    sql`${supportEmailNotifications.attemptCount} < ${EMAIL_MAX_ATTEMPTS}`,
+    or(isNull(supportEmailNotifications.claimExpiresAt), lte(supportEmailNotifications.claimExpiresAt, now)),
+  )).orderBy(supportEmailNotifications.nextAttemptAt).limit(limit)
 }
 
 export async function getSupportNotificationDelivery(db: Database, notificationId: string) {
@@ -408,13 +428,19 @@ export async function getSupportNotificationState(db: Database, notificationId: 
   return row ?? null
 }
 
-export async function markSupportNotificationSent(db: Database, notificationId: string) {
-  const now = new Date()
-  await db.update(supportEmailNotifications).set({ status: 'sent', sentAt: now, lastError: null, updatedAt: now }).where(and(eq(supportEmailNotifications.id, notificationId), eq(supportEmailNotifications.status, 'pending')))
+export async function markSupportNotificationSent(db: Database, notificationId: string, claimToken?: string | null, now = new Date()) {
+  await db.update(supportEmailNotifications).set({ status: 'sent', sentAt: now, claimToken: null, claimExpiresAt: null, lastError: null, updatedAt: now }).where(and(eq(supportEmailNotifications.id, notificationId), eq(supportEmailNotifications.status, 'pending'), claimToken ? eq(supportEmailNotifications.claimToken, claimToken) : undefined))
 }
 
-export async function markSupportNotificationFailed(db: Database, notificationId: string, error: string) {
-  await db.update(supportEmailNotifications).set({ status: 'failed', lastError: error.slice(0, 500), updatedAt: new Date() }).where(and(eq(supportEmailNotifications.id, notificationId), eq(supportEmailNotifications.status, 'pending')))
+export async function markSupportNotificationFailed(db: Database, notificationId: string, error: string, claimToken?: string | null, now = new Date()) {
+  const [current] = await db.select({ attemptCount: supportEmailNotifications.attemptCount }).from(supportEmailNotifications)
+    .where(and(eq(supportEmailNotifications.id, notificationId), claimToken ? eq(supportEmailNotifications.claimToken, claimToken) : undefined)).limit(1)
+  if (!current) return
+  const terminal = current.attemptCount >= EMAIL_MAX_ATTEMPTS
+  await db.update(supportEmailNotifications).set({
+    status: 'failed', lastError: error.slice(0, 500), claimToken: null, claimExpiresAt: null,
+    nextAttemptAt: nextRetryAt(now, current.attemptCount, 'email'), terminalAt: terminal ? now : null, updatedAt: now,
+  }).where(and(eq(supportEmailNotifications.id, notificationId), eq(supportEmailNotifications.status, 'pending'), claimToken ? eq(supportEmailNotifications.claimToken, claimToken) : undefined))
 }
 
 export async function recordSupportNotificationRetryAudit(db: Database, actor: SupportActorMetadata, notificationId: string, ticketId: string, clinicId: string, outcome: 'success' | 'failure', reason?: string) {

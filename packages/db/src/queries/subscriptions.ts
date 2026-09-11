@@ -2,7 +2,7 @@
 // clients.ts/appointments.ts üstündeki notla AYNI desen: clinicId burada düz
 // bir string, "clinicId'siz sorgu yazılamaz" kuralı apps/web/src/lib/authz.ts
 // (ClinicScope) tarafında tip seviyesinde zorlanır.
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import {
   subscriptionEvents,
   subscriptionSelections,
@@ -13,6 +13,7 @@ import {
   type SubscriptionEventSource,
 } from '../schema/subscriptions'
 import { clinics } from '../schema/tenancy'
+import { providerWebhookReceipts } from '../schema/operations'
 import type { Database } from '../client'
 
 export async function getSubscriptionForClinic(db: Database, clinicId: string) {
@@ -157,21 +158,63 @@ export async function recordProviderSubscriptionStatus(
     status: 'active' | 'past_due'
     eventType: string
     providerEventId: string
+    provider: 'iyzico' | 'paytr' | 'manuel'
+    payloadHash: string
     occurredAt: Date
     payload: Record<string, unknown>
   },
 ) {
   return db.transaction(async (tx) => {
-    const { clinicId, subscriptionId, status, eventType, providerEventId, occurredAt, payload } = input
+    const { clinicId, subscriptionId, status, eventType, providerEventId, provider, payloadHash, occurredAt, payload } = input
+    const [receipt] = await tx.insert(providerWebhookReceipts).values({
+      provider, providerEventId, eventType, payloadHash, providerOccurredAt: occurredAt,
+      status: 'processing', metadata: { subscriptionId },
+    }).onConflictDoNothing({ target: [providerWebhookReceipts.provider, providerWebhookReceipts.providerEventId] })
+      .returning({ id: providerWebhookReceipts.id })
+    if (!receipt) {
+      await tx.update(providerWebhookReceipts).set({ attemptCount: sql`${providerWebhookReceipts.attemptCount} + 1` })
+        .where(and(eq(providerWebhookReceipts.provider, provider), eq(providerWebhookReceipts.providerEventId, providerEventId)))
+      return { duplicate: true as const, outOfOrder: false as const }
+    }
+    const [latest] = await tx.select({ occurredAt: subscriptionEvents.occurredAt })
+      .from(subscriptionEvents)
+      .where(and(eq(subscriptionEvents.subscriptionId, subscriptionId), eq(subscriptionEvents.source, 'provider'), eq(subscriptionEvents.provider, provider)))
+      .orderBy(desc(subscriptionEvents.occurredAt)).limit(1)
     const [event] = await tx
       .insert(subscriptionEvents)
-      .values({ clinicId, subscriptionId, eventType, providerEventId, occurredAt, payload, source: 'provider', actorUserId: null })
-      .onConflictDoNothing({ target: subscriptionEvents.providerEventId })
+      .values({ clinicId, subscriptionId, eventType, providerEventId, provider, occurredAt, payload, source: 'provider', actorUserId: null })
+      .onConflictDoNothing({ target: [subscriptionEvents.provider, subscriptionEvents.providerEventId] })
       .returning({ id: subscriptionEvents.id })
-    if (!event) return { duplicate: true as const }
-    await tx.update(clinics).set({ subscriptionStatus: status, updatedAt: new Date() }).where(eq(clinics.id, clinicId))
-    return { duplicate: false as const }
+    if (!event) {
+      await tx.update(providerWebhookReceipts).set({ status: 'processed', processedAt: new Date(), metadata: { subscriptionId, legacyDuplicate: true } }).where(eq(providerWebhookReceipts.id, receipt.id))
+      return { duplicate: true as const, outOfOrder: false as const }
+    }
+    const outOfOrder = Boolean(latest && latest.occurredAt.getTime() > occurredAt.getTime())
+    if (!outOfOrder) {
+      await tx.update(clinics).set({ subscriptionStatus: status, updatedAt: new Date() }).where(eq(clinics.id, clinicId))
+    }
+    await tx.update(providerWebhookReceipts).set({ status: 'processed', processedAt: new Date(), metadata: { subscriptionId, outOfOrder } })
+      .where(eq(providerWebhookReceipts.id, receipt.id))
+    return { duplicate: false as const, outOfOrder }
   })
+}
+
+export async function recordProviderWebhookFailure(db: Database, input: {
+  provider: 'iyzico' | 'paytr' | 'manuel'
+  providerEventId: string
+  eventType: string
+  payloadHash: string
+  occurredAt: Date
+  errorCode: string
+}) {
+  await db.insert(providerWebhookReceipts).values({
+    provider: input.provider, providerEventId: input.providerEventId, eventType: input.eventType,
+    payloadHash: input.payloadHash, providerOccurredAt: input.occurredAt, status: 'failed',
+    processedAt: new Date(), errorCode: input.errorCode, errorSummary: 'Webhook processing failed.',
+  }).onConflictDoUpdate({ target: [providerWebhookReceipts.provider, providerWebhookReceipts.providerEventId], set: {
+    status: 'failed', processedAt: new Date(), errorCode: input.errorCode,
+    errorSummary: 'Webhook processing failed.', attemptCount: sql`${providerWebhookReceipts.attemptCount} + 1`,
+  } })
 }
 
 export async function insertSubscriptionEvent(db: Database, clinicId: string, input: InsertSubscriptionEventInput) {

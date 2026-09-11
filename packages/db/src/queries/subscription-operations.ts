@@ -10,6 +10,8 @@ import {
 } from '@ogun/subscription-core'
 import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '../client'
+import { createId } from '@paralleldrive/cuid2'
+import { DELIVERY_CLAIM_MS, EMAIL_MAX_ATTEMPTS, nextRetryAt } from '../operational-policy'
 import {
   clinicMembers,
   clinics,
@@ -642,9 +644,35 @@ export async function getSubscriptionEmailNotificationByEvent(db: Database, even
   return row ?? null
 }
 
+export async function listDueSubscriptionNotificationIds(db: Database, now = new Date(), limit = 100) {
+  return db.select({ id: subscriptionEmailNotifications.id }).from(subscriptionEmailNotifications).where(and(
+    or(eq(subscriptionEmailNotifications.status, 'pending'), eq(subscriptionEmailNotifications.status, 'failed')),
+    isNull(subscriptionEmailNotifications.terminalAt), lte(subscriptionEmailNotifications.nextAttemptAt, now),
+    sql`${subscriptionEmailNotifications.attemptCount} < ${EMAIL_MAX_ATTEMPTS}`,
+    or(isNull(subscriptionEmailNotifications.claimExpiresAt), lte(subscriptionEmailNotifications.claimExpiresAt, now)),
+  )).orderBy(subscriptionEmailNotifications.nextAttemptAt).limit(limit)
+}
+
+export async function claimSubscriptionNotification(db: Database, notificationId: string, now = new Date(), forceRetry = false) {
+  const claimToken = createId()
+  const [claimed] = await db.update(subscriptionEmailNotifications).set({
+    status: 'pending', claimToken, claimExpiresAt: new Date(now.getTime() + DELIVERY_CLAIM_MS),
+    lastAttemptAt: now, attemptCount: sql`${subscriptionEmailNotifications.attemptCount} + 1`,
+    lastError: null, updatedAt: now,
+  }).where(and(
+    eq(subscriptionEmailNotifications.id, notificationId),
+    or(eq(subscriptionEmailNotifications.status, 'pending'), eq(subscriptionEmailNotifications.status, 'failed')),
+    isNull(subscriptionEmailNotifications.terminalAt), forceRetry ? undefined : lte(subscriptionEmailNotifications.nextAttemptAt, now),
+    sql`${subscriptionEmailNotifications.attemptCount} < ${EMAIL_MAX_ATTEMPTS}`,
+    or(isNull(subscriptionEmailNotifications.claimExpiresAt), lte(subscriptionEmailNotifications.claimExpiresAt, now)),
+  )).returning({ id: subscriptionEmailNotifications.id, claimToken: subscriptionEmailNotifications.claimToken })
+  return claimed ?? null
+}
+
 export async function markSubscriptionEmailSent(
   db: Database,
   notificationId: string,
+  claimToken?: string | null,
   now = new Date(),
 ) {
   await db
@@ -652,28 +680,35 @@ export async function markSubscriptionEmailSent(
     .set({
       status: 'sent',
       sentAt: now,
-      lastAttemptAt: now,
-      attemptCount: sql`${subscriptionEmailNotifications.attemptCount} + 1`,
+      claimToken: null,
+      claimExpiresAt: null,
       lastError: null,
       updatedAt: now,
     })
-    .where(eq(subscriptionEmailNotifications.id, notificationId))
+    .where(and(eq(subscriptionEmailNotifications.id, notificationId), claimToken ? eq(subscriptionEmailNotifications.claimToken, claimToken) : undefined))
 }
 
 export async function markSubscriptionEmailFailed(
   db: Database,
   notificationId: string,
   error: string,
+  claimToken?: string | null,
   now = new Date(),
 ) {
+  const [current] = await db.select({ attemptCount: subscriptionEmailNotifications.attemptCount })
+    .from(subscriptionEmailNotifications).where(and(eq(subscriptionEmailNotifications.id, notificationId), claimToken ? eq(subscriptionEmailNotifications.claimToken, claimToken) : undefined)).limit(1)
+  if (!current) return
+  const terminal = current.attemptCount >= EMAIL_MAX_ATTEMPTS
   await db
     .update(subscriptionEmailNotifications)
     .set({
       status: 'failed',
-      lastAttemptAt: now,
-      attemptCount: sql`${subscriptionEmailNotifications.attemptCount} + 1`,
+      claimToken: null,
+      claimExpiresAt: null,
+      nextAttemptAt: nextRetryAt(now, current.attemptCount, 'email'),
+      terminalAt: terminal ? now : null,
       lastError: error.slice(0, 1000),
       updatedAt: now,
     })
-    .where(eq(subscriptionEmailNotifications.id, notificationId))
+    .where(and(eq(subscriptionEmailNotifications.id, notificationId), claimToken ? eq(subscriptionEmailNotifications.claimToken, claimToken) : undefined))
 }
