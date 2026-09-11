@@ -2,4 +2,4 @@
 
 import { runSyncCli } from './sync-app-env.mjs'
 
-runSyncCli('web')
+runSyncCli('admin')
