@@ -11,17 +11,17 @@ export async function dispatchSupportNotification(notificationId: string, option
   if (!delivery) throw new Error('Bildirim kaydı bulunamadı.')
   const webOrigin = process.env.OGUN_WEB_URL
   if (!webOrigin) {
-    await markSupportNotificationFailed(db, notificationId, 'OGUN_WEB_URL tanımlı değil.')
+    await markSupportNotificationFailed(db, notificationId, 'OGUN_WEB_URL tanımlı değil.', claimed.claimToken)
     return { status: 'failed' as const }
   }
   try {
     const origin = new URL(webOrigin).origin
     const ticketUrl = new URL(`/ayarlar/destek/${encodeURIComponent(delivery.ticketId)}`, origin).toString()
     await (options.sender ?? getEmailSender()).send(buildSupportTicketEmail({ ...delivery, statusLabel: SUPPORT_STATUS_LABELS[delivery.status], ticketUrl }))
-    await markSupportNotificationSent(db, notificationId)
+    await markSupportNotificationSent(db, notificationId, claimed.claimToken)
     return { status: 'sent' as const }
   } catch (error) {
-    await markSupportNotificationFailed(db, notificationId, error instanceof Error ? error.message : 'E-posta gönderilemedi.')
+    await markSupportNotificationFailed(db, notificationId, error instanceof Error ? error.message : 'E-posta gönderilemedi.', claimed.claimToken)
     return { status: 'failed' as const }
   }
 }

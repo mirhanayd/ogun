@@ -3,5 +3,11 @@
   "buildCommand": "cd ../.. && pnpm turbo run build --filter=web...",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "framework": "nextjs",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [
+    { "path": "/api/internal/cron/sms-reminders", "schedule": "*/15 * * * *" },
+    { "path": "/api/internal/cron/email-retry", "schedule": "*/5 * * * *" },
+    { "path": "/api/internal/cron/subscription-reconciliation", "schedule": "0 * * * *" },
+    { "path": "/api/internal/cron/maintenance", "schedule": "15 2 * * *" }
+  ]
 }

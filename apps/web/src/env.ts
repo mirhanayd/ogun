@@ -90,6 +90,9 @@ const optionalSchema = z.object({
   SENTRY_PROJECT: z.string().optional(),
   SENTRY_AUTH_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
+  CRON_SECRET: z.string().optional(),
+  OPERATIONAL_JOBS_ENABLED: z.enum(['true', 'false']).optional(),
+  EXTERNAL_DELIVERY_ENABLED: z.enum(['true', 'false']).optional(),
   APP_ENV: z.enum(['local', 'staging', 'production']).optional(),
   // GitHub issue #60 / Faz 10, Prompt 10.2 — landing sayfası.
   // Sitenin herkese açık kök adresi; canonical, sitemap.xml ve OpenGraph
