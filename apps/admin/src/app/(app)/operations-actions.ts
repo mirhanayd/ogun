@@ -1,11 +1,13 @@
 'use server'
 
+import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { db } from '@ogun/db'
 import {
   getUserForPlatform,
   hasRecentPasswordResetRequest,
   insertPlatformAuditLog,
+  consumeAbuseRateLimit,
   reactivateDeviceForPlatform,
   revokeAllUserSessionsForPlatform,
   revokeDeviceForPlatform,
@@ -72,6 +74,16 @@ export async function sendPasswordResetAction(formData: FormData) {
   try {
     const user = await getUserForPlatform(db, userId)
     if (!user) throw new Error('Kullanıcı bulunamadı.')
+    const rateLimit = await consumeAbuseRateLimit(db, {
+      keyHash: createHash('sha256')
+        .update(`admin-password-reset\nactor:${ctx.user.id}\ntarget:${userId}`, 'utf8')
+        .digest('hex'),
+      max: 1,
+      windowSeconds: PASSWORD_RESET_COOLDOWN_MS / 1_000,
+    })
+    if (!rateLimit.allowed) {
+      throw new Error('Şifre sıfırlama e-postası 60 saniyede bir gönderilebilir.')
+    }
     if (await hasRecentPasswordResetRequest(db, userId, new Date(Date.now() - PASSWORD_RESET_COOLDOWN_MS))) {
       throw new Error('Şifre sıfırlama e-postası 60 saniyede bir gönderilebilir.')
     }
