@@ -106,10 +106,13 @@ pub fn parse_auth_deep_link(url: &Url) -> Option<AuthDeepLink> {
             // `ott` VARSA başarı, YOKSA `error` aranır (apps/web route.ts
             // ikisinden yalnızca BİRİNİ koyar, hiçbirini KOYMADIĞI durum
             // olmamalı ama savunmacı olarak ikisi de yoksa None dönüyoruz).
-            if let Some((_, value)) = url.query_pairs().find(|(key, _)| key.as_ref() == "ott") {
+            if let Some((_, value)) = url
+                .query_pairs()
+                .find(|(key, value)| key.as_ref() == "ott" && !value.is_empty() && value.len() <= 256)
+            {
                 Some(AuthDeepLink::OAuthCallback(Ok(value.into_owned())))
             } else if let Some((_, value)) =
-                url.query_pairs().find(|(key, _)| key.as_ref() == "error")
+                url.query_pairs().find(|(key, value)| key.as_ref() == "error" && !value.is_empty() && value.len() <= 128)
             {
                 Some(AuthDeepLink::OAuthCallback(Err(value.into_owned())))
             } else {
@@ -118,7 +121,7 @@ pub fn parse_auth_deep_link(url: &Url) -> Option<AuthDeepLink> {
         }
         "/reset-password" => url
             .query_pairs()
-            .find(|(key, _)| key.as_ref() == "token")
+            .find(|(key, value)| key.as_ref() == "token" && !value.is_empty() && value.len() <= 256)
             .map(|(_, value)| AuthDeepLink::ResetPassword {
                 token: value.into_owned(),
             }),
@@ -151,6 +154,7 @@ pub fn parse_app_deep_link(url: &Url) -> Option<AppDeepLink> {
         "/navigate" => url
             .query_pairs()
             .find(|(key, _)| key.as_ref() == "path")
+            .filter(|(_, value)| is_safe_app_path(value.as_ref()))
             .map(|(_, value)| AppDeepLink::Navigate {
                 path: value.into_owned(),
             }),
@@ -370,9 +374,20 @@ pub fn navigate_to_reset_password(app: &AppHandle, origin: &str, token: &str) {
 /// kısmı olarak kullanılıyor (`Url::join`, göreli/mutlak çözümleme
 /// kurallarını doğru uygular — `path` "/randevular" gibi mutlak bir yol
 /// OLMALI, `menu_actions.rs`'teki sabit path'lerin HEPSİ böyle).
-fn build_app_navigate_url(origin: &str, path: &str) -> Result<Url, url::ParseError> {
-    let base = Url::parse(origin)?;
-    base.join(path)
+fn is_safe_app_path(path: &str) -> bool {
+    path.starts_with('/') && !path.starts_with("//") && !path.contains('\\')
+}
+
+fn build_app_navigate_url(origin: &str, path: &str) -> Result<Url, String> {
+    if !is_safe_app_path(path) {
+        return Err("uygulama yolu relative/same-origin olmalıdır".to_string());
+    }
+    let base = Url::parse(origin).map_err(|error| error.to_string())?;
+    let target = base.join(path).map_err(|error| error.to_string())?;
+    if target.origin() != base.origin() {
+        return Err("uygulama yolu origin dışına çıkamaz".to_string());
+    }
+    Ok(target)
 }
 
 /// Genel uygulama-içi navigasyon için gerçek pencere navigasyonunu yapan
@@ -485,15 +500,7 @@ mod tests {
 
     #[test]
     fn ignores_empty_ott_value() {
-        // "ott=" (boş değer) teknik olarak parametre VAR ama ANLAMSIZ —
-        // yine de query_pairs bunu boş string olarak döner, biz burada
-        // BİLEREK reddetmiyoruz (çağıran taraf — better-auth verify
-        // endpoint'i — boş token'ı zaten reddedecektir); bu test sadece
-        // parse_auth_deep_link'in ÇÖKMEDİĞİNİ/paniklemediğini doğruluyor.
-        assert_eq!(
-            parse_auth_deep_link(&url("ogun://auth/callback?ott=")),
-            Some(AuthDeepLink::OAuthCallback(Ok(String::new())))
-        );
+        assert_eq!(parse_auth_deep_link(&url("ogun://auth/callback?ott=")), None);
     }
 
     #[test]
@@ -564,6 +571,12 @@ mod tests {
     }
 
     #[test]
+    fn app_deep_link_rejects_external_and_protocol_relative_paths() {
+        assert_eq!(parse_app_deep_link(&url("ogun://app/navigate?path=https%3A%2F%2Fevil.test")), None);
+        assert_eq!(parse_app_deep_link(&url("ogun://app/navigate?path=%2F%2Fevil.test")), None);
+    }
+
+    #[test]
     fn parse_deep_link_resolves_auth_variant() {
         let parsed = parse_deep_link(&url("ogun://auth/callback?ott=abc123"));
         assert_eq!(
@@ -603,6 +616,13 @@ mod tests {
     #[test]
     fn build_app_navigate_url_rejects_invalid_origin() {
         assert!(build_app_navigate_url("not-a-valid-origin", "/x").is_err());
+    }
+
+    #[test]
+    fn build_app_navigate_url_rejects_open_redirects() {
+        assert!(build_app_navigate_url("https://app.ogun.test", "https://evil.test").is_err());
+        assert!(build_app_navigate_url("https://app.ogun.test", "//evil.test/path").is_err());
+        assert!(build_app_navigate_url("https://app.ogun.test", "\\\\evil.test\\path").is_err());
     }
 
     #[test]

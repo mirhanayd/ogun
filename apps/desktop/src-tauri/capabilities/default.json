@@ -2,8 +2,9 @@
   "identifier": "default",
   "description": "Öğün masaüstü kabuğu — ana pencere için varsayılan izinler (GitHub issue #51, #52, #53).",
   "windows": ["main"],
+  "local": true,
   "remote": {
-    "urls": ["http://127.0.0.1:*/*", "http://localhost:*/*", "https://ogun-web.vercel.app/*"]
+    "urls": ["http://127.0.0.1:*/*", "http://localhost:*/*"]
   },
   "permissions": [
     "core:default",
@@ -45,11 +46,18 @@
     "allow-update-tray-today-appointments-summary",
     "allow-is-autostart-launch",
     "allow-complete-startup-launch",
-    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://ogun-web.vercel.app/*" },
+        { "url": "https://accounts.google.com/*" },
+        { "url": "http://127.0.0.1:*/*" },
+        { "url": "http://localhost:*/*" }
+      ]
+    },
     "deep-link:default",
     "notification:default",
     "dialog:default",
-    "fs:default",
     "fs:allow-read-file",
     "fs:allow-write-file"
   ]
