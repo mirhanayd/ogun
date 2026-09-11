@@ -5,6 +5,7 @@ import { db } from '@ogun/db'
 import { logUsageEvent } from '@ogun/db/queries'
 import { auth } from '@/lib/auth'
 import { withRequestLogging } from '@/lib/monitoring/logger'
+import { rejectUntrustedMutationOrigin } from '@/lib/request-origin'
 
 // GitHub issue #47 / Prompt 8.3, GÖREV 2 — usageEvents'in TEK yazma yolu.
 // GÖREV 2'nin "sağlık verisi göndermeyin" kuralı burada İKİ katmanda
@@ -32,6 +33,8 @@ const eventSchema = z.object({
 })
 
 async function handlePost(request: NextRequest): Promise<Response> {
+  const originRejection = rejectUntrustedMutationOrigin(request)
+  if (originRejection) return originRejection
   let json: unknown
   try {
     json = await request.json()

@@ -8,6 +8,7 @@ import { updateDataRetentionAction } from '@/app/(app)/ayarlar/veri-guvenligi/ac
 import { smsTemplateSettingSchema } from '@/lib/validation/subscription-schemas'
 import { whatsappTemplateSettingSchema } from '@/lib/validation/share-schemas'
 import { dataRetentionSettingSchema } from '@/lib/validation/compliance-schemas'
+import { rejectUntrustedMutationOrigin } from '@/lib/request-origin'
 
 const requestSchema = z.object({
   userId: z.string().min(1), clinicId: z.string().min(1),
@@ -16,6 +17,8 @@ const requestSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const originRejection = rejectUntrustedMutationOrigin(request)
+  if (originRejection) return originRejection
   try {
     const ctx = await requireClinic()
     if (ctx.role !== 'owner') return NextResponse.json({ success: false, error: 'Bu işlem için yönetici yetkisi gerekir.' }, { status: 403 })

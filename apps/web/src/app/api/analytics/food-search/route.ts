@@ -5,6 +5,7 @@ import { logFoodSearchQuery } from '@ogun/db/queries'
 import { requireClinic, UnauthenticatedError, NoActiveClinicError } from '@/lib/authz'
 import { normalizeSearchText } from '@/lib/normalize'
 import { withRequestLogging } from '@/lib/monitoring/logger'
+import { rejectUntrustedMutationOrigin } from '@/lib/request-origin'
 
 // GitHub issue #47 / Prompt 8.3, GÖREV 4 — "arama sonucu bulunamayan
 // sorgular... hangi Türk yemeklerinin veri tabanında eksik olduğunu bize
@@ -20,6 +21,8 @@ const bodySchema = z.object({
 })
 
 async function handlePost(request: NextRequest): Promise<Response> {
+  const originRejection = rejectUntrustedMutationOrigin(request)
+  if (originRejection) return originRejection
   let json: unknown
   try {
     json = await request.json()

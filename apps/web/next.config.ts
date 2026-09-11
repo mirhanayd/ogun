@@ -1,21 +1,7 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import createBundleAnalyzer from '@next/bundle-analyzer'
-
-// Next.js normalde yalnızca apps/web altındaki .env* dosyalarını yükler;
-// monorepo'nun kanonik yerel ayarları ise kök .env'dedir. Özellikle
-// apps/web/.env.local içindeki boş Google alanları, kökteki gerçek OAuth
-// değerlerini gölgeleyebiliyordu. Platform tarafından verilen dolu değerleri
-// asla ezmeden, yalnızca eksik/boş Google ayarlarında kök .env'e düş.
-for (const key of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const) {
-  if (!process.env[key]?.trim()) delete process.env[key]
-}
-
-try {
-  process.loadEnvFile(new URL('../../.env', import.meta.url))
-} catch {
-  // CI/production ortamında kök .env bulunmayabilir; değerler platformdan gelir.
-}
+import { buildSecurityHeaders } from '../../scripts/security-headers.mjs'
 
 // GitHub issue #46 / Prompt 8.2, GÖREV 3 — "Dockerfile için standalone
 // Next.js çıktısı." `output: 'standalone'`, Next.js'in derlenmiş uygulamayı
@@ -43,6 +29,29 @@ try {
 // kendi kodu/davranışı bu değişiklikle DEĞİŞMEDİ, sadece bayrak adı.
 const nextConfig: NextConfig = {
   ...(process.env.STANDALONE_BUILD === '1' ? { output: 'standalone' as const } : {}),
+  async headers() {
+    const securityHeaders = buildSecurityHeaders(process.env)
+    const privateHeaders = [
+      { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+      { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+    ]
+    const privateRoutes = [
+      '/panel/:path*',
+      '/danisanlar/:path*',
+      '/randevular/:path*',
+      '/planlar/:path*',
+      '/tarifler/:path*',
+      '/finans/:path*',
+      '/ayarlar/:path*',
+      '/clinical-review/:path*',
+      '/kurulum/:path*',
+      '/klinik-sec/:path*',
+    ]
+    return [
+      { source: '/(.*)', headers: securityHeaders },
+      ...privateRoutes.map((source) => ({ source, headers: privateHeaders })),
+    ]
+  },
 }
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 2 — "Bundle analizi, 200 KB üstü

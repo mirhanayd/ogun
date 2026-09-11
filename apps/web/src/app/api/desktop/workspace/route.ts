@@ -69,6 +69,7 @@ import {
   assignedDietitianForNewClient,
   canManuallyAssignDietitian,
 } from '@/lib/dietitian-assignment'
+import { rejectUntrustedMutationOrigin } from '@/lib/request-origin'
 
 export const dynamic = 'force-dynamic'
 
@@ -651,6 +652,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const originRejection = rejectUntrustedMutationOrigin(request)
+  if (originRejection) return originRejection
   try {
     const ctx = await requireClinic()
     const parsed = syncRequestSchema.safeParse(await request.json())

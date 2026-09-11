@@ -12,6 +12,7 @@ import {
   initializeIyzicoSubscription,
 } from '@/lib/subscription/iyzico-client'
 import { iyzicoCustomerSchema } from '@/lib/validation/iyzico-schemas'
+import { isTrustedMutationOrigin } from '@/lib/request-origin'
 
 export const runtime = 'nodejs'
 
@@ -34,8 +35,7 @@ function errorPage(message: string, status = 400) {
 
 export async function POST(request: NextRequest) {
   try {
-    const origin = request.headers.get('origin')
-    if (origin && origin !== request.nextUrl.origin) return errorPage('Geçersiz istek kaynağı.', 403)
+    if (!isTrustedMutationOrigin(request)) return errorPage('Geçersiz istek kaynağı.', 403)
 
     const context = await requireRole('owner')
     const formData = await request.formData()

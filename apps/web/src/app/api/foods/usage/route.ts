@@ -4,6 +4,7 @@ import { db } from '@ogun/db'
 import { getFoodSummaries, getPinnedFoodUsage, recordFoodUsage } from '@ogun/db/queries'
 import { NoActiveClinicError, UnauthenticatedError, requireClinic } from '@/lib/authz'
 import { withRequestLogging } from '@/lib/monitoring/logger'
+import { rejectUntrustedMutationOrigin } from '@/lib/request-origin'
 
 // GitHub issue #24 / Prompt 5.2 GÖREV 1 — klinik bazlı "son kullanılanlar /
 // sık kullanılanlar" pinlemesi. api/foods/search ve api/foods/index'in
@@ -75,6 +76,8 @@ export const GET = withRequestLogging('foods.usage', handleGet)
 const recordUsageSchema = z.object({ foodId: z.string().min(1) })
 
 async function handlePost(request: NextRequest): Promise<Response> {
+  const originRejection = rejectUntrustedMutationOrigin(request)
+  if (originRejection) return originRejection
   let clinicId: string
   try {
     clinicId = (await requireClinic()).scope.clinicId

@@ -4,6 +4,7 @@ import { db } from '@ogun/db'
 import { registerDesktopDevice } from '@ogun/db/queries'
 import { auth } from '@/lib/auth'
 import { hashInstallationId } from '@/lib/device-identity'
+import { rejectUntrustedMutationOrigin } from '@/lib/request-origin'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,8 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const originRejection = rejectUntrustedMutationOrigin(request)
+  if (originRejection) return originRejection
   const session = await auth.api.getSession({ headers: request.headers })
   if (!session) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
   const rawInstallationId = request.headers.get('x-ogun-device-id')

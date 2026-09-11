@@ -1,26 +1,19 @@
 import type { NextConfig } from 'next'
-
-try {
-  process.loadEnvFile(new URL('../../.env', import.meta.url))
-} catch {
-  // Deployment platforms inject environment variables directly.
-}
-
-const securityHeaders = [
-  { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-Frame-Options', value: 'DENY' },
-  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
-  ...(process.env.NODE_ENV === 'production'
-    ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
-    : []),
-]
+import { buildSecurityHeaders } from '../../scripts/security-headers.mjs'
 
 const nextConfig: NextConfig = {
   experimental: { authInterrupts: true },
   async headers() {
-    return [{ source: '/(.*)', headers: securityHeaders }]
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          ...buildSecurityHeaders(process.env),
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ],
+      },
+    ]
   },
 }
 

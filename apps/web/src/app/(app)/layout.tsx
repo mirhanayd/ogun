@@ -23,6 +23,11 @@ import { ProductTour } from './_components/product-tour'
 import { ScreenTimeTracker } from './_components/screen-time-tracker'
 import { SidebarNav } from './_components/sidebar-nav'
 import { TopBar } from './_components/top-bar'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 // Uygulama kabuğu (Prompt 3.2, GitHub issue #11): sol kenar çubuğu (masaüstü)
 // + alt navigasyon (mobil) + üst bar (klinik seçici, komut paleti, kullanıcı
