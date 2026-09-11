@@ -855,6 +855,14 @@ export async function acceptReviewerInvitation(
         'Bu daveti yalnızca davet edilen e-posta hesabı kabul edebilir.',
       )
 
+    // Possession of the single-use invitation token proves control of the
+    // invited mailbox. Keep this update in the same transaction as token
+    // consumption so a failed acceptance cannot partially verify an account.
+    await tx
+      .update(users)
+      .set({ emailVerified: true, updatedAt: now })
+      .where(eq(users.id, input.userId))
+
     const [existingProfile] = await tx
       .select({ verificationStatus: clinicalReviewerProfiles.verificationStatus })
       .from(clinicalReviewerProfiles)

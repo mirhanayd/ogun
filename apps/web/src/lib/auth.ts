@@ -58,6 +58,10 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     maxPasswordLength: 128,
+    // Better Auth returns the same successful envelope for new and existing
+    // addresses when auto sign-in is disabled. The browser therefore cannot
+    // use registration as an account-enumeration oracle.
+    autoSignIn: false,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       await sendOgunPasswordResetEmail({ email: user.email, resetUrl: url })
@@ -131,6 +135,14 @@ export const auth = betterAuth({
       '/reset-password': { window: 300, max: 5 },
       '/send-verification-email': { window: 300, max: 3 },
       '/one-time-token/verify': { window: 60, max: 10 },
+    },
+  },
+  advanced: {
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
     },
   },
   // GitHub issue #52 / Prompt 9.2, GÖREV 1 ve GÖREV 3 — masaüstü (Tauri)

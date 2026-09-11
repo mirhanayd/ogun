@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight, LockKeyhole, Mail, ShieldCheck, UserRound } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -15,8 +14,8 @@ import { authClient } from '@/lib/auth-client'
 import { registerSchema, type RegisterFormValues } from '@/lib/validation/auth-schemas'
 
 export default function KayitPage() {
-  const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
+  const [registrationSubmitted, setRegistrationSubmitted] = useState(false)
   const {
     register,
     handleSubmit,
@@ -31,15 +30,26 @@ export default function KayitPage() {
       password: values.password,
     })
     if (error) {
-      setFormError(
-        error.status === 422
-          ? 'Bu e-posta adresi zaten kayıtlı.'
-          : (error.message ?? 'Kayıt oluşturulamadı, lütfen tekrar deneyin.'),
-      )
+      setFormError('İstek tamamlanamadı. Lütfen biraz sonra tekrar deneyin.')
       return
     }
-    router.push('/plan-sec')
-    router.refresh()
+    setRegistrationSubmitted(true)
+  }
+
+  if (registrationSubmitted) {
+    return (
+      <AuthCard
+        eyebrow="E-posta doğrulama"
+        title="Gelen kutunuzu kontrol edin."
+        description="Adres bir hesap için uygunsa doğrulama bağlantısını birkaç dakika içinde gönderdik. Bağlantıyı açtıktan sonra güvenle devam edebilirsiniz."
+        footer={<Link href="/giris" className="font-semibold text-primary underline-offset-4 hover:underline">Giriş sayfasına dön</Link>}
+      >
+        <div className="flex gap-3 rounded-xl border border-border bg-muted/45 p-4 text-sm leading-6 text-muted-foreground" role="status">
+          <Mail aria-hidden="true" className="mt-1 size-5 shrink-0 text-primary" />
+          Güvenlik nedeniyle bu adresin sistemde kayıtlı olup olmadığını göstermiyoruz.
+        </div>
+      </AuthCard>
+    )
   }
 
   return (

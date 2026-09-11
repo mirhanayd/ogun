@@ -109,7 +109,11 @@ export function scrubSentryEvent<T extends MinimalSentryEvent>(event: T): T {
   if (scrubbed.request) {
     scrubbed.request = {
       ...scrubbed.request,
-      url: scrubbed.request.url ? scrubPiiFromText(scrubbed.request.url) : scrubbed.request.url,
+      // Query strings and fragments are never required for error grouping and
+      // may contain search terms, invite tokens or clinical data.
+      url: scrubbed.request.url
+        ? scrubPiiFromText(scrubbed.request.url).split(/[?#]/, 1)[0]
+        : scrubbed.request.url,
       headers: scrubHeaders(scrubbed.request.headers),
       cookies: undefined, // cookie DEĞERLERİ hiçbir koşulda tutulmaz.
       data:

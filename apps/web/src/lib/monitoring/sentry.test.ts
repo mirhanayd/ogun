@@ -108,8 +108,15 @@ describe('scrubSentryEvent', () => {
       request: { url: `https://app.ogun.co/davet/${token}?source=email` },
     })
 
-    expect(scrubbed.request?.url).toBe('https://app.ogun.co/davet/[REDACTED]?source=email')
+    expect(scrubbed.request?.url).toBe('https://app.ogun.co/davet/[REDACTED]')
     expect(scrubbed.request?.url).not.toContain(token)
+  })
+
+  it('drops arbitrary query strings that could contain clinical search text', () => {
+    const scrubbed = scrubSentryEvent({
+      request: { url: 'https://app.ogun.co/api/search?q=insulin+allergy#result' },
+    })
+    expect(scrubbed.request?.url).toBe('https://app.ogun.co/api/search')
   })
 })
 

@@ -47,6 +47,15 @@ export function InvitationActivationForm({
           )
           return
         }
+        // Public registration intentionally does not auto-sign-in because its
+        // duplicate response must be indistinguishable. This invite is an
+        // email-possession proof, so establish the just-created session before
+        // the server atomically consumes the invite and verifies the address.
+        const signInResult = await authClient.signIn.email({ email, password })
+        if (signInResult.error) {
+          setError('Hesap oluşturuldu ancak oturum açılamadı. Giriş yaparak devam edin.')
+          return
+        }
       }
       const accepted = await acceptClinicalReviewerInvitationAction(token)
       if (!accepted.success) {

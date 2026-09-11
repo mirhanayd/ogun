@@ -12,29 +12,26 @@ import { scrubPiiFromText, scrubValue } from './pii-scrub'
 // argümanları, pino'ya ulaşmadan önce scrubValue/scrubPiiFromText'ten
 // geçiriliyor. Bu, "biri unutup client objesini loglarsa ne olur" sorusuna
 // karşı asıl güvenlik ağı.
-function scrubLogArgs(args: unknown[]): unknown[] {
-  if (args.length === 0) return args
-  const [first, ...rest] = args
-
-  // pino çağrı imzası iki şekilde gelir: logger.info(mergeObject, msg?) veya
-  // logger.info(msg, ...interpolationArgs). Error örnekleri (ör.
-  // logger.error(err, 'mesaj')) BİLEREK dokunulmadan bırakılıyor — stack
-  // trace/hata mesajı kırpılırsa hata ayıklama imkânsızlaşır VE Error
-  // nesneleri zaten danışan verisi taşıyan bir "mergeObject" ŞEKLİNDE
-  // değildir (bkz. aşağıdaki `instanceof Error` istisnası).
-  if (first instanceof Error) {
-    return args
+function scrubLogArgument(value: unknown): unknown {
+  if (value instanceof Error) {
+    return {
+      err: {
+        type: value.name,
+        message: scrubPiiFromText(value.message),
+        stack: value.stack ? scrubPiiFromText(value.stack) : undefined,
+      },
+    }
   }
+  if (value !== null && typeof value === 'object') return scrubValue(value, undefined)
+  if (typeof value === 'string') return scrubPiiFromText(value)
+  return value
+}
 
-  if (first !== null && typeof first === 'object') {
-    return [scrubValue(first, undefined), ...rest]
-  }
-
-  if (typeof first === 'string') {
-    return [scrubPiiFromText(first), ...rest]
-  }
-
-  return args
+export function scrubLogArgs(args: unknown[]): unknown[] {
+  // Scrub every argument, including interpolation values and Error messages.
+  // Database/provider errors can include submitted values, so preserving raw
+  // Error objects would bypass the recursive PII boundary.
+  return args.map(scrubLogArgument)
 }
 
 export const logger = pino({

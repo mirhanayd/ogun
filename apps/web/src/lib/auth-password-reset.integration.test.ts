@@ -59,4 +59,54 @@ describeWithDatabase('Better Auth password reset flow (real database)', () => {
       await context.internalAdapter.deleteUser(user.id)
     }
   })
+
+  it('returns a generic successful registration envelope for existing addresses', async () => {
+    const privacyAuth = betterAuth({
+      database: drizzleAdapter(db, { provider: 'pg', usePlural: true, schema }),
+      secret: 'phase-eight-enumeration-resistance-secret',
+      baseURL: 'http://localhost:3000',
+      trustedOrigins: ['http://localhost:3000'],
+      emailAndPassword: { enabled: true, autoSignIn: false },
+      emailVerification: {
+        sendOnSignUp: true,
+        sendVerificationEmail: async () => undefined,
+      },
+    })
+    const context = await privacyAuth.$context
+    const suffix = randomUUID()
+    const existingEmail = `existing-${suffix}@ogun.test`
+    const newEmail = `new-${suffix}@ogun.test`
+    const existingUser = await context.internalAdapter.createUser({
+      email: existingEmail,
+      name: 'Existing User',
+      emailVerified: false,
+    })
+    let newUserId: string | undefined
+
+    try {
+      const headers = new Headers({ origin: 'http://localhost:3000' })
+      const existingResult = await privacyAuth.api.signUpEmail({
+        body: { email: existingEmail, name: 'Submitted Name', password: 'Strong-pass-2026!' },
+        headers,
+      })
+      const newResult = await privacyAuth.api.signUpEmail({
+        body: { email: newEmail, name: 'Submitted Name', password: 'Strong-pass-2026!' },
+        headers,
+      })
+      newUserId = newResult.user.id
+
+      expect(existingResult.token).toBeNull()
+      expect(newResult.token).toBeNull()
+      expect(Object.keys(existingResult).sort()).toEqual(Object.keys(newResult).sort())
+      expect(Object.keys(existingResult.user).sort()).toEqual(Object.keys(newResult.user).sort())
+      expect(existingResult.user.email).toBe(existingEmail)
+      expect(newResult.user.email).toBe(newEmail)
+    } finally {
+      if (newUserId) {
+        await context.internalAdapter.deleteAccounts(newUserId)
+        await context.internalAdapter.deleteUser(newUserId)
+      }
+      await context.internalAdapter.deleteUser(existingUser.id)
+    }
+  })
 })

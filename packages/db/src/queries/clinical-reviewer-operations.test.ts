@@ -204,6 +204,14 @@ describeWithDb('clinical reviewer operations integration', () => {
     expect(
       (
         await db
+          .select({ emailVerified: users.emailVerified })
+          .from(users)
+          .where(eq(users.id, f.reviewerUserId))
+      )[0]?.emailVerified,
+    ).toBe(true)
+    expect(
+      (
+        await db
           .select()
           .from(clinicalReviewerProfiles)
           .where(eq(clinicalReviewerProfiles.userId, f.reviewerUserId))
