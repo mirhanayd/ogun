@@ -1,6 +1,7 @@
 import { db } from '../client'
 import { platformStaffRoleEnum, type PlatformStaffRole } from '../schema'
 import { grantPlatformStaff, revokePlatformStaff } from '../queries/platform-admin'
+import { assertDatabaseWriteTarget } from '../database-target'
 
 function valueAfter(name: string) {
   const index = process.argv.indexOf(name)
@@ -8,6 +9,7 @@ function valueAfter(name: string) {
 }
 
 async function main() {
+  assertDatabaseWriteTarget({ operation: 'admin', databaseUrl: process.env.DATABASE_URL })
   const command = process.argv[2]
   const email = valueAfter('--email')
   if (!email) throw new Error('--email zorunludur.')
@@ -15,7 +17,9 @@ async function main() {
   if (command === 'grant') {
     const role = valueAfter('--role')
     if (!role || !platformStaffRoleEnum.enumValues.includes(role as PlatformStaffRole)) {
-      throw new Error(`--role şu değerlerden biri olmalıdır: ${platformStaffRoleEnum.enumValues.join(', ')}`)
+      throw new Error(
+        `--role şu değerlerden biri olmalıdır: ${platformStaffRoleEnum.enumValues.join(', ')}`,
+      )
     }
     const result = await grantPlatformStaff(db, { email, role: role as PlatformStaffRole })
     console.info(`Platform erişimi verildi: ${result.user.email} (${result.staff.role})`)

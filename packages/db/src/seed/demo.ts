@@ -22,6 +22,7 @@ import {
   type ClientAllergenEntry,
 } from '../schema'
 import { SAMPLE_PLAN_MEAL_TEMPLATES } from './sample-plan-template'
+import { assertDatabaseWriteTarget } from '../database-target'
 
 // GitHub issue #45 / Prompt 8.1, GÖREV 4 — "pnpm db:seed:demo → 1 klinik,
 // 2 diyetisyen, 25 gerçekçi danışan, ölçüm geçmişleri, 10 plan, randevular.
@@ -60,19 +61,74 @@ interface NamePair {
 // isimler DEĞİL (ör. "Ali Veli" gibi placeholder'lar YOK), satış demosunda
 // bir diyetisyenin gerçek danışan listesine benzemesi hedeflendi.
 const FEMALE_FIRST_NAMES = [
-  'Ayşe', 'Fatma', 'Emine', 'Zeynep', 'Elif', 'Hatice', 'Meryem', 'Şerife',
-  'Büşra', 'Merve', 'Selin', 'Gizem', 'Ebru', 'Dilek', 'Aslı', 'Pınar',
-  'Nur', 'Cansu', 'İrem', 'Sena',
+  'Ayşe',
+  'Fatma',
+  'Emine',
+  'Zeynep',
+  'Elif',
+  'Hatice',
+  'Meryem',
+  'Şerife',
+  'Büşra',
+  'Merve',
+  'Selin',
+  'Gizem',
+  'Ebru',
+  'Dilek',
+  'Aslı',
+  'Pınar',
+  'Nur',
+  'Cansu',
+  'İrem',
+  'Sena',
 ]
 const MALE_FIRST_NAMES = [
-  'Mehmet', 'Mustafa', 'Ahmet', 'Ali', 'Hüseyin', 'Hasan', 'İbrahim', 'Osman',
-  'Yusuf', 'Murat', 'Emre', 'Burak', 'Kerem', 'Onur', 'Serkan', 'Tolga',
-  'Volkan', 'Caner', 'Barış', 'Kaan',
+  'Mehmet',
+  'Mustafa',
+  'Ahmet',
+  'Ali',
+  'Hüseyin',
+  'Hasan',
+  'İbrahim',
+  'Osman',
+  'Yusuf',
+  'Murat',
+  'Emre',
+  'Burak',
+  'Kerem',
+  'Onur',
+  'Serkan',
+  'Tolga',
+  'Volkan',
+  'Caner',
+  'Barış',
+  'Kaan',
 ]
 const LAST_NAMES = [
-  'Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Yıldız', 'Yıldırım', 'Öztürk',
-  'Aydın', 'Özdemir', 'Arslan', 'Doğan', 'Kılıç', 'Aslan', 'Çetin', 'Kara',
-  'Koç', 'Kurt', 'Özkan', 'Şimşek', 'Aksoy', 'Erdoğan', 'Güneş', 'Polat',
+  'Yılmaz',
+  'Kaya',
+  'Demir',
+  'Çelik',
+  'Şahin',
+  'Yıldız',
+  'Yıldırım',
+  'Öztürk',
+  'Aydın',
+  'Özdemir',
+  'Arslan',
+  'Doğan',
+  'Kılıç',
+  'Aslan',
+  'Çetin',
+  'Kara',
+  'Koç',
+  'Kurt',
+  'Özkan',
+  'Şimşek',
+  'Aksoy',
+  'Erdoğan',
+  'Güneş',
+  'Polat',
   'Bulut',
 ]
 
@@ -133,14 +189,39 @@ function daysFromNow(days: number): Date {
 }
 
 const OCCUPATIONS = [
-  'Öğretmen', 'Mühendis', 'Hemşire', 'Avukat', 'Muhasebeci', 'Grafik Tasarımcı',
-  'Yazılım Geliştirici', 'Emlak Danışmanı', 'Serbest Meslek', 'Ev Hanımı',
-  'Öğrenci', 'Eczacı', 'Bankacı', 'Satış Temsilcisi', 'Fizyoterapist',
+  'Öğretmen',
+  'Mühendis',
+  'Hemşire',
+  'Avukat',
+  'Muhasebeci',
+  'Grafik Tasarımcı',
+  'Yazılım Geliştirici',
+  'Emlak Danışmanı',
+  'Serbest Meslek',
+  'Ev Hanımı',
+  'Öğrenci',
+  'Eczacı',
+  'Bankacı',
+  'Satış Temsilcisi',
+  'Fizyoterapist',
 ]
-const REFERRAL_SOURCES = ['Instagram', 'Tavsiye/referans', 'Google araması', 'Eski danışan tavsiyesi', 'Web sitesi']
+const REFERRAL_SOURCES = [
+  'Instagram',
+  'Tavsiye/referans',
+  'Google araması',
+  'Eski danışan tavsiyesi',
+  'Web sitesi',
+]
 const CONDITIONS_POOL = [
-  ['Tip 2 diyabet'], ['Hipotiroidi'], ['Hipertansiyon'], ['PKOS'], ['Reflü'],
-  ['Yüksek kolesterol'], ['İnsülin direnci'], ['Çölyak hastalığı'], [],
+  ['Tip 2 diyabet'],
+  ['Hipotiroidi'],
+  ['Hipertansiyon'],
+  ['PKOS'],
+  ['Reflü'],
+  ['Yüksek kolesterol'],
+  ['İnsülin direnci'],
+  ['Çölyak hastalığı'],
+  [],
 ]
 const ALLERGY_POOL: Array<{ label: string; severity: ClientAllergenEntry['severity'] }> = [
   { label: 'yer fıstığı', severity: 'şiddetli' },
@@ -163,19 +244,11 @@ function normalize(text: string): string {
 
 // bkz. ../client.ts'teki aynı not — düz `tsx` ile çalışan bu script kök
 // .env'i kendiliğinden görmez.
-try {
-  process.loadEnvFile(new URL('../../../../.env', import.meta.url))
-} catch {
-  // kök .env yoksa sorun değil — DATABASE_URL zaten set olabilir.
-}
-
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is not set')
-  }
+  assertDatabaseWriteTarget({ operation: 'demo-seed', databaseUrl })
 
-  const client = postgres(databaseUrl)
+  const client = postgres(databaseUrl!)
   const db = drizzle(client)
 
   console.log('--- Demo verisi oluşturuluyor (GitHub issue #45 / Prompt 8.1, GÖREV 4) ---')
@@ -188,7 +261,11 @@ async function main() {
 
   const dietitianDefs = [
     { email: 'elif.kaya@yesiladimdiyet.com', name: 'Dyt. Elif Kaya', role: 'owner' as const },
-    { email: 'burak.demir@yesiladimdiyet.com', name: 'Dyt. Burak Demir', role: 'dietitian' as const },
+    {
+      email: 'burak.demir@yesiladimdiyet.com',
+      name: 'Dyt. Burak Demir',
+      role: 'dietitian' as const,
+    },
   ]
 
   const dietitianIds: string[] = []
@@ -317,7 +394,13 @@ async function main() {
             },
           ]
         : []
-      const activityLevels: ActivityLevelValue[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
+      const activityLevels: ActivityLevelValue[] = [
+        'sedentary',
+        'light',
+        'moderate',
+        'active',
+        'very_active',
+      ]
       await db.insert(clientHealth).values({
         clientId: row.id,
         conditions,
@@ -377,7 +460,18 @@ async function main() {
   // özelliği AYNI menüyü kullanıyor, burada TEKRARLANMIYOR.
   const MEAL_TEMPLATES = SAMPLE_PLAN_MEAL_TEMPLATES
 
-  const PLAN_STATUSES: Array<'taslak' | 'aktif' | 'arşiv'> = ['aktif', 'aktif', 'aktif', 'aktif', 'aktif', 'aktif', 'taslak', 'taslak', 'arşiv', 'aktif']
+  const PLAN_STATUSES: Array<'taslak' | 'aktif' | 'arşiv'> = [
+    'aktif',
+    'aktif',
+    'aktif',
+    'aktif',
+    'aktif',
+    'aktif',
+    'taslak',
+    'taslak',
+    'arşiv',
+    'aktif',
+  ]
 
   for (let p = 0; p < 10; p++) {
     const targetClient = clientIds[p % clientIds.length]!

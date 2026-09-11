@@ -12,12 +12,15 @@
     "./clinical-reviewer-invitation": "./src/clinical-reviewer-invitation.ts",
     "./measurement-device-import": "./src/domain/measurement-device-import.ts",
     "./operations": "./src/operational-policy.ts",
-    "./queries": "./src/queries/index.ts"
+    "./queries": "./src/queries/index.ts",
+    "./database-target": "./src/database-target.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:migrate": "tsx src/scripts/migrate.ts",
+    "db:migrate:check": "tsx src/scripts/migrate.ts --check",
+    "db:verify:phase7-incident": "tsx src/scripts/verify-phase7-incident.ts",
+    "db:push": "tsx src/scripts/push.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/seed/index.ts",
     "db:seed:demo": "tsx src/seed/demo.ts",

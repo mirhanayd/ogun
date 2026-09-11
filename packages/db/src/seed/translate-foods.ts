@@ -1,12 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import postgres from 'postgres'
 import { normalizeSearchText } from '../lib/normalize'
-
-try {
-  process.loadEnvFile(new URL('../../../../.env', import.meta.url))
-} catch {
-  // Üretimde DATABASE_URL ortam tarafından enjekte edilebilir.
-}
+import { assertDatabaseWriteTarget } from '../database-target'
 
 const BATCH_SIZE = Number(process.env.TRANSLATION_BATCH_SIZE ?? 250)
 const CONCURRENCY = Number(process.env.TRANSLATION_CONCURRENCY ?? 8)
@@ -237,9 +232,9 @@ async function writeReviewFile(items: ReviewItem[]) {
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) throw new Error('DATABASE_URL is not set')
+  assertDatabaseWriteTarget({ operation: 'etl', databaseUrl })
 
-  const directUrl = new URL(databaseUrl)
+  const directUrl = new URL(databaseUrl!)
   directUrl.hostname = directUrl.hostname.replace('-pooler', '')
   const sql = postgres(directUrl.toString(), { max: 1, ssl: 'require' })
   const startedAt = Date.now()

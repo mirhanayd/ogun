@@ -4,22 +4,13 @@ import { dataSources, exchangeGroups, nutrients } from '../schema'
 import { dataSourcesSeed } from './data-sources'
 import { exchangeGroupsSeed } from './exchange-groups'
 import { nutrientsSeed } from './nutrients'
-
-// bkz. ../client.ts'teki aynı not — düz `tsx` ile çalışan bu script kök
-// .env'i kendiliğinden görmez.
-try {
-  process.loadEnvFile(new URL('../../../../.env', import.meta.url))
-} catch {
-  // kök .env yoksa sorun değil — DATABASE_URL zaten set olabilir.
-}
+import { assertDatabaseWriteTarget } from '../database-target'
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is not set')
-  }
+  assertDatabaseWriteTarget({ operation: 'seed', databaseUrl })
 
-  const client = postgres(databaseUrl)
+  const client = postgres(databaseUrl!)
   const db = drizzle(client)
 
   const insertedNutrients = await db
