@@ -213,3 +213,139 @@ PRODUCTION ENV FAIL
 REMOTE WRITE BLOCKED
 PRODUCTION RELEASE BLOCKED
 ```
+
+---
+
+# Faz 8.2 — Production infrastructure ve go-live sonucu
+
+Tarih: 2026-09-13
+
+İncelenen application candidate: `0e1d27f68c9ec4133824b4243e907779c7ee719c`
+
+Final karar: **PRODUCTION RELEASE: BLOCKED**
+
+Bu faz fail-closed tamamlandı. Vercel ve GitHub CLI erişimi doğrulandı; Neon CLI/API oturumu ve bağlı browser control-plane oturumu yoktu. En önemlisi, kullanıcı/operatör aşağıdaki eşleştirmeyi açıkça doğrulamadı:
+
+```text
+Project proud-forest-22005498
+Branch br-twilight-brook-b1vhy4yi
+Fingerprint 2444-D8A3
+= OGUN PRODUCTION DATABASE
+```
+
+Bu nedenle hiçbir remote migration, seed, ETL, fixture, branch oluşturma, env mutation, deploy veya provider/cron çağrısı yapılmadı.
+
+## Production database
+
+- Neon project: `proud-forest-22005498`
+- Branch candidate: `br-twilight-brook-b1vhy4yi`
+- Safe fingerprint: `2444-D8A3`
+- Classification evidence: stabil ID/fingerprint var; güvenilir production metadata veya operator confirmation yok.
+- Son güvenilen read-only migration kanıtı: `0037_cool_madripoor`; repo latest: `0040_shallow_mephistopheles`.
+
+## Preview database
+
+- Branch: **NOT CREATED**
+- Production’dan izole: **NO / UNKNOWN**
+- Sebep: Production mapping doğrulanmadı ve authenticated Neon control plane yok.
+- Politika: oluşturulduğunda yalnızca synthetic/fixture data kullanılmalı; production sağlık/danışan verisi kolaylık amacıyla kopyalanmamalı.
+
+## Vercel projects
+
+- `ogun-web`: mevcut; project ID `prj_1P3rBmbSU94wI0E3DVbIxeRWGk4i`, root `apps/web`, Next.js, mevcut alias `https://ogun-web.vercel.app`.
+- `ogun-admin`: **NOT CREATED / NOT CONFIGURED**.
+- Production ve Preview tek encrypted `DATABASE_URL` kaydının ortak scope’unu kullanıyor; değer açığa çıkarılmadığı için hedef eşitliği de ayrışma da doğrulanamıyor.
+- Admin domain stratejisi tahmin edilmedi.
+
+## Environment validation
+
+- Web Production: **FAIL**. Eksik: `APP_ENV`, `ADMIN_BETTER_AUTH_SECRET`, `ADMIN_BETTER_AUTH_URL`, `OGUN_WEB_URL`, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `OPERATIONAL_JOBS_ENABLED`, `PAYMENTS_MODE`, `IYZICO_BASE_URL`, `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`; monitoring için `SENTRY_DSN` / `SENTRY_ENVIRONMENT` yok. DB, web auth, mail, S3 ve Google OAuth kayıtları encrypted/configured ancak gerçek değer ve hedef validasyonu yapılamadı.
+- Web Preview: **FAIL**. Ayrı DB yok; production provider kayıtları ortak scope’ta; jobs-disabled intent doğrulanmadı.
+- Admin Production: **FAIL**. Proje ve env mapping yok.
+- Admin Preview: **FAIL**. Proje ve izole mapping yok.
+
+Hiçbir secret değeri okunabilir çıktıya veya rapora yazılmadı.
+
+## Backup/PITR
+
+**NOT RUN**. Production classification ve Neon authentication olmadığından restore capability doğrulanmadı, checkpoint oluşturulmadı ve ID/timestamp iddia edilmedi.
+
+## Migration
+
+```text
+Before: 0037_cool_madripoor (son güvenilen Phase 8.1 kanıtı)
+After:  0037_cool_madripoor (remote write yok; Faz 8.2'de yeniden okunmadı)
+Pending: 0038, 0039, 0040
+```
+
+`0038` bounded/idempotent historical provider namespace backfill’idir; destructive DDL/full rewrite yok, normal DML/row lock ve WAL riski vardır. `0039` web/admin auth limiter tablolarını, `0040` custom abuse limiter tablosunu additive olarak oluşturur; existing-table rewrite yoktur. Eski app 0038/0039/0040 ile uyumludur. Yeni app yalnızca DB 0040 ile uyumludur; 0037–0039 kombinasyonlarında gerekli limiter tablolarından en az biri eksiktir.
+
+Guarded final preflight **NOT RUN**: operator confirmation, production env ve checkpoint gate’leri geçmeden remote-write opt-in vermek yasaktır. Raw Drizzle migration, raw SQL ve `db:push` kullanılmadı.
+
+## Deployment
+
+- Web candidate SHA: `0e1d27f68c9ec4133824b4243e907779c7ee719c`; **NOT DEPLOYED**.
+- Admin candidate SHA: aynı; **NOT DEPLOYED**.
+- Mevcut web production deployment: `dpl_66iNKkJt9iinWVQK8DnZTZjexKW6`, eski artifact.
+- Admin production URL: **NOT ASSIGNED**.
+
+## Health
+
+Mevcut eski web deployment’ının read-only sonucu: `/api/health/live` 404, `/api/health/ready` 404, `/giris` 200 ve `/sifremi-unuttum` 200. Kabul şartı olan health 200/200 sağlanmıyor. Admin health/MFA/dashboard smoke çalıştırılmadı çünkü admin deployment yok.
+
+## Security production smoke
+
+Disposable local production-mode security E2E 4/4 geçti. Mevcut production response’ta HSTS var; ancak CSP, `nosniff`, frame protection, referrer policy, `X-Robots-Tag` ve gereken private/no-store policy yok. Gerçek production security smoke sonucu **FAIL**.
+
+## Cron
+
+Production cron **NOT CONFIGURED / NOT VERIFIED**. `CRON_SECRET` ve `OPERATIONAL_JOBS_ENABLED` Vercel kayıt listesinde yok. Preview cron isolation ve safe reconciliation run doğrulanmadı; hiçbir side effect tetiklenmedi.
+
+## Operational findings
+
+- Release blocker: production DB classification/operator confirmation, Preview separation, production env, admin project/domain, PITR checkpoint, migrations, deployments ve production smoke.
+- pnpm audit: 0 Critical / 0 High / 6 kabul edilmiş Moderate.
+- Cargo audit: 643 dependency, 0 vulnerability, 9 önceden kabul edilmiş warning.
+- Sentry/monitoring ve database drift production’da doğrulanamadı.
+
+## Tests
+
+Yeni loopback-only disposable PostgreSQL 16 üzerinde zorunlu `pnpm release:check` baştan sona PASS verdi:
+
+- production env validator schema: PASS
+- typecheck: 10/10; lint: 3/3
+- standard gate: 1.019 passed / 2 intentional skip / 0 failed
+- DB 147/147; web 460 + 1 skip; admin 26/26; ETL 198/198; email 6/6; nutrition 142/142; subscription 4/4; PDF 10/10; desktop Node 15/15
+- canonical Playwright: 11 passed / 1 packaged-native skip
+- web production build: PASS, 62 page; admin production build: PASS
+- security E2E: 4/4
+- Cargo check PASS; Cargo test 75/75; Cargo audit 0 vulnerability
+- immutable Gitleaks v8.30.1 full history: 403 commit, yaklaşık 19.38 MB, no leaks found
+
+Canonical migration `0000 → 0040`, main/demo seed, clinical/RxNorm/Ogun ETL ve E2E fixture’ları yalnızca disposable hedefe uygulandı. Exact `ogun-phase82-gate-20260913` container’ı ve anonymous volume’u doğrulama sonunda kaldırıldı.
+
+## Git ve commit listesi
+
+Başlangıçta working tree temizdi ve `HEAD == origin/master == 0e1d27f68c9ec4133824b4243e907779c7ee719c` idi.
+
+Faz 8.2 commit’leri:
+
+1. `a43bb91` — docs(release): record blocked infrastructure provisioning
+2. `docs(ops): append phase eight-two walkthrough` — bu kapanış bölümünü içeren commit; kesin hash teslim mesajında ve `git log -1` çıktısında yer alır.
+
+Normal fast-forward push kullanılacak; force push yoktur.
+
+Detaylı kanıt, compatibility matrix ve exact manual action listesi `docs/releases/2026-09-production-go-live.md` içindedir.
+
+## FINAL
+
+```text
+CODE READY
+SECURITY READY
+LOCAL RELEASE GATE PASS
+REMOTE DB CLASSIFICATION UNKNOWN
+PREVIEW DATABASE NOT CREATED
+PRODUCTION ENV FAIL
+REMOTE WRITE BLOCKED
+PRODUCTION RELEASE: BLOCKED
+```
