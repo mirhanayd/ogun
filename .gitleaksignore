@@ -1,0 +1,4 @@
+# Reviewed false positives: security documentation uses the phrase "invitation
+# token" and the example environment contains only empty/boolean placeholders.
+5778738ead427168b342454ca73d03103bfe8b47:docs/security-surface.md:generic-api-key:27
+22ad6fd6d5954f4407f2c2cd568a411a05d603a1:.env.example:generic-api-key:92
