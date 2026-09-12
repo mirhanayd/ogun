@@ -39,7 +39,7 @@ Final local verification:
 - Phase 8 production security E2E: 4/4 passed.
 - Rust: `cargo check` PASS; `cargo test` 75/75; `cargo audit` 0 vulnerabilities with 9 documented maintenance/unsound warnings limited to the reviewed transitive tree.
 - JavaScript dependency audit: both full and production trees have 0 Critical, 0 High, 6 accepted Moderate and 0 Low findings.
-- Gitleaks v8.30.1: 393 commits and approximately 19.10 MB scanned; no leaks found.
+- Gitleaks v8.30.1: 396 commits and approximately 19.14 MB scanned; no leaks found.
 - Disposable migration compatibility: repository and target both `0040_shallow_mephistopheles`; PASS.
 
 ## Disposable PostgreSQL validation

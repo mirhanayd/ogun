@@ -62,4 +62,3 @@ The Tauri shell owns the `ogun` scheme, updater, tray/window operations, notific
 - Browser and desktop shared the 400-day web session. Clean per-transport lifetime separation is not supported by the installed Better Auth lifecycle without a larger auth rewrite; this remains an explicitly accepted medium risk with device revocation and daily sliding renewal as compensating controls.
 - Direct-to-S3 confirmation trusted browser MIME metadata. Phase 8 verifies the uploaded object metadata and magic bytes before creating the document record.
 - Tauri default filesystem/opener grants were broader than the commands used; Phase 8 narrows them and adds static regression checks.
-
