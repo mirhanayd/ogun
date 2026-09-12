@@ -21,6 +21,8 @@ pnpm --filter @ogun/db db:seed
 
 `db:migrate:check` yalnız target ve policy kontrolü yapar; bağlantı açmaz. Local test, seed ve ETL komutları açık local `DATABASE_URL` ile çalıştırılmalıdır.
 
+Temiz PostgreSQL kurulumu için `0000` migration'ından önce `pg_trgm` extension'ı yetkili operatör tarafından etkinleştirilmelidir; ilk migration'daki trigram GIN index'i `gin_trgm_ops` kullanır. Bu extension kontrolü production preflight ve backup/change record içinde açıkça kaydedilir.
+
 ## Remote migration/ETL
 
 Remote yazma için aşağıdaki koşulların tamamı gerekir:
