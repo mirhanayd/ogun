@@ -38,6 +38,7 @@ export default defineConfig({
     'clinical-reviewer-flow.spec.ts',
     'food-catalog-flow.spec.ts',
     'operations-system.spec.ts',
+    'security-release.spec.ts',
     'subscription-flow.spec.ts',
   ],
   fullyParallel: false, // Testler AYNI DB üzerinde paylaşılan fixture verisi kullanıyor.
@@ -71,6 +72,7 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 120_000,
     env: {
+      BETTER_AUTH_SECRET: 'phase8-local-e2e-auth-secret-32-characters',
       NEXT_PUBLIC_BETTER_AUTH_URL: BASE_URL,
       BETTER_AUTH_URL: BASE_URL,
       // E2E gerçek e-posta sağlayıcısına çıkmaz. Outbox failure/retry
