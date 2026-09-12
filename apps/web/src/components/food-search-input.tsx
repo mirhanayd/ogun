@@ -365,6 +365,13 @@ export function FoodSearchInput({
           disabled={indexStatus === 'loading' || indexStatus === 'error'}
           autoFocus={autoFocus}
           onChange={(event) => {
+            // Invalidate both the rendered rows and any in-flight lookup before
+            // the effect for the new value starts. Otherwise a fast Enter can
+            // commit a result that belongs to the previous query.
+            requestIdRef.current += 1
+            setRows([])
+            setElapsedMs(null)
+            setHighlightedIndex(0)
             setRawValue(event.target.value)
             setOpen(true)
           }}

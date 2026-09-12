@@ -87,10 +87,11 @@ test.describe('Klavye gezinmesi', () => {
     // --- İlk öğüne iki kalem ekle -------------------------------------------
     const foodSearchInput = page.locator('input[placeholder*="için besin ara"]').first()
     await expect(foodSearchInput).toBeEnabled({ timeout: 150_000 })
+    const foodSearchResult = foodSearchInput.locator('xpath=../..').locator('ul li button').first()
     for (const query of ['a', 'e']) {
       await foodSearchInput.click()
       await foodSearchInput.fill(query)
-      await expect(page.locator('ul li button').first()).toBeVisible({ timeout: 15_000 })
+      await expect(foodSearchResult).toBeVisible({ timeout: 15_000 })
       await foodSearchInput.press('ArrowDown')
       await foodSearchInput.press('Enter')
       await expect(foodSearchInput).toHaveValue('')
