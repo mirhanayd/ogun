@@ -178,3 +178,38 @@ OVERALL RELEASE       BLOCKED
 ```
 
 Kod ve Faz 8 kabul kriterleri tamamlandı. Pilot/production deployment yalnız remote DB blocker yetkili operasyonla kapatıldıktan ve gerçek production environment kontrolü PASS verdikten sonra açılabilir.
+
+---
+
+# Faz 8.1 — Production cutover sonucu
+
+Tarih: 2026-09-12
+
+İncelenen application candidate: `5cf4aa9c9ea7600e5916912c5fb1fc725428a345`
+
+Final karar: **PRODUCTION RELEASE: BLOCKED**
+
+Zorunlu `pnpm release:check` yeni loopback-only disposable PostgreSQL hedefinde PASS verdi: 1.019 test başarılı, 2 kontrollü skip, typecheck/lint/audit ve iki production build başarılı. Phase 8 security E2E 4/4, Cargo 75/75 ve RustSec 0 vulnerability sonucunu korudu. Disposable hedef doğrulama sonunda volume'u ile kaldırıldı.
+
+Remote DB yalnız read-only incelendi: fingerprint `2444-D8A3`, Neon project `proud-forest-22005498`, branch `br-twilight-brook-b1vhy4yi`, PostgreSQL `18.6`, migration `0037_cool_madripoor`. Repo `0040` olduğu için `0038`, `0039` ve `0040` hâlâ pending. Guarded migration preflight, classification ve explicit confirmation olmadığı için beklendiği gibi yazmayı reddetti.
+
+Environment classification **UNKNOWN** kaldı. Vercel'de web production projesi var ancak DB değerinin hedefle eşleşmesi doğrulanamadı; Preview ve Production aynı encrypted variable scope'unu paylaşıyor. Admin production projesi/mapping'i yok. Canonical production env validator FAIL verdi. Backup/PITR checkpoint doğrulanamadı.
+
+Mevcut eski web deployment'ında `/` ve `/giris` 200, fakat `/api/health/live` ve `/api/health/ready` 404; Faz 8 CSP/noindex/no-store policy'si de mevcut değil. Candidate deploy edilmedi, cron/provider çağrısı yapılmadı. Remote migration, seed, ETL, fixture, cleanup veya test write yapılmadı.
+
+Ayrıntılı karar tablosu, migration risk analizi, safe metadata, environment matrisi ve kesin blocker listesi `docs/releases/2026-09-production-cutover.md` içindedir.
+
+## Faz 8.1 commits
+
+1. `4299834` — docs(release): record blocked production cutover
+2. `docs(ops): append phase eight-one walkthrough` — bu bölümü içeren kapanış commit'i; kesin hash teslim mesajında ve `git log -1` çıktısında bulunur.
+
+```text
+CODE READY
+SECURITY READY
+TESTS PASS
+REMOTE DB CLASSIFICATION UNKNOWN
+PRODUCTION ENV FAIL
+REMOTE WRITE BLOCKED
+PRODUCTION RELEASE BLOCKED
+```
