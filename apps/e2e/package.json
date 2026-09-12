@@ -19,6 +19,7 @@
     "test:food-catalog": "playwright test --config playwright.food-catalog.config.ts",
     "test:subscription": "playwright test --config playwright.subscription.config.ts",
     "test:operations": "playwright test --config playwright.operations.config.ts",
+    "test:security": "playwright test --config playwright.security.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

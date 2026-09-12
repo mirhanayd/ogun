@@ -43,6 +43,8 @@ export default defineConfig({
         BETTER_AUTH_SECRET: 'phase5-web-e2e-secret-32-characters',
         BETTER_AUTH_URL: 'http://localhost:3100',
         NEXT_PUBLIC_BETTER_AUTH_URL: 'http://localhost:3100',
+        RESEND_API_KEY: '',
+        RESEND_FROM_EMAIL: '',
       },
     },
   ],

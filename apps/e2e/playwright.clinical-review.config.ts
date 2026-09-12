@@ -45,6 +45,8 @@ export default defineConfig({
         BETTER_AUTH_URL: 'http://localhost:3100',
         NEXT_PUBLIC_BETTER_AUTH_URL: 'http://localhost:3100',
         CLINICAL_REVIEW_ENABLED: 'true',
+        RESEND_API_KEY: '',
+        RESEND_FROM_EMAIL: '',
       },
     },
   ],

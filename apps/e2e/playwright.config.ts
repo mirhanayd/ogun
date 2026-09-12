@@ -76,6 +76,8 @@ export default defineConfig({
       // E2E gerçek e-posta sağlayıcısına çıkmaz. Outbox failure/retry
       // davranışı Vitest'te enjekte edilen EmailSender ile ayrıca sınanır.
       OGUN_WEB_URL: 'not-a-url',
+      RESEND_API_KEY: '',
+      RESEND_FROM_EMAIL: '',
     },
   },
 })
