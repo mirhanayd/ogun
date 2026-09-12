@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
 
+type BrowserCookie = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>[number]
+const authenticatedCookies = new Map<string, BrowserCookie[]>()
+
 // GitHub issue #45 / Prompt 8.1, GÖREV 3 — seed-e2e.ts'in yazdığı kimlik
 // bilgilerini okuyan ortak yardımcı. `pnpm --filter @ogun/e2e seed`
 // çalıştırılmadan testler bu dosyayı bulamaz — BİLİNÇLİ bir hata (mock
@@ -27,6 +30,22 @@ export function loadE2eCredentials(): E2eCredentials {
 }
 
 export async function login(page: Page, email: string, password: string): Promise<void> {
+  // A canonical run creates a fresh browser context for every test. Reuse the
+  // first real Better Auth session for the same fixture user across those
+  // contexts so the suite exercises production rate limits without turning six
+  // sequential scenarios into a synthetic same-IP credential attack.
+  const cachedCookies = authenticatedCookies.get(email)
+  if (cachedCookies) {
+    const now = Date.now() / 1_000
+    const validCookies = cachedCookies.filter((cookie) => cookie.expires === -1 || cookie.expires > now)
+    if (validCookies.length > 0) {
+      await page.context().addCookies(validCookies)
+      await page.goto('/panel')
+      return
+    }
+    authenticatedCookies.delete(email)
+  }
+
   await page.goto('/giris')
   await page.getByLabel('E-posta').fill(email)
   await page.getByLabel('Şifre', { exact: true }).fill(password)
@@ -35,7 +54,10 @@ export async function login(page: Page, email: string, password: string): Promis
       page.waitForResponse((response) => response.url().endsWith('/api/auth/sign-in/email') && response.request().method() === 'POST'),
       page.getByRole('button', { name: 'Giriş yap' }).click(),
     ])
-    if (response.ok()) return
+    if (response.ok()) {
+      authenticatedCookies.set(email, await page.context().cookies())
+      return
+    }
     if (response.status() !== 429 || attempt === 1) {
       throw new Error(`E2E email login returned HTTP ${response.status()}`)
     }
