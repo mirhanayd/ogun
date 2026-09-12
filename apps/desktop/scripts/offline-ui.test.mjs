@@ -139,8 +139,13 @@ test('Scenario J — browser UI remains server-backed while desktop bundles shar
   ])
   assert.match(config, /'@': fileURLToPath\(new URL\('\.\.\/web\/src'/)
   assert.match(webLayout, /AppShell/)
-  assert.equal(JSON.parse(tauri).build.frontendDist, '../dist')
-  assert.doesNotMatch(tauri, /ogun-web\.vercel\.app/)
+  const parsedTauri = JSON.parse(tauri)
+  assert.equal(parsedTauri.build.frontendDist, '../dist')
+  assert.deepEqual(parsedTauri.app.windows, [])
+  // The embedded renderer may call the fixed production API through CSP and
+  // scoped HTTP permission, but it must never navigate a Tauri window to the
+  // remotely hosted web UI.
+  assert.doesNotMatch(JSON.stringify(parsedTauri.app.windows), /ogun-web\.vercel\.app/)
 })
 
 test('Scenario K — unified login remains visible and cached tokens never unlock startup', async () => {
