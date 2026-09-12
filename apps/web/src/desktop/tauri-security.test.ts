@@ -8,6 +8,9 @@ describe('Tauri static security policy', () => {
   it('enforces a CSP and does not grant shell or broad filesystem defaults', () => {
     expect(config.app.security.csp).toContain("default-src 'self'")
     expect(config.app.security.csp).toContain("object-src 'none'")
+    expect(config.app.security.csp).toContain("script-src 'self' 'wasm-unsafe-eval'")
+    expect(config.app.security.csp).toContain("connect-src 'self' data:")
+    expect(config.app.security.csp).not.toContain("'unsafe-eval'")
     const serialized = JSON.stringify(capability.permissions)
     expect(serialized).not.toContain('shell:')
     expect(serialized).not.toContain('fs:default')

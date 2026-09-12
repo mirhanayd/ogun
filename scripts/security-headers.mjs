@@ -9,7 +9,7 @@ function safeOrigin(value) {
 }
 
 export function buildContentSecurityPolicy(env = process.env) {
-  const connections = new Set(["'self'", 'https://*.iyzipay.com'])
+  const connections = new Set(["'self'", 'data:', 'https://*.iyzipay.com'])
   const images = new Set(["'self'", 'data:', 'blob:'])
   for (const value of [env.S3_ENDPOINT, env.SENTRY_DSN, env.NEXT_PUBLIC_SENTRY_DSN]) {
     const origin = safeOrigin(value)
@@ -24,7 +24,7 @@ export function buildContentSecurityPolicy(env = process.env) {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self' https://*.iyzipay.com",
-    "script-src 'self' 'unsafe-inline' https://*.iyzipay.com",
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://*.iyzipay.com",
     "style-src 'self' 'unsafe-inline' https://*.iyzipay.com",
     `img-src ${[...images].join(' ')}`,
     "font-src 'self' data:",

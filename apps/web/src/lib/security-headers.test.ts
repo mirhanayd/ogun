@@ -10,6 +10,8 @@ describe('production security headers', () => {
     expect(headers['X-Frame-Options']).toBe('DENY')
     expect(headers['Strict-Transport-Security']).toContain('max-age=31536000')
     expect(headers['Content-Security-Policy']).toContain("frame-ancestors 'none'")
+    expect(headers['Content-Security-Policy']).toContain("'wasm-unsafe-eval'")
+    expect(headers['Content-Security-Policy']).toContain("connect-src 'self' data:")
     expect(headers['Content-Security-Policy']).not.toContain("'unsafe-eval'")
     expect(headers['Content-Security-Policy']).not.toMatch(/(?:^|\s)\*(?:;|\s|$)/)
   })
