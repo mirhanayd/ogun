@@ -54,6 +54,24 @@ function validateTicketInput(input: CreateSupportTicketInput) {
   }
 }
 
+function findPostgresError(error: unknown) {
+  const seen = new Set<unknown>()
+  let current = error
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current)
+    const candidate = current as { code?: unknown; constraint_name?: unknown; cause?: unknown }
+    if (typeof candidate.code === 'string') {
+      return {
+        code: candidate.code,
+        constraintName:
+          typeof candidate.constraint_name === 'string' ? candidate.constraint_name : undefined,
+      }
+    }
+    current = candidate.cause
+  }
+  return null
+}
+
 export function generateSupportReferenceCode() {
   const bytes = randomBytes(8)
   let suffix = ''
@@ -109,12 +127,12 @@ export async function createSupportTicketForClinic(db: Database, input: CreateSu
         return { ...ticket, notificationId: notification?.id ?? null, duplicate: false }
       })
     } catch (error) {
-      const postgresError = error as { code?: string; constraint_name?: string }
-      if (postgresError.code !== '23505') throw error
+      const postgresError = findPostgresError(error)
+      if (postgresError?.code !== '23505') throw error
       const [concurrentDuplicate] = await db.select({ id: supportTickets.id, referenceCode: supportTickets.referenceCode })
         .from(supportTickets).where(and(eq(supportTickets.requesterUserId, input.requesterUserId), eq(supportTickets.clientRequestId, value.clientRequestId))).limit(1)
       if (concurrentDuplicate) return { ...concurrentDuplicate, notificationId: null, duplicate: true }
-      if (postgresError.constraint_name !== 'support_tickets_reference_code_idx') throw error
+      if (postgresError.constraintName !== 'support_tickets_reference_code_idx') throw error
     }
   }
   throw new Error('Benzersiz destek referansı üretilemedi; lütfen yeniden deneyin.')

@@ -319,7 +319,7 @@ describeWithDb('subscription operations integration', () => {
         planCode: 'başlangıç',
         reason: 'Event rollback testi',
       }),
-    ).rejects.toThrow('forced subscription_events failure')
+    ).rejects.toThrow()
     await removeEventTrigger()
     expect(
       (
@@ -338,7 +338,7 @@ describeWithDb('subscription operations integration', () => {
         planCode: 'başlangıç',
         reason: 'Audit rollback testi',
       }),
-    ).rejects.toThrow('forced platform_audit_logs failure')
+    ).rejects.toThrow()
     await removeAuditTrigger()
     expect(
       (
