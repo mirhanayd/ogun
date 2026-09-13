@@ -26,6 +26,7 @@ faz-10-ui-cilasi.md
 apps/desktop/~/
 .neon
 /.vercel/
+/apps/*/.vercel/
 .agents/
 skills-lock.json
 

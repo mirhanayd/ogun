@@ -23,6 +23,17 @@ RESEND_API_KEY=<resend-api-key>
 RESEND_FROM_EMAIL=Ogun <bildirim@example.com>
 ```
 
+Production'da `APP_ENV=production`, Preview'da `APP_ENV=staging` kullanılır.
+Preview için `ADMIN_BETTER_AUTH_URL` sabitlenmez; uygulama Vercel'in deployment'a
+özel `VERCEL_URL` değerini yalnızca doğrulanmış `*.vercel.app` origin'i olarak
+kullanır. Böylece rastgele Preview URL'si production trusted-origin listesine
+eklenmez. Preview ortamına `RESEND_API_KEY` veya `RESEND_FROM_EMAIL` taşınmaz;
+email side effect'leri eksik provider yapılandırmasıyla fail-closed kalır.
+
+Opsiyonel değişkenler `DATABASE_POOL_MAX`, `LOG_LEVEL` ve Sentry yapılandırmasıdır.
+`CLINICAL_REVIEW_INVITATION_CAPTURE_PATH` yalnızca yerel/E2E capture içindir ve
+Vercel ortamlarında tanımlanmamalıdır.
+
 Secret örneğin `openssl rand -base64 32` ile üretilebilir. Secret'ı repoya, dokümana veya build loguna yazmayın. Uygulama `ADMIN_BETTER_AUTH_SECRET` eksikse bilinçli olarak başlatılmaz; normal `BETTER_AUTH_SECRET` değerine düşmez. `OGUN_WEB_URL`, admin server action'ının Better Auth 1.6.29 resmi `/api/auth/request-password-reset` endpoint'ine gittiği sabit normal web origin'idir; kullanıcı girdisinden türetilmez. Reset maili normal web auth callback'inde ortak `@ogun/email` paketi ve Resend üzerinden gönderilir.
 
 ## İlk super admin

@@ -6,13 +6,14 @@ import { twoFactor } from 'better-auth/plugins'
 import { db } from '@ogun/db'
 import { getPlatformStaffByEmail, getPlatformStaffByUserId } from '@ogun/db/queries'
 import * as schema from '@ogun/db/schema'
+import { resolveAdminAuthBaseUrl } from '../env'
 
 // Better Auth's database limiter always resolves the logical `rateLimit`
 // model. Map that model to an admin-only physical table so web and admin IP
 // buckets cannot collide even though the identity tables are shared.
 const adminAuthSchema = { ...schema, rateLimits: schema.adminRateLimits }
 
-const baseURL = process.env.ADMIN_BETTER_AUTH_URL ?? 'http://localhost:3001'
+const baseURL = resolveAdminAuthBaseUrl()
 const secret = process.env.ADMIN_BETTER_AUTH_SECRET
 if (!secret) {
   throw new Error('ADMIN_BETTER_AUTH_SECRET is required. The web auth secret must not be reused implicitly.')
