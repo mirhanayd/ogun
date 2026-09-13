@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2'
 import { detectSubscriptionDrift } from '@ogun/subscription-core'
-import { and, count, desc, eq, inArray, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gt, inArray, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm'
 import type { Database } from '../client'
 import {
   adminSessions,
@@ -230,16 +230,42 @@ export async function acknowledgeOperationalFinding(db: Database, findingId: str
   return row ?? null
 }
 
-export async function getSystemOperationsSummary(db: Database) {
-  const [runs, findings, [supportPending], [subscriptionPending], [supportTerminal], [subscriptionTerminal], [unknownSms], [webhookDuplicates], [lastWebhook]] = await Promise.all([
+export async function getSystemOperationsSummary(db: Database, now = new Date()) {
+  const [
+    runs,
+    findings,
+    [supportPending],
+    [subscriptionPending],
+    [supportTerminal],
+    [subscriptionTerminal],
+    [pendingSms],
+    [processingSms],
+    [retryableSms],
+    [terminalSms],
+    [unknownSms],
+    [webhookProcessing],
+    [webhookFailed],
+    [webhookDuplicates],
+    [activeJobLeases],
+    [runningJobs],
+    [lastWebhook],
+  ] = await Promise.all([
     db.select().from(operationalJobRuns).orderBy(desc(operationalJobRuns.startedAt)).limit(50),
     db.select().from(operationalFindings).where(or(eq(operationalFindings.status, 'open'), eq(operationalFindings.status, 'acknowledged'))).orderBy(desc(operationalFindings.lastSeenAt)).limit(50),
     db.select({ value: count() }).from(supportEmailNotifications).where(and(ne(supportEmailNotifications.status, 'sent'), isNull(supportEmailNotifications.terminalAt))),
     db.select({ value: count() }).from(subscriptionEmailNotifications).where(and(ne(subscriptionEmailNotifications.status, 'sent'), isNull(subscriptionEmailNotifications.terminalAt))),
     db.select({ value: count() }).from(supportEmailNotifications).where(sql`${supportEmailNotifications.terminalAt} is not null`),
     db.select({ value: count() }).from(subscriptionEmailNotifications).where(sql`${subscriptionEmailNotifications.terminalAt} is not null`),
+    db.select({ value: count() }).from(smsReminderDeliveries).where(eq(smsReminderDeliveries.status, 'pending')),
+    db.select({ value: count() }).from(smsReminderDeliveries).where(eq(smsReminderDeliveries.status, 'processing')),
+    db.select({ value: count() }).from(smsReminderDeliveries).where(eq(smsReminderDeliveries.status, 'failed_retryable')),
+    db.select({ value: count() }).from(smsReminderDeliveries).where(eq(smsReminderDeliveries.status, 'failed_terminal')),
     db.select({ value: count() }).from(smsReminderDeliveries).where(eq(smsReminderDeliveries.status, 'unknown')),
+    db.select({ value: count() }).from(providerWebhookReceipts).where(eq(providerWebhookReceipts.status, 'processing')),
+    db.select({ value: count() }).from(providerWebhookReceipts).where(eq(providerWebhookReceipts.status, 'failed')),
     db.select({ value: sql<number>`greatest(coalesce(sum(${providerWebhookReceipts.attemptCount}) - count(*), 0)::int, 0)` }).from(providerWebhookReceipts),
+    db.select({ value: count() }).from(operationalJobLeases).where(gt(operationalJobLeases.expiresAt, now)),
+    db.select({ value: count() }).from(operationalJobRuns).where(eq(operationalJobRuns.status, 'running')),
     db.select({ receivedAt: providerWebhookReceipts.receivedAt, status: providerWebhookReceipts.status }).from(providerWebhookReceipts).orderBy(desc(providerWebhookReceipts.receivedAt)).limit(1),
   ])
   const latestRuns = [...new Map(runs.map((run) => [run.jobName, run])).values()]
@@ -250,10 +276,22 @@ export async function getSystemOperationsSummary(db: Database) {
     counts: {
       pendingEmail: (supportPending?.value ?? 0) + (subscriptionPending?.value ?? 0),
       terminalEmail: (supportTerminal?.value ?? 0) + (subscriptionTerminal?.value ?? 0),
+      supportPendingEmail: supportPending?.value ?? 0,
+      subscriptionPendingEmail: subscriptionPending?.value ?? 0,
+      supportTerminalEmail: supportTerminal?.value ?? 0,
+      subscriptionTerminalEmail: subscriptionTerminal?.value ?? 0,
+      pendingSms: pendingSms?.value ?? 0,
+      processingSms: processingSms?.value ?? 0,
+      retryableSms: retryableSms?.value ?? 0,
+      terminalSms: terminalSms?.value ?? 0,
       unknownSms: unknownSms?.value ?? 0,
+      processingWebhooks: webhookProcessing?.value ?? 0,
+      failedWebhooks: webhookFailed?.value ?? 0,
       openWarnings: findings.filter((item) => item.severity === 'warning').length,
       openCritical: findings.filter((item) => item.severity === 'critical').length,
       duplicateWebhooks: webhookDuplicates?.value ?? 0,
+      activeJobLeases: activeJobLeases?.value ?? 0,
+      runningJobs: runningJobs?.value ?? 0,
     },
     lastWebhook: lastWebhook ?? null,
   }

@@ -42,15 +42,27 @@ export default async function SystemStatusPage({ searchParams }: { searchParams:
       <article className="card"><span className="muted">Kritik</span><div className="metric">{data.counts.openCritical}</div></article>
       <article className="card"><span className="muted">Uyarı</span><div className="metric">{data.counts.openWarnings}</div></article>
       <article className="card"><span className="muted">Belirsiz SMS</span><div className="metric">{data.counts.unknownSms}</div></article>
+      <article className="card"><span className="muted">Terminal SMS</span><div className="metric">{data.counts.terminalSms}</div></article>
       <article className="card"><span className="muted">Terminal e-posta</span><div className="metric">{data.counts.terminalEmail}</div></article>
+      <article className="card"><span className="muted">Hatalı webhook</span><div className="metric">{data.counts.failedWebhooks}</div></article>
     </div></section>
     <section className="section"><div className="page-head compact-head"><div><h2>Zamanlanmış İşler</h2><p className="muted">Son kalıcı çalışma kayıtları</p></div><Link className="table-link" href="/sistem/isler">Tüm geçmiş</Link></div>
+      <div className="cards">
+        <article className="card"><span className="muted">Aktif lease</span><div className="metric">{data.counts.activeJobLeases}</div></article>
+        <article className="card"><span className="muted">Çalışan iş kaydı</span><div className="metric">{data.counts.runningJobs}</div></article>
+      </div>
       <div className="table-wrap"><table><thead><tr><th>İş</th><th>Durum</th><th>Tetikleyici</th><th>Başlangıç</th><th>Sonuç</th></tr></thead><tbody>
         {data.latestRuns.length ? data.latestRuns.map((run) => <tr key={run.id}><td><Link className="table-link" href={`/sistem/isler/${run.id}`}>{JOB_LABELS[run.jobName] ?? run.jobName}</Link></td><td><span className={`badge ${statusClass(run.status)}`}>{run.status}</span></td><td>{run.trigger}</td><td>{run.startedAt.toLocaleString('tr-TR')}</td><td>{run.succeededCount} başarılı · {run.failedCount} hata · {run.skippedCount} atlandı</td></tr>) : <tr><td colSpan={5} className="muted">Henüz çalışma kaydı yok.</td></tr>}
       </tbody></table></div>
     </section>
     <section className="section"><h2>Teslimatlar ve webhooklar</h2><div className="cards">
       <article className="card"><span className="muted">Bekleyen e-posta</span><div className="metric">{data.counts.pendingEmail}</div></article>
+      <article className="card"><span className="muted">Destek e-postası</span><div className="metric">{data.counts.supportPendingEmail}</div></article>
+      <article className="card"><span className="muted">Abonelik e-postası</span><div className="metric">{data.counts.subscriptionPendingEmail}</div></article>
+      <article className="card"><span className="muted">Bekleyen SMS</span><div className="metric">{data.counts.pendingSms}</div></article>
+      <article className="card"><span className="muted">İşlenen SMS</span><div className="metric">{data.counts.processingSms}</div></article>
+      <article className="card"><span className="muted">Yeniden denenecek SMS</span><div className="metric">{data.counts.retryableSms}</div></article>
+      <article className="card"><span className="muted">İşlenen webhook</span><div className="metric">{data.counts.processingWebhooks}</div></article>
       <article className="card"><span className="muted">Duplicate webhook</span><div className="metric">{data.counts.duplicateWebhooks}</div></article>
       <article className="card"><span className="muted">Son webhook</span><p>{data.lastWebhook?.receivedAt.toLocaleString('tr-TR') ?? 'Henüz yok'}</p></article>
     </div></section>

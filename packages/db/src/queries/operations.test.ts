@@ -9,7 +9,7 @@ import {
 } from '../schema'
 import {
   claimSmsReminderDelivery, claimSubscriptionNotification, markSmsReminderSent,
-  markSubscriptionEmailFailed, recordProviderSubscriptionStatus, withOperationalJobLock,
+  getSystemOperationsSummary, markSubscriptionEmailFailed, recordProviderSubscriptionStatus, withOperationalJobLock,
 } from './index'
 
 const describeWithDb = process.env.OPERATIONAL_WRITE_TESTS === '1' ? describe : describe.skip
@@ -74,6 +74,12 @@ describeWithDb('production operations concurrency', () => {
     expect(await claimSmsReminderDelivery(db, { ...f, now: new Date(f.now.getTime() + 1) })).toBeNull()
     const [delivery] = await db.select().from(smsReminderDeliveries).where(eq(smsReminderDeliveries.id, claim!.id))
     expect(delivery?.status).toBe('unknown')
+    const summary = await getSystemOperationsSummary(db, new Date(f.now.getTime() + 1))
+    expect(summary.counts.unknownSms).toBeGreaterThan(0)
+    expect(summary.counts.pendingEmail).toBe(summary.counts.supportPendingEmail + summary.counts.subscriptionPendingEmail)
+    expect(summary.counts.terminalEmail).toBe(summary.counts.supportTerminalEmail + summary.counts.subscriptionTerminalEmail)
+    expect(summary.counts.processingWebhooks).toEqual(expect.any(Number))
+    expect(summary.counts.activeJobLeases).toEqual(expect.any(Number))
   })
 
   it('atomically claims email and enforces due time plus terminal attempt limit', async () => {
