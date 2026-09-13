@@ -277,12 +277,15 @@ prosedürü.
   DOKÜMANTE edildi, canlı bir Neon projesine karşı ÇALIŞTIRILMADI.
 - **Gerçek Vercel hesabı yok** — vercel.json ve remote cache adımları
   DOKÜMANTE edildi, canlı deploy tetiklenmedi.
-- **`next build --turbopack` yerelde (Windows, iç içe git worktree)** —
-  önceki PR'lerde de görülen `@better-auth/core` çözümleme hatasıyla
-  BAŞARISIZ olur (worktree'nin repo kökünün İÇİNDE olması, Turbopack'in
-  yanlış workspace root'u seçmesine yol açıyor — `.claude/worktrees/...`
-  altında GERÇEK bir sorun DEĞİL). `next build` (webpack, `--turbopack`
-  OLMADAN) AYNI ortamda 29 sayfayı sorunsuz üretti, sadece Windows'a özgü
-  bir dosya izni (`EPERM: symlink`) standalone trace kopyalamasında
-  görüldü — Linux tabanlı Docker imajında (asıl dağıtım hedefi) bu sorun
-  YOK, bkz. 2.2'deki gerçek Docker doğrulaması.
+- **Production build bundler** — `apps/web` production build'i Webpack
+  kullanır. Kurulu Sentry SDK'sı Turbopack build'inde tarayıcı SDK'sını
+  yüklemediğini ve server instrumentation'ın eksik olacağını açıkça
+  bildirdiği için Turbopack yalnız geliştirme (`next dev --turbopack`)
+  akışında tutulur. 13 instrumentation-package uyarısı bu ayrımla kaldırıldı;
+  62 sayfalık Webpack production build'i Windows'ta doğrulandı.
+
+- **Geçici release freeze** — Web ve admin `vercel.json` dosyalarında
+  `git.deploymentEnabled.master=false`, eksik Production/Preview secret'ları
+  tamamlanana kadar Git push'larının otomatik deploy başlatmasını engeller.
+  Env validator'ları PASS verdikten sonra bu alanı kaldıran değişiklik,
+  deployment açma commit'i olarak ayrıca review edilmelidir.
