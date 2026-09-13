@@ -15,11 +15,11 @@
     "@ogun/email": "workspace:*",
     "@ogun/etl": "workspace:*",
     "@ogun/subscription-core": "workspace:*",
-    "better-auth": "^1.6.31",
-    "next": "15.5.24",
+    "better-auth": "^1.7.3",
+    "next": "16.3.4",
     "qrcode": "^1.5.4",
-    "react": "19.1.8",
-    "react-dom": "19.1.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "server-only": "0.0.1"
   },
   "devDependencies": {

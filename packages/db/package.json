@@ -34,11 +34,11 @@
   "dependencies": {
     "@ogun/nutrition-core": "workspace:*",
     "@ogun/subscription-core": "workspace:*",
-    "@paralleldrive/cuid2": "^2.2.2",
-    "better-auth": "^1.6.31",
+    "@paralleldrive/cuid2": "^3.3.0",
+    "better-auth": "^1.7.3",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
-    "zod": "^3.25.76"
+    "zod": "^4.6.1"
   },
   "devDependencies": {
     "@ogun/tsconfig": "workspace:*",

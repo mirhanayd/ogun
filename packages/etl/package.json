@@ -37,9 +37,9 @@
   "dependencies": {
     "@ogun/db": "workspace:*",
     "@ogun/nutrition-core": "workspace:*",
-    "@paralleldrive/cuid2": "^2.2.2",
+    "@paralleldrive/cuid2": "^3.3.0",
     "drizzle-orm": "^0.45.2",
-    "papaparse": "^5.4.1",
+    "papaparse": "^5.7.0",
     "postgres": "^3.4.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
