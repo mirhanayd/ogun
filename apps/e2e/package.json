@@ -25,12 +25,12 @@
   "devDependencies": {
     "@ogun/db": "workspace:*",
     "@ogun/tsconfig": "workspace:*",
-    "@playwright/test": "^1.49.1",
-    "@types/node": "^20",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22",
     "better-auth": "^1.6.31",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5"
+    "tsx": "^4.23.13",
+    "typescript": "^7"
   }
 }

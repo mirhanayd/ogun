@@ -40,8 +40,8 @@
     "tauri": "pnpm --filter desktop tauri"
   },
   "devDependencies": {
-    "turbo": "^2.3.3",
+    "turbo": "^2.10.12",
     "prettier": "^3.4.2",
-    "typescript": "^5.7.3"
+    "typescript": "^7.0.2"
   }
 }
