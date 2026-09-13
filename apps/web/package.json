@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -12,7 +12,7 @@
     "benchmark": "tsx src/lib/food-search-benchmark.ts",
     "benchmark:nutrient-panel": "tsx src/lib/plan-live-panel-benchmark.ts",
     "iyzico:setup:sandbox": "tsx ../../scripts/setup-iyzico-subscriptions.ts",
-    "analyze": "ANALYZE=true next build --turbopack",
+    "analyze": "ANALYZE=true next build",
     "lighthouse": "tsx scripts/lighthouse.ts"
   },
   "dependencies": {

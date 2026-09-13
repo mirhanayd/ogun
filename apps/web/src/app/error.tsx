@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { TriangleAlert } from 'lucide-react'
 import { ErrorScreen } from '@/components/error-screen'
 
@@ -17,10 +18,10 @@ export default function RootError({
   reset: () => void
 }) {
   useEffect(() => {
-    // Sentry, sunucu tarafında instrumentation üzerinden zaten yakalıyor
-    // (bkz. lib/monitoring/sentry-server.ts); burada tarayıcı konsoluna
-    // yazmak, destek yazışmasında kullanıcıdan istenebilecek tek ek bilgi.
-    console.error('[error.tsx] beklenmeyen hata:', error)
+    // instrumentation-client beforeSend katmanı exception içeriğini Sentry'ye
+    // göndermeden önce PII'dan arındırır. Raw Error'ı console'a yazmak Vercel
+    // dışındaki istemci log toplayıcılarında hassas veri bırakabilirdi.
+    Sentry.captureException(error)
   }, [error])
 
   return (

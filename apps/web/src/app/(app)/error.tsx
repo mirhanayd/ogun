@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { TriangleAlert } from 'lucide-react'
 import { ErrorScreen } from '@/components/error-screen'
 
@@ -17,7 +18,7 @@ export default function AppError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[(app)/error.tsx] beklenmeyen hata:', error)
+    Sentry.captureException(error)
   }, [error])
 
   return (
