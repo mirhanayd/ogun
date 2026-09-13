@@ -15,16 +15,16 @@
   },
   "dependencies": {
     "@ogun/nutrition-core": "workspace:*",
-    "@react-pdf/renderer": "^4.3.0",
-    "zod": "^3.24.1"
+    "@react-pdf/renderer": "^4.9.0",
+    "zod": "^4.6.1"
   },
   "peerDependencies": {
     "react": "^19.0.0"
   },
   "devDependencies": {
     "@ogun/tsconfig": "workspace:*",
-    "@types/react": "^19.0.7",
-    "react": "19.1.8",
+    "@types/react": "^19.3.0",
+    "react": "19.3.0",
     "typescript": "^5",
     "vitest": "^3.0.4"
   }
