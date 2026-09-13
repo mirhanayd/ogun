@@ -22,15 +22,15 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.0.4",
-    "playwright-core": "1.62.1",
+    "@vitejs/plugin-react": "^6.1.1",
+    "playwright-core": "1.63.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.3",
-    "vite": "^7.3.6",
-    "wait-on": "^8.0.5"
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "wait-on": "^9.1.0"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
