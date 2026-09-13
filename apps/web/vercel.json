@@ -4,6 +4,11 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "framework": "nextjs",
   "regions": ["fra1"],
+  "git": {
+    "deploymentEnabled": {
+      "master": false
+    }
+  },
   "crons": [
     { "path": "/api/internal/cron/sms-reminders", "schedule": "*/15 * * * *" },
     { "path": "/api/internal/cron/email-retry", "schedule": "*/5 * * * *" },

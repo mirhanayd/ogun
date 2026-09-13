@@ -3,5 +3,10 @@
   "buildCommand": "cd ../.. && pnpm turbo run build --filter=admin...",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "framework": "nextjs",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "git": {
+    "deploymentEnabled": {
+      "master": false
+    }
+  }
 }
