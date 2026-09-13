@@ -349,3 +349,99 @@ PRODUCTION ENV FAIL
 REMOTE WRITE BLOCKED
 PRODUCTION RELEASE: BLOCKED
 ```
+
+---
+
+# Faz 8.2 kapanış denemesi ve Faz 8.3 stabilizasyon — final rapor
+
+Tarih: 2026-09-13
+
+## Son karar
+
+```text
+PHASE 8.2                    BLOCKED
+PRODUCTION DB 0040           PASS
+PRODUCTION WEB DEPLOY        NOT RUN (EXISTING OLD ARTIFACT READY)
+PRODUCTION ADMIN DEPLOY      NOT RUN (NO DEPLOYMENT EXISTS)
+PREVIEW DEPLOY/SMOKE         NOT RUN
+LOCAL RELEASE/SECURITY       PASS
+PHASE 8.3 CODE/LOCAL OPS     COMPLETE
+REMOTE STABILIZATION         BLOCKED
+```
+
+Phase 8.2 GO değildir. Production/Preview veritabanı işi tamamlanmış olsa da Vercel runtime contract'ları eksik olduğundan yeni artifact deploy edilmedi ve current-SHA production smoke yapılamadı.
+
+## Production ve Preview veritabanı
+
+- Kullanıcı production hedefini doğruladı; safe fingerprint `2444-D8A3`.
+- Production read-only release check: target/repo latest `0040_shallow_mephistopheles`, ledger 41, pending 0.
+- Production migration yeniden çalıştırılmadı. Production üzerinde `db:push`, seed, demo seed, ETL, fixture, cleanup veya test write yapılmadı.
+- Kullanıcı Preview'ın da `0000–0040` olduğunu ve Production'dan ayrıldığını doğruladı. Vercel sensitive değerleri okunamadığı için Preview hostname/fingerprint'i bağımsız olarak rapora çıkarılamadı.
+- Production snapshot kullanıcı kanıtı: `snap-lucky-pine-b11uhzpm`, `pre-phase8-2-production-2026-09-13`. Neon control-plane authentication olmadığı için existence/retention bağımsız doğrulaması ve provider-side restore rehearsal yapılmadı.
+
+## Vercel ve environment sonucu
+
+- `ogun-admin` project `prj_OSrlv2QQEu1hPWYRe5Cuvi0fL1F7`: GitHub bağlı, root `apps/admin`, framework Next.js olarak düzeltildi.
+- Admin Production'a DB, ayrı güçlü admin auth secret, auth/web origin, pool ve log ayarları eklendi. Resend çifti eksik olduğu için validator FAIL.
+- Admin Preview'a Production ve web'den ayrı secret, staging/pool/log ayarları eklendi. Resend bilinçli olarak yok ve external e-mail fail-closed; Preview DB ve güvenli web URL mapping'i eksik.
+- Web Production'da DB, web auth, Google OAuth, origin, cron secret ve jobs-disabled ayarları var; Resend ve dört S3 değişkeni eksik.
+- Web Preview isolated DB kaydını, staging ve ayrı auth secret'ı koruyor; jobs/external delivery false. S3/Resend/auth origin eksik olduğu için boot contract FAIL.
+- Preview scope ayrıştırması sırasında Vercel CLI, ortak scope'lu Google/auth/Resend/S3 kayıtlarının yalnız Preview hedefi yerine tüm kaydını kaldırdı. Google/auth approved local kaynaktan geri yazıldı. Sensitive Resend/S3 değerleri Vercel'den geri okunamadı ve approved kaynakta yoktu; tahmin edilmedi. Mevcut deployment environment değişikliğinden etkilenmedi, yeni deploy yapılmadı.
+- Eksik değerler tamamlanana kadar web/admin `master` auto-deploy'ları `git.deploymentEnabled.master=false` ile geri döndürülebilir şekilde donduruldu.
+
+## Smoke
+
+| Yüzey | Sonuç |
+| --- | --- |
+| Web `/api/health/live` | 404 — eski artifact |
+| Web `/api/health/ready` | 404 — eski artifact |
+| Web `/giris` | 200 |
+| Web `/sifremi-unuttum` | 200 |
+| Admin `/api/health/live` | 404 — deployment yok |
+| Son 24 saat privacy-safe Vercel runtime log aggregate | 0 kayıt; sağlık kanıtı sayılmadı |
+
+Eski web artifact HSTS döndürüyor fakat candidate CSP/MIME/frame/referrer/no-store/noindex policy'sini taşımıyor. Cron/provider/e-posta/SMS/payment/reconciliation side effect tetiklenmedi.
+
+## Faz 8.3 yapılan işler
+
+- `/sistem` operasyon dashboard'ına support/subscription e-posta ayrımı; pending/processing/retryable/terminal/unknown SMS; processing/failed/duplicate webhook; active lease/running job sayımları eklendi.
+- Aggregate sorgular PII/message/provider payload taşımıyor; yeni migration yok.
+- Raw browser `console.error(Error)` kaldırıldı. Route ve yeni root global error boundary'leri hataları existing Sentry `beforeSend` PII scrubber üzerinden yakalıyor.
+- Sentry'nin eksik instrumentation uyarısı veren Turbopack production build'i yerine Webpack seçildi. 13 instrumentation dependency warning kaldırıldı; 62 sayfalık production build geçti.
+- Disposable PostgreSQL 16'da current `0040` database'in `pg_dump -Fc` çıktısı yeni izole DB'ye restore edildi. Kaynak/restore eşleşmesi: ledger 41, users 148, clinics 55, foods 129, conditions 21.505, operational jobs 7, SMS deliveries 6, webhook receipts 6. Dump 12,9 MiB; SHA-256 `de575ce19025499632eb4ba1248308d531cb0eae7bfbab5949b8f82604495fe8`.
+- Provisional, SLA olmayan hedefler: RPO 15 dakika, RTO 120 dakika. Provider retention ve restore süresi Neon planında ölçülmeden taahhüt değildir.
+- DB write guard regressions 17/17 geçti.
+- GitHub Actions açık; `master` branch protection yok ve account policy SHA pin zorunluluğu uygulamıyor. Neon protected branch paid-plan/control-plane erişimi olmadığı için değiştirilmedi.
+- Repo discovery: resmi `faz-9-masaustu-kabugu.md` var ve README Phase 9 #51–#54'ü tamamlanmış sayıyor; daha sonraki Phase 10 UI çalışması da mevcut. Onaylı yeni ürün fazı bulunmadığı için ürün özelliği uydurulmadı ve yeni Phase 9 proposal oluşturulmadı.
+
+## Final doğrulama
+
+- `pnpm release:check` code SHA `ce7a7a3ddb184c04c9a7dee15e89718fd3dddb17`: PASS.
+- Tam exercised set: 1.026 pass, 2 intentional skip, 0 failure. Gate içindeki opt-in rate-limit testi ayrıca explicit flag ile 1/1 PASS edildi.
+- Typecheck 10/10, lint 3/3.
+- DB 147/147 exercised; web 460/460 + 1 type-only skip; admin 33/33; ETL 198/198; nutrition 142/142; e-mail 6/6; subscription 4/4; PDF 10/10; desktop Node 15/15.
+- Canonical Chromium E2E 11/11 + 1 packaged-native opt-in skip.
+- Production-mode security HTTP E2E 4/4.
+- Web production build 62 page, admin production build PASS.
+- pnpm full/prod audit: 0 Critical, 0 High, 6 reviewed Moderate.
+- Cargo check PASS; Cargo test 75/75; RustSec 643 dependency, 0 vulnerability, 9 accepted warning.
+- Immutable Gitleaks v8.30.1: 408 commit, 19,41 MB, no leaks found.
+
+## Bu çalışma serisinin commit listesi
+
+1. `97d2fc8` — `chore(deploy): harden admin environment boundaries`
+2. `7449db2` — `feat(ops): expand post-go-live system telemetry`
+3. `787d954` — `chore(release): freeze master auto-deployments`
+4. `ce7a7a3` — `fix(observability): capture render failures safely`
+5. `b34905d` — `docs(ops): record phase eight stabilization`
+6. `docs(ops): finalize phase eight-three walkthrough` — bu final raporu içeren kapanış commit'i; exact hash `git log -1` ve teslim mesajında yer alır.
+
+Bu commit'ler normal fast-forward ile `origin/master`'a gönderildi; force push kullanılmadı. Deployment freeze nedeniyle bu push web/admin production deployment başlatmaz. Final doğrulamada working tree temiz ve local `master == origin/master` olmalıdır.
+
+## Kalan blockerlar ve en fazla üç kullanıcı işlemi
+
+1. Vercel'de yeni/rotate edilmiş Production Resend ve S3 değerlerini web'e; Resend değerlerini admin'e yeniden gir. Preview için gerçek provider çağrısı yapmayan ayrı test S3/Resend değerleri ve admin Preview `DATABASE_URL`/`OGUN_WEB_URL` mapping'i sağla.
+2. Neon console/CLI erişimiyle snapshot ID/retention'ı ve production protected-branch durumunu doğrula; snapshot'ı production'a uygulamadan izole branch restore rehearsal yap.
+3. Env validator'ları PASS verdikten sonra deployment freeze'i kaldıran reviewed commit ile aynı SHA'dan Preview web/admin, sonra Production web/admin deploy et; health/auth/MFA/headers/logs/cron smoke matrisi tamamen geçmeden GO verme.
+
+Ayrıntılı kanıtlar `docs/releases/2026-09-production-go-live.md` ve `docs/releases/2026-09-post-go-live-stabilization.md` içindedir.
