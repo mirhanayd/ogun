@@ -63,7 +63,7 @@ Production restore remains incident-commander controlled. Always restore to an i
 - Web/admin auth secrets are separate, and Preview secrets are separate from Production.
 - Preview jobs/external delivery are fail closed.
 - Local production-mode security E2E passed 4/4 in the full gate.
-- GitHub Actions is enabled, but `master` currently has no branch protection and Actions does not require SHA-pinned actions. These are account-level security follow-ups, not code mutations performed without an owner policy decision.
+- GitHub Actions is enabled and repository actions use immutable revisions. The stale/nonexistent `actions/checkout` SHA that prevented every Security Gate job from starting was replaced with the current resolvable `v4` commit in both workflows. `master` still has no branch protection and the account does not enforce SHA pinning as a policy; those are owner-level follow-ups.
 - Neon protected branches are a paid-plan feature; plan/control-plane state was unavailable, so it was not enabled or claimed.
 - Dependency policy remains 0 Critical/High for JavaScript. Rust and full-history secret-scan results are in the final walkthrough.
 
@@ -76,6 +76,7 @@ Production restore remains incident-commander controlled. Always restore to an i
 - JavaScript audits: 0 Critical, 0 High, 6 reviewed Moderate.
 - Cargo check PASS; Cargo test 75/75; RustSec scanned 643 dependencies with 0 vulnerabilities and 9 accepted warnings.
 - Immutable Gitleaks v8.30.1 full history: 408 commits, 19.41 MB, no leaks found.
+- The first post-push Security Gate exposed the invalid checkout revision at job setup, before any code ran. Commit `f4aac40` repairs the pin; online rerun status is reported in the final handoff.
 
 ## Release hygiene
 

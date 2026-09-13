@@ -411,7 +411,7 @@ Eski web artifact HSTS döndürüyor fakat candidate CSP/MIME/frame/referrer/no-
 - Disposable PostgreSQL 16'da current `0040` database'in `pg_dump -Fc` çıktısı yeni izole DB'ye restore edildi. Kaynak/restore eşleşmesi: ledger 41, users 148, clinics 55, foods 129, conditions 21.505, operational jobs 7, SMS deliveries 6, webhook receipts 6. Dump 12,9 MiB; SHA-256 `de575ce19025499632eb4ba1248308d531cb0eae7bfbab5949b8f82604495fe8`.
 - Provisional, SLA olmayan hedefler: RPO 15 dakika, RTO 120 dakika. Provider retention ve restore süresi Neon planında ölçülmeden taahhüt değildir.
 - DB write guard regressions 17/17 geçti.
-- GitHub Actions açık; `master` branch protection yok ve account policy SHA pin zorunluluğu uygulamıyor. Neon protected branch paid-plan/control-plane erişimi olmadığı için değiştirilmedi.
+- GitHub Actions açık; repository action'ları immutable SHA kullanıyor. İlk post-push Security Gate, nonexistent `actions/checkout` revision'ı nedeniyle job setup'ta durdu; pin current resolvable `v4` commit'ine düzeltildi. `master` branch protection yok ve account policy SHA pin zorunluluğu uygulamıyor. Neon protected branch paid-plan/control-plane erişimi olmadığı için değiştirilmedi.
 - Repo discovery: resmi `faz-9-masaustu-kabugu.md` var ve README Phase 9 #51–#54'ü tamamlanmış sayıyor; daha sonraki Phase 10 UI çalışması da mevcut. Onaylı yeni ürün fazı bulunmadığı için ürün özelliği uydurulmadı ve yeni Phase 9 proposal oluşturulmadı.
 
 ## Final doğrulama
@@ -434,7 +434,9 @@ Eski web artifact HSTS döndürüyor fakat candidate CSP/MIME/frame/referrer/no-
 3. `787d954` — `chore(release): freeze master auto-deployments`
 4. `ce7a7a3` — `fix(observability): capture render failures safely`
 5. `b34905d` — `docs(ops): record phase eight stabilization`
-6. `docs(ops): finalize phase eight-three walkthrough` — bu final raporu içeren kapanış commit'i; exact hash `git log -1` ve teslim mesajında yer alır.
+6. `5493284` — `docs(ops): finalize phase eight-three walkthrough`
+7. `f4aac40` — `fix(ci): pin a resolvable checkout revision`
+8. `docs(ops): record security gate repair` — bu ek kapanış kaydını içeren commit; exact hash `git log -1` ve teslim mesajında yer alır.
 
 Bu commit'ler normal fast-forward ile `origin/master`'a gönderildi; force push kullanılmadı. Deployment freeze nedeniyle bu push web/admin production deployment başlatmaz. Final doğrulamada working tree temiz ve local `master == origin/master` olmalıdır.
 
