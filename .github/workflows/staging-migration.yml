@@ -1,0 +1,76 @@
+# Manual-only, staging-only bootstrap. NEVER connect this job to pull_request/push.
+# Staging Neon project: dry-art-90973853 (independent from ogun-production).
+name: Migrate Ogun staging (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Explicitly authorize migration of the separate, non-production Ogun staging database"
+        required: true
+        type: choice
+        default: DO_NOT_MIGRATE
+        options:
+          - DO_NOT_MIGRATE
+          - MIGRATE_OGUN_STAGING
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ogun-staging-schema
+  cancel-in-progress: false
+
+jobs:
+  migrate-staging:
+    # The workflow must first be reviewed and merged to master. No PR-supplied
+    # code and no automatic trigger should get the staging write credential.
+    if: ${{ github.ref == 'refs/heads/master' && inputs.confirm == 'MIGRATE_OGUN_STAGING' }}
+    runs-on: ubuntu-latest
+    environment: ogun-staging
+    timeout-minutes: 20
+    steps:
+      - name: Check out reviewed master
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 9.15.4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+
+      - name: Install reviewed dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate staging target, migrate and check compatibility
+        shell: bash
+        env:
+          # Set ONLY as an environment secret in GitHub Environment ogun-staging.
+          DATABASE_URL: ${{ secrets.OGUN_STAGING_DATABASE_URL }}
+          DB_ALLOW_REMOTE_WRITE: "true"
+          DB_WRITE_TARGET: staging
+          DB_EXPECTED_HOST: ep-snowy-field-b17y5klp.c-5.eu-central-1.aws.neon.tech
+          DB_EXPECTED_DATABASE: neondb
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const value = process.env.DATABASE_URL
+          if (!value) throw new Error('OGUN_STAGING_DATABASE_URL is not configured in environment ogun-staging.')
+          let url
+          try { url = new URL(value) } catch { throw new Error('Invalid staging database URL.') }
+          if (!['postgres:', 'postgresql:'].includes(url.protocol) ||
+              url.hostname !== 'ep-snowy-field-b17y5klp.c-5.eu-central-1.aws.neon.tech' ||
+              decodeURIComponent(url.pathname) !== '/neondb' ||
+              (url.port && url.port !== '5432')) {
+            throw new Error('Refusing migration: URL is not the verified Ogun staging Neon endpoint.')
+          }
+          console.log('Staging host and database verified; no credentials will be printed.')
+          NODE
+          pnpm --filter @ogun/db db:migrate:check
+          pnpm --filter @ogun/db db:migrate
+          pnpm --filter @ogun/db db:compatibility:check
