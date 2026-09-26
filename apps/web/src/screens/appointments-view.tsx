@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { ScreenHeading } from './screen-frame'
+import { OgunCalendar } from '@/components/ogun-icons'
 import { CalendarPlus, ChevronLeft, ChevronRight, PartyPopper } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,14 +35,15 @@ export function AppointmentsView({ view, currentDate, title, days, dietitians, s
 }) {
   const dietitianOrder = dietitians.map((dietitian) => dietitian.id)
   return <div className="flex flex-col gap-4" data-appointments-view>
+    <ScreenHeading title="Randevular" description="Görüşmeler, ölçümler ve diyetisyen takvimi." icon={OgunCalendar} />
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="icon" onClick={() => onStep(-1)} aria-label="Önceki"><ChevronLeft className="size-4" /></Button>
         <Button variant="outline" size="sm" onClick={() => onNavigate({ date: new Date() })}>Bugün</Button>
         <Button variant="outline" size="icon" onClick={() => onStep(1)} aria-label="Sonraki"><ChevronRight className="size-4" /></Button>
-        <h1 className="ml-2 text-base font-semibold capitalize">{title}</h1>
+        <h2 className="ml-2 text-base font-semibold capitalize">{title}</h2>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Tabs value={view} onValueChange={(value) => onNavigate({ view: value as AppointmentsViewMode })}><TabsList><TabsTrigger value="day">Gün</TabsTrigger><TabsTrigger value="week">Hafta</TabsTrigger><TabsTrigger value="month">Ay</TabsTrigger></TabsList></Tabs>
         {canManageHolidays ? <Button variant="outline" size="sm" onClick={onOpenHolidays} className="gap-1.5"><PartyPopper className="size-4" />Tatiller</Button> : null}
         <Button size="sm" onClick={() => onCreate(currentDate)} className="gap-1.5"><CalendarPlus className="size-4" />Yeni randevu</Button>

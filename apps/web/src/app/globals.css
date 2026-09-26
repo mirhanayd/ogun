@@ -445,6 +445,29 @@
 [data-app-shell] input[type='checkbox'] { accent-color: var(--primary); }
 [data-app-shell] :is(input, textarea) { scroll-margin-block: 5rem; }
 [data-app-shell] :focus-visible { outline-color: var(--foreground); }
+[data-app-shell] [data-slot='card'] {
+  border-radius: var(--workspace-radius);
+  border-color: var(--border);
+  box-shadow: var(--workspace-shadow);
+}
+[data-app-shell] :is([data-slot='input'], [data-slot='textarea'], [data-slot='select-trigger']) {
+  border-radius: var(--workspace-control-radius);
+  border-color: color-mix(in oklch, var(--foreground) 32%, var(--background));
+  background-color: var(--card);
+}
+[data-app-shell] :is([data-slot='input'], [data-slot='select-trigger']) { min-height: 2.5rem; }
+[data-app-shell] [data-slot='button'] {
+  border-radius: var(--workspace-control-radius);
+  transition-property: background-color, color, border-color, box-shadow;
+}
+[data-app-shell] [data-slot='button'][data-size='lg'] { min-height: 2.75rem; padding-inline: 1rem; }
+[data-app-shell] :is(button, a, input, select, textarea) { touch-action: manipulation; }
+[data-app-shell] [data-slot='tabs-trigger'] { transition-property: background-color, color, box-shadow; }
+@media (pointer: coarse) {
+  [data-app-shell] :is([data-slot='button'], [data-slot='select-trigger'], [data-slot='tabs-trigger']) { min-height: 2.75rem; }
+  [data-app-shell] [data-slot='button'][data-size^='icon'] { min-width: 2.75rem; }
+  [data-app-shell] [data-slot='input'] { font-size: 1rem; }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-app-shell] *, [data-app-shell] *::before, [data-app-shell] *::after {
     animation-duration: 0.01ms !important;

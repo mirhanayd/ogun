@@ -1,22 +1,25 @@
 import type { ReactNode } from 'react'
 import type { ComponentType, SVGProps } from 'react'
 
-export function ScreenFrame({
-  title,
-  description,
-  icon: Icon,
-  actions,
-  children,
-}: {
-  eyebrow: string
+interface ScreenHeadingProps {
+  eyebrow?: string
   title: string
   description: string
   icon: ComponentType<SVGProps<SVGSVGElement>>
   actions?: ReactNode
-  children: ReactNode
-}) {
+}
+
+export function ScreenFrame({ children, ...heading }: ScreenHeadingProps & { children: ReactNode }) {
+  return <div className="flex min-w-0 flex-col gap-5 pb-4"><ScreenHeading {...heading} />{children}</div>
+}
+
+export function ScreenHeading({
+  title,
+  description,
+  icon: Icon,
+  actions,
+}: ScreenHeadingProps) {
   return (
-    <div className="flex min-w-0 flex-col gap-5 pb-4">
       <header className="workspace-heading flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-3">
@@ -29,7 +32,5 @@ export function ScreenFrame({
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap gap-2 [&>*]:grow sm:[&>*]:grow-0">{actions}</div> : null}
       </header>
-      {children}
-    </div>
   )
 }
