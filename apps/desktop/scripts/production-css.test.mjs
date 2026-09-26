@@ -16,7 +16,7 @@ async function productionCss() {
 const representativeUtilities = [
   ['flex', String.raw`\.flex(?=[,{])`],
   ['grid', String.raw`\.grid(?=[,{])`],
-  ['w-60', String.raw`\.w-60(?=[,{])`],
+  ['md:w-60', String.raw`\.md\\\:w-60(?=[,{])`],
   ['rounded-xl', String.raw`\.rounded-xl(?=[,{])`],
   ['gap-3', String.raw`\.gap-3(?=[,{])`],
   ['md:flex', String.raw`\.md\\\:flex(?=[,{])`],
@@ -28,6 +28,6 @@ const representativeUtilities = [
 test('desktop production CSS contains shared application utilities', async () => {
   const css = await productionCss()
   for (const [utility, selector] of representativeUtilities) {
-    assert.match(css, new RegExp(selector), `missing generated utility: ${utility}`)
+    assert.ok(new RegExp(selector).test(css), `missing generated utility: ${utility}`)
   }
 })

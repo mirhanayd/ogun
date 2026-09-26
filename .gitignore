@@ -64,3 +64,5 @@ CLINICAL_DB_INSTALL_TR.md
 DATA_MERGE_AUDIT_TR.md
 /ogun-clinical-db-integration/
 /scripts/apply-clinical-integration.mjs
+/artifacts/ui/
+/.ui-*.log

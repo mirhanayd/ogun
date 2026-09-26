@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat } from 'node:fs/promises'
 import { join, resolve, extname } from 'node:path'
 import { test } from 'node:test'
 import { chromium } from 'playwright-core'
@@ -47,6 +47,8 @@ test('production bundle renders the shared desktop shell as a computed layout', 
     for (const route of ['panel', 'danisanlar', 'planlar']) {
       await page.goto(`http://127.0.0.1:${port}/?layout-smoke=${route}`, { waitUntil: 'networkidle' })
       await page.locator('[data-app-shell]').waitFor()
+      if (route === 'danisanlar') await page.getByRole('heading', { name: 'Danışanlar', exact: true }).waitFor()
+      if (route === 'planlar') await page.getByRole('heading', { name: 'Planlar', exact: true }).waitFor()
       const layout = await page.evaluate(() => {
         const shell = document.querySelector('[data-app-shell]')
         const sidebar = document.querySelector('[data-app-sidebar]')
@@ -104,5 +106,178 @@ test('production bundle renders the shared desktop shell as a computed layout', 
     }
   } finally {
     await browser?.close(); await new Promise((done) => server.close(done))
+  }
+})
+
+test('clinical workspace: responsive themes, navigation, forms and client operations', async () => {
+  const { server, port } = await startServer()
+  const artifacts = resolve(import.meta.dirname, '../../../artifacts/ui')
+  await mkdir(artifacts, { recursive: true })
+  let browser
+  try {
+    for (const executablePath of chromiumPath()) {
+      try { browser = await chromium.launch({ executablePath, headless: true }); break } catch { /* Try installed browser. */ }
+    }
+    assert.ok(browser, 'No installed Chromium browser')
+    const page = await browser.newPage({ viewport: { width: 1440, height: 960 } })
+    const errors = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    const url = `http://127.0.0.1:${port}/?layout-smoke=danisanlar`
+    async function openList(native, dark) {
+      await page.goto(url, { waitUntil: 'networkidle' })
+      await page.evaluate(({ native, dark }) => {
+        // Next supplies Inter via next/font; the isolated Vite fixture uses its
+        // documented system fallback when rendering the web shell.
+        document.documentElement.style.setProperty('--font-sans', 'Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif')
+        document.documentElement.classList.toggle('dark', dark)
+        if (!native) delete document.documentElement.dataset.nativeShell
+      }, { native, dark })
+      await page.locator('.clients-workspace a[href="/danisanlar/client-1"]').filter({ hasText: 'Deniz Yılmaz', visible: true }).waitFor()
+    }
+    async function noOverflow(label) {
+      const sizes = await page.evaluate(() => {
+        const main = document.querySelector('[data-app-main]')
+        return { document: document.documentElement.scrollWidth, viewport: innerWidth, main: main.clientWidth, content: main.scrollWidth }
+      })
+      assert.ok(sizes.document <= sizes.viewport + 1, `${label}: document overflow ${JSON.stringify(sizes)}`)
+      assert.ok(sizes.content <= sizes.main + 1, `${label}: workspace overflow ${JSON.stringify(sizes)}`)
+    }
+    async function checkContrast() {
+      const ratios = await page.evaluate(() => {
+        const shell = document.querySelector('[data-app-shell]')
+        const probe = document.createElement('span')
+        shell.append(probe)
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = 1
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        function luminance(color) {
+          probe.style.color = color
+          ctx.clearRect(0, 0, 1, 1)
+          ctx.fillStyle = getComputedStyle(probe).color
+          ctx.fillRect(0, 0, 1, 1)
+          const rgb = [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((channel) => {
+            const value = channel / 255
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+          })
+          return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722
+        }
+        function ratio(a, b) { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+        const result = {
+          body: ratio('var(--foreground)', 'var(--card)'),
+          secondary: ratio('var(--muted-foreground)', 'var(--card)'),
+          action: ratio('var(--primary-foreground)', 'var(--primary)'),
+          input: ratio(getComputedStyle(document.querySelector('input')).borderTopColor, 'var(--card)'),
+        }
+        probe.remove()
+        return result
+      })
+      for (const key of ['body', 'secondary', 'action']) assert.ok(ratios[key] >= 4.5, `${key} contrast ${ratios[key]}`)
+      assert.ok(ratios.input >= 3, `input boundary contrast ${ratios.input}`)
+    }
+    for (const native of [false, true]) {
+      for (const dark of [false, true]) {
+        for (const width of [1440, 900, 390]) {
+          await page.setViewportSize({ width, height: 960 })
+          await openList(native, dark)
+          const label = `${native ? 'desktop' : 'web'}-${dark ? 'dark' : 'light'}-${width}`
+          await noOverflow(label)
+          await checkContrast()
+          await page.screenshot({ path: join(artifacts, `clients-${label}.png`) })
+          if (width === 1440) {
+            const toggle = page.getByRole('button', { name: 'Menüyü daralt', exact: true })
+            await toggle.focus()
+            await page.keyboard.press('Enter')
+            assert.equal(await page.locator('[data-app-sidebar]').getAttribute('data-collapsed'), 'true')
+            assert.ok(Math.abs((await page.locator('[data-app-sidebar]').boundingBox()).width - 76) < 1)
+            assert.equal(await page.locator('[data-sidebar-navigation] a[aria-current="page"]').getAttribute('href'), '/danisanlar')
+            await page.locator('[data-sidebar-navigation] a[href="/planlar"]').focus()
+            await page.getByRole('tooltip', { name: 'Planlar' }).waitFor()
+            await page.keyboard.press('Escape')
+            await page.getByRole('button', { name: 'Menüyü genişlet' }).focus()
+            await page.screenshot({ path: join(artifacts, `sidebar-collapsed-${label}.png`) })
+            await page.reload({ waitUntil: 'networkidle' })
+            assert.equal(await page.locator('[data-app-sidebar]').getAttribute('data-collapsed'), 'true', 'sidebar preference survives reload')
+            await page.getByRole('button', { name: 'Menüyü genişlet' }).click()
+            await openList(native, dark)
+          }
+          await page.locator('.clients-workspace a[href="/danisanlar/client-1"]').filter({ hasText: 'Deniz Yılmaz', visible: true }).click()
+          await page.getByRole('heading', { name: 'Deniz Yılmaz' }).waitFor()
+          assert.equal(await page.getByRole('tab').count(), 8)
+          await noOverflow(`profile ${label}`)
+          await page.screenshot({ path: join(artifacts, `profile-${label}.png`) })
+          await page.getByRole('tab', { name: 'Genel', exact: true }).focus()
+          await page.keyboard.press('ArrowRight')
+          await page.getByText('Yeni ölçüm', { exact: true }).waitFor()
+          assert.equal(await page.getByRole('tab', { name: 'Ölçümler', exact: true }).getAttribute('aria-selected'), 'true')
+          await noOverflow(`measurements ${label}`)
+          if (width === 1440) await page.screenshot({ path: join(artifacts, `measurements-${label}.png`) })
+          await page.getByRole('tab', { name: 'Planlar', exact: true }).click()
+          await page.getByText('Dengeli beslenme programı', { exact: true }).waitFor()
+          await noOverflow(`plans ${label}`)
+        }
+      }
+    }
+
+    await page.setViewportSize({ width: 1440, height: 960 })
+    await openList(false, false)
+    // Extreme clinic accents still use readable paired foregrounds. The
+    // production branding helper has independent unit coverage.
+    for (const [brand, foreground] of [['#ffcc00', '#000000'], ['#243b80', '#ffffff']]) {
+      await page.evaluate(({ brand, foreground }) => {
+        const style = document.querySelector('[data-app-shell]').style
+        for (const name of ['--primary', '--sidebar-primary']) style.setProperty(name, brand)
+        for (const name of ['--primary-foreground', '--sidebar-primary-foreground']) style.setProperty(name, foreground)
+      }, { brand, foreground })
+      await checkContrast()
+    }
+    await openList(false, false)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    assert.ok(await page.locator('[data-sidebar-navigation] a').first().evaluate((node) => parseFloat(getComputedStyle(node).transitionDuration) <= 0.001))
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await page.getByRole('textbox', { name: 'Danışan ara' }).fill('bulunmayan')
+    await page.getByRole('button', { name: 'Ara', exact: true }).click()
+    await page.getByText('Bu filtrelerle danışan bulunamadı', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Filtreleri temizle', exact: true }).first().click()
+    await page.locator('.clients-workspace a[href="/danisanlar/client-1"]').filter({ hasText: 'Deniz Yılmaz', visible: true }).waitFor()
+    await page.getByRole('checkbox', { name: 'Deniz Yılmaz adlı danışanı seç' }).filter({ visible: true }).check()
+    await page.getByRole('button', { name: 'Diyetisyen ata', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Atanacak diyetisyen' }).click()
+    await page.getByRole('option', { name: 'Dyt. Ece Kaya' }).click()
+    await page.getByRole('button', { name: 'Ata', exact: true }).click()
+    await page.getByRole('dialog').waitFor({ state: 'hidden' })
+    await page.getByRole('checkbox', { name: 'Deniz Yılmaz adlı danışanı seç' }).filter({ visible: true }).check()
+    await page.getByRole('button', { name: 'Arşivle', exact: true }).click()
+    await page.getByRole('row').filter({ hasText: 'Deniz Yılmaz' }).getByText('Arşiv', { exact: true }).waitFor()
+    await page.getByRole('link', { name: 'Yeni danışan', exact: true }).click()
+    await page.getByRole('button', { name: 'Danışanı kaydet' }).click()
+    assert.equal(await page.locator('#firstName').getAttribute('aria-invalid'), 'true')
+    await page.getByLabel('Ad', { exact: true }).fill('Test')
+    await page.getByLabel('Soyad', { exact: true }).fill('Danışan')
+    await page.getByRole('checkbox').nth(0).check()
+    await page.getByRole('checkbox').nth(1).check()
+    await page.getByRole('button', { name: 'Danışanı kaydet' }).click()
+    await page.getByRole('heading', { name: 'Test Danışan' }).waitFor()
+
+    await page.goto(`${url}&fixture-error=1`, { waitUntil: 'networkidle' })
+    await page.getByRole('alert').getByText('Danışan kayıtları yüklenemedi.').waitFor()
+    await page.getByRole('button', { name: 'Tekrar dene' }).click()
+    await page.getByRole('alert').waitFor()
+    for (const role of ['assistant', 'dietitian', 'owner']) {
+      await page.goto(`${url}&role=${role}`, { waitUntil: 'networkidle' })
+      const nav = page.locator('[data-sidebar-navigation]')
+      assert.equal(await nav.locator('a[href="/finans"]').count(), role === 'owner' ? 1 : 0)
+      assert.equal(await nav.locator('a[href="/ayarlar"]').count(), role === 'assistant' ? 0 : 1)
+      if (role === 'assistant') assert.equal(await page.locator('input[type="checkbox"]').count(), 0)
+    }
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openList(false, false)
+    await page.getByRole('button', { name: 'Diğer sayfalar' }).click()
+    await page.getByRole('menuitem', { name: 'Ayarlar', exact: true }).waitFor()
+    assert.equal(await page.getByRole('menuitem', { name: 'Finans', exact: true }).getAttribute('href'), '/finans')
+    await page.keyboard.press('Escape')
+    assert.deepEqual(errors, [], 'no browser runtime errors')
+  } finally {
+    await browser?.close()
+    await new Promise((done) => server.close(done))
   }
 })
