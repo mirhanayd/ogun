@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,20 +53,21 @@ export function NewClientForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="mx-auto w-full max-w-3xl" aria-busy={isSubmitting}>
       <Card>
+        <CardHeader className="border-b"><CardTitle>Danışan bilgileri</CardTitle><CardDescription>Ad ve soyad zorunludur. Diğer bilgileri daha sonra profilden tamamlayabilirsiniz.</CardDescription></CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="firstName">Ad</Label>
               <Input
                 id="firstName"
-                autoFocus
                 autoComplete="given-name"
                 aria-invalid={!!errors.firstName}
+                aria-describedby={errors.firstName ? 'firstName-error' : undefined}
                 {...register('firstName')}
               />
-              {errors.firstName && <p className="text-sm text-destructive">{errors.firstName.message}</p>}
+              {errors.firstName && <p id="firstName-error" className="text-sm text-destructive">{errors.firstName.message}</p>}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="lastName">Soyad</Label>
@@ -74,9 +75,10 @@ export function NewClientForm({
                 id="lastName"
                 autoComplete="family-name"
                 aria-invalid={!!errors.lastName}
+                aria-describedby={errors.lastName ? 'lastName-error' : undefined}
                 {...register('lastName')}
               />
-              {errors.lastName && <p className="text-sm text-destructive">{errors.lastName.message}</p>}
+              {errors.lastName && <p id="lastName-error" className="text-sm text-destructive">{errors.lastName.message}</p>}
             </div>
           </div>
 
@@ -114,13 +116,13 @@ export function NewClientForm({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4">
             <p className="text-sm font-medium">Rıza onayı</p>
             <Controller
               control={control}
               name="kvkkConsentChecked"
               render={({ field }) => (
-                <label className="flex items-start gap-2 text-sm">
+                <label className="flex min-h-11 items-start gap-3 py-2 text-sm">
                   <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
                   <span>KVKK aydınlatma metnini okudum, kabul ediyorum.</span>
                 </label>
@@ -133,7 +135,7 @@ export function NewClientForm({
               control={control}
               name="explicitConsentChecked"
               render={({ field }) => (
-                <label className="flex items-start gap-2 text-sm">
+                <label className="flex min-h-11 items-start gap-3 py-2 text-sm">
                   <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
                   <span>Özel nitelikli (sağlık) verimin işlenmesine açık rıza veriyorum.</span>
                 </label>
@@ -144,11 +146,11 @@ export function NewClientForm({
             )}
           </div>
 
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
         </CardContent>
         <CardFooter className="justify-end">
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+            {isSubmitting ? 'Kaydediliyor…' : 'Danışanı kaydet'}
           </Button>
         </CardFooter>
       </Card>

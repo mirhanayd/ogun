@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, useTransition, type FormEvent } from 'react'
 import { NavigationLink as Link } from '@/components/navigation-link'
 import { ArrowRight, Search, SearchX, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
@@ -88,6 +88,9 @@ export function ClientsTableView({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [assignDietitianId, setAssignDietitianId] = useState<string>('')
+  const [isSaving, setIsSaving] = useState(false)
+  const hasFilters = Boolean(filters.search || filters.status || filters.assignedDietitianId)
+  useEffect(() => { setSearchInput(filters.search) }, [filters.search])
 
   // Toplu işlemler (arşivle, diyetisyen ata) sadece owner/dietitian —
   // actions.ts'teki requireRole(['owner','dietitian']) kısıtıyla aynı,
@@ -201,6 +204,7 @@ export function ClientsTableView({
   })
 
   function navigate(nextFilters: ClientsFilters, page: number) {
+    setRowSelection({})
     startTransition(() => {
       onNavigate(nextFilters, page)
     })
@@ -222,7 +226,11 @@ export function ClientsTableView({
   const selectedIds = selectedClientIds(rowSelection)
 
   async function handleArchive() {
-    const result = await onArchive(selectedIds)
+    setIsSaving(true)
+    let result
+    try { result = await onArchive(selectedIds) }
+    catch { result = { success: false, error: 'Arşivleme tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.' } }
+    finally { setIsSaving(false) }
     if (!result.success) {
       toastActionError(
         result.error ?? 'Arşivleme başarısız oldu.',
@@ -236,7 +244,11 @@ export function ClientsTableView({
 
   async function handleAssignConfirm() {
     if (!assignDietitianId) return
-    const result = await onAssign(selectedIds, assignDietitianId)
+    setIsSaving(true)
+    let result
+    try { result = await onAssign(selectedIds, assignDietitianId) }
+    catch { result = { success: false, error: 'Atama tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.' } }
+    finally { setIsSaving(false) }
     if (!result.success) {
       toastActionError(
         result.error ?? 'Atama başarısız oldu.',
@@ -253,8 +265,8 @@ export function ClientsTableView({
   const totalPages = Math.max(Math.ceil(result.total / result.pageSize), 1)
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-2xl border border-border/70 bg-card/90 p-3 shadow-sm shadow-foreground/[0.025] sm:p-4">
+    <div className="clients-workspace flex min-w-0 flex-col gap-3" aria-busy={isPending || isSaving}>
+      <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <form onSubmit={handleSearchSubmit} className="flex w-full gap-2 lg:max-w-md">
             <div className="relative min-w-0 flex-1">
@@ -282,7 +294,7 @@ export function ClientsTableView({
               Filtreler
             </div>
             <Select value={filters.status || ALL_FILTER_VALUE} onValueChange={handleStatusChange}>
-              <SelectTrigger className="h-10 w-full rounded-xl bg-background sm:w-40">
+              <SelectTrigger aria-label="Danışan durumu" className="h-10 w-full rounded-lg bg-background sm:w-40">
                 <SelectValue placeholder="Durum" />
               </SelectTrigger>
               <SelectContent>
@@ -299,7 +311,7 @@ export function ClientsTableView({
                 value={filters.assignedDietitianId || ALL_FILTER_VALUE}
                 onValueChange={handleDietitianFilterChange}
               >
-                <SelectTrigger className="h-10 w-full rounded-xl bg-background sm:w-48">
+                <SelectTrigger aria-label="Atanan diyetisyen" className="h-10 w-full rounded-lg bg-background sm:w-48">
                   <SelectValue placeholder="Diyetisyen" />
                 </SelectTrigger>
                 <SelectContent>
@@ -316,15 +328,23 @@ export function ClientsTableView({
         </div>
       </div>
 
+      <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm">
+        <p role="status" className="mr-auto text-muted-foreground">{isPending ? 'Danışanlar yükleniyor…' : <><strong className="font-semibold tabular-nums text-foreground">{result.total}</strong> {hasFilters ? 'danışan bulundu' : 'danışan'}{result.total > 0 ? <span className="ml-2 text-xs">{(result.page - 1) * result.pageSize + 1}–{Math.min(result.page * result.pageSize, result.total)} gösteriliyor</span> : null}</>}</p>
+        {canBulkManage && result.rows.length > 0 ? <label className="flex min-h-10 items-center gap-2 md:hidden"><input type="checkbox" checked={table.getIsAllRowsSelected()} onChange={table.getToggleAllRowsSelectedHandler()} />Sayfadakileri seç</label> : null}
+        {hasFilters ? <Button variant="ghost" size="sm" onClick={() => { setSearchInput(''); navigate({ search: '', status: '', assignedDietitianId: '' }, 1) }}>Filtreleri temizle</Button> : null}
+      </div>
+
       {canBulkManage && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.045] px-4 py-3 text-sm shadow-sm shadow-primary/5">
           <span className="font-medium">{selectionSummaryLabel(selectedIds.length)}</span>
           <div className="ml-auto flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setRowSelection({})} disabled={isSaving}>Seçimi kaldır</Button>
             <Button
               size="sm"
               variant="outline"
               className="rounded-lg bg-background/75"
               onClick={handleArchive}
+              disabled={isSaving}
             >
               Arşivle
             </Button>
@@ -333,7 +353,7 @@ export function ClientsTableView({
               variant="outline"
               className="rounded-lg bg-background/75"
               onClick={() => setAssignDialogOpen(true)}
-              disabled={dietitians.length === 0}
+              disabled={isSaving || dietitians.length === 0}
             >
               Diyetisyen ata
             </Button>}
@@ -346,15 +366,15 @@ export function ClientsTableView({
           <EmptyState
             variant="inline"
             icon={SearchX}
-            title="Bu filtrelerle danışan bulunamadı"
-            description="Arama metnini kısaltmayı ya da durum/diyetisyen filtrelerini temizlemeyi deneyin."
-            action={{
+            title={hasFilters ? 'Bu filtrelerle danışan bulunamadı' : 'Henüz danışan yok'}
+            description={hasFilters ? 'Arama metnini kısaltın veya filtreleri temizleyin.' : 'Yeni danışan ekleyerek kayıt, ölçüm ve randevu takibine başlayın.'}
+            action={hasFilters ? {
               label: 'Filtreleri temizle',
               onClick: () => {
                 setSearchInput('')
                 navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
               },
-            }}
+            } : undefined}
           />
         </div>
       ) : (
@@ -376,7 +396,7 @@ export function ClientsTableView({
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className="transition-colors hover:bg-muted/35">
+                  <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined} className="transition-colors hover:bg-muted/35">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -395,7 +415,8 @@ export function ClientsTableView({
               return (
                 <div
                   key={row.id}
-                  className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm shadow-foreground/[0.025]"
+                  data-state={row.getIsSelected() ? 'selected' : undefined}
+                  className="rounded-xl border border-border bg-card p-4 data-[state=selected]:border-primary data-[state=selected]:bg-accent/30"
                 >
                   <div className="flex items-start gap-3">
                     {canBulkManage && (
@@ -477,7 +498,7 @@ export function ClientsTableView({
             </DialogDescription>
           </DialogHeader>
           <Select value={assignDietitianId} onValueChange={setAssignDietitianId}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger aria-label="Atanacak diyetisyen" className="w-full">
               <SelectValue placeholder="Diyetisyen seçin" />
             </SelectTrigger>
             <SelectContent>
@@ -492,8 +513,8 @@ export function ClientsTableView({
             <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
               Vazgeç
             </Button>
-            <Button onClick={handleAssignConfirm} disabled={!assignDietitianId}>
-              Ata
+            <Button onClick={handleAssignConfirm} disabled={isSaving || !assignDietitianId}>
+              {isSaving ? 'Atanıyor…' : 'Ata'}
             </Button>
           </DialogFooter>
         </DialogContent>

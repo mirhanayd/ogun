@@ -46,18 +46,24 @@ export function LocalNewClientAdapter({ repository, onCreated }: { repository: O
 }
 
 export function LocalClientsAdapter({ role, repositories }: { role: ClinicRole; repositories: OgunRepositories }) {
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
   const [data, setData] = useState({ clients: [] as DomainEntity[], measurements: [] as DomainEntity[], appointments: [] as DomainEntity[], dietitians: [] as DomainEntity[] })
   const [filters, setFilters] = useState<ClientsFilters>({ search: '', status: '', assignedDietitianId: '' })
   useEffect(() => {
+    let cancelled = false
     const load = () => void Promise.all([
       repositories.clients.list(),
       repositories.records.list('measurements'),
       repositories.appointments.list(),
       repositories.records.list('dietitians'),
-    ]).then(([clients, measurements, appointments, dietitians]) => setData({ clients, measurements, appointments, dietitians }))
+    ]).then(([clients, measurements, appointments, dietitians]) => {
+      if (!cancelled) { setData({ clients, measurements, appointments, dietitians }); setLoadError(false) }
+    }).catch(() => { if (!cancelled) setLoadError(true) }).finally(() => { if (!cancelled) setLoading(false) })
     load(); window.addEventListener('ogun-local-data-changed', load)
-    return () => window.removeEventListener('ogun-local-data-changed', load)
-  }, [repositories])
+    return () => { cancelled = true; window.removeEventListener('ogun-local-data-changed', load) }
+  }, [repositories, retry])
   const filtered = useMemo(() => data.clients.filter((client) => {
     const haystack = [client.firstName, client.lastName, client.phone, client.email].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
     return (!filters.search || haystack.includes(filters.search.toLocaleLowerCase('tr-TR'))) && (!filters.status || client.status === filters.status) && (!filters.assignedDietitianId || client.assignedDietitianId === filters.assignedDietitianId)
@@ -65,7 +71,8 @@ export function LocalClientsAdapter({ role, repositories }: { role: ClinicRole; 
   const rows = useMemo(() => buildLocalClientListRows(filtered, data.measurements, data.appointments), [data.appointments, data.measurements, filtered])
   const dietitians: ClinicDietitianOption[] = data.dietitians.map((option) => ({ id: option.id, name: text(option, 'name') }))
   return <ClientsScreen role={role} actions={role === 'assistant' ? undefined : <ClientsActionsView canImport={false} />}>
-    <ClientsTableView
+    <p className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Cihazdaki danışan kayıtları gösteriliyor. CSV içe aktarma için çevrimiçi çalışma alanını kullanın.</p>
+    {loadError ? <div role="alert" className="rounded-xl border border-destructive/40 bg-card p-5"><p>Danışan kayıtları yüklenemedi.</p><button type="button" className="mt-2 min-h-11 underline underline-offset-4" onClick={() => { setLoading(true); setRetry((value) => value + 1) }}>Tekrar dene</button></div> : loading ? <div role="status" className="rounded-xl border border-border bg-card p-8 text-muted-foreground">Danışanlar yükleniyor…</div> : <ClientsTableView
       result={{ rows, total: rows.length, page: 1, pageSize: Math.max(rows.length, 1) }}
       dietitians={dietitians}
       role={role}
@@ -87,7 +94,7 @@ export function LocalClientsAdapter({ role, repositories }: { role: ClinicRole; 
           return { success: false, error: String(reason) }
         }
       }}
-    />
+    />}
   </ClientsScreen>
 }
 

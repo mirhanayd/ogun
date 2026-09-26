@@ -401,6 +401,15 @@
   color: var(--background);
 }
 .app-skip-link:focus { transform: translateY(0); }
+.clients-workspace input[type='checkbox'] { width: 1.125rem; height: 1.125rem; cursor: pointer; }
+.clients-workspace :is(th, td):has(> input[type='checkbox']) { padding: 1rem; }
+.clients-workspace td { padding-block: 1rem; }
+.clients-workspace th { color: var(--muted-foreground); background: var(--muted); font-weight: 500; }
+.clients-workspace tr[data-state='selected'] { background: var(--accent); }
+.clients-workspace [data-slot='badge'][data-variant='default'] {
+  color: var(--foreground);
+  background: var(--secondary);
+}
 [data-app-shell] input[type='checkbox'] { accent-color: var(--primary); }
 [data-app-shell] :is(input, textarea) { scroll-margin-block: 5rem; }
 [data-app-shell] :focus-visible { outline-color: var(--foreground); }

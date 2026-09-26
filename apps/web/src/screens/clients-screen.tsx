@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Upload, UserPlus, UsersRound } from 'lucide-react'
+import { Upload } from 'lucide-react'
+import { OgunAddClient as UserPlus, OgunClients as UsersRound } from '@/components/ogun-icons'
 import { ScreenFrame } from './screen-frame'
 import { Button } from '@/components/ui/button'
 import { NavigationLink } from '@/components/navigation-link'
@@ -19,7 +20,7 @@ export function ClientsScreen({
       title="Danışanlar"
       description={
         role === 'owner'
-          ? 'Kliniğinizdeki tüm danışanları, atamaları ve bakım akışlarını yönetin.'
+          ? 'Danışan kayıtları, son ölçümler ve randevular.'
           : role === 'dietitian'
           ? 'Size atanan danışanların takip, ölçüm ve beslenme planlarına ulaşın.'
           : 'Yetkiniz kapsamındaki danışan kayıtlarına ve randevu akışlarına ulaşın.'
@@ -34,12 +35,12 @@ export function ClientsScreen({
 
 export function ClientsActionsView({ canImport = true }: { canImport?: boolean }) {
   return <>
-    <Button asChild variant="outline" size="lg" className="rounded-xl bg-background/80 px-4" disabled={!canImport}>
-      <NavigationLink href={canImport ? '/danisanlar/ice-aktar' : '#'} aria-disabled={!canImport} title={!canImport ? 'CSV içe aktarma için internet bağlantısı gerekir.' : undefined}>
+    {canImport ? <Button asChild variant="outline" size="lg">
+      <NavigationLink href="/danisanlar/ice-aktar">
         <Upload data-icon="inline-start" />CSV içe aktar
       </NavigationLink>
-    </Button>
-    <Button asChild size="lg" className="rounded-xl px-4 shadow-sm shadow-primary/15">
+    </Button> : <Button variant="outline" size="lg" disabled title="CSV içe aktarma için internet bağlantısı gerekir."><Upload />CSV içe aktar (çevrimiçi)</Button>}
+    <Button asChild size="lg">
       <NavigationLink href="/danisanlar/yeni"><UserPlus data-icon="inline-start" />Yeni danışan</NavigationLink>
     </Button>
   </>
