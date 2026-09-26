@@ -406,6 +406,38 @@
 .clients-workspace td { padding-block: 1rem; }
 .clients-workspace th { color: var(--muted-foreground); background: var(--muted); font-weight: 500; }
 .clients-workspace tr[data-state='selected'] { background: var(--accent); }
+.client-quick-actions > * { width: auto; flex: 1 1 auto; min-height: 2.75rem; }
+.client-tabs .client-tab-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  height: auto;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: var(--workspace-radius, 0.75rem);
+  background: var(--card);
+}
+.client-tabs .client-tab {
+  min-height: 3rem;
+  height: auto;
+  padding: 0.625rem 0.5rem;
+  color: var(--muted-foreground);
+}
+.client-tabs .client-tab[data-state='active'] {
+  color: var(--foreground);
+  background: var(--accent);
+  border-color: var(--border);
+  box-shadow: inset 0 -2px var(--primary);
+}
+@media (min-width: 1280px) {
+  .client-tabs .client-tab-list { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) {
+  .client-tabs .client-tab { flex-direction: column; font-size: 0.75rem; }
+  .client-summary > :nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+  .client-summary > :nth-child(2n) { border-right: 0; }
+}
 .clients-workspace [data-slot='badge'][data-variant='default'] {
   color: var(--foreground);
   background: var(--secondary);
