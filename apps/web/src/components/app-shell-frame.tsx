@@ -38,41 +38,44 @@ export function AppShellFrame({
     >
       {desktopTitlebar}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <AppSidebar>
-          <div
-            className="sidebar-identity flex min-h-24 items-center gap-3 px-4"
-            title={`${clinicName} — ${userName}`}
-          >
-            <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
-              {clinicLogoUrl ? (
-                // Clinic logos may be data URLs, which image optimizers cannot handle.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={clinicLogoUrl}
-                  alt=""
-                  width={40}
-                  height={40}
-                  className="size-full object-contain"
-                />
-              ) : (
-                <span className="text-sm font-semibold">{clinicInitials}</span>
-              )}
-            </span>
-            <div className="sidebar-label min-w-0">
-              <p
-                className="truncate text-sm font-semibold tracking-[-0.025em] text-sidebar-foreground"
-                title={clinicName}
-              >
-                {clinicName}
-              </p>
-              <p className="mt-1 truncate text-xs text-muted-foreground" title={userName}>
-                {userName}
-              </p>
+        <AppSidebar
+          identity={
+            <div
+              className="flex h-full min-w-0 items-center gap-3 px-3"
+              title={`${clinicName} — ${userName}`}
+            >
+              <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border/80 bg-card text-primary shadow-sm">
+                {clinicLogoUrl ? (
+                  // Clinic logos may be data URLs, which image optimizers cannot handle.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={clinicLogoUrl}
+                    alt=""
+                    width={44}
+                    height={44}
+                    className="size-full object-contain"
+                  />
+                ) : (
+                  <span className="text-sm font-semibold">{clinicInitials}</span>
+                )}
+              </span>
+              <div className="min-w-0">
+                <p
+                  className="truncate text-sm font-semibold tracking-[-0.025em] text-foreground"
+                  title={clinicName}
+                >
+                  {clinicName}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground" title={userName}>
+                  {userName}
+                </p>
+              </div>
             </div>
-          </div>
+          }
+        >
           {navigation}
         </AppSidebar>
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="app-content-frame flex min-w-0 flex-1 flex-col">
           {topbar}
           <a href="#ogun-main" className="app-skip-link">
             İçeriğe geç

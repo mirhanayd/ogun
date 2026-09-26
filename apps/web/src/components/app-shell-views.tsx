@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType, HTMLAttributes, ReactNode } from 'react'
+import { useState, type ComponentType, type HTMLAttributes, type ReactNode } from 'react'
 import { Maximize2, Minus, MoreHorizontal, Square, X } from 'lucide-react'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import {
@@ -11,8 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
-import { useSidebarCollapsed } from './app-sidebar'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 
 export interface ShellLinkProps {
   href: string
@@ -24,6 +22,12 @@ export interface ShellLinkProps {
 }
 
 export type ShellLinkComponent = ComponentType<ShellLinkProps>
+
+export interface SidebarQuickClient {
+  id: string
+  firstName: string
+  lastName: string
+}
 
 function AnchorLink({ href, onClick, ...props }: ShellLinkProps) {
   return (
@@ -42,106 +46,138 @@ function AnchorLink({ href, onClick, ...props }: ShellLinkProps) {
 export function SidebarNavView({
   role,
   currentPath,
-  connectivity,
+  quickClients,
+  loadQuickClients,
   LinkComponent = AnchorLink,
   onNavigate,
 }: {
   role: ClinicMemberRole
   currentPath: string
-  connectivity: 'online' | 'offline' | 'checking'
+  quickClients?: SidebarQuickClient[]
+  loadQuickClients?: () => Promise<SidebarQuickClient[]>
   LinkComponent?: ShellLinkComponent
   onNavigate?: (href: string) => void
 }) {
-  const isOnline = connectivity === 'online'
-  const collapsed = useSidebarCollapsed()
-  return (
-    <TooltipProvider delayDuration={250}>
-      <nav
-        className="sidebar-nav flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4"
-        aria-label="Ana gezinme"
-        data-sidebar-navigation
+  const items = visibleNavItems(role)
+  const [showQuickClients, setShowQuickClients] = useState(false)
+  const [loadedQuickClients, setLoadedQuickClients] = useState<SidebarQuickClient[]>([])
+  const [quickClientStatus, setQuickClientStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >(quickClients ? 'ready' : 'idle')
+  const recentClients = quickClients ?? loadedQuickClients
+
+  function openQuickClients() {
+    setShowQuickClients(true)
+    if (!loadQuickClients || quickClients || quickClientStatus !== 'idle') return
+    setQuickClientStatus('loading')
+    void loadQuickClients()
+      .then((rows) => {
+        setLoadedQuickClients(rows.slice(0, 4))
+        setQuickClientStatus('ready')
+      })
+      .catch(() => setQuickClientStatus('error'))
+  }
+
+  const renderItem = (item: (typeof items)[number]) => {
+    const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
+    return (
+      <LinkComponent
+        key={item.href}
+        href={item.href}
+        onClick={onNavigate ? () => onNavigate(item.href) : undefined}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'sidebar-link group relative flex min-h-12 items-center gap-3 overflow-hidden rounded-xl text-sm font-semibold text-foreground transition-colors hover:bg-sidebar-accent',
+          active && 'sidebar-link-active bg-sidebar-accent',
+        )}
       >
-        <p className="sidebar-label px-3 text-xs font-medium text-muted-foreground">
-          Klinik yönetimi
-        </p>
-        <div className="flex flex-col gap-1" data-sidebar-navigation-items>
-          {visibleNavItems(role).map((item) => {
-            const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
-            return (
-              <Tooltip key={item.href}>
-                <TooltipTrigger asChild>
-                  <LinkComponent
-                    href={item.href}
-                    onClick={onNavigate ? () => onNavigate(item.href) : undefined}
-                    aria-current={active ? 'page' : undefined}
-                    title={item.label}
-                    className={cn(
-                      'sidebar-link group relative flex min-h-12 items-center gap-3 rounded-lg px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                      active && 'sidebar-link-active bg-sidebar-accent text-sidebar-foreground',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors group-hover:text-sidebar-foreground',
-                        active && 'bg-sidebar-primary text-sidebar-primary-foreground',
-                      )}
-                    >
-                      <item.icon className="size-5 shrink-0" />
-                    </span>
-                    <span className="sidebar-label">{item.label}</span>
-                    {active && (
-                      <span className="absolute inset-y-2 -left-3 w-0.5 rounded-full bg-sidebar-primary" />
-                    )}
-                  </LinkComponent>
-                </TooltipTrigger>
-                {collapsed ? (
-                  <TooltipContent side="right" sideOffset={12}>
-                    {item.label}
-                  </TooltipContent>
-                ) : null}
-              </Tooltip>
-            )
-          })}
-        </div>
-        <div
-          className="sidebar-connection mt-auto border-t border-sidebar-border px-2 pt-4"
-          title={
-            isOnline
-              ? 'Çevrimiçi'
-              : connectivity === 'offline'
-                ? 'Bağlantı yok'
-                : 'Bağlantı kontrol ediliyor'
-          }
+        <span
+          className={cn(
+            'sidebar-link-icon grid size-12 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors group-hover:text-foreground',
+            active &&
+              'rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm group-hover:text-sidebar-primary-foreground',
+          )}
         >
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
-            <span
-              className={cn(
-                'size-1.5 rounded-full',
-                isOnline
-                  ? 'bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]'
-                  : connectivity === 'offline'
-                    ? 'bg-destructive shadow-[0_0_0_3px_color-mix(in_oklch,var(--destructive)_12%,transparent)]'
-                    : 'animate-pulse bg-amber-500',
-              )}
-            />
-            <span className="sidebar-label">
-              {isOnline
-                ? 'Çevrimiçi'
-                : connectivity === 'offline'
-                  ? 'Bağlantı yok'
-                  : 'Bağlantı kontrol ediliyor'}
-            </span>
-          </div>
-          <p className="sidebar-label text-xs leading-5 text-muted-foreground">
-            {isOnline
-              ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
-              : connectivity === 'offline'
-                ? 'Desteklenen kayıtlar cihazda tutulur; çevrimiçi işlemler geçici olarak kapalıdır.'
-                : 'Güvenli klinik alanına erişim doğrulanıyor.'}
-          </p>
-        </div>
-      </nav>
-    </TooltipProvider>
+          <item.icon className="size-[1.45rem] shrink-0" strokeWidth={2.15} aria-hidden="true" />
+        </span>
+        <span className="sidebar-label whitespace-nowrap pr-4">{item.label}</span>
+      </LinkComponent>
+    )
+  }
+
+  return (
+    <nav
+      className="sidebar-nav flex min-h-0 flex-col gap-2 overflow-visible"
+      aria-label="Ana gezinme"
+      data-sidebar-navigation
+    >
+      <div className="sidebar-panel-action">{items.slice(0, 1).map(renderItem)}</div>
+      <div className="sidebar-navigation-stack flex flex-col gap-1" data-sidebar-navigation-items>
+        {items.slice(1).map((item) =>
+          item.href === '/danisanlar' ? (
+            <div
+              key={item.href}
+              className="sidebar-client-group"
+              onMouseEnter={openQuickClients}
+              onMouseLeave={() => setShowQuickClients(false)}
+              onFocus={openQuickClients}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setShowQuickClients(false)
+              }}
+            >
+              {renderItem(item)}
+              {showQuickClients ? (
+                <div className="sidebar-client-quick-list" aria-label="Son danışanlar">
+                  <p className="sidebar-label px-2 pb-1 pt-2 text-[0.68rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    Son danışanlar
+                  </p>
+                  {quickClientStatus === 'loading' ? (
+                    <p className="sidebar-label px-2 py-2 text-xs text-muted-foreground">
+                      Yükleniyor…
+                    </p>
+                  ) : quickClientStatus === 'error' ? (
+                    <p className="sidebar-label px-2 py-2 text-xs text-muted-foreground">
+                      Liste alınamadı
+                    </p>
+                  ) : recentClients.length === 0 ? (
+                    <p className="sidebar-label px-2 py-2 text-xs text-muted-foreground">
+                      Henüz danışan yok
+                    </p>
+                  ) : (
+                    <div className="sidebar-label flex flex-col gap-0.5">
+                      {recentClients.map((client) => {
+                        const name = `${client.firstName} ${client.lastName}`.trim()
+                        const initials =
+                          `${client.firstName[0] ?? ''}${client.lastName[0] ?? ''}`.toLocaleUpperCase(
+                            'tr-TR',
+                          )
+                        return (
+                          <LinkComponent
+                            key={client.id}
+                            href={`/danisanlar/${client.id}`}
+                            onClick={
+                              onNavigate ? () => onNavigate(`/danisanlar/${client.id}`) : undefined
+                            }
+                            className="sidebar-quick-client flex min-h-10 items-center gap-2 rounded-xl px-2 text-xs font-semibold text-foreground hover:bg-sidebar-accent"
+                          >
+                            <span className="grid size-7 shrink-0 place-items-center rounded-full border border-border bg-muted text-[0.62rem] text-muted-foreground">
+                              {initials}
+                            </span>
+                            <span className="min-w-0 truncate">{name}</span>
+                          </LinkComponent>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            renderItem(item)
+          ),
+        )}
+      </div>
+    </nav>
   )
 }
 
@@ -256,9 +292,11 @@ export function TopBarView({
 }) {
   return (
     <header className="app-topbar relative z-40 flex h-[4.5rem] shrink-0 items-center gap-2 border-b border-border/80 bg-background/90 px-3 backdrop-blur-xl sm:gap-4 sm:px-6">
-      {pageContext}
-      <div className="hidden h-7 w-px bg-border md:block" />
-      <div className="min-w-0 flex-1 sm:flex-none">{clinicSwitcher}</div>
+      <div className="app-topbar-page-context">{pageContext}</div>
+      <div className="app-topbar-divider hidden h-7 w-px bg-border md:block" />
+      <div className="app-topbar-clinic-switcher min-w-0 flex-1 empty:hidden sm:flex-none">
+        {clinicSwitcher}
+      </div>
       <div className="app-topbar-search flex flex-none justify-end sm:flex-1 sm:justify-center sm:px-2 [&_button]:size-9 [&_button]:justify-center [&_button]:px-0 [&_button_span]:sr-only sm:[&_button]:h-9 sm:[&_button]:w-full sm:[&_button]:justify-start sm:[&_button]:px-3 sm:[&_button_span]:not-sr-only">
         {search}
       </div>

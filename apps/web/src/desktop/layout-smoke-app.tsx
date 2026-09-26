@@ -137,7 +137,10 @@ export function DesktopLayoutSmokeApp({ initialRoute }: { initialRoute: string }
           <SidebarNavView
             role={role}
             currentPath={route}
-            connectivity="offline"
+            quickClients={[
+              { id: 'client-2', firstName: 'Selin', lastName: 'Kaya' },
+              { id: 'client-1', firstName: 'Deniz', lastName: 'Yılmaz' },
+            ]}
             onNavigate={setRoute}
           />
         }
