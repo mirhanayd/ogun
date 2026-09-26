@@ -22,8 +22,8 @@ export function ClientsScreen({
         role === 'owner'
           ? 'Danışan kayıtları, son ölçümler ve randevular.'
           : role === 'dietitian'
-          ? 'Size atanan danışanların takip, ölçüm ve beslenme planlarına ulaşın.'
-          : 'Yetkiniz kapsamındaki danışan kayıtlarına ve randevu akışlarına ulaşın.'
+            ? 'Size atanan danışanların takip, ölçüm ve beslenme planlarına ulaşın.'
+            : 'Yetkiniz kapsamındaki danışan kayıtlarına ve randevu akışlarına ulaşın.'
       }
       icon={UsersRound}
       actions={actions}
@@ -34,14 +34,32 @@ export function ClientsScreen({
 }
 
 export function ClientsActionsView({ canImport = true }: { canImport?: boolean }) {
-  return <>
-    {canImport ? <Button asChild variant="outline" size="lg">
-      <NavigationLink href="/danisanlar/ice-aktar">
-        <Upload data-icon="inline-start" />CSV içe aktar
-      </NavigationLink>
-    </Button> : <Button variant="outline" size="lg" disabled title="CSV içe aktarma için internet bağlantısı gerekir."><Upload />CSV içe aktar (çevrimiçi)</Button>}
-    <Button asChild size="lg">
-      <NavigationLink href="/danisanlar/yeni"><UserPlus data-icon="inline-start" />Yeni danışan</NavigationLink>
-    </Button>
-  </>
+  return (
+    <>
+      {canImport ? (
+        <Button asChild variant="outline" size="lg">
+          <NavigationLink href="/danisanlar/ice-aktar">
+            <Upload data-icon="inline-start" />
+            CSV içe aktar
+          </NavigationLink>
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="lg"
+          disabled
+          title="CSV içe aktarma için internet bağlantısı gerekir."
+        >
+          <Upload />
+          CSV içe aktar (çevrimiçi)
+        </Button>
+      )}
+      <Button asChild size="lg">
+        <NavigationLink href="/danisanlar/yeni">
+          <UserPlus data-icon="inline-start" />
+          Yeni danışan
+        </NavigationLink>
+      </Button>
+    </>
+  )
 }

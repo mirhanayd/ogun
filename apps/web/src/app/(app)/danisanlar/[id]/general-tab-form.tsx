@@ -92,16 +92,16 @@ export function GeneralTabForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5 rounded-xl border border-border bg-card p-4 sm:p-5" aria-busy={isSubmitting}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="firstName">Ad</Label>
-          <Input id="firstName" aria-invalid={!!errors.firstName} {...register('firstName')} />
+          <Input id="firstName" autoComplete="given-name" aria-invalid={!!errors.firstName} {...register('firstName')} />
           {errors.firstName && <p className="text-sm text-destructive">{errors.firstName.message}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="lastName">Soyad</Label>
-          <Input id="lastName" aria-invalid={!!errors.lastName} {...register('lastName')} />
+          <Input id="lastName" autoComplete="family-name" aria-invalid={!!errors.lastName} {...register('lastName')} />
           {errors.lastName && <p className="text-sm text-destructive">{errors.lastName.message}</p>}
         </div>
       </div>
@@ -160,11 +160,11 @@ export function GeneralTabForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="phone">Telefon</Label>
-          <Input id="phone" type="tel" {...register('phone')} />
+          <Input id="phone" type="tel" autoComplete="tel" {...register('phone')} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email">E-posta</Label>
-          <Input id="email" type="email" aria-invalid={!!errors.email} {...register('email')} />
+          <Input id="email" type="email" autoComplete="email" spellCheck={false} aria-invalid={!!errors.email} {...register('email')} />
           {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -187,11 +187,10 @@ export function GeneralTabForm({
           control={control}
           name="smsConsentChecked"
           render={({ field }) => (
-            <label className="flex items-start gap-2 text-sm">
+            <label className="flex min-h-11 items-start gap-3 py-2 text-sm">
               <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
               <span>
-                Danışan, randevu hatırlatma SMS&apos;i almayı kabul ediyor (GitHub issue #41 — rıza olmadan hatırlatma
-                SMS&apos;i asla gönderilmez).
+                Danışan, randevu hatırlatma SMS&apos;i almayı kabul ediyor.
               </span>
             </label>
           )}
@@ -209,13 +208,13 @@ export function GeneralTabForm({
         </p>
       </div>
 
-      {formError && <p className="text-sm text-destructive">{formError}</p>}
+      {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
 
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={isSubmitting}>
           {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
         </Button>
-        {saved && <span className="text-sm text-muted-foreground">Kaydedildi.</span>}
+        {saved && <span role="status" className="text-sm text-muted-foreground">Kaydedildi.</span>}
       </div>
     </form>
   )

@@ -39,12 +39,21 @@ export function AppShellFrame({
       {desktopTitlebar}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <AppSidebar>
-          <div className="sidebar-identity flex min-h-24 items-center gap-3 px-4" title={`${clinicName} — ${userName}`}>
+          <div
+            className="sidebar-identity flex min-h-24 items-center gap-3 px-4"
+            title={`${clinicName} — ${userName}`}
+          >
             <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
               {clinicLogoUrl ? (
                 // Clinic logos may be data URLs, which image optimizers cannot handle.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={clinicLogoUrl} alt="" className="size-full object-contain" />
+                <img
+                  src={clinicLogoUrl}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="size-full object-contain"
+                />
               ) : (
                 <span className="text-sm font-semibold">{clinicInitials}</span>
               )}
@@ -56,10 +65,7 @@ export function AppShellFrame({
               >
                 {clinicName}
               </p>
-              <p
-                className="mt-1 truncate text-xs text-muted-foreground"
-                title={userName}
-              >
+              <p className="mt-1 truncate text-xs text-muted-foreground" title={userName}>
                 {userName}
               </p>
             </div>
@@ -68,8 +74,15 @@ export function AppShellFrame({
         </AppSidebar>
         <div className="flex min-w-0 flex-1 flex-col">
           {topbar}
-          <a href="#ogun-main" className="app-skip-link">İçeriğe geç</a>
-          <main id="ogun-main" tabIndex={-1} className="app-main min-w-0 flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 md:pb-7 lg:px-8" data-app-main>
+          <a href="#ogun-main" className="app-skip-link">
+            İçeriğe geç
+          </a>
+          <main
+            id="ogun-main"
+            tabIndex={-1}
+            className="app-main min-w-0 flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 md:pb-7 lg:px-8"
+            data-app-main
+          >
             <div className="mx-auto w-full max-w-[1500px]">{children}</div>
           </main>
         </div>

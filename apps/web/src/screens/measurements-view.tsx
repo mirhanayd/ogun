@@ -30,7 +30,15 @@ export function MeasurementsView({
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardHeader className="border-b"><CardTitle className="flex items-center gap-2"><OgunMeasure className="size-5 text-muted-foreground" />Yeni ölçüm</CardTitle><CardDescription>Ölçümü elle girin veya mevcut cihaz içe aktarma seçeneklerini kullanın.</CardDescription></CardHeader>
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2">
+            <OgunMeasure className="size-5 text-muted-foreground" />
+            Yeni ölçüm
+          </CardTitle>
+          <CardDescription>
+            Ölçümü elle girin veya mevcut cihaz içe aktarma seçeneklerini kullanın.
+          </CardDescription>
+        </CardHeader>
         <CardContent>
           <MeasurementForm
             previousMeasurement={
@@ -56,7 +64,10 @@ export function MeasurementsView({
         ))}
       {measurements.length > 0 ? (
         <Card>
-          <CardHeader className="border-b"><CardTitle>Ölçüm geçmişi</CardTitle><CardDescription>Kayıtlı ölçümler ve hedef doğrultusundaki değişim.</CardDescription></CardHeader>
+          <CardHeader className="border-b">
+            <CardTitle>Ölçüm geçmişi</CardTitle>
+            <CardDescription>Kayıtlı ölçümler ve hedef doğrultusundaki değişim.</CardDescription>
+          </CardHeader>
           <CardContent>
             <ProgressCharts measurements={measurements} weightGoal={weightGoal} />
           </CardContent>

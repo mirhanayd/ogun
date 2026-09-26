@@ -9,28 +9,31 @@ interface ScreenHeadingProps {
   actions?: ReactNode
 }
 
-export function ScreenFrame({ children, ...heading }: ScreenHeadingProps & { children: ReactNode }) {
-  return <div className="flex min-w-0 flex-col gap-5 pb-4"><ScreenHeading {...heading} />{children}</div>
+export function ScreenFrame({
+  children,
+  ...heading
+}: ScreenHeadingProps & { children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-5 pb-4">
+      <ScreenHeading {...heading} />
+      {children}
+    </div>
+  )
 }
 
-export function ScreenHeading({
-  title,
-  description,
-  icon: Icon,
-  actions,
-}: ScreenHeadingProps) {
+export function ScreenHeading({ title, description, icon: Icon, actions }: ScreenHeadingProps) {
   return (
-      <header className="workspace-heading flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 space-y-2">
-          <div className="flex items-center gap-3">
-            <Icon className="size-6 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <h1 className="text-title tracking-tight">{title}</h1>
-          </div>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
+    <header className="workspace-heading flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0 space-y-2">
+        <div className="flex items-center gap-3">
+          <Icon className="size-6 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <h1 className="text-title tracking-tight">{title}</h1>
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap gap-2 [&>*]:grow sm:[&>*]:grow-0">{actions}</div> : null}
-      </header>
+        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+      {actions ? (
+        <div className="flex shrink-0 flex-wrap gap-2 [&>*]:grow sm:[&>*]:grow-0">{actions}</div>
+      ) : null}
+    </header>
   )
 }

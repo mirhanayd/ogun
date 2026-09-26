@@ -90,7 +90,9 @@ export function ClientsTableView({
   const [assignDietitianId, setAssignDietitianId] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
   const hasFilters = Boolean(filters.search || filters.status || filters.assignedDietitianId)
-  useEffect(() => { setSearchInput(filters.search) }, [filters.search])
+  useEffect(() => {
+    setSearchInput(filters.search)
+  }, [filters.search])
 
   // Toplu işlemler (arşivle, diyetisyen ata) sadece owner/dietitian —
   // actions.ts'teki requireRole(['owner','dietitian']) kısıtıyla aynı,
@@ -109,25 +111,29 @@ export function ClientsTableView({
             columnHelper.display({
               id: 'select',
               header: ({ table }) => (
-                <input
-                  type="checkbox"
-                  aria-label="Tümünü seç"
-                  checked={table.getIsAllRowsSelected()}
-                  ref={(el) => {
-                    if (el)
-                      el.indeterminate =
-                        table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()
-                  }}
-                  onChange={table.getToggleAllRowsSelectedHandler()}
-                />
+                <label className="grid size-10 cursor-pointer place-items-center">
+                  <input
+                    type="checkbox"
+                    aria-label="Tümünü seç"
+                    checked={table.getIsAllRowsSelected()}
+                    ref={(el) => {
+                      if (el)
+                        el.indeterminate =
+                          table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()
+                    }}
+                    onChange={table.getToggleAllRowsSelectedHandler()}
+                  />
+                </label>
               ),
               cell: ({ row }) => (
-                <input
-                  type="checkbox"
-                  aria-label={`${row.original.firstName} ${row.original.lastName} adlı danışanı seç`}
-                  checked={row.getIsSelected()}
-                  onChange={row.getToggleSelectedHandler()}
-                />
+                <label className="grid size-10 cursor-pointer place-items-center">
+                  <input
+                    type="checkbox"
+                    aria-label={`${row.original.firstName} ${row.original.lastName} adlı danışanı seç`}
+                    checked={row.getIsSelected()}
+                    onChange={row.getToggleSelectedHandler()}
+                  />
+                </label>
               ),
             }),
           ]
@@ -140,11 +146,11 @@ export function ClientsTableView({
             href={`/danisanlar/${row.original.id}`}
             className="group/name flex min-w-44 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/8 text-xs font-semibold text-primary ring-1 ring-primary/10">
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/8 text-xs font-semibold text-secondary-foreground ring-1 ring-border">
               {row.original.firstName.slice(0, 1)}
               {row.original.lastName.slice(0, 1)}
             </span>
-            <span className="font-medium group-hover/name:text-primary">
+            <span className="font-medium group-hover/name:underline">
               {row.original.firstName} {row.original.lastName}
             </span>
           </Link>
@@ -158,12 +164,16 @@ export function ClientsTableView({
       columnHelper.display({
         id: 'lastMeasurement',
         header: 'Son ölçüm',
-        cell: ({ row }) => <span className="whitespace-nowrap">{formatLastMeasurement(row.original)}</span>,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">{formatLastMeasurement(row.original)}</span>
+        ),
       }),
       columnHelper.display({
         id: 'lastAppointment',
         header: 'Son randevu',
-        cell: ({ row }) => <span className="whitespace-nowrap">{formatLastAppointment(row.original)}</span>,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">{formatLastAppointment(row.original)}</span>
+        ),
       }),
       columnHelper.accessor('assignedDietitianName', {
         header: 'Atanan diyetisyen',
@@ -228,9 +238,16 @@ export function ClientsTableView({
   async function handleArchive() {
     setIsSaving(true)
     let result
-    try { result = await onArchive(selectedIds) }
-    catch { result = { success: false, error: 'Arşivleme tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.' } }
-    finally { setIsSaving(false) }
+    try {
+      result = await onArchive(selectedIds)
+    } catch {
+      result = {
+        success: false,
+        error: 'Arşivleme tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.',
+      }
+    } finally {
+      setIsSaving(false)
+    }
     if (!result.success) {
       toastActionError(
         result.error ?? 'Arşivleme başarısız oldu.',
@@ -246,9 +263,16 @@ export function ClientsTableView({
     if (!assignDietitianId) return
     setIsSaving(true)
     let result
-    try { result = await onAssign(selectedIds, assignDietitianId) }
-    catch { result = { success: false, error: 'Atama tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.' } }
-    finally { setIsSaving(false) }
+    try {
+      result = await onAssign(selectedIds, assignDietitianId)
+    } catch {
+      result = {
+        success: false,
+        error: 'Atama tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.',
+      }
+    } finally {
+      setIsSaving(false)
+    }
     if (!result.success) {
       toastActionError(
         result.error ?? 'Atama başarısız oldu.',
@@ -265,7 +289,10 @@ export function ClientsTableView({
   const totalPages = Math.max(Math.ceil(result.total / result.pageSize), 1)
 
   return (
-    <div className="clients-workspace flex min-w-0 flex-col gap-3" aria-busy={isPending || isSaving}>
+    <div
+      className="clients-workspace flex min-w-0 flex-col gap-3"
+      aria-busy={isPending || isSaving}
+    >
       <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <form onSubmit={handleSearchSubmit} className="flex w-full gap-2 lg:max-w-md">
@@ -294,7 +321,10 @@ export function ClientsTableView({
               Filtreler
             </div>
             <Select value={filters.status || ALL_FILTER_VALUE} onValueChange={handleStatusChange}>
-              <SelectTrigger aria-label="Danışan durumu" className="h-10 w-full rounded-lg bg-background sm:w-40">
+              <SelectTrigger
+                aria-label="Danışan durumu"
+                className="h-10 w-full rounded-lg bg-background sm:w-40"
+              >
                 <SelectValue placeholder="Durum" />
               </SelectTrigger>
               <SelectContent>
@@ -311,7 +341,10 @@ export function ClientsTableView({
                 value={filters.assignedDietitianId || ALL_FILTER_VALUE}
                 onValueChange={handleDietitianFilterChange}
               >
-                <SelectTrigger aria-label="Atanan diyetisyen" className="h-10 w-full rounded-lg bg-background sm:w-48">
+                <SelectTrigger
+                  aria-label="Atanan diyetisyen"
+                  className="h-10 w-full rounded-lg bg-background sm:w-48"
+                >
                   <SelectValue placeholder="Diyetisyen" />
                 </SelectTrigger>
                 <SelectContent>
@@ -329,16 +362,58 @@ export function ClientsTableView({
       </div>
 
       <div className="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm">
-        <p role="status" className="mr-auto text-muted-foreground">{isPending ? 'Danışanlar yükleniyor…' : <><strong className="font-semibold tabular-nums text-foreground">{result.total}</strong> {hasFilters ? 'danışan bulundu' : 'danışan'}{result.total > 0 ? <span className="ml-2 text-xs">{(result.page - 1) * result.pageSize + 1}–{Math.min(result.page * result.pageSize, result.total)} gösteriliyor</span> : null}</>}</p>
-        {canBulkManage && result.rows.length > 0 ? <label className="flex min-h-10 items-center gap-2 md:hidden"><input type="checkbox" checked={table.getIsAllRowsSelected()} onChange={table.getToggleAllRowsSelectedHandler()} />Sayfadakileri seç</label> : null}
-        {hasFilters ? <Button variant="ghost" size="sm" onClick={() => { setSearchInput(''); navigate({ search: '', status: '', assignedDietitianId: '' }, 1) }}>Filtreleri temizle</Button> : null}
+        <p role="status" className="mr-auto text-muted-foreground">
+          {isPending ? (
+            'Danışanlar yükleniyor…'
+          ) : (
+            <>
+              <strong className="font-semibold tabular-nums text-foreground">{result.total}</strong>{' '}
+              {hasFilters ? 'danışan bulundu' : 'danışan'}
+              {result.total > 0 ? (
+                <span className="ml-2 text-xs">
+                  {(result.page - 1) * result.pageSize + 1}–
+                  {Math.min(result.page * result.pageSize, result.total)} gösteriliyor
+                </span>
+              ) : null}
+            </>
+          )}
+        </p>
+        {canBulkManage && result.rows.length > 0 ? (
+          <label className="flex min-h-10 items-center gap-2 md:hidden">
+            <input
+              type="checkbox"
+              checked={table.getIsAllRowsSelected()}
+              onChange={table.getToggleAllRowsSelectedHandler()}
+            />
+            Sayfadakileri seç
+          </label>
+        ) : null}
+        {hasFilters ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchInput('')
+              navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
+            }}
+          >
+            Filtreleri temizle
+          </Button>
+        ) : null}
       </div>
 
       {canBulkManage && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.045] px-4 py-3 text-sm shadow-sm shadow-primary/5">
           <span className="font-medium">{selectionSummaryLabel(selectedIds.length)}</span>
           <div className="ml-auto flex flex-wrap gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setRowSelection({})} disabled={isSaving}>Seçimi kaldır</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setRowSelection({})}
+              disabled={isSaving}
+            >
+              Seçimi kaldır
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -348,15 +423,17 @@ export function ClientsTableView({
             >
               Arşivle
             </Button>
-            {canAssign && <Button
-              size="sm"
-              variant="outline"
-              className="rounded-lg bg-background/75"
-              onClick={() => setAssignDialogOpen(true)}
-              disabled={isSaving || dietitians.length === 0}
-            >
-              Diyetisyen ata
-            </Button>}
+            {canAssign && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg bg-background/75"
+                onClick={() => setAssignDialogOpen(true)}
+                disabled={isSaving || dietitians.length === 0}
+              >
+                Diyetisyen ata
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -367,14 +444,22 @@ export function ClientsTableView({
             variant="inline"
             icon={SearchX}
             title={hasFilters ? 'Bu filtrelerle danışan bulunamadı' : 'Henüz danışan yok'}
-            description={hasFilters ? 'Arama metnini kısaltın veya filtreleri temizleyin.' : 'Yeni danışan ekleyerek kayıt, ölçüm ve randevu takibine başlayın.'}
-            action={hasFilters ? {
-              label: 'Filtreleri temizle',
-              onClick: () => {
-                setSearchInput('')
-                navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
-              },
-            } : undefined}
+            description={
+              hasFilters
+                ? 'Arama metnini kısaltın veya filtreleri temizleyin.'
+                : 'Yeni danışan ekleyerek kayıt, ölçüm ve randevu takibine başlayın.'
+            }
+            action={
+              hasFilters
+                ? {
+                    label: 'Filtreleri temizle',
+                    onClick: () => {
+                      setSearchInput('')
+                      navigate({ search: '', status: '', assignedDietitianId: '' }, 1)
+                    },
+                  }
+                : undefined
+            }
           />
         </div>
       ) : (
@@ -396,7 +481,11 @@ export function ClientsTableView({
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined} className="transition-colors hover:bg-muted/35">
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() ? 'selected' : undefined}
+                    className="transition-colors hover:bg-muted/35"
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -420,24 +509,25 @@ export function ClientsTableView({
                 >
                   <div className="flex items-start gap-3">
                     {canBulkManage && (
-                      <input
-                        type="checkbox"
-                        aria-label={`${client.firstName} ${client.lastName} adlı danışanı seç`}
-                        checked={row.getIsSelected()}
-                        onChange={row.getToggleSelectedHandler()}
-                        className="mt-3"
-                      />
+                      <label className="grid size-11 shrink-0 cursor-pointer place-items-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`${client.firstName} ${client.lastName} adlı danışanı seç`}
+                          checked={row.getIsSelected()}
+                          onChange={row.getToggleSelectedHandler()}
+                        />
+                      </label>
                     )}
                     <Link
                       href={`/danisanlar/${client.id}`}
                       className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
-                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/8 text-sm font-semibold text-primary ring-1 ring-primary/10">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/8 text-sm font-semibold text-secondary-foreground ring-1 ring-border">
                         {client.firstName.slice(0, 1)}
                         {client.lastName.slice(0, 1)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold group-hover:text-primary">
+                        <span className="block truncate font-semibold group-hover:text-foreground">
                           {client.firstName} {client.lastName}
                         </span>
                         <span className="mt-1 block truncate text-xs text-muted-foreground">
@@ -445,12 +535,22 @@ export function ClientsTableView({
                           {client.assignedDietitianName ? ` · ${client.assignedDietitianName}` : ''}
                         </span>
                       </span>
-                      <ArrowRight className="size-4 shrink-0 text-muted-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      <ArrowRight className="size-4 shrink-0 text-muted-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                     </Link>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/60 pt-3 text-xs">
-                    <div><span className="block text-muted-foreground">Son ölçüm</span><span className="mt-1 block font-medium">{formatLastMeasurement(client)}</span></div>
-                    <div><span className="block text-muted-foreground">Son randevu</span><span className="mt-1 block font-medium">{formatLastAppointment(client)}</span></div>
+                    <div>
+                      <span className="block text-muted-foreground">Son ölçüm</span>
+                      <span className="mt-1 block font-medium">
+                        {formatLastMeasurement(client)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-muted-foreground">Son randevu</span>
+                      <span className="mt-1 block font-medium">
+                        {formatLastAppointment(client)}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
                     <Badge variant={STATUS_BADGE_VARIANT[client.status]}>

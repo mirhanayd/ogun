@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { visibleNavItems } from '@/app/(app)/_components/nav-items'
+import { useSidebarCollapsed } from './app-sidebar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 
 export interface ShellLinkProps {
   href: string
@@ -51,74 +53,95 @@ export function SidebarNavView({
   onNavigate?: (href: string) => void
 }) {
   const isOnline = connectivity === 'online'
+  const collapsed = useSidebarCollapsed()
   return (
-    <nav
-      className="sidebar-nav flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4"
-      aria-label="Ana gezinme"
-      data-sidebar-navigation
-    >
-      <p className="sidebar-label px-3 text-xs font-medium text-muted-foreground">
-        Klinik yönetimi
-      </p>
-      <div className="flex flex-col gap-1" data-sidebar-navigation-items>
-        {visibleNavItems(role).map((item) => {
-          const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
-          return (
-            <LinkComponent
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate ? () => onNavigate(item.href) : undefined}
-              aria-current={active ? 'page' : undefined}
-              title={item.label}
-              className={cn(
-                'sidebar-link group relative flex min-h-12 items-center gap-3 rounded-lg px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                active &&
-                  'sidebar-link-active bg-sidebar-accent text-sidebar-foreground',
-              )}
-            >
-              <span
-                className={cn(
-                  'grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors group-hover:text-sidebar-foreground',
-                  active && 'bg-sidebar-primary text-sidebar-primary-foreground',
-                )}
-              >
-                <item.icon className="size-5 shrink-0" />
-              </span>
-              <span className="sidebar-label">{item.label}</span>
-              {active && (
-                <span className="absolute inset-y-2 -left-3 w-0.5 rounded-full bg-sidebar-primary" />
-              )}
-            </LinkComponent>
-          )
-        })}
-      </div>
-      <div className="sidebar-connection mt-auto border-t border-sidebar-border px-2 pt-4" title={isOnline ? 'Çevrimiçi' : connectivity === 'offline' ? 'Bağlantı yok' : 'Bağlantı kontrol ediliyor'}>
-        <div className="mb-1 flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
-          <span
-            className={cn(
-              'size-1.5 rounded-full',
-              isOnline
-                ? 'bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]'
-                : connectivity === 'offline'
-                  ? 'bg-destructive shadow-[0_0_0_3px_color-mix(in_oklch,var(--destructive)_12%,transparent)]'
-                  : 'animate-pulse bg-amber-500',
-            )}
-          />
-          <span className="sidebar-label">{isOnline
-            ? 'Çevrimiçi'
-            : connectivity === 'offline'
-              ? 'Bağlantı yok'
-              : 'Bağlantı kontrol ediliyor'}</span>
-        </div>
-        <p className="sidebar-label text-xs leading-5 text-muted-foreground">
-          {isOnline
-            ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
-            : connectivity === 'offline'
-              ? 'Desteklenen kayıtlar cihazda tutulur; çevrimiçi işlemler geçici olarak kapalıdır.'
-              : 'Güvenli klinik alanına erişim doğrulanıyor.'}
+    <TooltipProvider delayDuration={250}>
+      <nav
+        className="sidebar-nav flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4"
+        aria-label="Ana gezinme"
+        data-sidebar-navigation
+      >
+        <p className="sidebar-label px-3 text-xs font-medium text-muted-foreground">
+          Klinik yönetimi
         </p>
-      </div>
-    </nav>
+        <div className="flex flex-col gap-1" data-sidebar-navigation-items>
+          {visibleNavItems(role).map((item) => {
+            const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
+            return (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <LinkComponent
+                    href={item.href}
+                    onClick={onNavigate ? () => onNavigate(item.href) : undefined}
+                    aria-current={active ? 'page' : undefined}
+                    title={item.label}
+                    className={cn(
+                      'sidebar-link group relative flex min-h-12 items-center gap-3 rounded-lg px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                      active && 'sidebar-link-active bg-sidebar-accent text-sidebar-foreground',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors group-hover:text-sidebar-foreground',
+                        active && 'bg-sidebar-primary text-sidebar-primary-foreground',
+                      )}
+                    >
+                      <item.icon className="size-5 shrink-0" />
+                    </span>
+                    <span className="sidebar-label">{item.label}</span>
+                    {active && (
+                      <span className="absolute inset-y-2 -left-3 w-0.5 rounded-full bg-sidebar-primary" />
+                    )}
+                  </LinkComponent>
+                </TooltipTrigger>
+                {collapsed ? (
+                  <TooltipContent side="right" sideOffset={12}>
+                    {item.label}
+                  </TooltipContent>
+                ) : null}
+              </Tooltip>
+            )
+          })}
+        </div>
+        <div
+          className="sidebar-connection mt-auto border-t border-sidebar-border px-2 pt-4"
+          title={
+            isOnline
+              ? 'Çevrimiçi'
+              : connectivity === 'offline'
+                ? 'Bağlantı yok'
+                : 'Bağlantı kontrol ediliyor'
+          }
+        >
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
+            <span
+              className={cn(
+                'size-1.5 rounded-full',
+                isOnline
+                  ? 'bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]'
+                  : connectivity === 'offline'
+                    ? 'bg-destructive shadow-[0_0_0_3px_color-mix(in_oklch,var(--destructive)_12%,transparent)]'
+                    : 'animate-pulse bg-amber-500',
+              )}
+            />
+            <span className="sidebar-label">
+              {isOnline
+                ? 'Çevrimiçi'
+                : connectivity === 'offline'
+                  ? 'Bağlantı yok'
+                  : 'Bağlantı kontrol ediliyor'}
+            </span>
+          </div>
+          <p className="sidebar-label text-xs leading-5 text-muted-foreground">
+            {isOnline
+              ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
+              : connectivity === 'offline'
+                ? 'Desteklenen kayıtlar cihazda tutulur; çevrimiçi işlemler geçici olarak kapalıdır.'
+                : 'Güvenli klinik alanına erişim doğrulanıyor.'}
+          </p>
+        </div>
+      </nav>
+    </TooltipProvider>
   )
 }
 
@@ -145,7 +168,7 @@ export function DesktopTitlebarView({
       className="clinic-desktop-titlebar desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b shadow-[0_1px_0_rgba(0,0,0,0.22)]"
       data-desktop-titlebar
     >
-      <div className="flex w-60 shrink-0 items-center gap-2.5 px-4">
+      <div className="flex shrink-0 items-center gap-2.5 px-4 md:w-60">
         {/* Plain img is intentional: this shared view is also bundled by Vite/Tauri without Next Image. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -156,11 +179,11 @@ export function DesktopTitlebarView({
           className="size-7 shrink-0 rounded-lg shadow-sm"
         />
         <span className="text-sm font-semibold tracking-[-0.02em]">öğün</span>
-        <span className="rounded-full border border-current/15 bg-current/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em] uppercase">
+        <span className="hidden rounded-full border border-current/15 bg-current/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em] uppercase sm:inline">
           Desktop
         </span>
       </div>
-      <div className="flex min-w-0 flex-1 justify-center px-4">
+      <div className="flex min-w-0 flex-1 justify-center px-4 max-sm:[&>*]:hidden">
         {search ? (
           <div className="w-full max-w-xl [&_button]:h-8 [&_button]:max-w-none [&_button]:border-current/15 [&_button]:bg-current/10 [&_button]:text-current [&_button:hover]:bg-current/15 [&_kbd]:border-current/15 [&_kbd]:bg-black/15 [&_kbd]:text-current">
             {search}
@@ -277,7 +300,7 @@ export function BottomNavView({
             href={item.href}
             onClick={onNavigate ? () => onNavigate(item.href) : undefined}
             aria-current={active ? 'page' : undefined}
-              title={item.label}
+            title={item.label}
             className={cn(
               'relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.62rem] font-medium text-muted-foreground transition-colors',
               active && 'bg-primary/8 text-primary',
@@ -312,7 +335,7 @@ export function BottomNavView({
                   href={item.href}
                   onClick={onNavigate ? () => onNavigate(item.href) : undefined}
                   aria-current={active ? 'page' : undefined}
-              title={item.label}
+                  title={item.label}
                 >
                   <item.icon className={cn('size-4', active && 'text-primary')} />
                   <span className={cn(active && 'font-semibold text-primary')}>{item.label}</span>

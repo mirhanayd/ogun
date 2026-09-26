@@ -452,7 +452,7 @@
 }
 [data-app-shell] :is([data-slot='input'], [data-slot='textarea'], [data-slot='select-trigger']) {
   border-radius: var(--workspace-control-radius);
-  border-color: color-mix(in oklch, var(--foreground) 32%, var(--background));
+  border-color: color-mix(in oklch, var(--foreground) 45%, var(--background));
   background-color: var(--card);
 }
 [data-app-shell] :is([data-slot='input'], [data-slot='select-trigger']) { min-height: 2.5rem; }
