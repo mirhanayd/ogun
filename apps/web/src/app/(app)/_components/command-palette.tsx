@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, UserPlus, UserRound, UtensilsCrossed, type LucideIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type SVGProps } from 'react'
+import { Search, UserPlus, UserRound, UtensilsCrossed } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +33,7 @@ export interface PaletteItem {
   label: string
   /** Etiketin altındaki ikinci satır (varsa). */
   description?: string
-  icon: LucideIcon
+  icon: ComponentType<SVGProps<SVGSVGElement>>
   badge?: PaletteBadge
   /**
    * cmdk'nın fuzzy filtresinin eşlediği tam metin: etiket + açıklama +

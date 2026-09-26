@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { AppSidebar } from './app-sidebar'
 
 export interface AppShellFrameProps {
   clinicName: string
@@ -37,8 +38,8 @@ export function AppShellFrame({
     >
       {desktopTitlebar}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="app-sidebar hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex" data-app-sidebar>
-          <div className="flex h-[4.5rem] items-center gap-3 px-4">
+        <AppSidebar>
+          <div className="sidebar-identity flex min-h-24 items-center gap-3 px-4" title={`${clinicName} — ${userName}`}>
             <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-sidebar-border bg-background/70 text-primary shadow-sm">
               {clinicLogoUrl ? (
                 // Clinic logos may be data URLs, which image optimizers cannot handle.
@@ -48,7 +49,7 @@ export function AppShellFrame({
                 <span className="text-sm font-semibold">{clinicInitials}</span>
               )}
             </span>
-            <div className="min-w-0">
+            <div className="sidebar-label min-w-0">
               <p
                 className="truncate text-sm font-semibold tracking-[-0.025em] text-sidebar-foreground"
                 title={clinicName}
@@ -56,7 +57,7 @@ export function AppShellFrame({
                 {clinicName}
               </p>
               <p
-                className="truncate text-[10px] font-medium tracking-[0.08em] text-muted-foreground"
+                className="mt-1 truncate text-xs text-muted-foreground"
                 title={userName}
               >
                 {userName}
@@ -64,10 +65,11 @@ export function AppShellFrame({
             </div>
           </div>
           {navigation}
-        </aside>
+        </AppSidebar>
         <div className="flex min-w-0 flex-1 flex-col">
           {topbar}
-          <main className="app-main flex-1 overflow-y-auto px-4 py-5 pb-20 sm:px-6 md:pb-7 lg:px-8" data-app-main>
+          <a href="#ogun-main" className="app-skip-link">İçeriğe geç</a>
+          <main id="ogun-main" tabIndex={-1} className="app-main min-w-0 flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 md:pb-7 lg:px-8" data-app-main>
             <div className="mx-auto w-full max-w-[1500px]">{children}</div>
           </main>
         </div>

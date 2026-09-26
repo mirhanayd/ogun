@@ -343,17 +343,7 @@
 @layer components {
   .app-main {
     background-color: var(--app-canvas);
-    background-image:
-      radial-gradient(
-        circle at 84% -8%,
-        color-mix(in oklch, var(--primary) 6%, transparent) 0,
-        transparent 31rem
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in oklch, var(--background) 42%, transparent),
-        transparent 12rem
-      );
+
   }
 
   html[data-native-shell] [data-app-shell] {
@@ -374,6 +364,53 @@
 
 ::selection {
   background: color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+/* Dietitian workspace only. Public pages keep their existing theme. Clinic
+   primary/foreground pairs remain supplied by the branding adapter. */
+[data-app-shell] {
+  --workspace-radius: 0.75rem;
+  --workspace-control-radius: 0.5rem;
+  --workspace-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 4%, transparent);
+  --sidebar-accent: color-mix(in oklch, var(--sidebar-primary) 9%, var(--sidebar));
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.app-sidebar { width: 15rem; }
+.app-sidebar[data-collapsed='true'] { width: 4.75rem; }
+.app-sidebar[data-collapsed='true'] .sidebar-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.app-sidebar[data-collapsed='true'] .sidebar-identity { padding-inline: 1.125rem; }
+.app-sidebar[data-collapsed='true'] .sidebar-toggle { padding-inline: 1.75rem; }
+.app-sidebar[data-collapsed='true'] .sidebar-connection { display: flex; justify-content: center; }
+.app-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  z-index: 100;
+  transform: translateY(-200%);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--foreground);
+  color: var(--background);
+}
+.app-skip-link:focus { transform: translateY(0); }
+[data-app-shell] input[type='checkbox'] { accent-color: var(--primary); }
+[data-app-shell] :is(input, textarea) { scroll-margin-block: 5rem; }
+[data-app-shell] :focus-visible { outline-color: var(--foreground); }
+@media (prefers-reduced-motion: reduce) {
+  [data-app-shell] *, [data-app-shell] *::before, [data-app-shell] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* SSR çıktısında titlebar her zaman bulunur; web'de görünmez, Tauri işareti

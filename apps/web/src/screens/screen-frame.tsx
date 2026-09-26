@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { ComponentType, SVGProps } from 'react'
 
 export function ScreenFrame({
-  eyebrow,
   title,
   description,
   icon: Icon,
@@ -12,24 +11,23 @@ export function ScreenFrame({
   eyebrow: string
   title: string
   description: string
-  icon: LucideIcon
+  icon: ComponentType<SVGProps<SVGSVGElement>>
   actions?: ReactNode
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-6 pb-8">
-      <header className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-            <Icon className="size-3.5" />
-            {eyebrow}
+    <div className="flex min-w-0 flex-col gap-5 pb-4">
+      <header className="workspace-heading flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex items-center gap-3">
+            <Icon className="size-6 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <h1 className="text-title tracking-tight">{title}</h1>
           </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{title}</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
             {description}
           </p>
         </div>
-        {actions ? <div className="flex flex-col gap-2 sm:flex-row">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 flex-wrap gap-2 [&>*]:grow sm:[&>*]:grow-0">{actions}</div> : null}
       </header>
       {children}
     </div>

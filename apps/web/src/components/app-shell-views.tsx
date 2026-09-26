@@ -17,6 +17,7 @@ export interface ShellLinkProps {
   className?: string
   children: ReactNode
   'aria-current'?: 'page'
+  title?: string
   onClick?: () => void
 }
 
@@ -52,11 +53,11 @@ export function SidebarNavView({
   const isOnline = connectivity === 'online'
   return (
     <nav
-      className="flex min-h-0 flex-1 flex-col px-3 pb-4"
+      className="sidebar-nav flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4"
       aria-label="Ana gezinme"
       data-sidebar-navigation
     >
-      <p className="mb-2 px-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground/80 uppercase">
+      <p className="sidebar-label px-3 text-xs font-medium text-muted-foreground">
         Klinik yönetimi
       </p>
       <div className="flex flex-col gap-1" data-sidebar-navigation-items>
@@ -68,21 +69,22 @@ export function SidebarNavView({
               href={item.href}
               onClick={onNavigate ? () => onNavigate(item.href) : undefined}
               aria-current={active ? 'page' : undefined}
+              title={item.label}
               className={cn(
-                'group relative flex h-10 items-center gap-3 rounded-xl px-3 text-[0.82rem] font-medium text-sidebar-foreground/65 transition-all hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
+                'sidebar-link group relative flex min-h-12 items-center gap-3 rounded-lg px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                 active &&
-                  'bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--sidebar-primary)_13%,transparent)]',
+                  'sidebar-link-active bg-sidebar-accent text-sidebar-foreground',
               )}
             >
               <span
                 className={cn(
-                  'grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors group-hover:text-sidebar-foreground',
-                  active && 'bg-sidebar-primary/10 text-sidebar-primary',
+                  'grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors group-hover:text-sidebar-foreground',
+                  active && 'bg-sidebar-primary text-sidebar-primary-foreground',
                 )}
               >
-                <item.icon className="size-4 shrink-0" strokeWidth={active ? 2.2 : 1.8} />
+                <item.icon className="size-5 shrink-0" />
               </span>
-              {item.label}
+              <span className="sidebar-label">{item.label}</span>
               {active && (
                 <span className="absolute inset-y-2 -left-3 w-0.5 rounded-full bg-sidebar-primary" />
               )}
@@ -90,7 +92,7 @@ export function SidebarNavView({
           )
         })}
       </div>
-      <div className="mt-auto rounded-xl border border-sidebar-border bg-background/45 p-3">
+      <div className="sidebar-connection mt-auto border-t border-sidebar-border px-2 pt-4" title={isOnline ? 'Çevrimiçi' : connectivity === 'offline' ? 'Bağlantı yok' : 'Bağlantı kontrol ediliyor'}>
         <div className="mb-1 flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
           <span
             className={cn(
@@ -102,13 +104,13 @@ export function SidebarNavView({
                   : 'animate-pulse bg-amber-500',
             )}
           />
-          {isOnline
-            ? 'Sistem aktif'
+          <span className="sidebar-label">{isOnline
+            ? 'Çevrimiçi'
             : connectivity === 'offline'
               ? 'Bağlantı yok'
-              : 'Bağlantı kontrol ediliyor'}
+              : 'Bağlantı kontrol ediliyor'}</span>
         </div>
-        <p className="text-[10px] leading-4 text-muted-foreground">
+        <p className="sidebar-label text-xs leading-5 text-muted-foreground">
           {isOnline
             ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
             : connectivity === 'offline'
@@ -275,6 +277,7 @@ export function BottomNavView({
             href={item.href}
             onClick={onNavigate ? () => onNavigate(item.href) : undefined}
             aria-current={active ? 'page' : undefined}
+              title={item.label}
             className={cn(
               'relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.62rem] font-medium text-muted-foreground transition-colors',
               active && 'bg-primary/8 text-primary',
@@ -309,6 +312,7 @@ export function BottomNavView({
                   href={item.href}
                   onClick={onNavigate ? () => onNavigate(item.href) : undefined}
                   aria-current={active ? 'page' : undefined}
+              title={item.label}
                 >
                   <item.icon className={cn('size-4', active && 'text-primary')} />
                   <span className={cn(active && 'font-semibold text-primary')}>{item.label}</span>
