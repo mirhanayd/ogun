@@ -8,7 +8,7 @@ Job tanımları kod içindedir; Redis veya genel amaçlı queue yoktur. Vercel y
 
 Cron istekleri `Authorization: Bearer <CRON_SECRET>` ile doğrulanır. Secret yoksa veya yanlışsa endpoint fail-closed olarak `401` döner. `OPERATIONAL_JOBS_ENABLED=true` olmadan hiçbir job başlamaz; Vercel Preview bu bayrak yanlışlıkla kopyalansa bile kapalıdır. Production dışındaki gerçek e-posta/SMS teslimatı ayrıca `EXTERNAL_DELIVERY_ENABLED=true` gerektirir. Secret, response, log veya job metadata'sına yazılmaz.
 
-## Job kataloğu ve UTC zamanlaması
+## Job kataloğu ve production hedef zamanlaması
 
 | Endpoint                                         | Canonical job                 | Vercel cron (UTC) | Davranış                                                                                                 |
 | ------------------------------------------------ | ----------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------- |
@@ -18,6 +18,17 @@ Cron istekleri `Authorization: Bearer <CRON_SECRET>` ile doğrulanır. Secret yo
 | `/api/internal/cron/maintenance`                 | `maintenance`                 | `15 2 * * *`      | Expired admin session/auth verification ve 90 günden eski başarılı/atlanmış job telemetry'sini temizler. |
 
 Business tarih karşılaştırmaları UTC timestamp ile yapılır; scheduler timezone'una güvenilmez. Business audit, support history, subscription events, clinical/food history maintenance tarafından silinmez.
+
+### Geçici Hobby planı zamanlaması
+
+Piyasaya çıkış öncesindeki Vercel Hobby ortamı en fazla iki ve günde bir çalışan cron kabul ettiği için deploy yapılandırması geçici olarak aşağıdaki gibidir:
+
+| Endpoint                                | UTC zamanlama | Kapsam                                                                 |
+| --------------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| `/api/internal/cron/email-retry`        | `0 2 * * *`   | Due e-posta kayıtlarını günde bir kez işler.                            |
+| `/api/internal/cron/daily-system`       | `30 2 * * *`  | Abonelik mutabakatını ve maintenance işini ardışık çalıştırır.          |
+
+SMS reminder endpoint'i ve iş mantığı korunur ancak dar 24 saatlik gönderim penceresi günlük cron ile güvenilir biçimde karşılanamayacağı için Hobby takviminde otomatik çalıştırılmaz. Production'a geçmeden önce GitHub issue #81 tamamlanmalı ve yukarıdaki production hedef sıklıkları Vercel Pro veya güvenilir bir harici scheduler ile geri yüklenmelidir.
 
 ## Gerekli ortam değişkenleri
 
