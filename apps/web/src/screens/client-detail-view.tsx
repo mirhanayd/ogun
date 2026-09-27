@@ -3,17 +3,6 @@ import { ArrowLeft, CircleAlert, Mail, Phone } from 'lucide-react'
 import { NavigationLink } from '@/components/navigation-link'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  OgunCalendar,
-  OgunClients,
-  OgunFinance,
-  OgunFolder,
-  OgunHealth,
-  OgunLab,
-  OgunMeasure,
-  OgunPlan,
-  type OgunIconComponent,
-} from '@/components/ogun-icons'
 
 export interface ClientDetailTab {
   value: string
@@ -23,17 +12,6 @@ export interface ClientDetailTab {
 export interface ClientSummaryStat {
   label: string
   value: string
-}
-
-const tabIcons: Record<string, OgunIconComponent> = {
-  genel: OgunClients,
-  olcumler: OgunMeasure,
-  planlar: OgunPlan,
-  anamnez: OgunHealth,
-  laboratuvar: OgunLab,
-  dosyalar: OgunFolder,
-  randevular: OgunCalendar,
-  odemeler: OgunFinance,
 }
 
 export function ClientDetailView({
@@ -150,16 +128,20 @@ export function ClientDetailView({
         </section>
       ) : null}
       <Tabs defaultValue={tabs[0]?.value} className="client-tabs min-w-0 gap-0">
-        <TabsList aria-label="Danışan dosyası bölümleri" className="client-tab-list">
-          {tabs.map((tab) => {
-            const Icon = tabIcons[tab.value]
-            return (
-              <TabsTrigger key={tab.value} value={tab.value} className="client-tab">
-                {Icon ? <Icon className="size-[1.125rem]" /> : null}
-                {tab.label}
-              </TabsTrigger>
-            )
-          })}
+        <TabsList
+          variant="line"
+          aria-label="Danışan dosyası bölümleri"
+          className="h-auto w-full justify-start gap-6 overflow-x-auto rounded-none border-0 bg-transparent p-0"
+        >
+          {tabs.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="h-auto flex-none rounded-none border-0 border-b-2 border-transparent px-0 pt-0 pb-2 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
         {tabs.map((tab) => (
           <TabsContent key={tab.value} value={tab.value} className="min-w-0 pt-5">
