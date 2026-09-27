@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
 import { NavigationLink as Link } from '@/components/navigation-link'
-import { ArrowRight, Search, SearchX, SlidersHorizontal } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUp, Search, SearchX, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { toastActionError } from '@/lib/action-toast'
 import {
@@ -14,8 +14,7 @@ import {
 } from '@tanstack/react-table'
 import type { ClientListRow, ListClientsResult } from '@ogun/db/queries'
 import type { ClinicDietitianOption } from '@ogun/db/queries'
-import type { ClinicMemberRole, ClientStatus } from '@ogun/db/schema'
-import { Badge } from '@/components/ui/badge'
+import type { ClinicMemberRole } from '@ogun/db/schema'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -54,17 +53,12 @@ export interface ClientsFilters {
   assignedDietitianId: string
 }
 
-// "Durum" rozetinin rengi — aktif olumlu (default), pasif nötr (secondary),
-// arşiv daha soluk (outline). Sabit bir sözlük: renk seçimi status
-// değerlerinin KENDİSİ kadar önemli değil, sadece tabloda göz atarken hızlı
-// bir ayrım sağlasın diye var.
-const STATUS_BADGE_VARIANT: Record<ClientStatus, 'default' | 'secondary' | 'outline'> = {
-  aktif: 'default',
-  pasif: 'secondary',
-  arşiv: 'outline',
-}
-
 const ALL_FILTER_VALUE = 'all'
+
+export interface ClientAttentionIndicator {
+  measurementReason?: string
+  packageReason?: string
+}
 
 export function ClientsTableView({
   result,
@@ -74,6 +68,8 @@ export function ClientsTableView({
   onNavigate,
   onArchive,
   onAssign,
+  attentionByClient = {},
+  renderRowActions,
 }: {
   result: ListClientsResult
   dietitians: ClinicDietitianOption[]
@@ -82,6 +78,8 @@ export function ClientsTableView({
   onNavigate: (filters: ClientsFilters, page: number) => void
   onArchive: (ids: string[]) => Promise<{ success: boolean; error?: string }>
   onAssign: (ids: string[], dietitianId: string) => Promise<{ success: boolean; error?: string }>
+  attentionByClient?: Record<string, ClientAttentionIndicator>
+  renderRowActions?: (client: ClientListRow) => ReactNode
 }) {
   const [isPending, startTransition] = useTransition()
   const [searchInput, setSearchInput] = useState(filters.search)
@@ -155,12 +153,26 @@ export function ClientsTableView({
             href={`/danisanlar/${row.original.id}`}
             className="group/name flex min-w-44 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/8 text-xs font-semibold text-secondary-foreground ring-1 ring-border">
+            <span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
               {row.original.firstName.slice(0, 1)}
               {row.original.lastName.slice(0, 1)}
+              {attentionByClient[row.original.id] ? (
+                <span
+                  className={`absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-background ${attentionByClient[row.original.id]?.measurementReason ? 'bg-destructive' : 'bg-amber-500'}`}
+                  title={[
+                    attentionByClient[row.original.id]?.measurementReason,
+                    attentionByClient[row.original.id]?.packageReason,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                />
+              ) : null}
             </span>
             <span className="font-medium group-hover/name:underline">
               {row.original.firstName} {row.original.lastName}
+              {row.original.firstName === 'Örnek' && row.original.lastName === 'Danışan' ? (
+                <span className="ml-1 font-normal text-muted-foreground">(örnek)</span>
+              ) : null}
             </span>
           </Link>
         ),
@@ -173,9 +185,28 @@ export function ClientsTableView({
       columnHelper.display({
         id: 'lastMeasurement',
         header: 'Son ölçüm',
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap">{formatLastMeasurement(row.original)}</span>
-        ),
+        cell: ({ row }) => {
+          const current = Number(row.original.lastMeasurementWeightKg)
+          const previous = Number(row.original.previousMeasurementWeightKg)
+          const hasTrend =
+            row.original.lastMeasurementWeightKg !== null &&
+            row.original.previousMeasurementWeightKg !== null &&
+            Number.isFinite(current) &&
+            Number.isFinite(previous) &&
+            current !== previous
+          const TrendIcon = current > previous ? ArrowUp : ArrowDown
+          return (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              {formatLastMeasurement(row.original)}
+              {hasTrend ? (
+                <TrendIcon
+                  className="size-3.5 text-muted-foreground"
+                  aria-label={current > previous ? 'Kilo arttı' : 'Kilo azaldı'}
+                />
+              ) : null}
+            </span>
+          )
+        },
       }),
       columnHelper.display({
         id: 'lastAppointment',
@@ -192,24 +223,28 @@ export function ClientsTableView({
         header: 'Durum',
         cell: ({ getValue }) => {
           const status = getValue()
-          return <Badge variant={STATUS_BADGE_VARIANT[status]}>{STATUS_LABELS_TR[status]}</Badge>
+          return (
+            <span className="inline-flex items-center gap-2 text-sm">
+              <span
+                className={`size-1.5 rounded-full ${status === 'aktif' ? 'bg-emerald-500' : status === 'arşiv' ? 'bg-destructive' : 'bg-muted-foreground/45'}`}
+              />
+              {STATUS_LABELS_TR[status]}
+            </span>
+          )
         },
       }),
       columnHelper.display({
-        id: 'open',
+        id: 'actions',
         header: '',
-        cell: ({ row }) => (
-          <Link
-            href={`/danisanlar/${row.original.id}`}
-            aria-label={`${row.original.firstName} ${row.original.lastName} danışan kaydını aç`}
-            className="ml-auto grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <ArrowRight className="size-4" />
-          </Link>
-        ),
+        cell: ({ row }) =>
+          renderRowActions ? (
+            <div className="ml-auto opacity-0 transition-opacity duration-200 group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+              {renderRowActions(row.original)}
+            </div>
+          ) : null,
       }),
     ],
-    [canBulkManage, columnHelper],
+    [attentionByClient, canBulkManage, columnHelper, renderRowActions],
   )
 
   const table = useReactTable({
@@ -460,7 +495,7 @@ export function ClientsTableView({
         </div>
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-2xl border border-border/70 bg-card/90 shadow-sm shadow-foreground/[0.025] md:block">
+          <div className="hidden overflow-x-auto border-t border-border md:block">
             <Table className="min-w-[880px]">
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -480,7 +515,7 @@ export function ClientsTableView({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() ? 'selected' : undefined}
-                    className="transition-colors hover:bg-muted/35"
+                    className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-muted/35"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
@@ -518,9 +553,14 @@ export function ClientsTableView({
                       href={`/danisanlar/${client.id}`}
                       className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
-                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/8 text-sm font-semibold text-secondary-foreground ring-1 ring-border">
+                      <span className="relative grid size-11 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
                         {client.firstName.slice(0, 1)}
                         {client.lastName.slice(0, 1)}
+                        {attentionByClient[client.id] ? (
+                          <span
+                            className={`absolute right-0 bottom-0 size-3 rounded-full border-2 border-background ${attentionByClient[client.id]?.measurementReason ? 'bg-destructive' : 'bg-amber-500'}`}
+                          />
+                        ) : null}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold group-hover:text-foreground">
@@ -549,9 +589,12 @@ export function ClientsTableView({
                     </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
-                    <Badge variant={STATUS_BADGE_VARIANT[client.status]}>
+                    <span className="inline-flex items-center gap-2 text-xs">
+                      <span
+                        className={`size-1.5 rounded-full ${client.status === 'aktif' ? 'bg-emerald-500' : client.status === 'arşiv' ? 'bg-destructive' : 'bg-muted-foreground/45'}`}
+                      />
                       {STATUS_LABELS_TR[client.status]}
-                    </Badge>
+                    </span>
                     <span className="text-xs text-muted-foreground">Danışan kaydını aç</span>
                   </div>
                 </div>

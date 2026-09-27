@@ -46,7 +46,7 @@ export default async function DanisanlarPage({
 
   const [result, dietitians, operationSummary] = await Promise.all([
     listClientsForClinic({ page, pageSize: PAGE_SIZE, search, status, assignedDietitianId }),
-    role === 'owner' ? listClinicDietitians(db, scope.clinicId) : Promise.resolve([]),
+    listClinicDietitians(db, scope.clinicId),
     getClientsOperationSummary(),
   ])
 
@@ -54,6 +54,17 @@ export default async function DanisanlarPage({
     ...operationSummary.staleMeasurementClients.map((client) => client.clientId),
     ...operationSummary.lowSessionClients.map((client) => client.clientId),
   ])
+  const attentionByClient: Record<string, { measurementReason?: string; packageReason?: string }> =
+    {}
+  for (const client of operationSummary.staleMeasurementClients) {
+    attentionByClient[client.clientId] = { measurementReason: client.reason }
+  }
+  for (const client of operationSummary.lowSessionClients) {
+    attentionByClient[client.clientId] = {
+      ...attentionByClient[client.clientId],
+      packageReason: client.reason,
+    }
+  }
 
   return (
     <ClientsScreen
@@ -93,6 +104,7 @@ export default async function DanisanlarPage({
           result={result}
           dietitians={dietitians}
           role={role}
+          attentionByClient={attentionByClient}
           filters={{
             search: search ?? '',
             status: status ?? '',
