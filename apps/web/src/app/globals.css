@@ -668,6 +668,13 @@ html[data-native-shell] .app-topbar {
   display: none;
 }
 
+/* The native titlebar replaces the web topbar. Keep the first workspace row
+   below the independent clinic identity so page headings and breadcrumbs never
+   occupy the same visual space. */
+html[data-native-shell] .app-main {
+  padding-top: 5.25rem;
+}
+
 html[data-native-shell] .public-desktop-titlebar ~ * {
   min-height: calc(100svh - 3rem);
 }

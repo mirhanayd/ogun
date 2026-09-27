@@ -55,9 +55,11 @@ test('production bundle renders the shared desktop shell as a computed layout', 
         const main = document.querySelector('[data-app-main]')
         const navigation = document.querySelector('[data-sidebar-navigation]')
         const navigationItems = document.querySelector('[data-sidebar-navigation-items]')
+        const identity = document.querySelector('[data-sidebar-identity]')
         const brandImage = document.querySelector('[data-desktop-titlebar] img')
-        if (!shell || !sidebar || !main || !navigation || !navigationItems) throw new Error('Shared shell selectors are missing')
+        if (!shell || !sidebar || !main || !navigation || !navigationItems || !identity) throw new Error('Shared shell selectors are missing')
         const sidebarRect = sidebar.getBoundingClientRect(); const mainRect = main.getBoundingClientRect()
+        const identityRect = identity.getBoundingClientRect()
         const panelGrid = document.querySelector('[data-app-main] section.grid')
         return {
           shellDisplay: getComputedStyle(shell).display,
@@ -69,6 +71,8 @@ test('production bundle renders the shared desktop shell as a computed layout', 
           sidebarWidth: sidebarRect.width,
           mainLeft: mainRect.left,
           sidebarRight: sidebarRect.right,
+          firstContentTop: mainRect.top + parseFloat(getComputedStyle(main).paddingTop),
+          identityBottom: identityRect.bottom,
           navigationDirection: getComputedStyle(navigation).flexDirection,
           navigationItemsDirection: getComputedStyle(navigationItems).flexDirection,
           panelGridDisplay: panelGrid ? getComputedStyle(panelGrid).display : null,
@@ -83,6 +87,7 @@ test('production bundle renders the shared desktop shell as a computed layout', 
       assert.equal(layout.sidebarDisplay, 'block')
       assert.ok(Math.abs(layout.sidebarWidth - 84) < 2, `navigation rail width was ${layout.sidebarWidth}`)
       assert.ok(layout.mainLeft >= layout.sidebarRight, `main ${layout.mainLeft} overlaps sidebar ${layout.sidebarRight}`)
+      assert.ok(layout.firstContentTop >= layout.identityBottom, `content ${layout.firstContentTop} overlaps clinic identity ${layout.identityBottom}`)
       assert.equal(layout.navigationDirection, 'column')
       assert.equal(layout.navigationItemsDirection, 'column')
       if (route === 'panel') {
