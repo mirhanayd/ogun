@@ -14,7 +14,11 @@ import { MeasurementsTab } from './measurements/measurements-tab'
 import { getClientHealthRecord } from './anamnez/queries'
 import { AnamnesisForm } from './anamnez/anamnesis-form'
 import { saveAnamnesisAction } from './anamnez/actions'
-import { searchConditionCatalogAction, searchMedicationCatalogAction, searchMedicationSubstanceCatalogAction } from './anamnez/catalog-actions'
+import {
+  searchConditionCatalogAction,
+  searchMedicationCatalogAction,
+  searchMedicationSubstanceCatalogAction,
+} from './anamnez/catalog-actions'
 import { listClientAbnormalLabResults } from './laboratuvar/queries'
 import { LabResultsTab } from './laboratuvar/lab-results-tab'
 import { DocumentsTab } from './dosyalar/documents-tab'
@@ -57,9 +61,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     listClientAbnormalLabResults(id),
     getClientNextAppointment(id),
   ])
-  const dietitians = role === 'dietitian'
-    ? allDietitians.filter((dietitian) => dietitian.id === user.id)
-    : allDietitians
+  const dietitians =
+    role === 'dietitian'
+      ? allDietitians.filter((dietitian) => dietitian.id === user.id)
+      : allDietitians
 
   const age = calculateAge(client.birthDate)
 
@@ -94,27 +99,85 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       phone={client.phone}
       email={client.email}
       alerts={[
-        ...(abnormalLabResults.length > 0 ? [`${abnormalLabResults.length} anormal tahlil değeri`] : []),
+        ...(abnormalLabResults.length > 0
+          ? [`${abnormalLabResults.length} anormal tahlil değeri`]
+          : []),
         ...(consentPending ? ['Rıza bekliyor'] : []),
       ]}
-      notice={consentPending ? <div className="flex items-center gap-2 pt-1"><p className="text-xs text-muted-foreground">Bu danışan CSV içe aktarma ile eklendi, KVKK/açık rıza henüz onaylanmadı.</p><ConfirmConsentButton clientId={client.id} /></div> : null}
+      notice={
+        consentPending ? (
+          <div className="flex items-center gap-2 pt-1">
+            <p className="text-xs text-muted-foreground">
+              Bu danışan CSV içe aktarma ile eklendi, KVKK/açık rıza henüz onaylanmadı.
+            </p>
+            <ConfirmConsentButton clientId={client.id} />
+          </div>
+        ) : null
+      }
       summary={[
         { label: 'Güncel kilo', value: currentWeightKg !== null ? `${currentWeightKg} kg` : '—' },
         { label: 'BKİ', value: currentBmi !== null ? currentBmi.toFixed(1) : '—' },
         { label: 'Hedef', value: weightGoal ? `${Number(weightGoal.targetValue)} kg` : '—' },
-        { label: 'Sonraki randevu', value: nextAppointment ? nextAppointment.startsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : '—' },
+        {
+          label: 'Sonraki randevu',
+          value: nextAppointment
+            ? nextAppointment.startsAt.toLocaleDateString('tr-TR', {
+                day: '2-digit',
+                month: 'short',
+              })
+            : '—',
+        },
       ]}
       tabs={[
-        { value: 'genel', label: 'Genel', content: <GeneralTabForm client={client} dietitians={dietitians} onSave={updateClientGeneralInfoAction.bind(null, client.id)} /> },
+        {
+          value: 'genel',
+          label: 'Genel',
+          content: (
+            <GeneralTabForm
+              client={client}
+              dietitians={dietitians}
+              onSave={updateClientGeneralInfoAction.bind(null, client.id)}
+            />
+          ),
+        },
         { value: 'olcumler', label: 'Ölçümler', content: <MeasurementsTab clientId={client.id} /> },
         { value: 'planlar', label: 'Planlar', content: <PlanlarTab clientId={client.id} /> },
-        { value: 'anamnez', label: 'Anamnez', content: <AnamnesisForm healthRecord={healthRecord} onSave={saveAnamnesisAction.bind(null, client.id)} onSearchConditions={searchConditionCatalogAction} onSearchMedicationProducts={searchMedicationCatalogAction} onSearchMedicationSubstances={searchMedicationSubstanceCatalogAction} /> },
-        { value: 'laboratuvar', label: 'Laboratuvar', content: <LabResultsTab clientId={client.id} /> },
+        {
+          value: 'anamnez',
+          label: 'Anamnez',
+          content: (
+            <AnamnesisForm
+              healthRecord={healthRecord}
+              onSave={saveAnamnesisAction.bind(null, client.id)}
+              onSearchConditions={searchConditionCatalogAction}
+              onSearchMedicationProducts={searchMedicationCatalogAction}
+              onSearchMedicationSubstances={searchMedicationSubstanceCatalogAction}
+            />
+          ),
+        },
+        {
+          value: 'laboratuvar',
+          label: 'Laboratuvar',
+          content: <LabResultsTab clientId={client.id} />,
+        },
         { value: 'dosyalar', label: 'Dosyalar', content: <DocumentsTab clientId={client.id} /> },
-        { value: 'randevular', label: 'Randevular', content: <AppointmentsTab clientId={client.id} /> },
+        {
+          value: 'randevular',
+          label: 'Randevular',
+          content: <AppointmentsTab clientId={client.id} />,
+        },
         { value: 'odemeler', label: 'Ödemeler', content: <OdemelerTab clientId={client.id} /> },
       ]}
-      quickActions={<><NewPlanButton clientId={client.id} className="w-full justify-start gap-1.5" /><NewAppointmentButton clientId={client.id} clientName={`${client.firstName} ${client.lastName}`} dietitians={dietitians} className="w-full justify-start gap-1.5" /></>}
+      quickActions={
+        <>
+          <NewPlanButton clientId={client.id} />
+          <NewAppointmentButton
+            clientId={client.id}
+            clientName={`${client.firstName} ${client.lastName}`}
+            dietitians={dietitians}
+          />
+        </>
+      }
     />
   )
 }

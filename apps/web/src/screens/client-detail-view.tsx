@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { ArrowLeft, CircleAlert, Mail, Phone } from 'lucide-react'
 import { NavigationLink } from '@/components/navigation-link'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   OgunCalendar,
@@ -76,23 +75,20 @@ export function ClientDetailView({
         <ArrowLeft className="size-4" aria-hidden="true" />
         Danışanlar
       </NavigationLink>
-      <section
-        aria-label="Danışan özeti"
-        className="overflow-hidden rounded-xl border border-border bg-card"
-      >
-        <header className="flex flex-col gap-5 p-4 sm:p-5 xl:flex-row xl:items-center">
+      <section aria-label="Danışan özeti">
+        <header className="flex flex-col gap-5 pb-5 xl:flex-row xl:items-center">
           <div className="flex min-w-0 flex-1 items-start gap-4">
-            <Avatar className="size-14 shrink-0 rounded-xl">
-              <AvatarFallback className="rounded-xl bg-secondary text-lg text-secondary-foreground">
+            <Avatar className="size-11 shrink-0">
+              <AvatarFallback className="bg-muted text-sm font-semibold text-muted-foreground">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="text-title break-words">{name}</h1>
-                <Badge variant="secondary">{ageLabel}</Badge>
-                {sexLabel ? <Badge variant="outline">{sexLabel}</Badge> : null}
-              </div>
+              <h1 className="break-words text-xl font-medium tracking-[-0.02em]">{name}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {ageLabel}
+                {sexLabel ? ` · ${sexLabel}` : ''}
+              </p>
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
                 {phone ? (
                   <a
@@ -126,12 +122,9 @@ export function ClientDetailView({
             </div>
           ) : null}
         </header>
-        <dl className="client-summary grid grid-cols-2 border-t border-border bg-muted/30 sm:grid-cols-4">
+        <dl className="client-summary grid grid-cols-2 divide-x divide-border border-y border-border sm:grid-cols-4">
           {summary.map((stat) => (
-            <div
-              key={stat.label}
-              className="min-w-0 border-r border-border px-4 py-4 last:border-r-0 sm:px-5"
-            >
+            <div key={stat.label} className="min-w-0 px-4 py-4 first:pl-0 last:pr-0 sm:px-5">
               <dt className="text-xs text-muted-foreground">{stat.label}</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums">{stat.value}</dd>
             </div>
