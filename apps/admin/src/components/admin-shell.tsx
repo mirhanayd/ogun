@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { PlatformStaffContext } from '@/lib/platform-authz'
 import type { PlatformPermission } from '@/lib/platform-permissions'
 import { AdminNav } from './admin-nav'
@@ -42,7 +43,7 @@ export function AdminShell({
       <aside className="sidebar" aria-label="Ana navigasyon">
         <Link className="admin-brand" href="/" aria-label="Ogun Operasyon ana sayfa">
           {/* Existing Ogun brand artwork, copied unchanged from the web app. */}
-          <img src="/brand/ogun-logo-yatay.svg" alt="Ogun" width="112" height="55" />
+          <Image src="/brand/ogun-logo-yatay.svg" alt="Ogun" width={112} height={55} />
           <span className="admin-brand-caption">OPERASYON</span>
         </Link>
         <div className="admin-nav-scroll">
