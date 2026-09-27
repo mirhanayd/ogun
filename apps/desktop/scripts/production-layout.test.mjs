@@ -264,7 +264,6 @@ test('clinical workspace: responsive themes, navigation, forms and client operat
     assert.ok(await page.locator('[data-sidebar-navigation] a').first().evaluate((node) => parseFloat(getComputedStyle(node).transitionDuration) <= 0.001))
     await page.emulateMedia({ reducedMotion: 'no-preference' })
     await page.getByRole('textbox', { name: 'Danışan ara' }).fill('bulunmayan')
-    await page.getByRole('button', { name: 'Ara', exact: true }).click()
     await page.getByText('Bu filtrelerle danışan bulunamadı', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Filtreleri temizle', exact: true }).first().click()
     await page.locator('.clients-workspace a[href="/danisanlar/client-1"]').filter({ hasText: 'Deniz Yılmaz', visible: true }).waitFor()
