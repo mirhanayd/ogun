@@ -59,8 +59,35 @@ describe('validateEnv', () => {
     expect(result.success).toBe(true)
   })
 
-  it('staging ortamında RESEND_API_KEY eksikse reddeder', () => {
-    const result = validateEnv({ ...validLocalEnv, APP_ENV: 'staging' })
+  it('dış teslimat kapalı Vercel preview ortamında S3 ve Resend olmadan başlar', () => {
+    const result = validateEnv({
+      DATABASE_URL: validLocalEnv.DATABASE_URL,
+      BETTER_AUTH_SECRET: validLocalEnv.BETTER_AUTH_SECRET,
+      APP_ENV: 'staging',
+      VERCEL_URL: 'ogun-preview.vercel.app',
+      EXTERNAL_DELIVERY_ENABLED: 'false',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('Vercel dışında staging auth URL olmadan başlamaz', () => {
+    const result = validateEnv({
+      DATABASE_URL: validLocalEnv.DATABASE_URL,
+      BETTER_AUTH_SECRET: validLocalEnv.BETTER_AUTH_SECRET,
+      APP_ENV: 'staging',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.message).toContain('BETTER_AUTH_URL')
+  })
+
+  it('staging ortamında dış teslimat açıksa Resend yapılandırması ister', () => {
+    const result = validateEnv({
+      DATABASE_URL: validLocalEnv.DATABASE_URL,
+      BETTER_AUTH_SECRET: validLocalEnv.BETTER_AUTH_SECRET,
+      APP_ENV: 'staging',
+      VERCEL_URL: 'ogun-preview.vercel.app',
+      EXTERNAL_DELIVERY_ENABLED: 'true',
+    })
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(result.message).toContain('RESEND_API_KEY')

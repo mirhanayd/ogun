@@ -53,7 +53,7 @@ const urlOrLocalhost = z
     }
   }, 'geçerli bir URL olmalı (ör. http://localhost:3000)')
 
-const alwaysRequiredSchema = z.object({
+const coreRequiredSchema = z.object({
   DATABASE_URL: z
     .string()
     .min(
@@ -63,17 +63,15 @@ const alwaysRequiredSchema = z.object({
   BETTER_AUTH_SECRET: z
     .string()
     .min(1, 'BETTER_AUTH_SECRET zorunlu — `openssl rand -base64 32` ile üretilebilir.'),
-  BETTER_AUTH_URL: urlOrLocalhost,
-  NEXT_PUBLIC_BETTER_AUTH_URL: urlOrLocalhost,
-  S3_ENDPOINT: z
-    .string()
-    .min(1, 'S3_ENDPOINT zorunlu — dosya yükleme (#19) bu değişken olmadan çalışmaz.'),
-  S3_BUCKET: z.string().min(1, 'S3_BUCKET zorunlu.'),
-  S3_ACCESS_KEY_ID: z.string().min(1, 'S3_ACCESS_KEY_ID zorunlu.'),
-  S3_SECRET_ACCESS_KEY: z.string().min(1, 'S3_SECRET_ACCESS_KEY zorunlu.'),
 })
 
 const optionalSchema = z.object({
+  BETTER_AUTH_URL: urlOrLocalhost.optional(),
+  NEXT_PUBLIC_BETTER_AUTH_URL: urlOrLocalhost.optional(),
+  S3_ENDPOINT: z.string().min(1).optional(),
+  S3_BUCKET: z.string().min(1).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_REGION: z.string().optional(),
   S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).optional(),
   // Google OAuth ikisi birden ya da hiçbiri olmalı (bkz. superRefine altta) —
@@ -119,11 +117,29 @@ const optionalSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
 })
 
-const envShape = alwaysRequiredSchema.merge(optionalSchema)
+const envShape = coreRequiredSchema.merge(optionalSchema)
 export type Env = z.infer<typeof envShape>
 
-function buildSchema(appEnvironment: AppEnvironment) {
+function buildSchema(appEnvironment: AppEnvironment, source: NodeJS.ProcessEnv) {
   return envShape.superRefine((value, ctx) => {
+    const isVercelPreview = appEnvironment === 'staging' && Boolean(source.VERCEL_URL)
+    const requireField = (field: keyof Env, message: string) => {
+      if (value[field]) return
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [field] })
+    }
+
+    if (!isVercelPreview) {
+      requireField('BETTER_AUTH_URL', 'BETTER_AUTH_URL zorunlu.')
+      requireField('NEXT_PUBLIC_BETTER_AUTH_URL', 'NEXT_PUBLIC_BETTER_AUTH_URL zorunlu.')
+    }
+
+    if (appEnvironment !== 'staging') {
+      requireField('S3_ENDPOINT', 'S3_ENDPOINT zorunlu — dosya yükleme (#19) bu değişken olmadan çalışmaz.')
+      requireField('S3_BUCKET', 'S3_BUCKET zorunlu.')
+      requireField('S3_ACCESS_KEY_ID', 'S3_ACCESS_KEY_ID zorunlu.')
+      requireField('S3_SECRET_ACCESS_KEY', 'S3_SECRET_ACCESS_KEY zorunlu.')
+    }
+
     const hasGoogleId = Boolean(value.GOOGLE_CLIENT_ID)
     const hasGoogleSecret = Boolean(value.GOOGLE_CLIENT_SECRET)
     if (hasGoogleId !== hasGoogleSecret) {
@@ -135,7 +151,7 @@ function buildSchema(appEnvironment: AppEnvironment) {
       })
     }
 
-    if (appEnvironment !== 'local') {
+    if (appEnvironment === 'production' || value.EXTERNAL_DELIVERY_ENABLED === 'true') {
       if (!value.RESEND_API_KEY) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -161,7 +177,7 @@ export function validateEnv(
   source: NodeJS.ProcessEnv = process.env,
 ): { success: true; env: Env } | { success: false; message: string } {
   const appEnvironment = resolveAppEnvironment(source)
-  const result = buildSchema(appEnvironment).safeParse(source)
+  const result = buildSchema(appEnvironment, source).safeParse(source)
   if (result.success) {
     return { success: true, env: result.data }
   }

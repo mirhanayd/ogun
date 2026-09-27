@@ -35,6 +35,7 @@ SMS reminder endpoint'i ve iş mantığı korunur ancak dar 24 saatlik gönderim
 - Web: mevcut production değişkenlerine ek `CRON_SECRET`, `OPERATIONAL_JOBS_ENABLED=true`.
 - Admin: `ADMIN_BETTER_AUTH_SECRET`, `ADMIN_BETTER_AUTH_URL`, `OGUN_WEB_URL` ve aynı `DATABASE_URL`.
 - Preview: `OPERATIONAL_JOBS_ENABLED=false`; production secret'ı preview'a kopyalamayın.
+- Vercel Preview: `APP_ENV=staging` ve `EXTERNAL_DELIVERY_ENABLED=false` kullanın. Auth origin'i `VERCEL_URL` üzerinden türetilir; production S3/Resend secret'larını preview'a kopyalamayın. S3 veya e-posta gerektiren işlemler ilgili servis yapılandırılana kadar açık hata döndürür.
 - `CRON_SECRET` için en az 32 byte kriptografik rastgele değer kullanın ve düzenli secret rotasyon sürecine dahil edin.
 
 ## Dağıtım
