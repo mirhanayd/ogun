@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { NavigationLink as Link } from '@/components/navigation-link'
 import { ArrowRight, Search, SearchX, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyState } from '@/components/empty-state'
 import { calculateAge } from '@/lib/client-age'
-import { STATUS_LABELS_TR, STATUS_OPTIONS } from '@/lib/validation/client-schemas'
+import { STATUS_LABELS_TR } from '@/lib/validation/client-schemas'
 import { selectedClientIds, selectionSummaryLabel } from '@/app/(app)/danisanlar/selection'
 import { formatLastAppointment, formatLastMeasurement } from '@/lib/client-list-activity'
 import { canManuallyAssignDietitian } from '@/lib/dietitian-assignment'
@@ -93,6 +93,15 @@ export function ClientsTableView({
   useEffect(() => {
     setSearchInput(filters.search)
   }, [filters.search])
+  useEffect(() => {
+    const search = searchInput.trim()
+    if (search === filters.search) return
+    const timeout = window.setTimeout(() => {
+      setRowSelection({})
+      startTransition(() => onNavigate({ ...filters, search }, 1))
+    }, 350)
+    return () => window.clearTimeout(timeout)
+  }, [filters, onNavigate, searchInput])
 
   // Toplu işlemler (arşivle, diyetisyen ata) sadece owner/dietitian —
   // actions.ts'teki requireRole(['owner','dietitian']) kısıtıyla aynı,
@@ -220,11 +229,6 @@ export function ClientsTableView({
     })
   }
 
-  function handleSearchSubmit(event: FormEvent) {
-    event.preventDefault()
-    navigate({ ...filters, search: searchInput.trim() }, 1)
-  }
-
   function handleStatusChange(value: string) {
     navigate({ ...filters, status: value === ALL_FILTER_VALUE ? '' : value }, 1)
   }
@@ -293,71 +297,63 @@ export function ClientsTableView({
       className="clients-workspace flex min-w-0 flex-col gap-3"
       aria-busy={isPending || isSaving}
     >
-      <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <form onSubmit={handleSearchSubmit} className="flex w-full gap-2 lg:max-w-md">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label="Danışan ara"
-                placeholder="Ad, soyad, telefon veya e-posta ara…"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                className="h-10 rounded-xl bg-background pl-9"
-              />
-            </div>
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={isPending}
-              className="h-10 rounded-xl px-4"
-            >
-              Ara
-            </Button>
-          </form>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground sm:hidden">
-              <SlidersHorizontal className="size-3.5" />
-              Filtreler
-            </div>
-            <Select value={filters.status || ALL_FILTER_VALUE} onValueChange={handleStatusChange}>
-              <SelectTrigger
-                aria-label="Danışan durumu"
-                className="h-10 w-full rounded-lg bg-background sm:w-40"
+      <div className="flex items-end justify-between gap-6 border-b border-border">
+        <div className="flex min-w-0 items-center gap-6" aria-label="Danışan durumu">
+          {[
+            { value: '', label: 'Tümü' },
+            { value: 'aktif', label: 'Aktif' },
+            { value: 'arşiv', label: 'Arşiv' },
+          ].map((tab) => {
+            const active = filters.status === tab.value
+            return (
+              <button
+                key={tab.value || 'all'}
+                type="button"
+                aria-pressed={active}
+                className={`border-b-2 px-0 pb-2 text-sm font-medium transition-colors ${active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleStatusChange(tab.value || ALL_FILTER_VALUE)}
               >
-                <SelectValue placeholder="Durum" />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex min-w-0 items-center gap-2 pb-2">
+          <div className="relative w-80 max-w-[38vw]">
+            <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              aria-label="Danışan ara"
+              placeholder="Ad, soyad, telefon veya e-posta ara…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              className="h-9 rounded-none border-0 border-b bg-transparent pr-2 pl-8 shadow-none focus-visible:border-primary focus-visible:ring-0"
+            />
+          </div>
+          {role === 'owner' && (
+            <Select
+              value={filters.assignedDietitianId || ALL_FILTER_VALUE}
+              onValueChange={handleDietitianFilterChange}
+            >
+              <SelectTrigger
+                aria-label="Atanan diyetisyen"
+                title={
+                  dietitians.find((dietitian) => dietitian.id === filters.assignedDietitianId)
+                    ?.name ?? 'Diyetisyene göre filtrele'
+                }
+                className="size-9 border-0 bg-transparent px-0 shadow-none hover:bg-muted focus-visible:ring-2"
+              >
+                <SlidersHorizontal className="size-4" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_FILTER_VALUE}>Tüm durumlar</SelectItem>
-                {STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                <SelectItem value={ALL_FILTER_VALUE}>Tüm diyetisyenler</SelectItem>
+                {dietitians.map((dietitian) => (
+                  <SelectItem key={dietitian.id} value={dietitian.id}>
+                    {dietitian.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {role === 'owner' && (
-              <Select
-                value={filters.assignedDietitianId || ALL_FILTER_VALUE}
-                onValueChange={handleDietitianFilterChange}
-              >
-                <SelectTrigger
-                  aria-label="Atanan diyetisyen"
-                  className="h-10 w-full rounded-lg bg-background sm:w-48"
-                >
-                  <SelectValue placeholder="Diyetisyen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>Tüm diyetisyenler</SelectItem>
-                  {dietitians.map((dietitian) => (
-                    <SelectItem key={dietitian.id} value={dietitian.id}>
-                      {dietitian.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          )}
         </div>
       </div>
 

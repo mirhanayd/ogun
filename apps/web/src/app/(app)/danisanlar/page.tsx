@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/empty-state'
 import { ClientsActionsView, ClientsScreen } from '@/screens/clients-screen'
 import { requireClinic } from '@/lib/authz'
 import { STATUS_OPTIONS } from '@/lib/validation/client-schemas'
+import { getPanelNotificationFeed } from '@/app/(app)/panel/queries'
 import { ClientsTable } from './clients-table'
 import { listClientsForClinic } from './queries'
 import { CreateSamplePlanButton } from './create-sample-plan-button'
@@ -42,15 +43,22 @@ export default async function DanisanlarPage({
   const { scope, role } = await requireClinic()
   const assignedDietitianId = role === 'owner' ? requestedDietitianId : undefined
 
-  const [result, dietitians] = await Promise.all([
+  const [result, dietitians, notificationFeed] = await Promise.all([
     listClientsForClinic({ page, pageSize: PAGE_SIZE, search, status, assignedDietitianId }),
     role === 'owner' ? listClinicDietitians(db, scope.clinicId) : Promise.resolve([]),
+    getPanelNotificationFeed(),
   ])
 
   return (
     <ClientsScreen
       role={role}
       actions={<ClientsActionsView />}
+      summary={{
+        totalClients: result.total,
+        todayAppointments: notificationFeed.todayAppointmentsCount,
+        attentionCount:
+          notificationFeed.staleMeasurementCount + notificationFeed.expiringPackageCount,
+      }}
     >
       {/* GitHub issue #47 / Prompt 8.3, GÖREV 1 — klinikte HİÇ danışan yoksa
           (herhangi bir filtre uygulanmamışken) EmptyState + "örnek danışan ve

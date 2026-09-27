@@ -73,7 +73,11 @@ export function LocalClientsAdapter({ role, repositories }: { role: ClinicRole; 
   }), [data.clients, filters])
   const rows = useMemo(() => buildLocalClientListRows(filtered, data.measurements, data.appointments), [data.appointments, data.measurements, filtered])
   const dietitians: ClinicDietitianOption[] = data.dietitians.map((option) => ({ id: option.id, name: text(option, 'name') }))
-  return <ClientsScreen role={role} actions={role === 'assistant' ? undefined : <ClientsActionsView canImport={false} />}>
+  const today = new Date().toISOString().slice(0, 10)
+  const todayAppointments = data.appointments.filter(
+    (appointment) => String(appointment.startsAt ?? '').slice(0, 10) === today,
+  ).length
+  return <ClientsScreen role={role} actions={role === 'assistant' ? undefined : <ClientsActionsView canImport={false} />} summary={{ totalClients: data.clients.length, todayAppointments, attentionCount: 0 }}>
     <p className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Cihazdaki danışan kayıtları gösteriliyor. CSV içe aktarma için çevrimiçi çalışma alanını kullanın.</p>
     {loadError ? <div role="alert" className="rounded-xl border border-destructive/40 bg-card p-5"><p>Danışan kayıtları yüklenemedi.</p><button type="button" className="mt-2 min-h-11 underline underline-offset-4" onClick={() => { setLoading(true); setRetry((value) => value + 1) }}>Tekrar dene</button></div> : loading ? <div role="status" className="rounded-xl border border-border bg-card p-8 text-muted-foreground">Danışanlar yükleniyor…</div> : <ClientsTableView
       result={{ rows, total: rows.length, page: 1, pageSize: Math.max(rows.length, 1) }}
