@@ -36,12 +36,11 @@ export function scrubLogArgs(args: unknown[]): unknown[] {
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? 'info',
-  // Geliştirmede insan-okunur renkli çıktı (pino-pretty), üretimde ham JSON
-  // (log toplayıcıya — ör. bir merkezi log sistemine — dosturulur).
-  transport:
-    process.env.NODE_ENV === 'production'
-      ? undefined
-      : { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss' } },
+  // Pino'nun `transport` seçeneği ayrı bir worker thread açar. Next.js'in
+  // Turbopack geliştirme sunucusu Windows'ta bu worker dosyasını sanal
+  // `C:\\ROOT` yolundan çözmeye çalışabildiği için logger başlatılırken sayfayı
+  // düşürüyordu. Varsayılan stdout hedefi worker kullanmaz ve hem geliştirme
+  // hem üretimde log toplayıcıların okuyabildiği satır bazlı JSON üretir.
   hooks: {
     logMethod(inputArgs, method) {
       method.apply(this, scrubLogArgs(inputArgs) as Parameters<typeof method>)

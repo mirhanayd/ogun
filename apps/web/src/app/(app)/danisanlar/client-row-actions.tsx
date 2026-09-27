@@ -26,7 +26,9 @@ export function ClientRowActions({
   client,
   dietitians,
 }: {
-  client: ClientListRow
+  client: Omit<ClientListRow, 'lastMeasurementAt'> & {
+    lastMeasurementAt: ClientListRow['lastMeasurementAt'] | string
+  }
   dietitians: DietitianOption[]
 }) {
   const [measurementOpen, setMeasurementOpen] = useState(false)
@@ -68,7 +70,10 @@ export function ClientRowActions({
             previousMeasurement={
               client.lastMeasurementAt
                 ? {
-                    measuredAt: client.lastMeasurementAt.toISOString(),
+                    measuredAt:
+                      client.lastMeasurementAt instanceof Date
+                        ? client.lastMeasurementAt.toISOString()
+                        : client.lastMeasurementAt,
                     weightKg:
                       client.lastMeasurementWeightKg == null
                         ? null
