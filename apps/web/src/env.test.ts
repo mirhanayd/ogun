@@ -61,6 +61,7 @@ describe('validateEnv', () => {
 
   it('dış teslimat kapalı Vercel preview ortamında S3 ve Resend olmadan başlar', () => {
     const result = validateEnv({
+      NODE_ENV: 'test',
       DATABASE_URL: validLocalEnv.DATABASE_URL,
       BETTER_AUTH_SECRET: validLocalEnv.BETTER_AUTH_SECRET,
       APP_ENV: 'staging',
@@ -72,6 +73,7 @@ describe('validateEnv', () => {
 
   it('Vercel dışında staging auth URL olmadan başlamaz', () => {
     const result = validateEnv({
+      NODE_ENV: 'test',
       DATABASE_URL: validLocalEnv.DATABASE_URL,
       BETTER_AUTH_SECRET: validLocalEnv.BETTER_AUTH_SECRET,
       APP_ENV: 'staging',
@@ -82,6 +84,7 @@ describe('validateEnv', () => {
 
   it('staging ortamında dış teslimat açıksa Resend yapılandırması ister', () => {
     const result = validateEnv({
+      NODE_ENV: 'test',
       DATABASE_URL: validLocalEnv.DATABASE_URL,
       BETTER_AUTH_SECRET: validLocalEnv.BETTER_AUTH_SECRET,
       APP_ENV: 'staging',
