@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react'
 import { NavigationLink as Link } from '@/components/navigation-link'
-import { ArrowDown, ArrowRight, ArrowUp, Search, SearchX, SlidersHorizontal } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { toastActionError } from '@/lib/action-toast'
 import {
@@ -604,27 +613,30 @@ export function ClientsTableView({
         </>
       )}
 
-      <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          Sayfa {result.page} / {totalPages} — toplam {result.total} danışan
+      <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
+        <span className="tabular-nums">
+          {result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1}–
+          {Math.min(result.page * result.pageSize, result.total)} / {result.total}
         </span>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Önceki sayfa"
+            className="grid size-8 place-items-center rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30"
             disabled={result.page <= 1 || isPending}
             onClick={() => navigate(filters, result.page - 1)}
           >
-            Önceki
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Sonraki sayfa"
+            className="grid size-8 place-items-center rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30"
             disabled={result.page >= totalPages || isPending}
             onClick={() => navigate(filters, result.page + 1)}
           >
-            Sonraki
-          </Button>
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       </div>
 
