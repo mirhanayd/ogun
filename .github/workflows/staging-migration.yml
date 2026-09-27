@@ -72,5 +72,8 @@ jobs:
           console.log('Staging host and database verified; no credentials will be printed.')
           NODE
           pnpm --filter @ogun/db db:migrate:check
+          # 0000 uses gin_trgm_ops; a fresh Neon database lacks pg_trgm by default.
+          # Idempotent, staging-only setup with an independent DB target guard.
+          pnpm --filter @ogun/db db:staging:prerequisites
           pnpm --filter @ogun/db db:migrate
           pnpm --filter @ogun/db db:compatibility:check
