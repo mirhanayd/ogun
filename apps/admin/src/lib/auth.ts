@@ -7,6 +7,7 @@ import { db } from '@ogun/db'
 import { getPlatformStaffByEmail, getPlatformStaffByUserId } from '@ogun/db/queries'
 import * as schema from '@ogun/db/schema'
 import { resolveAdminAuthBaseUrl } from '../env'
+import { classifyAdminDatabaseTarget } from './auth-diagnostics'
 
 // Better Auth's database limiter always resolves the logical `rateLimit`
 // model. Map that model to an admin-only physical table so web and admin IP
@@ -66,6 +67,14 @@ export const auth = betterAuth({
       const email = typeof ctx.body?.email === 'string' ? ctx.body.email : ''
       const staff = email ? await getPlatformStaffByEmail(db, email) : null
       if (!staff?.isActive) {
+        // Intentionally omit email, connection URLs, credentials and request metadata.
+        // The classification tells operators whether production auth is querying
+        // the production or staging database, without disclosing the DB hostname.
+        console.warn('admin_sign_in_staff_check_denied', {
+          databaseTarget: classifyAdminDatabaseTarget(process.env.DATABASE_URL),
+          staffLookup: !email ? 'missing_email' : staff ? 'inactive' : 'not_found',
+          deploymentEnvironment: process.env.VERCEL_ENV === 'production' ? 'production' : 'non_production',
+        })
         throw new APIError('UNAUTHORIZED', { message: 'Giriş bilgileri doğrulanamadı.' })
       }
     }),
