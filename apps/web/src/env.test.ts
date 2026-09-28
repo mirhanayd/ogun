@@ -108,6 +108,20 @@ describe('validateEnv', () => {
     expect(result.success).toBe(true)
   })
 
+  it('production ortamı S3 yapılandırılmadan çekirdek auth akışını başlatır', () => {
+    const result = validateEnv({
+      ...validLocalEnv,
+      APP_ENV: 'production',
+      S3_ENDPOINT: undefined,
+      S3_BUCKET: undefined,
+      S3_ACCESS_KEY_ID: undefined,
+      S3_SECRET_ACCESS_KEY: undefined,
+      RESEND_API_KEY: 're_test_key',
+      RESEND_FROM_EMAIL: 'Öğün <bildirim@ogun.co>',
+    })
+    expect(result.success).toBe(true)
+  })
+
   it('NODE_ENV=production ama APP_ENV yokken de production kuralları uygulanır', () => {
     const result = validateEnv({ ...validLocalEnv, APP_ENV: undefined, NODE_ENV: 'production' })
     expect(result.success).toBe(false)

@@ -17,8 +17,8 @@ Values belong in the deployment platform's encrypted environment store. They mus
 | `NEXT_PUBLIC_SITE_URL` | yes | no | no | yes | yes | no | yes | Canonical public site/sitemap origin. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | yes | no | no | no | ID only | secret only | conditional | Both present when Google login is enabled. |
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | yes | yes | yes | no | from address | key only | yes | Transactional email; tests explicitly blank these values. |
-| `S3_ENDPOINT`, `S3_REGION`, `S3_FORCE_PATH_STYLE`, `S3_BUCKET` | yes | no | no | no | no | bucket private | yes | Private object storage coordinates. |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | yes | no | no | no | no | yes | yes | Server-only object storage credentials. |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_FORCE_PATH_STYLE`, `S3_BUCKET` | yes | no | no | no | no | bucket private | feature conditional | Private object storage coordinates; the complete group is required before document storage is enabled. |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | yes | no | no | no | no | yes | feature conditional | Server-only object storage credentials; partial S3 configuration is rejected. |
 | `CRON_SECRET` | yes | no | yes | no | no | yes | yes | Internal job bearer secret. |
 | `OPERATIONAL_JOBS_ENABLED=true` | yes | no | yes | no | no | no | yes | Explicit production job enablement. |
 | `EXTERNAL_DELIVERY_ENABLED` | yes | no | yes | no | no | no | policy | Explicit non-production provider-send opt-in. |
