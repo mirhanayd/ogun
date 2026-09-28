@@ -8,6 +8,7 @@ import { externalDeliveryAllowed } from './cron-auth'
 
 export const CRON_JOB_SLUGS = ['sms-reminders', 'email-retry', 'subscription-reconciliation', 'maintenance'] as const
 export type CronJobSlug = (typeof CRON_JOB_SLUGS)[number]
+export const HOBBY_DAILY_SYSTEM_JOBS = ['subscription-reconciliation', 'maintenance'] as const satisfies readonly CronJobSlug[]
 
 export async function runOperationalJobBySlug(slug: CronJobSlug, trigger: 'cron' | 'manual' | 'test' = 'cron') {
   const startedAt = Date.now()
@@ -31,4 +32,16 @@ export async function runOperationalJobBySlug(slug: CronJobSlug, trigger: 'cron'
     counts: execution.result?.counts,
   }, 'Operational job completed')
   return execution
+}
+
+export async function runOperationalJobBatch(
+  slugs: readonly CronJobSlug[],
+  trigger: 'cron' | 'manual' | 'test' = 'cron',
+) {
+  const results = []
+  for (const slug of slugs) {
+    const execution = await runOperationalJobBySlug(slug, trigger)
+    results.push({ slug, execution })
+  }
+  return results
 }

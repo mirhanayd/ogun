@@ -8,6 +8,8 @@ import { requireClinic } from '@/lib/authz'
 import { STATUS_OPTIONS } from '@/lib/validation/client-schemas'
 import { ClientsTable } from './clients-table'
 import { listClientsForClinic } from './queries'
+import { getClientsOperationSummary } from './operation-queries'
+import { ClientsOperationSummaryView } from './clients-operation-summary'
 import { CreateSamplePlanButton } from './create-sample-plan-button'
 
 const PAGE_SIZE = 20
@@ -39,19 +41,48 @@ export default async function DanisanlarPage({
   const status = parseStatus(readParam(params.status))
   const requestedDietitianId = readParam(params.dietitian)
 
-  const { scope, role } = await requireClinic()
+  const { scope, role, user } = await requireClinic()
   const assignedDietitianId = role === 'owner' ? requestedDietitianId : undefined
 
-  const [result, dietitians] = await Promise.all([
+  const [result, dietitians, operationSummary] = await Promise.all([
     listClientsForClinic({ page, pageSize: PAGE_SIZE, search, status, assignedDietitianId }),
-    role === 'owner' ? listClinicDietitians(db, scope.clinicId) : Promise.resolve([]),
+    listClinicDietitians(db, scope.clinicId),
+    getClientsOperationSummary(),
   ])
+
+  const attentionClientIds = new Set([
+    ...operationSummary.staleMeasurementClients.map((client) => client.clientId),
+    ...operationSummary.lowSessionClients.map((client) => client.clientId),
+  ])
+  const attentionByClient: Record<string, { measurementReason?: string; packageReason?: string }> =
+    {}
+  for (const client of operationSummary.staleMeasurementClients) {
+    attentionByClient[client.clientId] = { measurementReason: client.reason }
+  }
+  for (const client of operationSummary.lowSessionClients) {
+    attentionByClient[client.clientId] = {
+      ...attentionByClient[client.clientId],
+      packageReason: client.reason,
+    }
+  }
 
   return (
     <ClientsScreen
       role={role}
       actions={<ClientsActionsView />}
+      summary={{
+        totalClients: result.total,
+        todayAppointments: operationSummary.todayAppointments.length,
+        attentionCount: attentionClientIds.size,
+      }}
     >
+      <ClientsOperationSummaryView
+        appointments={operationSummary.todayAppointments}
+        staleMeasurementClients={operationSummary.staleMeasurementClients}
+        lowSessionClients={operationSummary.lowSessionClients}
+        dietitians={dietitians}
+        defaultDietitianId={role === 'dietitian' ? user.id : undefined}
+      />
       {/* GitHub issue #47 / Prompt 8.3, GÖREV 1 — klinikte HİÇ danışan yoksa
           (herhangi bir filtre uygulanmamışken) EmptyState + "örnek danışan ve
           plan oluştur" kısayolu (bkz. create-sample-plan-button.tsx). Bir
@@ -73,6 +104,7 @@ export default async function DanisanlarPage({
           result={result}
           dietitians={dietitians}
           role={role}
+          attentionByClient={attentionByClient}
           filters={{
             search: search ?? '',
             status: status ?? '',

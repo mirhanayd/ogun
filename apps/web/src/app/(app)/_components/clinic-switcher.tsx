@@ -17,7 +17,7 @@ export async function ClinicSwitcher({ activeClinicId }: { activeClinicId: strin
   if (memberships.length <= 1) {
     const current = memberships[0]
     return (
-      <div className="flex items-center gap-2 px-1.5 text-sm font-medium">
+      <div className="flex items-center gap-2 px-1.5 text-sm font-medium" data-single-clinic>
         <Building2 className="size-4 text-muted-foreground" />
         <span className="max-w-40 truncate">{current?.clinicName ?? 'Klinik'}</span>
       </div>

@@ -33,9 +33,11 @@ export function buildLocalClientListRows(
   appointments: DomainEntity[],
 ): ClientListRow[] {
   return clients.map((client) => {
-    const latestMeasurement = measurements
+    const clientMeasurements = measurements
       .filter((row) => row.clientId === client.id)
-      .sort((a, b) => instant(b, 'measuredAt') - instant(a, 'measuredAt'))[0]
+      .sort((a, b) => instant(b, 'measuredAt') - instant(a, 'measuredAt'))
+    const latestMeasurement = clientMeasurements[0]
+    const previousMeasurement = clientMeasurements[1]
     const latestAppointment = appointments
       .filter((row) => row.clientId === client.id)
       .sort((a, b) => instant(b, 'startsAt') - instant(a, 'startsAt'))[0]
@@ -51,6 +53,8 @@ export function buildLocalClientListRows(
       lastMeasurementAt: latestMeasurement ? new Date(text(latestMeasurement, 'measuredAt')) : null,
       lastMeasurementWeightKg:
         latestMeasurement?.weightKg == null ? null : String(latestMeasurement.weightKg),
+      previousMeasurementWeightKg:
+        previousMeasurement?.weightKg == null ? null : String(previousMeasurement.weightKg),
       lastAppointmentAt: latestAppointment ? new Date(text(latestAppointment, 'startsAt')) : null,
       lastAppointmentStatus:
         appointmentStatus === 'planlandı' ||

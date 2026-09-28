@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType, HTMLAttributes, ReactNode } from 'react'
+import { useState, type ComponentType, type HTMLAttributes, type ReactNode } from 'react'
 import { Maximize2, Minus, MoreHorizontal, Square, X } from 'lucide-react'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 import {
@@ -17,10 +17,17 @@ export interface ShellLinkProps {
   className?: string
   children: ReactNode
   'aria-current'?: 'page'
+  title?: string
   onClick?: () => void
 }
 
 export type ShellLinkComponent = ComponentType<ShellLinkProps>
+
+export interface SidebarQuickClient {
+  id: string
+  firstName: string
+  lastName: string
+}
 
 function AnchorLink({ href, onClick, ...props }: ShellLinkProps) {
   return (
@@ -39,82 +46,136 @@ function AnchorLink({ href, onClick, ...props }: ShellLinkProps) {
 export function SidebarNavView({
   role,
   currentPath,
-  connectivity,
+  quickClients,
+  loadQuickClients,
   LinkComponent = AnchorLink,
   onNavigate,
 }: {
   role: ClinicMemberRole
   currentPath: string
-  connectivity: 'online' | 'offline' | 'checking'
+  quickClients?: SidebarQuickClient[]
+  loadQuickClients?: () => Promise<SidebarQuickClient[]>
   LinkComponent?: ShellLinkComponent
   onNavigate?: (href: string) => void
 }) {
-  const isOnline = connectivity === 'online'
+  const items = visibleNavItems(role)
+  const [showQuickClients, setShowQuickClients] = useState(false)
+  const [loadedQuickClients, setLoadedQuickClients] = useState<SidebarQuickClient[]>([])
+  const [quickClientStatus, setQuickClientStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >(quickClients ? 'ready' : 'idle')
+  const recentClients = quickClients ?? loadedQuickClients
+
+  function openQuickClients() {
+    setShowQuickClients(true)
+    if (!loadQuickClients || quickClients || quickClientStatus !== 'idle') return
+    setQuickClientStatus('loading')
+    void loadQuickClients()
+      .then((rows) => {
+        setLoadedQuickClients(rows.slice(0, 4))
+        setQuickClientStatus('ready')
+      })
+      .catch(() => setQuickClientStatus('error'))
+  }
+
+  const renderItem = (item: (typeof items)[number]) => {
+    const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
+    return (
+      <LinkComponent
+        key={item.href}
+        href={item.href}
+        onClick={onNavigate ? () => onNavigate(item.href) : undefined}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'sidebar-link group relative flex min-h-12 items-center gap-3 overflow-hidden rounded-xl text-sm font-semibold text-foreground transition-colors hover:bg-sidebar-accent',
+          active && 'sidebar-link-active bg-sidebar-accent',
+        )}
+      >
+        <span
+          className={cn(
+            'sidebar-link-icon grid size-12 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors group-hover:text-foreground',
+            active &&
+              'rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm group-hover:text-sidebar-primary-foreground',
+          )}
+        >
+          <item.icon className="size-[1.45rem] shrink-0" strokeWidth={2.15} aria-hidden="true" />
+        </span>
+        <span className="sidebar-label whitespace-nowrap pr-4">{item.label}</span>
+      </LinkComponent>
+    )
+  }
+
   return (
     <nav
-      className="flex min-h-0 flex-1 flex-col px-3 pb-4"
+      className="sidebar-nav flex min-h-0 flex-col gap-2 overflow-visible"
       aria-label="Ana gezinme"
       data-sidebar-navigation
     >
-      <p className="mb-2 px-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground/80 uppercase">
-        Klinik yönetimi
-      </p>
-      <div className="flex flex-col gap-1" data-sidebar-navigation-items>
-        {visibleNavItems(role).map((item) => {
-          const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
-          return (
-            <LinkComponent
+      <div className="sidebar-panel-action">{items.slice(0, 1).map(renderItem)}</div>
+      <div className="sidebar-navigation-stack flex flex-col gap-1" data-sidebar-navigation-items>
+        {items.slice(1).map((item) =>
+          item.href === '/danisanlar' ? (
+            <div
               key={item.href}
-              href={item.href}
-              onClick={onNavigate ? () => onNavigate(item.href) : undefined}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'group relative flex h-10 items-center gap-3 rounded-xl px-3 text-[0.82rem] font-medium text-sidebar-foreground/65 transition-all hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
-                active &&
-                  'bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--sidebar-primary)_13%,transparent)]',
-              )}
+              className="sidebar-client-group"
+              onMouseEnter={openQuickClients}
+              onMouseLeave={() => setShowQuickClients(false)}
+              onFocus={openQuickClients}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setShowQuickClients(false)
+              }}
             >
-              <span
-                className={cn(
-                  'grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors group-hover:text-sidebar-foreground',
-                  active && 'bg-sidebar-primary/10 text-sidebar-primary',
-                )}
-              >
-                <item.icon className="size-4 shrink-0" strokeWidth={active ? 2.2 : 1.8} />
-              </span>
-              {item.label}
-              {active && (
-                <span className="absolute inset-y-2 -left-3 w-0.5 rounded-full bg-sidebar-primary" />
-              )}
-            </LinkComponent>
-          )
-        })}
-      </div>
-      <div className="mt-auto rounded-xl border border-sidebar-border bg-background/45 p-3">
-        <div className="mb-1 flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
-          <span
-            className={cn(
-              'size-1.5 rounded-full',
-              isOnline
-                ? 'bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]'
-                : connectivity === 'offline'
-                  ? 'bg-destructive shadow-[0_0_0_3px_color-mix(in_oklch,var(--destructive)_12%,transparent)]'
-                  : 'animate-pulse bg-amber-500',
-            )}
-          />
-          {isOnline
-            ? 'Sistem aktif'
-            : connectivity === 'offline'
-              ? 'Bağlantı yok'
-              : 'Bağlantı kontrol ediliyor'}
-        </div>
-        <p className="text-[10px] leading-4 text-muted-foreground">
-          {isOnline
-            ? 'Verileriniz güvenli klinik alanına kaydediliyor.'
-            : connectivity === 'offline'
-              ? 'Desteklenen kayıtlar cihazda tutulur; çevrimiçi işlemler geçici olarak kapalıdır.'
-              : 'Güvenli klinik alanına erişim doğrulanıyor.'}
-        </p>
+              {renderItem(item)}
+              {showQuickClients ? (
+                <div className="sidebar-client-quick-list" aria-label="Son danışanlar">
+                  <p className="sidebar-label px-2 pb-1 pt-2 text-[0.68rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    Son danışanlar
+                  </p>
+                  {quickClientStatus === 'loading' ? (
+                    <p className="sidebar-label px-2 py-2 text-xs text-muted-foreground">
+                      Yükleniyor…
+                    </p>
+                  ) : quickClientStatus === 'error' ? (
+                    <p className="sidebar-label px-2 py-2 text-xs text-muted-foreground">
+                      Liste alınamadı
+                    </p>
+                  ) : recentClients.length === 0 ? (
+                    <p className="sidebar-label px-2 py-2 text-xs text-muted-foreground">
+                      Henüz danışan yok
+                    </p>
+                  ) : (
+                    <div className="sidebar-label flex flex-col gap-0.5">
+                      {recentClients.map((client) => {
+                        const name = `${client.firstName} ${client.lastName}`.trim()
+                        const initials =
+                          `${client.firstName[0] ?? ''}${client.lastName[0] ?? ''}`.toLocaleUpperCase(
+                            'tr-TR',
+                          )
+                        return (
+                          <LinkComponent
+                            key={client.id}
+                            href={`/danisanlar/${client.id}`}
+                            onClick={
+                              onNavigate ? () => onNavigate(`/danisanlar/${client.id}`) : undefined
+                            }
+                            className="sidebar-quick-client flex min-h-10 items-center gap-2 rounded-xl px-2 text-xs font-semibold text-foreground hover:bg-sidebar-accent"
+                          >
+                            <span className="grid size-7 shrink-0 place-items-center rounded-full border border-border bg-muted text-[0.62rem] text-muted-foreground">
+                              {initials}
+                            </span>
+                            <span className="min-w-0 truncate">{name}</span>
+                          </LinkComponent>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            renderItem(item)
+          ),
+        )}
       </div>
     </nav>
   )
@@ -143,7 +204,7 @@ export function DesktopTitlebarView({
       className="clinic-desktop-titlebar desktop-titlebar relative z-50 flex h-12 shrink-0 select-none items-center border-b shadow-[0_1px_0_rgba(0,0,0,0.22)]"
       data-desktop-titlebar
     >
-      <div className="flex w-60 shrink-0 items-center gap-2.5 px-4">
+      <div className="flex shrink-0 items-center gap-2.5 px-4 md:w-60">
         {/* Plain img is intentional: this shared view is also bundled by Vite/Tauri without Next Image. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -154,11 +215,11 @@ export function DesktopTitlebarView({
           className="size-7 shrink-0 rounded-lg shadow-sm"
         />
         <span className="text-sm font-semibold tracking-[-0.02em]">öğün</span>
-        <span className="rounded-full border border-current/15 bg-current/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em] uppercase">
+        <span className="hidden rounded-full border border-current/15 bg-current/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.14em] uppercase sm:inline">
           Desktop
         </span>
       </div>
-      <div className="flex min-w-0 flex-1 justify-center px-4">
+      <div className="flex min-w-0 flex-1 justify-center px-4 max-sm:[&>*]:hidden">
         {search ? (
           <div className="w-full max-w-xl [&_button]:h-8 [&_button]:max-w-none [&_button]:border-current/15 [&_button]:bg-current/10 [&_button]:text-current [&_button:hover]:bg-current/15 [&_kbd]:border-current/15 [&_kbd]:bg-black/15 [&_kbd]:text-current">
             {search}
@@ -231,9 +292,11 @@ export function TopBarView({
 }) {
   return (
     <header className="app-topbar relative z-40 flex h-[4.5rem] shrink-0 items-center gap-2 border-b border-border/80 bg-background/90 px-3 backdrop-blur-xl sm:gap-4 sm:px-6">
-      {pageContext}
-      <div className="hidden h-7 w-px bg-border md:block" />
-      <div className="min-w-0 flex-1 sm:flex-none">{clinicSwitcher}</div>
+      <div className="app-topbar-page-context">{pageContext}</div>
+      <div className="app-topbar-divider hidden h-7 w-px bg-border md:block" />
+      <div className="app-topbar-clinic-switcher min-w-0 flex-1 empty:hidden sm:flex-none">
+        {clinicSwitcher}
+      </div>
       <div className="app-topbar-search flex flex-none justify-end sm:flex-1 sm:justify-center sm:px-2 [&_button]:size-9 [&_button]:justify-center [&_button]:px-0 [&_button_span]:sr-only sm:[&_button]:h-9 sm:[&_button]:w-full sm:[&_button]:justify-start sm:[&_button]:px-3 sm:[&_button_span]:not-sr-only">
         {search}
       </div>
@@ -275,6 +338,7 @@ export function BottomNavView({
             href={item.href}
             onClick={onNavigate ? () => onNavigate(item.href) : undefined}
             aria-current={active ? 'page' : undefined}
+            title={item.label}
             className={cn(
               'relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.62rem] font-medium text-muted-foreground transition-colors',
               active && 'bg-primary/8 text-primary',
@@ -309,6 +373,7 @@ export function BottomNavView({
                   href={item.href}
                   onClick={onNavigate ? () => onNavigate(item.href) : undefined}
                   aria-current={active ? 'page' : undefined}
+                  title={item.label}
                 >
                   <item.icon className={cn('size-4', active && 'text-primary')} />
                   <span className={cn(active && 'font-semibold text-primary')}>{item.label}</span>

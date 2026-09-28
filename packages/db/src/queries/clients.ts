@@ -1,4 +1,17 @@
-import { and, count, desc, eq, getTableColumns, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type { SQLWrapper } from 'drizzle-orm'
 import { clients, type ClientSex, type ClientStatus } from '../schema/clients'
 import { measurements } from '../schema/measurements'
@@ -93,6 +106,7 @@ export interface ClientListRow {
   assignedDietitianName: string | null
   lastMeasurementAt: Date | null
   lastMeasurementWeightKg: string | null
+  previousMeasurementWeightKg: string | null
   lastAppointmentAt: Date | null
   lastAppointmentStatus: AppointmentStatus | null
   createdAt: Date
@@ -170,6 +184,13 @@ export async function listClients(
           where ${measurements.clientId} = ${clients.id}
           order by ${measurements.measuredAt} desc
           limit 1
+        )`,
+        previousMeasurementWeightKg: sql<string | null>`(
+          select ${measurements.weightKg}
+          from ${measurements}
+          where ${measurements.clientId} = ${clients.id}
+          order by ${measurements.measuredAt} desc
+          limit 1 offset 1
         )`,
         lastAppointmentAt: sql<Date | null>`(
           select ${appointments.startsAt}

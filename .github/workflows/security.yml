@@ -29,7 +29,9 @@ jobs:
       - run: pnpm release:env:schema
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
+      # Browser E2E needs a seeded local PostgreSQL + a running Next server.
+      # Keep unit/integration tests in this job; browser E2E gets its own job.
+      - run: pnpm exec turbo run test --filter='!@ogun/e2e'
       - run: pnpm audit --audit-level high
       - run: pnpm audit --prod --audit-level high
 
@@ -40,6 +42,7 @@ jobs:
       - uses: rustsec/audit-check@858dc40f52ca2b8570b7a997c1c4e35c6fc9a432 # pinned HEAD 2026-09-11
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: apps/desktop/src-tauri
 
   secret-scan:
     runs-on: ubuntu-latest

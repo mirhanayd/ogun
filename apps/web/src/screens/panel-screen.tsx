@@ -1,3 +1,5 @@
+import { ScreenHeading } from './screen-frame'
+import { OgunPanel } from '@/components/ogun-icons'
 import { NavigationLink as Link } from '@/components/navigation-link'
 import {
   ArrowRight,
@@ -6,7 +8,6 @@ import {
   Clock3,
   PackageX,
   Plus,
-  Sparkles,
   TrendingDown,
   UserPlus,
   Weight,
@@ -54,26 +55,7 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
 
   return (
     <div className="flex flex-col gap-7 pb-8">
-      <section className="flex flex-col gap-5 border-b border-border/70 pb-7 xl:flex-row xl:items-end xl:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-            <Sparkles className="size-3.5" />
-            Klinik özeti
-          </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-balance sm:text-4xl">
-            {greeting}
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            {attentionCount > 0
-              ? `Bugün ${attentionCount} konu dikkatinizi bekliyor. Öncelikleri sizin için tek yerde topladık.`
-              : 'Klinik akışınız güncel görünüyor. Bugünün programına hazırsınız.'}
-          </p>
-          <div className="flex items-center gap-2 pt-1 text-sm font-medium text-muted-foreground">
-            <CalendarDays className="size-4" />
-            <span className="first-letter:uppercase">{dateFormatter.format(now)}</span>
-          </div>
-        </div>
-
+      <ScreenHeading title={greeting} icon={OgunPanel} description={`${dateFormatter.format(now)}. ${attentionCount > 0 ? `${attentionCount} takip konusu bulunuyor.` : 'Bekleyen takip konusu yok.'}`} actions={
         <div className="flex flex-wrap gap-2">
           <Button
             asChild
@@ -93,7 +75,7 @@ export function PanelScreen({ feed, now = new Date() }: { feed: PanelFeed; now?:
             </Link>
           </Button>
         </div>
-      </section>
+      } />
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard

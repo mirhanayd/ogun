@@ -15,6 +15,10 @@ import { resolveInstallationAccess } from './device-identity'
 import { sendOgunPasswordResetEmail } from './password-reset-email'
 import { sendOgunVerificationEmail } from './verification-email'
 
+const vercelDeploymentUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}`
+  : undefined
+
 // Better Auth kurulumu. Vercel'e özgü hiçbir API kullanılmıyor — düz Node.js
 // üzerinde (Next.js App Router route handler'ı üzerinden) çalışır, bkz.
 // apps/web/src/app/api/auth/[...all]/route.ts.
@@ -33,7 +37,7 @@ export const auth = betterAuth({
   // yerel sunucuya döner.
   baseURL: {
     allowedHosts: ['127.0.0.1:*', 'localhost:*'],
-    fallback: process.env.BETTER_AUTH_URL,
+    fallback: process.env.BETTER_AUTH_URL ?? vercelDeploymentUrl,
     protocol: 'auto',
   },
   // GitHub issue #52 / Prompt 9.2 — masaüstü (Tauri) uygulaması "şifremi

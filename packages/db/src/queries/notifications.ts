@@ -5,7 +5,7 @@
 // satırları getirir, hangi eşiğin ("2 hafta", "7 gün kala") "bildirim
 // gerektirir" sayıldığına dair SAF karar mantığı apps/web/src/lib/
 // notifications/summary.ts'te (DB'siz test edilebilir, bkz. summary.test.ts).
-import { and, desc, eq, gte, isNull, lte, max } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, isNull, lte, max, sql } from 'drizzle-orm'
 import { billingPackages, clientPackages, type ClientPackageStatus } from '../schema/billing'
 import { clients } from '../schema/clients'
 import { measurements } from '../schema/measurements'
@@ -91,7 +91,11 @@ export async function listActiveClientsWithLastMeasurement(
     .groupBy(measurements.clientId)
     .as('last_measurements')
 
-  const conditions = [eq(clients.clinicId, clinicId), isNull(clients.deletedAt), eq(clients.status, 'aktif')]
+  const conditions = [
+    eq(clients.clinicId, clinicId),
+    isNull(clients.deletedAt),
+    eq(clients.status, 'aktif'),
+  ]
   if (options.assignedDietitianId) {
     conditions.push(eq(clients.assignedDietitianId, options.assignedDietitianId))
   }
@@ -107,6 +111,50 @@ export async function listActiveClientsWithLastMeasurement(
     .from(clients)
     .leftJoin(lastMeasurements, eq(lastMeasurements.clientId, clients.id))
     .where(and(...conditions))
+}
+
+export interface LowSessionClientPackageRow {
+  clientPackageId: string
+  clientId: string
+  clientFirstName: string
+  clientLastName: string
+  packageName: string
+  sessionCount: number
+  sessionsUsed: number
+}
+
+/** Aktif danışanların sıfır veya bir seansı kalan aktif paketleri. */
+export async function listLowSessionClientPackages(
+  db: Database,
+  clinicId: string,
+  options: { assignedDietitianId?: string } = {},
+): Promise<LowSessionClientPackageRow[]> {
+  const conditions = [
+    eq(billingPackages.clinicId, clinicId),
+    eq(clientPackages.status, 'aktif'),
+    eq(clients.status, 'aktif'),
+    isNull(clients.deletedAt),
+    gte(clientPackages.sessionsUsed, sql`${billingPackages.sessionCount} - 1`),
+  ]
+  if (options.assignedDietitianId) {
+    conditions.push(eq(clients.assignedDietitianId, options.assignedDietitianId))
+  }
+
+  return db
+    .select({
+      clientPackageId: clientPackages.id,
+      clientId: clientPackages.clientId,
+      clientFirstName: clients.firstName,
+      clientLastName: clients.lastName,
+      packageName: billingPackages.name,
+      sessionCount: billingPackages.sessionCount,
+      sessionsUsed: clientPackages.sessionsUsed,
+    })
+    .from(clientPackages)
+    .innerJoin(billingPackages, eq(billingPackages.id, clientPackages.packageId))
+    .innerJoin(clients, eq(clients.id, clientPackages.clientId))
+    .where(and(...conditions))
+    .orderBy(asc(clients.firstName), asc(clients.lastName))
 }
 
 // --- Süresi yaklaşan/dolan paketler ------------------------------------------
@@ -141,24 +189,26 @@ export async function listExpiringClientPackages(
     conditions.push(eq(clients.assignedDietitianId, options.assignedDietitianId))
   }
 
-  return db
-    .select({
-      clientPackageId: clientPackages.id,
-      clientId: clientPackages.clientId,
-      clientFirstName: clients.firstName,
-      clientLastName: clients.lastName,
-      packageName: billingPackages.name,
-      expiresAt: clientPackages.expiresAt,
-      status: clientPackages.status,
-    })
-    .from(clientPackages)
-    .innerJoin(billingPackages, eq(billingPackages.id, clientPackages.packageId))
-    .innerJoin(clients, eq(clients.id, clientPackages.clientId))
-    .where(and(...conditions))
-    .orderBy(clientPackages.expiresAt)
-    // clientPackages.expiresAt nullable — lte() bir NULL değere karşı hiçbir
-    // zaman true dönmez (SQL üç değerli mantık), bu yüzden süresiz paketler
-    // (expiresAt IS NULL) bu listeye ZATEN sızmaz, ayrı bir isNotNull şartına
-    // gerek yok.
-    .then((rows) => rows.filter((row): row is ExpiringPackageRow => row.expiresAt !== null))
+  return (
+    db
+      .select({
+        clientPackageId: clientPackages.id,
+        clientId: clientPackages.clientId,
+        clientFirstName: clients.firstName,
+        clientLastName: clients.lastName,
+        packageName: billingPackages.name,
+        expiresAt: clientPackages.expiresAt,
+        status: clientPackages.status,
+      })
+      .from(clientPackages)
+      .innerJoin(billingPackages, eq(billingPackages.id, clientPackages.packageId))
+      .innerJoin(clients, eq(clients.id, clientPackages.clientId))
+      .where(and(...conditions))
+      .orderBy(clientPackages.expiresAt)
+      // clientPackages.expiresAt nullable — lte() bir NULL değere karşı hiçbir
+      // zaman true dönmez (SQL üç değerli mantık), bu yüzden süresiz paketler
+      // (expiresAt IS NULL) bu listeye ZATEN sızmaz, ayrı bir isNotNull şartına
+      // gerek yok.
+      .then((rows) => rows.filter((row): row is ExpiringPackageRow => row.expiresAt !== null))
+  )
 }

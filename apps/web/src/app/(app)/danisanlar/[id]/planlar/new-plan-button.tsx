@@ -12,7 +12,15 @@ import { createDurationTracker } from '@/lib/analytics/track'
 // Prompt 5.5'in kapsamı; burada SADECE en basit akış var: boş bir günlük
 // plan oluştur, editöre git. Plan editörünün BOOTSTRAP mantığı (gün +
 // 6 standart öğün) [planId]/page.tsx'te (ensurePlanBootstrapped).
-export function NewPlanButton({ clientId, className }: { clientId: string; className?: string }) {
+export function NewPlanButton({
+  clientId,
+  className,
+  iconOnly = false,
+}: {
+  clientId: string
+  className?: string
+  iconOnly?: boolean
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [busy, setBusy] = useState(false)
@@ -32,7 +40,10 @@ export function NewPlanButton({ clientId, className }: { clientId: string; class
       })
       setBusy(false)
       if (!result.success || !result.data) {
-        toastActionError(result.error ?? 'Plan oluşturulamadı.', 'Plan adı ve tarih aralığını kontrol edip tekrar deneyin.')
+        toastActionError(
+          result.error ?? 'Plan oluşturulamadı.',
+          'Plan adı ve tarih aralığını kontrol edip tekrar deneyin.',
+        )
         return
       }
       tracker.finish('plan_created', '/danisanlar/[id]/planlar')
@@ -42,13 +53,16 @@ export function NewPlanButton({ clientId, className }: { clientId: string; class
 
   return (
     <Button
-      size="sm"
+      size={iconOnly ? 'icon-sm' : 'sm'}
+      variant={iconOnly ? 'ghost' : 'default'}
       onClick={handleClick}
       disabled={isPending || busy}
       className={className ?? 'gap-1.5'}
+      aria-label={iconOnly ? 'Plan oluştur' : undefined}
+      title={iconOnly ? 'Plan oluştur' : undefined}
     >
       <Plus className="size-4" />
-      Yeni plan
+      {iconOnly ? null : 'Yeni plan'}
     </Button>
   )
 }

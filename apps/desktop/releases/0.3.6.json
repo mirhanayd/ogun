@@ -1,0 +1,36 @@
+{
+  "version": "0.3.6",
+  "previousVersion": "0.3.5",
+  "releaseTag": "desktop-v0.3.6",
+  "builtOn": "2026-09-27",
+  "state": "local-verified",
+  "verifiedAt": "2026-09-27T09:50:08.6521817Z",
+  "testedExecutableSha256": "563c0715aef2733cbeb2ce71b6d42c62562702b0187cb15c41b7d8a2d73915b1",
+  "published": false,
+  "platform": "windows-x86_64",
+  "artifacts": [
+    {
+      "fileName": "Ogun_0.3.6_x64-setup.exe",
+      "bytes": 7412947,
+      "sha256": "7816a8cde6c9fe6c2460ad8f853f62c992e4f5a5395c5f0ae13c9b14f3367d0a"
+    },
+    {
+      "fileName": "Ogun_0.3.6_x64_tr-TR.msi",
+      "bytes": 9687040,
+      "sha256": "37778c3a45ad24c81179132a77e620cc826bcefeda5eb6607db11ac1d0ecd776"
+    }
+  ],
+  "artifactDirectory": "apps/desktop/src-tauri/target/release-artifacts/0.3.6",
+  "authenticodeSigned": false,
+  "updater": {
+    "version": "0.3.6",
+    "published": false,
+    "signed": false,
+    "note": "Merge öncesi yerel adaydır; updater anahtarı veya endpoint'i eklenmedi."
+  },
+  "macos": {
+    "built": false,
+    "note": "Windows host üzerinde macOS DMG üretilmedi veya test edilmedi."
+  },
+  "deployment": "Installer'lar yalnız yerel inceleme içindir; GitHub Release, updater ve web indirme metadata'sı yayınlanmadı."
+}

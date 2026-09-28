@@ -3,11 +3,14 @@ import { measurementFormInput } from '@/lib/measurement-input'
 import type { ClinicRole, DomainEntity, OgunRepositories } from '@/data/repositories'
 import type { ClinicDietitianOption } from '@ogun/db/queries'
 import { calculateAge } from '@/lib/client-age'
+import { SEX_LABELS_TR } from '@/lib/validation/client-schemas'
 import type { AnamnesisFormValues } from '@/lib/validation/anamnesis-schemas'
 import type { GoalFormValues, MeasurementFormValues } from '@/lib/validation/measurement-schemas'
 import type { LabResultFormValues } from '@/lib/validation/lab-schemas'
 import type { NewClientFormValues } from '@/lib/validation/client-schemas'
 import { ClientsActionsView, ClientsScreen } from '@/screens/clients-screen'
+import { ScreenFrame } from '@/screens/screen-frame'
+import { OgunAddClient } from '@/components/ogun-icons'
 import { ClientsTableView, type ClientsFilters } from '@/screens/clients-table-view'
 import { ClientDetailLoadingView, ClientDetailView } from '@/screens/client-detail-view'
 import { ClientPlansView } from '@/screens/client-plans-view'
@@ -42,30 +45,41 @@ export function LocalNewClientAdapter({ repository, onCreated }: { repository: O
       return { success: true, clientId: id }
     } catch (reason) { return { success: false, error: String(reason) } }
   }
-  return <NewClientForm onSave={save} onCreated={onCreated} />
+  return <ScreenFrame title="Yeni danışan" description="Kimlik bilgilerini ve rıza onayını kaydedin. Diğer bilgileri profilden tamamlayabilirsiniz." icon={OgunAddClient}><NewClientForm onSave={save} onCreated={onCreated} /></ScreenFrame>
 }
 
 export function LocalClientsAdapter({ role, repositories }: { role: ClinicRole; repositories: OgunRepositories }) {
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
   const [data, setData] = useState({ clients: [] as DomainEntity[], measurements: [] as DomainEntity[], appointments: [] as DomainEntity[], dietitians: [] as DomainEntity[] })
   const [filters, setFilters] = useState<ClientsFilters>({ search: '', status: '', assignedDietitianId: '' })
   useEffect(() => {
+    let cancelled = false
     const load = () => void Promise.all([
       repositories.clients.list(),
       repositories.records.list('measurements'),
       repositories.appointments.list(),
       repositories.records.list('dietitians'),
-    ]).then(([clients, measurements, appointments, dietitians]) => setData({ clients, measurements, appointments, dietitians }))
+    ]).then(([clients, measurements, appointments, dietitians]) => {
+      if (!cancelled) { setData({ clients, measurements, appointments, dietitians }); setLoadError(false) }
+    }).catch(() => { if (!cancelled) setLoadError(true) }).finally(() => { if (!cancelled) setLoading(false) })
     load(); window.addEventListener('ogun-local-data-changed', load)
-    return () => window.removeEventListener('ogun-local-data-changed', load)
-  }, [repositories])
+    return () => { cancelled = true; window.removeEventListener('ogun-local-data-changed', load) }
+  }, [repositories, retry])
   const filtered = useMemo(() => data.clients.filter((client) => {
     const haystack = [client.firstName, client.lastName, client.phone, client.email].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
     return (!filters.search || haystack.includes(filters.search.toLocaleLowerCase('tr-TR'))) && (!filters.status || client.status === filters.status) && (!filters.assignedDietitianId || client.assignedDietitianId === filters.assignedDietitianId)
   }), [data.clients, filters])
   const rows = useMemo(() => buildLocalClientListRows(filtered, data.measurements, data.appointments), [data.appointments, data.measurements, filtered])
   const dietitians: ClinicDietitianOption[] = data.dietitians.map((option) => ({ id: option.id, name: text(option, 'name') }))
-  return <ClientsScreen role={role} actions={role === 'assistant' ? undefined : <ClientsActionsView canImport={false} />}>
-    <ClientsTableView
+  const today = new Date().toISOString().slice(0, 10)
+  const todayAppointments = data.appointments.filter(
+    (appointment) => String(appointment.startsAt ?? '').slice(0, 10) === today,
+  ).length
+  return <ClientsScreen role={role} actions={role === 'assistant' ? undefined : <ClientsActionsView canImport={false} />} summary={{ totalClients: data.clients.length, todayAppointments, attentionCount: 0 }}>
+    <p className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Cihazdaki danışan kayıtları gösteriliyor. CSV içe aktarma için çevrimiçi çalışma alanını kullanın.</p>
+    {loadError ? <div role="alert" className="rounded-xl border border-destructive/40 bg-card p-5"><p>Danışan kayıtları yüklenemedi.</p><button type="button" className="mt-2 min-h-11 underline underline-offset-4" onClick={() => { setLoading(true); setRetry((value) => value + 1) }}>Tekrar dene</button></div> : loading ? <div role="status" className="rounded-xl border border-border bg-card p-8 text-muted-foreground">Danışanlar yükleniyor…</div> : <ClientsTableView
       result={{ rows, total: rows.length, page: 1, pageSize: Math.max(rows.length, 1) }}
       dietitians={dietitians}
       role={role}
@@ -87,7 +101,7 @@ export function LocalClientsAdapter({ role, repositories }: { role: ClinicRole; 
           return { success: false, error: String(reason) }
         }
       }}
-    />
+    />}
   </ClientsScreen>
 }
 
@@ -133,7 +147,7 @@ export function LocalClientDetailAdapter({ clientId, role, repositories }: { cli
   const documents = records.documents.map((row): DocumentRow => ({ id: row.id, fileName: text(row, 'fileName'), mimeType: text(row, 'mimeType'), sizeBytes: Number(row.sizeBytes ?? 0), category: String(row.category ?? 'diğer') as DocumentRow['category'], createdAt: String(row.createdAt ?? new Date().toISOString()) }))
   const billing = { clientPackages: records.clientPackages.map((row) => ({ ...row, id: row.id, clientId, packageId: text(row, 'packageId'), packageName: text(row, 'packageName'), sessionCount: Number(row.sessionCount ?? 0), purchasedAt: date(row.purchasedAt), price: String(row.price ?? '0'), sessionsUsed: Number(row.sessionsUsed ?? 0), expiresAt: row.expiresAt ? date(row.expiresAt) : null, status: String(row.status ?? 'aktif') as 'aktif' | 'tamamlandı' | 'iptal' })), payments: records.payments.map((row) => ({ ...row, id: row.id, clientId, clientName, dietitianId: text(row, 'dietitianId'), dietitianName: text(row, 'dietitianName'), clientPackageId: text(row, 'clientPackageId') || null, amount: String(row.amount ?? '0'), method: String(row.method ?? 'nakit') as 'nakit' | 'kart' | 'havale' | 'online', paidAt: date(row.paidAt), notes: text(row, 'notes') || null, receiptNumber: text(row, 'receiptNumber') || null, receiptSeries: text(row, 'receiptSeries') || null, receiptSequenceNumber: text(row, 'receiptSequenceNumber') || null, receiptIssuedAt: row.receiptIssuedAt ? date(row.receiptIssuedAt) : null })), availablePackages: records.billingPackages.filter((row) => row.isActive !== false).map((row) => ({ id: row.id, name: text(row, 'name'), sessionCount: Number(row.sessionCount ?? 0), price: String(row.price ?? '0') })) } as unknown as ComponentProps<typeof OdemelerView>
 
-  return <ClientDetailView name={clientName} ageLabel={calculateAge(text(client, 'birthDate') || null) !== null ? `${calculateAge(text(client, 'birthDate') || null)} yaş` : 'Yaş —'} sexLabel={text(client, 'sex') || null} phone={text(client, 'phone')} email={text(client, 'email')} summary={[{ label: 'Güncel kilo', value: latest?.weightKg ? `${latest.weightKg} kg` : '—' }, { label: 'BKİ', value: '—' }, { label: 'Hedef', value: goals[0] ? `${goals[0].targetValue} kg` : '—' }, { label: 'Sonraki randevu', value: nextAppointment ? nextAppointment.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : '—' }]} tabs={[
+  return <ClientDetailView name={clientName} ageLabel={calculateAge(text(client, 'birthDate') || null) !== null ? `${calculateAge(text(client, 'birthDate') || null)} yaş` : 'Yaş —'} sexLabel={client.sex === 'female' || client.sex === 'male' ? SEX_LABELS_TR[client.sex] : null} phone={text(client, 'phone')} email={text(client, 'email')} summary={[{ label: 'Güncel kilo', value: latest?.weightKg ? `${latest.weightKg} kg` : '—' }, { label: 'BKİ', value: '—' }, { label: 'Hedef', value: goals[0] ? `${goals[0].targetValue} kg` : '—' }, { label: 'Sonraki randevu', value: nextAppointment ? nextAppointment.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : '—' }]} tabs={[
     { value: 'genel', label: 'Genel', content: <GeneralTabForm client={{ id: client.id, firstName: text(client, 'firstName'), lastName: text(client, 'lastName'), birthDate: text(client, 'birthDate') || null, sex: client.sex === 'male' || client.sex === 'female' ? client.sex : null, phone: text(client, 'phone') || null, email: text(client, 'email') || null, occupation: text(client, 'occupation') || null, referralSource: text(client, 'referralSource') || null, notes: text(client, 'notes') || null, status: client.status === 'pasif' || client.status === 'arşiv' ? client.status : 'aktif', smsConsentAt: client.smsConsentAt ? String(client.smsConsentAt) : null, assignedDietitianId: text(client, 'assignedDietitianId') || null }} dietitians={role === 'owner' ? records.dietitians.map((option) => ({ id: option.id, name: text(option, 'name') })) : []} onSave={async (values) => { if (readOnly) return { success: false, error: 'Salt okunur.' }; try { await repositories.clients.update(clientId, values); return { success: true } } catch (reason) { return { success: false, error: String(reason) } } }} /> },
     { value: 'olcumler', label: 'Ölçümler', content: <MeasurementsView measurements={measurements} activeGoals={goals} weightGoal={goals.find((goal) => goal.type === 'kilo') ?? null} onSaveMeasurement={saveMeasurement} onCreateGoal={async (values: GoalFormValues) => { try { await repositories.clinical.upsert('goals', { id: crypto.randomUUID(), clientId, ...values, targetValue: Number(values.targetValue), startValue: Number(values.startValue), startedAt: new Date().toISOString(), status: 'aktif' }); return { success: true } } catch (reason) { return { success: false, error: String(reason) } } }} onAchieveGoal={async (id) => { try { await repositories.records.upsert('goals', { id, clientId, status: 'tamamlandı', achievedAt: new Date().toISOString() }, 'goal.achieve'); return { success: true } } catch (reason) { return { success: false, error: String(reason) } } }} /> },
     { value: 'planlar', label: 'Planlar', content: <ClientPlansView clientId={clientId} plans={records.plans.map((plan) => ({ id: plan.id, name: text(plan, 'name') || 'İsimsiz plan', targetKcal: numberOrNull(plan.targetKcal), status: plan.status === 'aktif' || plan.status === 'arşiv' ? plan.status : 'taslak' }))} /> },

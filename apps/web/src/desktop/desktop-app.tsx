@@ -133,7 +133,6 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
   const localRows = useLocalScreenRows(repositories)
   const localScope = useMemo(() => scopeOf(identity), [identity])
   const [clinicIdentity, setClinicIdentity] = useState<LocalClinicIdentity | null>(null)
-  const connectivity = useConnectivityStatus()
   const searchClients = useCallback(async (query: string) => {
     const normalized = query.toLocaleLowerCase('tr-TR').trim()
     const clients = await repositories.clients.list()
@@ -160,6 +159,15 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
   }, [identity.clinicId, identity.clinicName, localScope])
   const routeRoot = `/${routePath(route).split('/').filter(Boolean)[0] ?? 'panel'}`
   const title = useMemo(() => visibleNavItems(identity.role).find((item) => item.href === routeRoot)?.label ?? 'Panel', [identity.role, routeRoot])
+  const sidebarQuickClients = useMemo(
+    () =>
+      [...localRows.clients]
+        .filter((client) => client.status !== 'arşiv')
+        .sort((left, right) => String(right.createdAt ?? '').localeCompare(String(left.createdAt ?? '')))
+        .slice(0, 4)
+        .map((client) => ({ id: client.id, firstName: String(client.firstName ?? ''), lastName: String(client.lastName ?? '') })),
+    [localRows.clients],
+  )
   if (!clinicIdentity) return <AuthSurface><div className="flex items-center justify-center gap-3"><Leaf className="size-6 text-primary" />Yerel klinik kimliği açılıyor…</div></AuthSurface>
   const initials = clinicIdentity.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('tr-TR')
   const routeMatch = resolveDesktopRoute(route)
@@ -212,7 +220,7 @@ function DesktopWorkspace({ identity, onLogout }: { identity: DesktopIdentity; o
       content = <NotFoundScreen />
   }
   return (
-    <NavigationProvider navigate={setRoute}><AppShellFrame clinicName={clinicIdentity.name} clinicLogoUrl={clinicIdentity.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(clinicIdentity.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} />} navigation={<SidebarNavView role={identity.role} currentPath={route} connectivity={connectivity} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{clinicIdentity.name}</span>} search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
+    <NavigationProvider navigate={setRoute}><AppShellFrame clinicName={clinicIdentity.name} clinicLogoUrl={clinicIdentity.logoUrl} clinicInitials={initials} userName={identity.displayName} brandingStyle={getClinicBrandingVariables(clinicIdentity.primaryColor)} desktopTitlebar={<NativeDesktopTitlebar search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} />} navigation={<SidebarNavView role={identity.role} currentPath={route} quickClients={sidebarQuickClients} onNavigate={setRoute} />} topbar={<TopBarView pageContext={<span className="font-semibold">{title}</span>} clinicSwitcher={<span className="text-sm font-medium">{clinicIdentity.name}</span>} search={<CommandPaletteView role={identity.role} onNavigate={navigate} searchClients={searchClients} />} userMenu={<Button type="button" variant="ghost" size="sm" onClick={() => void logout()}><LogOut />Çıkış yap</Button>} />} bottomNavigation={<BottomNavView role={identity.role} currentPath={route} onNavigate={setRoute} />} overlays={<><OfflineIndicator /><DesktopSyncIndicator /></>}>
       {content}
     </AppShellFrame></NavigationProvider>
   )

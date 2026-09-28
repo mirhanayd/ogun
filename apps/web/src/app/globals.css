@@ -343,27 +343,12 @@
 @layer components {
   .app-main {
     background-color: var(--app-canvas);
-    background-image:
-      radial-gradient(
-        circle at 84% -8%,
-        color-mix(in oklch, var(--primary) 6%, transparent) 0,
-        transparent 31rem
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in oklch, var(--background) 42%, transparent),
-        transparent 12rem
-      );
   }
 
   html[data-native-shell] [data-app-shell] {
     height: 100svh;
     min-height: 0;
     overflow: hidden;
-  }
-
-  html[data-native-shell] .app-sidebar {
-    box-shadow: inset -1px 0 color-mix(in oklch, var(--sidebar-border) 65%, transparent);
   }
 
   [data-app-shell] :is(h1, h2, h3, h4, h5, h6) {
@@ -374,6 +359,268 @@
 
 ::selection {
   background: color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+/* Dietitian workspace only. Public pages keep their existing theme. Clinic
+   primary/foreground pairs remain supplied by the branding adapter. */
+[data-app-shell] {
+  --workspace-radius: 0.75rem;
+  --workspace-control-radius: 0.5rem;
+  --workspace-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 4%, transparent);
+  --sidebar-accent: color-mix(in oklch, var(--sidebar-primary) 9%, var(--sidebar));
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.app-sidebar {
+  position: relative;
+  z-index: 45;
+  width: 5.25rem;
+  background: transparent;
+  isolation: isolate;
+}
+.sidebar-identity {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.5rem;
+  z-index: 2;
+  width: 14.75rem;
+  height: 4rem;
+}
+.app-navigation-flyout {
+  position: absolute;
+  top: 25%;
+  left: 0.625rem;
+  z-index: 1;
+  width: 4rem;
+  max-height: calc(100% - 2rem);
+  overflow: visible;
+}
+.sidebar-nav {
+  width: 4rem;
+  max-height: calc(100svh - 7rem);
+  scrollbar-width: thin;
+}
+.sidebar-panel-action,
+.sidebar-navigation-stack {
+  width: 4rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--border) 88%, transparent);
+  background: var(--card);
+  box-shadow: 0 10px 32px -22px color-mix(in oklch, var(--foreground) 45%, transparent);
+  transition:
+    width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 240ms ease;
+}
+.sidebar-panel-action:is(:hover, :has(a:focus-visible)),
+.sidebar-navigation-stack:is(:hover, :has(a:focus-visible)) {
+  width: 15rem;
+  box-shadow: 0 18px 48px -24px color-mix(in oklch, var(--foreground) 52%, transparent);
+}
+.sidebar-panel-action {
+  flex: none;
+  padding: 0.4375rem;
+  border-radius: 2.25rem;
+}
+.sidebar-panel-action .sidebar-link:not(.sidebar-link-active) .sidebar-link-icon {
+  color: var(--foreground);
+}
+.sidebar-navigation-stack {
+  position: relative;
+  overflow: visible;
+  padding: 0.4375rem;
+  border-radius: 2.25rem;
+}
+.sidebar-client-group {
+  position: relative;
+}
+.sidebar-client-quick-list {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 0.625rem);
+  width: 12.5rem;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in oklch, var(--border) 88%, transparent);
+  border-radius: 1.25rem;
+  background: var(--card);
+  box-shadow: 0 18px 48px -24px color-mix(in oklch, var(--foreground) 52%, transparent);
+  animation: sidebar-quick-in 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.sidebar-client-quick-list::before {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  width: 0.75rem;
+  height: 100%;
+  content: '';
+}
+.sidebar-quick-client {
+  transition:
+    background-color 220ms ease,
+    color 220ms ease;
+}
+.sidebar-link {
+  padding-right: 0.5rem;
+}
+.sidebar-link-active {
+  border-radius: 1.35rem;
+}
+.sidebar-label {
+  opacity: 0;
+  transform: translateX(-0.3rem);
+  transition:
+    opacity 140ms ease,
+    transform 180ms ease;
+}
+.sidebar-panel-action:is(:hover, :has(a:focus-visible)) .sidebar-label,
+.sidebar-navigation-stack:is(:hover, :has(a:focus-visible)) .sidebar-label {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 280ms ease 90ms,
+    transform 360ms cubic-bezier(0.16, 1, 0.3, 1) 70ms;
+}
+.sidebar-panel-action:not(:hover):not(:has(a:focus-visible)) .sidebar-link,
+.sidebar-navigation-stack:not(:hover):not(:has(a:focus-visible)) .sidebar-link {
+  width: 3rem;
+}
+.sidebar-panel-action:not(:hover):not(:has(a:focus-visible)) .sidebar-link-icon,
+.sidebar-navigation-stack:not(:hover):not(:has(a:focus-visible)) .sidebar-link-icon {
+  border-radius: 0.9rem;
+}
+@keyframes sidebar-quick-in {
+  from {
+    opacity: 0;
+    transform: translate(-0.5rem, -50%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+}
+@media (min-width: 768px) {
+  .app-topbar {
+    padding-left: 11rem;
+  }
+  .app-topbar-clinic-switcher > span,
+  .app-topbar-clinic-switcher [data-single-clinic],
+  .app-topbar-clinic-switcher .clinic-switcher-name {
+    display: none;
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-topbar-page-context,
+  .app-topbar-divider {
+    display: none;
+  }
+}
+.app-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  z-index: 100;
+  transform: translateY(-200%);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--foreground);
+  color: var(--background);
+}
+.app-skip-link:focus {
+  transform: translateY(0);
+}
+.clients-workspace input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  cursor: pointer;
+}
+.clients-workspace :is(th, td):has(> input[type='checkbox']) {
+  padding: 1rem;
+}
+.clients-workspace td {
+  padding-block: 1rem;
+}
+.clients-workspace th {
+  color: var(--muted-foreground);
+  background: var(--muted);
+  font-weight: 500;
+}
+.clients-workspace tr[data-state='selected'] {
+  background: var(--accent);
+}
+.client-quick-actions > * {
+  width: auto;
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+}
+@media (max-width: 639px) {
+  .client-summary > :nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+  .client-summary > :nth-child(2n) {
+    border-right: 0;
+  }
+}
+.clients-workspace [data-slot='badge'][data-variant='default'] {
+  color: var(--foreground);
+  background: var(--secondary);
+}
+[data-app-shell] input[type='checkbox'] {
+  accent-color: var(--primary);
+}
+[data-app-shell] :is(input, textarea) {
+  scroll-margin-block: 5rem;
+}
+[data-app-shell] :focus-visible {
+  outline-color: var(--foreground);
+}
+[data-app-shell] [data-slot='card'] {
+  border-radius: var(--workspace-radius);
+  border-color: var(--border);
+  box-shadow: var(--workspace-shadow);
+}
+[data-app-shell] :is([data-slot='input'], [data-slot='textarea'], [data-slot='select-trigger']) {
+  border-radius: var(--workspace-control-radius);
+  border-color: color-mix(in oklch, var(--foreground) 45%, var(--background));
+  background-color: var(--card);
+}
+[data-app-shell] :is([data-slot='input'], [data-slot='select-trigger']) {
+  min-height: 2.5rem;
+}
+[data-app-shell] [data-slot='button'] {
+  border-radius: var(--workspace-control-radius);
+  transition-property: background-color, color, border-color, box-shadow;
+}
+[data-app-shell] [data-slot='button'][data-size='lg'] {
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+}
+[data-app-shell] :is(button, a, input, select, textarea) {
+  touch-action: manipulation;
+}
+[data-app-shell] [data-slot='tabs-trigger'] {
+  transition-property: background-color, color, box-shadow;
+}
+@media (pointer: coarse) {
+  [data-app-shell]
+    :is([data-slot='button'], [data-slot='select-trigger'], [data-slot='tabs-trigger']) {
+    min-height: 2.75rem;
+  }
+  [data-app-shell] [data-slot='button'][data-size^='icon'] {
+    min-width: 2.75rem;
+  }
+  [data-app-shell] [data-slot='input'] {
+    font-size: 1rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-app-shell] *,
+  [data-app-shell] *::before,
+  [data-app-shell] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* SSR çıktısında titlebar her zaman bulunur; web'de görünmez, Tauri işareti
@@ -411,13 +658,21 @@ html[data-native-shell] body {
 }
 
 html[data-native-shell] {
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* Keep this outside cascade layers just like .desktop-titlebar. Tailwind's
    utility layer otherwise wins with the TopBar's `flex` class. */
 html[data-native-shell] .app-topbar {
   display: none;
+}
+
+/* The native titlebar replaces the web topbar. Keep the first workspace row
+   below the independent clinic identity so page headings and breadcrumbs never
+   occupy the same visual space. */
+html[data-native-shell] .app-main {
+  padding-top: 5.25rem;
 }
 
 html[data-native-shell] .public-desktop-titlebar ~ * {

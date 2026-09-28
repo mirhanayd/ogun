@@ -1,10 +1,10 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, Settings, UtensilsCrossed, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { OgunCalendar as CalendarDays, OgunPlan as ClipboardList, OgunPanel as LayoutDashboard, OgunSettings as Settings, OgunRecipe as UtensilsCrossed, OgunClients as Users, OgunFinance as Wallet, type OgunIconComponent } from '@/components/ogun-icons'
 import type { ClinicMemberRole } from '@ogun/db/schema'
 
 export interface NavItem {
   href: string
   label: string
-  icon: LucideIcon
+  icon: OgunIconComponent
   // Belirtilmezse tüm roller görür. Belirtilirse, listede OLMAYAN roller bu
   // öğeyi menüde görmez (bkz. sidebar-nav.tsx / bottom-nav.tsx / command-palette.tsx
   // filtreleme mantığı).

@@ -1,3 +1,5 @@
+import { ScreenHeading } from './screen-frame'
+import { OgunPlan } from '@/components/ogun-icons'
 import { NavigationLink as Link } from '@/components/navigation-link'
 import {
   AlertCircle,
@@ -227,18 +229,7 @@ function PageFrame({ children }: { children: React.ReactNode }) {
 
 function PlanPageHeader() {
   return (
-    <header className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-          <ClipboardList className="size-3.5" />
-          Klinik plan operasyonu
-        </div>
-        <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Planlar</h1>
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-          Taslakları tamamlayın, süresi yaklaşan programları gözden geçirin ve kaldığınız yerden
-          devam edin.
-        </p>
-      </div>
+    <ScreenHeading title="Planlar" description="Taslakları, aktif programları ve plan şablonlarını yönetin." icon={OgunPlan} actions={
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline" size="lg" className="rounded-xl bg-background/80 px-4">
           <Link href="/planlar/sablonlar">
@@ -253,7 +244,7 @@ function PlanPageHeader() {
           </Link>
         </Button>
       </div>
-    </header>
+    } />
   )
 }
 

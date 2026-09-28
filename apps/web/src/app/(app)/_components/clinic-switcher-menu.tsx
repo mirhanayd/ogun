@@ -51,7 +51,9 @@ export function ClinicSwitcherMenu({
               <Building2 className="size-3.5" />
             </AvatarFallback>
           </Avatar>
-          <span className="max-w-40 truncate">{active?.clinicName ?? 'Klinik seçin'}</span>
+          <span className="clinic-switcher-name max-w-40 truncate">
+            {active?.clinicName ?? 'Klinik seçin'}
+          </span>
           <ChevronsUpDown className="size-3.5 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
@@ -59,7 +61,10 @@ export function ClinicSwitcherMenu({
         <DropdownMenuLabel>Klinikleriniz</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {memberships.map((membership) => (
-          <DropdownMenuItem key={membership.clinicId} onSelect={() => handleSelect(membership.clinicId)}>
+          <DropdownMenuItem
+            key={membership.clinicId}
+            onSelect={() => handleSelect(membership.clinicId)}
+          >
             <Building2 className="size-4" />
             <span className="truncate">{membership.clinicName}</span>
           </DropdownMenuItem>
