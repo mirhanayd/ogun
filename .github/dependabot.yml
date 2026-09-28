@@ -9,8 +9,15 @@ updates:
     groups:
       production-dependencies:
         dependency-type: production
+        update-types: ["patch"]
       development-dependencies:
         dependency-type: development
+        update-types: ["patch"]
+    ignore:
+      # Framework and library major upgrades need isolated migration work and
+      # must not be mixed into an automatic multi-package deployment preview.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: cargo
     directory: /apps/desktop/src-tauri
     schedule:
