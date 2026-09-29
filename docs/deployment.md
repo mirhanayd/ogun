@@ -21,7 +21,7 @@ belirler; boşsa `NODE_ENV`'den türetilir.
 | Değişken grubu                                                                          | local                                             | staging / production                                                  |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------- |
 | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BETTER_AUTH_URL`  | Zorunlu                                           | Zorunlu                                                               |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`                  | Zorunlu                                           | Zorunlu                                                               |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`                  | Belge depolama kullanılıyorsa dördü birlikte      | Belge depolama kullanılıyorsa dördü birlikte                           |
 | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`                                             | Opsiyonel (ikisi birlikte ya da hiçbiri)          | Opsiyonel (aynı kural)                                                |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                                                   | Opsiyonel — boşsa plan e-posta paylaşımı çalışmaz | **Zorunlu**                                                           |
 | `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL`                                | Sandbox ödeme testi için gerekli                  | Production'da kullanılmaz; Development/Preview Sandbox için opsiyonel |
@@ -29,12 +29,15 @@ belirler; boşsa `NODE_ENV`'den türetilir.
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`                                                 | Opsiyonel                                         | Opsiyonel — GÜÇLÜ ÖNERİ (bkz. aşağıdaki not)                          |
 | `LOG_LEVEL`, `SENTRY_ENVIRONMENT`, `SENTRY_ORG/PROJECT/AUTH_TOKEN`, `DATABASE_POOL_MAX` | Opsiyonel                                         | Opsiyonel                                                             |
 
-Eksik bir zorunlu değişkenle sunucu **başlamaz** — `instrumentation.ts`'in
+Eksik bir çekirdek değişkenle sunucu **başlamaz** — `instrumentation.ts`'in
 `register()`'ı `assertValidEnv()`'i sunucu her açıldığında (next dev / next
 start, next build sırasında DEĞİL) çağırır ve hangi değişkenin eksik/hatalı
 olduğunu satır satır yazan bir Error ile süreci durdurur. Bu, aşağıdaki
 Docker doğrulamasında GERÇEKTEN tetiklendi (bkz. "Self-hosted" bölümü, adım
 5 — RESEND_* olmadan container'ın gerçekten başlamayı reddettiği loglandı).
+S3 grubu tamamen boşsa auth, danışan ve plan akışları başlar; belge yükleme ve
+sunucuda PDF saklama işlemleri yapılandırma eklenene kadar açık hata döndürür.
+S3 alanlarından herhangi biri tanımlanırsa dördünün de bulunması zorunludur.
 
 ### iyzico abonelik kurulumu
 

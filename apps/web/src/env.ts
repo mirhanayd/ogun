@@ -15,10 +15,9 @@ import { z } from 'zod'
 // prod-only değişkenler build'i BOZMAZ.
 //
 // ORTAMLAR (local | staging | production):
-// - local: sadece "her zaman zorunlu" alanlar gerekir (aşağıdaki
-//   ALWAYS_REQUIRED şeması). RESEND/SENTRY gibi dış servisler boş
-//   bırakılabilir, ilgili özellik (e-posta gönderimi, hata izleme) o zaman
-//   sessizce devre dışı kalır (bkz. resend-sender.ts / sentry.ts).
+// - local: sadece çekirdek alanlar gerekir. RESEND/S3/SENTRY gibi dış
+//   servisler boş bırakılabilir; ilgili özellik o zaman çağrıldığı yerde açık
+//   bir yapılandırma hatası verir, uygulamanın geri kalanı çalışmaya devam eder.
 // - staging / production: yukarıdakilere EK olarak RESEND_API_KEY ve
 //   RESEND_FROM_EMAIL zorunludur — plan paylaşım e-postası (#36) canlıda
 //   çalışmayan bir özellik olarak dağıtılmamalı. Hangi ortamda olduğumuzu
@@ -133,11 +132,17 @@ function buildSchema(appEnvironment: AppEnvironment, source: NodeJS.ProcessEnv) 
       requireField('NEXT_PUBLIC_BETTER_AUTH_URL', 'NEXT_PUBLIC_BETTER_AUTH_URL zorunlu.')
     }
 
-    if (appEnvironment !== 'staging') {
-      requireField('S3_ENDPOINT', 'S3_ENDPOINT zorunlu — dosya yükleme (#19) bu değişken olmadan çalışmaz.')
-      requireField('S3_BUCKET', 'S3_BUCKET zorunlu.')
-      requireField('S3_ACCESS_KEY_ID', 'S3_ACCESS_KEY_ID zorunlu.')
-      requireField('S3_SECRET_ACCESS_KEY', 'S3_SECRET_ACCESS_KEY zorunlu.')
+    const s3Fields = [
+      'S3_ENDPOINT',
+      'S3_BUCKET',
+      'S3_ACCESS_KEY_ID',
+      'S3_SECRET_ACCESS_KEY',
+    ] as const
+    const hasAnyS3Configuration = s3Fields.some((field) => Boolean(value[field]))
+    if (hasAnyS3Configuration) {
+      for (const field of s3Fields) {
+        requireField(field, `${field} tanımlı S3 yapılandırmasının zorunlu parçasıdır.`)
+      }
     }
 
     const hasGoogleId = Boolean(value.GOOGLE_CLIENT_ID)
