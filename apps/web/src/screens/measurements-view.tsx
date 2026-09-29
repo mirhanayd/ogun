@@ -1,6 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { OgunMeasure } from '@/components/ogun-icons'
 import { TanitaDeviceDetails } from '@/components/tanita-import-control'
+import {
+  ClientMetricStrip,
+  ClientWorkspaceHeader,
+  ClientWorkspaceSection,
+} from '@/screens/client-workspace'
 import { MeasurementForm } from '@/app/(app)/danisanlar/[id]/measurements/measurement-form'
 import {
   ProgressCharts,
@@ -28,18 +32,37 @@ export function MeasurementsView({
 }) {
   const latest = measurements[measurements.length - 1] ?? null
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2">
-            <OgunMeasure className="size-5 text-muted-foreground" />
-            Yeni ölçüm
-          </CardTitle>
-          <CardDescription>
-            Ölçümü elle girin veya mevcut cihaz içe aktarma seçeneklerini kullanın.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="flex flex-col gap-6">
+      <ClientWorkspaceHeader
+        icon={OgunMeasure}
+        title="Ölçüm ve hedef takibi"
+        description="Yeni ölçüm girin, klinik değişimi grafiklerden izleyin ve aktif hedefleri yönetin."
+        meta={`${measurements.length} ölçüm`}
+      />
+      <ClientMetricStrip
+        items={[
+          {
+            label: 'Son kilo',
+            value: latest?.weightKg != null ? `${latest.weightKg} kg` : '—',
+            detail: latest ? new Date(latest.measuredAt).toLocaleDateString('tr-TR') : 'Kayıt yok',
+          },
+          {
+            label: 'Yağ oranı',
+            value: latest?.bodyFatPct != null ? `%${latest.bodyFatPct}` : '—',
+            detail: 'Son ölçüm',
+          },
+          {
+            label: 'Aktif hedef',
+            value: activeGoals.length,
+            detail: activeGoals.length > 0 ? 'Takip ediliyor' : 'Henüz belirlenmedi',
+          },
+        ]}
+      />
+      <div className="grid min-w-0 grid-cols-1 gap-x-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]">
+        <ClientWorkspaceSection
+          title="Yeni ölçüm"
+          description="Hızlı kilo girişi yapın veya ayrıntılı vücut ölçülerini kaydedin."
+        >
           <MeasurementForm
             previousMeasurement={
               latest
@@ -55,38 +78,38 @@ export function MeasurementsView({
               row.deviceImport ? [row.deviceImport.fingerprint] : [],
             )}
           />
-        </CardContent>
-      </Card>
+        </ClientWorkspaceSection>
+        <ClientWorkspaceSection
+          title="Hedefler"
+          description="Kilo, yağ oranı ve bel çevresi hedeflerinin güncel durumunu izleyin."
+        >
+          <GoalPanel
+            activeGoals={activeGoals}
+            measurements={measurements}
+            onCreateGoal={onCreateGoal}
+            onAchieveGoal={onAchieveGoal}
+          />
+        </ClientWorkspaceSection>
+      </div>
       {measurements
         .filter((row) => row.deviceImport)
         .map((row) => (
           <TanitaDeviceDetails key={row.id} deviceImport={row.deviceImport!} />
         ))}
       {measurements.length > 0 ? (
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Ölçüm geçmişi</CardTitle>
-            <CardDescription>Kayıtlı ölçümler ve hedef doğrultusundaki değişim.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProgressCharts measurements={measurements} weightGoal={weightGoal} />
-          </CardContent>
-        </Card>
+        <ClientWorkspaceSection
+          title="Ölçüm geçmişi"
+          description="Kayıtlı ölçümleri zaman aralığına göre karşılaştırın; ayrıntı için grafik noktasını seçin."
+        >
+          <ProgressCharts measurements={measurements} weightGoal={weightGoal} />
+        </ClientWorkspaceSection>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Henüz ölçüm eklenmedi — yukarıdaki formla ilk ölçümü ekleyerek ilerleme grafiklerini
-          görüntüleyin.
-        </p>
+        <ClientWorkspaceSection title="Ölçüm geçmişi">
+          <p className="py-4 text-sm text-muted-foreground">
+            Henüz ölçüm eklenmedi. İlk ölçüm kaydedildiğinde ilerleme grafikleri burada görünür.
+          </p>
+        </ClientWorkspaceSection>
       )}
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium">Hedef takibi</p>
-        <GoalPanel
-          activeGoals={activeGoals}
-          measurements={measurements}
-          onCreateGoal={onCreateGoal}
-          onAchieveGoal={onAchieveGoal}
-        />
-      </div>
     </div>
   )
 }

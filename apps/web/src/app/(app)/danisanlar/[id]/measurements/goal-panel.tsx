@@ -13,7 +13,6 @@ import {
 } from '@ogun/nutrition-core'
 import type { GoalType } from '@ogun/db/schema'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -65,7 +64,7 @@ export function GoalPanel({
   onAchieveGoal: (goalId: string) => Promise<{ success: boolean; error?: string }>
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="divide-y divide-border border-y border-border">
       {GOAL_TYPE_OPTIONS.map((option) => {
         const goal = activeGoals.find((g) => g.type === option.value) ?? null
         return (
@@ -127,63 +126,61 @@ function GoalCard({
   }
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">
-            {GOAL_TYPE_OPTIONS.find((o) => o.value === type)?.label}
+    <div className="flex min-h-24 flex-col gap-3 py-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium">
+          {GOAL_TYPE_OPTIONS.find((o) => o.value === type)?.label}
+        </p>
+        {goal && (
+          <Button type="button" variant="ghost" size="sm" onClick={handleAchieve}>
+            Hedefe ulaşıldı olarak işaretle
+          </Button>
+        )}
+      </div>
+
+      {goal ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              {goal.startValue} {METRIC_UNIT[type]} → {goal.targetValue} {METRIC_UNIT[type]}
+              {goal.targetDate ? ` · hedef tarih ${formatDateTr(goal.targetDate)}` : ''}
+            </span>
+            {progressPercent !== null && (
+              <span className="font-medium">%{progressPercent.toFixed(0)}</span>
+            )}
+          </div>
+          {progressPercent !== null && (
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            {projectedDate
+              ? `Son 4 haftalık trende göre tahmini hedefe varış: ${formatDateTr(projectedDate.toISOString())}`
+              : 'Tahmini hedefe varış tarihi için yeterli veri yok (son 4 haftada en az 2 ölçüm gerekir).'}
           </p>
-          {goal && (
-            <Button type="button" variant="ghost" size="sm" onClick={handleAchieve}>
-              Hedefe ulaşıldı olarak işaretle
-            </Button>
+
+          {safetyWarnings.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>{safetyWarnings[0]!.message}</span>
+            </div>
           )}
         </div>
-
-        {goal ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {goal.startValue} {METRIC_UNIT[type]} → {goal.targetValue} {METRIC_UNIT[type]}
-                {goal.targetDate ? ` · hedef tarih ${formatDateTr(goal.targetDate)}` : ''}
-              </span>
-              {progressPercent !== null && (
-                <span className="font-medium">%{progressPercent.toFixed(0)}</span>
-              )}
-            </div>
-            {progressPercent !== null && (
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {projectedDate
-                ? `Son 4 haftalık trende göre tahmini hedefe varış: ${formatDateTr(projectedDate.toISOString())}`
-                : 'Tahmini hedefe varış tarihi için yeterli veri yok (son 4 haftada en az 2 ölçüm gerekir).'}
-            </p>
-
-            {safetyWarnings.length > 0 && (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">
-                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                <span>{safetyWarnings[0]!.message}</span>
-              </div>
-            )}
-          </div>
-        ) : creating ? (
-          <NewGoalForm type={type} onCreateGoal={onCreateGoal} onDone={() => setCreating(false)} />
-        ) : (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Aktif hedef yok.</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => setCreating(true)}>
-              Hedef belirle
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      ) : creating ? (
+        <NewGoalForm type={type} onCreateGoal={onCreateGoal} onDone={() => setCreating(false)} />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Aktif hedef yok.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setCreating(true)}>
+            Hedef belirle
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 

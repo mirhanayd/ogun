@@ -1,0 +1,54 @@
+{
+  "version": "0.3.7",
+  "previousVersion": "0.3.6",
+  "releaseTag": "desktop-v0.3.7",
+  "builtOn": "2026-09-29",
+  "state": "published",
+  "verifiedAt": "2026-09-29T11:58:50.6853120Z",
+  "testedExecutableSha256": "29bc93634333ab1b87c0e279deb83e4130cfc6492024644a1e16bf271b58dc38",
+  "published": true,
+  "publishedAt": "2026-09-29T12:13:57.8020245Z",
+  "platform": "windows-x86_64",
+  "artifacts": [
+    {
+      "fileName": "Ogun_0.3.7_x64-setup.exe",
+      "bytes": 7414402,
+      "sha256": "dc09e7a6f9f5f2b5f64260ec399dca2bde01629b94070aabd355f3176ada39d9"
+    },
+    {
+      "fileName": "Ogun_0.3.7_x64_tr-TR.msi",
+      "bytes": 9687040,
+      "sha256": "2521ca3e66fb5d9e83b88ac4b468a7b8f45a8d0c4f8827b7adcc176ba99bbe38"
+    }
+  ],
+  "artifactDirectory": "apps/desktop/src-tauri/target/release-artifacts/0.3.7",
+  "authenticodeSigned": false,
+  "publishedArtifacts": [
+    {
+      "fileName": "Ogun_0.3.7_x64-setup.exe",
+      "bytes": 7376388,
+      "sha256": "af06caaafff883f493bb1efe787c88460431218afe571eb87db927dbe950db58"
+    },
+    {
+      "fileName": "Ogun_0.3.7_x64_tr-TR.msi",
+      "bytes": 9564160,
+      "sha256": "08648088c18beac73db436d7cce6f1941d3d226636880c09560a51982a02c49d"
+    },
+    {
+      "fileName": "Ogun_0.3.7_universal.dmg",
+      "bytes": 19134493,
+      "sha256": "ae3fc4800d3f19e0ef1b54455ceb222f10a8afe3c9998f8074c9af3b6bc01104"
+    }
+  ],
+  "updater": {
+    "version": "0.3.7",
+    "published": true,
+    "signed": true,
+    "note": "GitHub Actions Windows installer'ları için imzalı updater varlıklarını ve latest.json manifestini üretti."
+  },
+  "macos": {
+    "built": true,
+    "note": "Universal Apple Silicon ve Intel DMG paketi GitHub Actions macOS runner'ında üretildi."
+  },
+  "deployment": "GitHub Release yayınlandı; web indirme metadata'sı 0.3.7 varlıklarına yönlendirildi."
+}

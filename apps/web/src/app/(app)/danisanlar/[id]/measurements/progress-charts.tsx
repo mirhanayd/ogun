@@ -16,7 +16,6 @@ import type { CategoricalChartState } from 'recharts/types/chart/types'
 import { calculateBmi } from '@ogun/nutrition-core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { MEASUREMENT_SOURCE_LABELS_TR } from '@/lib/validation/measurement-schemas'
 import type { MeasurementSource } from '@ogun/db/schema'
 
@@ -342,29 +341,27 @@ function MeasurementDetailCard({
   ]
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium">
-              {formatDateTr(new Date(measurement.measuredAt).getTime())}
-            </p>
-            <Badge variant="outline">{MEASUREMENT_SOURCE_LABELS_TR[measurement.source]}</Badge>
+    <aside className="flex flex-col gap-3 border-y border-border bg-muted/20 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium">
+            {formatDateTr(new Date(measurement.measuredAt).getTime())}
+          </p>
+          <Badge variant="outline">{MEASUREMENT_SOURCE_LABELS_TR[measurement.source]}</Badge>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          Kapat
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-5">
+        {fields.map((field) => (
+          <div key={field.label} className="flex flex-col">
+            <span className="text-xs text-muted-foreground">{field.label}</span>
+            <span className="font-medium">{field.value}</span>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            Kapat
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-5">
-          {fields.map((field) => (
-            <div key={field.label} className="flex flex-col">
-              <span className="text-xs text-muted-foreground">{field.label}</span>
-              <span className="font-medium">{field.value}</span>
-            </div>
-          ))}
-        </div>
-        {measurement.notes && <p className="text-sm text-muted-foreground">{measurement.notes}</p>}
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+      {measurement.notes && <p className="text-sm text-muted-foreground">{measurement.notes}</p>}
+    </aside>
   )
 }

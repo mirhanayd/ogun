@@ -3,6 +3,7 @@
 import type { ComponentProps } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { HeartPulse } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,6 +17,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAutosave, type AutosaveStatus } from '@/lib/use-autosave'
+import { ClientWorkspaceHeader } from '@/screens/client-workspace'
 import {
   ACTIVITY_LEVEL_OPTIONS,
   ANAMNESIS_FORM_DEFAULT_VALUES,
@@ -95,7 +97,9 @@ export function AnamnesisForm({
   onSave: (values: AnamnesisFormValues) => Promise<{ success: boolean; error?: string }>
   onSearchConditions: ComponentProps<typeof ConditionCatalogSelector>['onSearch']
   onSearchMedicationProducts: ComponentProps<typeof MedicationCatalogSelector>['onSearchProducts']
-  onSearchMedicationSubstances: ComponentProps<typeof MedicationCatalogSelector>['onSearchSubstances']
+  onSearchMedicationSubstances: ComponentProps<
+    typeof MedicationCatalogSelector
+  >['onSearchSubstances']
 }) {
   const { control, register } = useForm<AnamnesisFormValues>({
     resolver: zodResolver(anamnesisFormSchema),
@@ -134,16 +138,20 @@ export function AnamnesisForm({
   )
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={(event) => event.preventDefault()}>
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Değişiklikler otomatik kaydedilir, ayrıca bir &quot;Kaydet&quot; işlemine gerek yoktur.
-        </p>
-        <AutosaveIndicator status={status} />
-      </div>
+    <form className="flex flex-col gap-6" onSubmit={(event) => event.preventDefault()}>
+      <ClientWorkspaceHeader
+        icon={HeartPulse}
+        title="Anamnez"
+        description="Sağlık geçmişi, ilaçlar, beslenme alışkanlıkları ve yaşam tarzı bilgileri otomatik kaydedilir."
+        actions={<AutosaveIndicator status={status} />}
+      />
 
-      <Tabs defaultValue="saglik">
-        <TabsList className="flex-wrap">
+      <Tabs defaultValue="saglik" className="min-w-0 gap-0">
+        <TabsList
+          variant="line"
+          aria-label="Anamnez bölümleri"
+          className="h-auto w-full justify-start gap-5 overflow-x-auto rounded-none border-0 bg-transparent p-0 [&_[data-slot=tabs-trigger]]:min-h-11"
+        >
           <TabsTrigger value="saglik">Sağlık geçmişi</TabsTrigger>
           <TabsTrigger value="ilaclar">İlaçlar</TabsTrigger>
           <TabsTrigger value="alerjiler">Alerjiler</TabsTrigger>
@@ -154,7 +162,10 @@ export function AnamnesisForm({
           <TabsTrigger value="sindirim">Sindirim</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="saglik" className="mt-4 flex flex-col gap-4">
+        <TabsContent
+          value="saglik"
+          className="mt-5 flex flex-col gap-5 border-y border-border py-5"
+        >
           <div className="flex flex-col gap-1.5">
             <Label>Kronik hastalıklar / tanılar</Label>
             <p className="text-xs text-muted-foreground">
@@ -164,11 +175,15 @@ export function AnamnesisForm({
               control={control}
               name="conditionSelections"
               render={({ field }) => (
-                <ConditionCatalogSelector value={field.value} onChange={field.onChange} onSearch={onSearchConditions} />
+                <ConditionCatalogSelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  onSearch={onSearchConditions}
+                />
               )}
             />
           </div>
-          <div className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/25 p-3">
+          <div className="flex flex-col gap-1.5 border-l-2 border-border bg-muted/20 py-3 pr-3 pl-4">
             <Label htmlFor="conditions">Katalog dışı / eski tanı kayıtları</Label>
             <p className="text-xs text-muted-foreground">
               Önceden serbest metin olarak girilmiş değerler burada korunur. Belirsiz kayıtlar
@@ -187,7 +202,10 @@ export function AnamnesisForm({
           </div>
         </TabsContent>
 
-        <TabsContent value="ilaclar" className="mt-4 flex flex-col gap-1.5">
+        <TabsContent
+          value="ilaclar"
+          className="mt-5 flex flex-col gap-2 border-y border-border py-5"
+        >
           <Label>Kullandığı ilaçlar</Label>
           <p className="text-xs text-muted-foreground">
             Ruhsatlı ürünü seçin; yalnız etkin madde biliniyorsa etkin madde sonucunu kullanın.
@@ -204,7 +222,7 @@ export function AnamnesisForm({
               />
             )}
           />
-          <div className="mt-3 flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/25 p-3">
+          <div className="mt-3 flex flex-col gap-1.5 border-l-2 border-border bg-muted/20 py-3 pr-3 pl-4">
             <Label htmlFor="medications">Katalog dışı / eski ilaç ve takviye kayıtları</Label>
             <p className="text-xs text-muted-foreground">
               Eski serbest metin kayıtları kaybolmaz ve otomatik olarak bir ürüne bağlanmaz.
@@ -213,7 +231,10 @@ export function AnamnesisForm({
           </div>
         </TabsContent>
 
-        <TabsContent value="alerjiler" className="mt-4 flex flex-col gap-6">
+        <TabsContent
+          value="alerjiler"
+          className="mt-5 flex flex-col gap-6 border-y border-border py-5"
+        >
           <Controller
             control={control}
             name="allergies"
@@ -238,7 +259,10 @@ export function AnamnesisForm({
           />
         </TabsContent>
 
-        <TabsContent value="yasam" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TabsContent
+          value="yasam"
+          className="mt-5 grid grid-cols-1 gap-5 border-y border-border py-5 sm:grid-cols-2"
+        >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="smokingStatus">Sigara kullanımı</Label>
             <Input
@@ -253,7 +277,10 @@ export function AnamnesisForm({
           </div>
         </TabsContent>
 
-        <TabsContent value="beslenme" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <TabsContent
+          value="beslenme"
+          className="mt-5 grid grid-cols-1 gap-5 border-y border-border py-5 sm:grid-cols-3"
+        >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="mealsPerDay">Günlük öğün sayısı</Label>
             <Input
@@ -282,7 +309,10 @@ export function AnamnesisForm({
           </div>
         </TabsContent>
 
-        <TabsContent value="aktivite" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TabsContent
+          value="aktivite"
+          className="mt-5 grid grid-cols-1 gap-5 border-y border-border py-5 sm:grid-cols-2"
+        >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="activityLevel">Aktivite düzeyi</Label>
             <Controller
@@ -318,7 +348,10 @@ export function AnamnesisForm({
           </div>
         </TabsContent>
 
-        <TabsContent value="uyku" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TabsContent
+          value="uyku"
+          className="mt-5 grid grid-cols-1 gap-5 border-y border-border py-5 sm:grid-cols-2"
+        >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sleepHours">Ortalama uyku süresi (saat)</Label>
             <Input id="sleepHours" type="number" inputMode="numeric" {...register('sleepHours')} />
@@ -329,7 +362,10 @@ export function AnamnesisForm({
           </div>
         </TabsContent>
 
-        <TabsContent value="sindirim" className="mt-4 flex flex-col gap-1.5">
+        <TabsContent
+          value="sindirim"
+          className="mt-5 flex flex-col gap-2 border-y border-border py-5"
+        >
           <Label htmlFor="bowelHabits">Bağırsak alışkanlıkları</Label>
           <Textarea
             id="bowelHabits"
