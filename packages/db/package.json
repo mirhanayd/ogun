@@ -36,7 +36,7 @@
     "@ogun/subscription-core": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
     "better-auth": "^1.6.31",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.3",
     "postgres": "^3.4.5",
     "zod": "^3.25.76"
   },
