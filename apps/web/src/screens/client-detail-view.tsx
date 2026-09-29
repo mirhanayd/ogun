@@ -137,7 +137,7 @@ export function ClientDetailView({
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="h-auto flex-none rounded-none border-0 border-b-2 border-transparent px-0 pt-0 pb-2 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              className="h-auto min-h-11 flex-none rounded-none border-0 border-b-2 border-transparent px-0 pt-0 pb-2 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
             >
               {tab.label}
             </TabsTrigger>
