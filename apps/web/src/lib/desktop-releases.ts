@@ -37,6 +37,31 @@ export interface DesktopRelease {
 
 export const DESKTOP_RELEASES: DesktopRelease[] = [
   {
+    version: '0.3.7',
+    publishedAt: '2026-09-29',
+    notes: [
+      'Danışan profilinin ölçümler, planlar, anamnez, laboratuvar, dosyalar, randevular ve ödemeler sekmeleri ortak klinik çalışma alanı düzenine geçirildi.',
+      'Yoğun klinik veriler daha okunabilir başlıklar, metrik şeritleri ve sade kayıt listeleriyle hem geniş ekranda hem dar pencerelerde düzenlendi.',
+      'Masaüstü uygulaması web ile aynı ortak bileşenleri kullanır; açık/koyu tema, klavye ile sekme geçişi ve çevrimdışı veri akışları korunur.',
+    ],
+    downloads: [
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit EXE — önerilen)',
+        url: '/api/desktop/download?platform=windows&format=exe&version=0.3.7',
+        fileName: 'Ogun_0.3.7_x64-setup.exe',
+        sha256: 'dc09e7a6f9f5f2b5f64260ec399dca2bde01629b94070aabd355f3176ada39d9',
+      },
+      {
+        platform: 'windows',
+        label: 'Windows 10/11 (64-bit MSI — alternatif)',
+        url: '/api/desktop/download?platform=windows&format=msi&version=0.3.7',
+        fileName: 'Ogun_0.3.7_x64_tr-TR.msi',
+        sha256: '2521ca3e66fb5d9e83b88ac4b468a7b8f45a8d0c4f8827b7adcc176ba99bbe38',
+      },
+    ],
+  },
+  {
     version: '0.3.5',
     publishedAt: '2026-09-08',
     notes: [

@@ -1,0 +1,36 @@
+{
+  "version": "0.3.7",
+  "previousVersion": "0.3.6",
+  "releaseTag": "desktop-v0.3.7",
+  "builtOn": "2026-09-29",
+  "state": "local-verified",
+  "verifiedAt": "2026-09-29T11:58:50.6853120Z",
+  "testedExecutableSha256": "29bc93634333ab1b87c0e279deb83e4130cfc6492024644a1e16bf271b58dc38",
+  "published": false,
+  "platform": "windows-x86_64",
+  "artifacts": [
+    {
+      "fileName": "Ogun_0.3.7_x64-setup.exe",
+      "bytes": 7414402,
+      "sha256": "dc09e7a6f9f5f2b5f64260ec399dca2bde01629b94070aabd355f3176ada39d9"
+    },
+    {
+      "fileName": "Ogun_0.3.7_x64_tr-TR.msi",
+      "bytes": 9687040,
+      "sha256": "2521ca3e66fb5d9e83b88ac4b468a7b8f45a8d0c4f8827b7adcc176ba99bbe38"
+    }
+  ],
+  "artifactDirectory": "apps/desktop/src-tauri/target/release-artifacts/0.3.7",
+  "authenticodeSigned": false,
+  "updater": {
+    "version": "0.3.7",
+    "published": false,
+    "signed": false,
+    "note": "Yerel Windows installer build'i doğrulandı; imzalı updater paketleri GitHub release workflow'unda üretilecek."
+  },
+  "macos": {
+    "built": false,
+    "note": "Windows host üzerinde macOS DMG üretilmedi; universal paket GitHub Actions macOS runner'ında hazırlanacak."
+  },
+  "deployment": "Windows installer'ları yerel olarak doğrulandı; GitHub Release ve web indirme yayını bekleniyor."
+}
