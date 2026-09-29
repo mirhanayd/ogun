@@ -29,7 +29,7 @@
     "@ogun/pdf": "workspace:*",
     "@ogun/subscription-core": "workspace:*",
     "@orama/orama": "^3.1.18",
-    "@react-pdf/renderer": "^4.3.0",
+    "@react-pdf/renderer": "^4.9.0",
     "@sentry/core": "8.55.2",
     "@sentry/nextjs": "^8.55.0",
     "@tanstack/react-query": "^5.62.11",
