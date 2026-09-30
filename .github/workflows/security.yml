@@ -43,6 +43,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm release:env:schema
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS pg_trgm"
       - run: pnpm --filter @ogun/db db:migrate
       - run: pnpm typecheck
       - run: pnpm lint
