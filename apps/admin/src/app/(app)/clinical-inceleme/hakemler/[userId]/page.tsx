@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { db } from '@ogun/db'
 import {
   getReviewerForPlatform,
+  listClinicalTasksForPlatform,
   listEligibleTasksForPlatform,
   type ClinicalAssignmentRole,
   type ClinicalProfessionalRole,
@@ -40,22 +41,58 @@ export default async function ReviewerDetailPage({
       ? one(q.assignmentRole)
       : 'primary'
   ) as ClinicalAssignmentRole
-  const tasks = await listEligibleTasksForPlatform(db, {
-    validate: clinicalTaskValidator(
-      reviewer.professionalRole as ClinicalProfessionalRole,
-      reviewer.capabilities,
-    ),
-    assignmentRole: role,
-    search: one(q.q),
-    priority: one(q.priority),
-    status: one(q.taskStatus),
-    requiredCapability: one(q.capability),
-    subjectType: one(q.subjectType),
-    page: 1,
-    pageSize: 25,
-  })
+  const validator = clinicalTaskValidator(
+    reviewer.professionalRole as ClinicalProfessionalRole,
+    reviewer.capabilities,
+  )
+  const assignmentBlocks: string[] = []
+  if (reviewer.verificationStatus !== 'verified')
+    assignmentBlocks.push(`Hakem doğrulama durumu "${reviewer.verificationStatus}".`)
+  if (!reviewer.isActive) assignmentBlocks.push('Hakem pasif durumda.')
+  if (!reviewer.capabilities.length) assignmentBlocks.push('Hakeme henüz yetkinlik tanımlanmamış.')
   const canManage = ctx.permissions.includes('clinical.reviewers.manage'),
     canAssign = ctx.permissions.includes('clinical.tasks.assign')
+  const tasks =
+    canAssign && !assignmentBlocks.length
+      ? await listEligibleTasksForPlatform(db, {
+          validate: validator,
+          assignmentRole: role,
+          search: one(q.q),
+          priority: one(q.priority),
+          status: one(q.taskStatus),
+          requiredCapability: one(q.capability),
+          subjectType: one(q.subjectType),
+          page: 1,
+          pageSize: 25,
+        })
+      : { rows: [], total: 0, page: 1, pageSize: 25 as const }
+  const candidateTasks =
+    canAssign && !assignmentBlocks.length
+      ? await listClinicalTasksForPlatform(db, {
+          search: one(q.q),
+          priority: one(q.priority),
+          status: one(q.taskStatus),
+          requiredCapability: one(q.capability),
+          subjectType: one(q.subjectType),
+          page: 1,
+          pageSize: 100,
+        })
+      : { rows: [], total: 0, page: 1, pageSize: 100 as const }
+  const topIneligibleReasons =
+    canAssign && !assignmentBlocks.length
+      ? Object.entries(
+          candidateTasks.rows
+            .map((task) => validator(task, role))
+            .filter((result) => !result.eligible)
+            .reduce<Record<string, number>>((acc, result) => {
+              const reason = result.reason ?? 'Uygunluk politikası nedeniyle elendi.'
+              acc[reason] = (acc[reason] ?? 0) + 1
+              return acc
+            }, {}),
+        )
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+      : []
   const transitions: Record<string, string[]> = {
     pending: ['verified', 'rejected'],
     verified: ['suspended'],
@@ -244,9 +281,19 @@ export default async function ReviewerDetailPage({
           </table>
         </div>
       </section>
-      {canAssign && reviewer.verificationStatus === 'verified' && reviewer.isActive ? (
+      {canAssign && !assignmentBlocks.length ? (
         <section className="section">
           <h2>Uygun görev ata</h2>
+          <p className="muted">
+            {tasks.total} uygun görev listelendi. Tarama kapsamındaki toplam aday görev:{' '}
+            {candidateTasks.total}.
+          </p>
+          {topIneligibleReasons.length ? (
+            <p className="muted">
+              En sık elenme nedenleri:{' '}
+              {topIneligibleReasons.map(([reason, count]) => `${count}× ${reason}`).join(' · ')}
+            </p>
+          ) : null}
           <form className="filter-grid">
             <label>
               Arama
@@ -303,6 +350,11 @@ export default async function ReviewerDetailPage({
             </div>
             <button className="button section">Seçilen görevleri ata</button>
           </form>
+        </section>
+      ) : canAssign ? (
+        <section className="section">
+          <h2>Uygun görev ata</h2>
+          <p className="error">{assignmentBlocks.join(' ')}</p>
         </section>
       ) : null}
     </>
