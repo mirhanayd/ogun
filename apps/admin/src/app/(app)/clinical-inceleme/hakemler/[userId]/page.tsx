@@ -4,8 +4,8 @@ import { db } from '@ogun/db'
 import {
   getReviewerForPlatform,
   listClinicalTasksForPlatform,
-  listEligibleTasksForPlatform,
   type ClinicalAssignmentRole,
+  type ClinicalTaskEligibilityInput,
   type ClinicalProfessionalRole,
 } from '@ogun/db/queries'
 import { ClinicalReviewNav } from '@/components/clinical-review-nav'
@@ -24,6 +24,12 @@ import {
 } from '../../actions'
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
+type CandidateTask = ClinicalTaskEligibilityInput & {
+  candidateId: string
+  targetKey: string
+  reviewPriority: string
+}
+
 export default async function ReviewerDetailPage({
   params,
   searchParams,
@@ -52,36 +58,35 @@ export default async function ReviewerDetailPage({
   if (!reviewer.capabilities.length) assignmentBlocks.push('Hakeme henüz yetkinlik tanımlanmamış.')
   const canManage = ctx.permissions.includes('clinical.reviewers.manage'),
     canAssign = ctx.permissions.includes('clinical.tasks.assign')
-  const tasks =
-    canAssign && !assignmentBlocks.length
-      ? await listEligibleTasksForPlatform(db, {
-          validate: validator,
-          assignmentRole: role,
-          search: one(q.q),
-          priority: one(q.priority),
-          status: one(q.taskStatus),
-          requiredCapability: one(q.capability),
-          subjectType: one(q.subjectType),
-          page: 1,
-          pageSize: 25,
-        })
-      : { rows: [], total: 0, page: 1, pageSize: 25 as const }
-  const candidateTasks =
-    canAssign && !assignmentBlocks.length
-      ? await listClinicalTasksForPlatform(db, {
-          search: one(q.q),
-          priority: one(q.priority),
-          status: one(q.taskStatus),
-          requiredCapability: one(q.capability),
-          subjectType: one(q.subjectType),
-          page: 1,
-          pageSize: 100,
-        })
-      : { rows: [], total: 0, page: 1, pageSize: 100 as const }
+  const candidateRows: CandidateTask[] = []
+  if (canAssign && !assignmentBlocks.length) {
+    let page = 1
+    while (true) {
+      const result = await listClinicalTasksForPlatform(db, {
+        search: one(q.q),
+        priority: one(q.priority),
+        status: one(q.taskStatus),
+        requiredCapability: one(q.capability),
+        subjectType: one(q.subjectType),
+        page,
+        pageSize: 100,
+      })
+      candidateRows.push(...(result.rows as CandidateTask[]))
+      if (page * result.pageSize >= result.total) break
+      page += 1
+    }
+  }
+  const eligibleRows = candidateRows.filter((task) => validator(task, role).eligible)
+  const tasks = {
+    rows: eligibleRows.slice(0, 25),
+    total: eligibleRows.length,
+    page: 1,
+    pageSize: 25 as const,
+  }
   const topIneligibleReasons =
     canAssign && !assignmentBlocks.length
       ? Object.entries(
-          candidateTasks.rows
+          candidateRows
             .map((task) => validator(task, role))
             .filter((result) => !result.eligible)
             .reduce<Record<string, number>>((acc, result) => {
@@ -286,7 +291,7 @@ export default async function ReviewerDetailPage({
           <h2>Uygun görev ata</h2>
           <p className="muted">
             {tasks.total} uygun görev listelendi. Tarama kapsamındaki toplam aday görev:{' '}
-            {candidateTasks.total}.
+            {candidateRows.length}.
           </p>
           {topIneligibleReasons.length ? (
             <p className="muted">
@@ -329,7 +334,7 @@ export default async function ReviewerDetailPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.rows.map((t) => (
+                  {tasks.rows.map((t: CandidateTask) => (
                     <tr key={t.id}>
                       <td>
                         <input type="checkbox" name="taskIds" value={t.id} />
