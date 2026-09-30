@@ -1,6 +1,8 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import {
   buildSubstanceResolver,
+  DEFAULT_RXNORM_PACKAGE_DIR,
   deterministicMappingId,
   prepareMappings,
   selectDeterministicCandidates,
@@ -132,7 +134,10 @@ describe('RxNorm canonical mapping safety', () => {
     expect(first[0]?.id).toBe(deterministicMappingId('sub-a', '6809'))
   })
 
-  test('preplaced package passes all manifest hashes', () => {
-    expect(verifyRxNormPackage().outputs).toHaveLength(7)
-  })
+  test.skipIf(!existsSync(DEFAULT_RXNORM_PACKAGE_DIR))(
+    'preplaced package passes all manifest hashes',
+    () => {
+      expect(verifyRxNormPackage().outputs).toHaveLength(7)
+    },
+  )
 })
