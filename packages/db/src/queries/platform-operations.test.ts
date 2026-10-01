@@ -1,7 +1,9 @@
 import { createId } from '@paralleldrive/cuid2'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { db } from '../client'
+import type { Database } from '../client'
+let db!: Database
+if (process.env.DATABASE_URL) ({ db } = await import('../client'))
 import { accounts, adminSessions, clinicMembers, clinics, deviceSessions, deviceUserLinks, devices, platformAuditLogs, platformStaff, sessions, subscriptions, users } from '../schema'
 import { getUserForPlatform, listClinicDevicesForPlatform, listClinicsForPlatform, listUserDevicesForPlatform, listUserSessionsForPlatform, reactivateDeviceForPlatform, registerDesktopDevice, revokeAllUserSessionsForPlatform, revokeDeviceForPlatform, revokeUserSessionForPlatform } from './platform-operations'
 

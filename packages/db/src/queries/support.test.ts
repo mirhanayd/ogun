@@ -1,7 +1,9 @@
 import { createId } from '@paralleldrive/cuid2'
 import { and, count, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { db } from '../client'
+import type { Database } from '../client'
+let db!: Database
+if (process.env.DATABASE_URL) ({ db } = await import('../client'))
 import { clinicMembers, clinics, platformAuditLogs, platformStaff, supportEmailNotifications, supportTicketEvents, supportTicketMessages, supportTickets, users } from '../schema'
 import { addClinicSupportReply, addPlatformSupportMessage, assignSupportTicketForPlatform, claimSupportNotification, createSupportTicketForClinic, getPublicSupportMessagesForClinic, getSupportTicketForClinic, listSupportTicketsForPlatform, markSupportNotificationFailed, markSupportNotificationSent, reopenSupportTicketForClinic, resolveSupportTicketForPlatform, setSupportTicketPriorityForPlatform, transitionSupportTicketForPlatform } from './support'
 

@@ -14,7 +14,11 @@ describe('clinical review web bundles', () => {
   const baseDir = path.resolve(packageDir, 'data/clinical/openfda')
   const testOutputDir = path.resolve(packageDir, 'data/clinical/openfda/test-bundles')
 
-  it('generates deterministic compact web review bundles for 323 candidates', () => {
+  it.skipIf(
+    !existsSync(path.join(baseDir, 'extracted', 'openfda_candidates.jsonl.gz')) ||
+      !existsSync(path.join(baseDir, 'extracted', 'openfda_candidate_evidence.jsonl.gz')) ||
+      !existsSync(path.join(baseDir, 'extracted', 'openfda_extraction_summary.json')),
+  )('generates deterministic compact web review bundles for 323 candidates', () => {
     try {
       const result = generateClinicalReviewWebBundles({
         baseDir,

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { db as defaultDb, type Database } from '@ogun/db'
+import type { Database } from '@ogun/db'
 import {
   clinicalReviewAuditLog,
   clinicalReviewTasks,
@@ -60,7 +60,7 @@ export async function syncOpenFdaReviewTasks(
   options: SyncOpenFdaTasksOptions,
 ): Promise<SyncOpenFdaTasksResult> {
   const dryRun = options.dryRun ?? false
-  const database = options.database ?? defaultDb
+  const database = options.database ?? (await import('@ogun/db')).db
   const bundlesDir = options.bundlesDir ?? path.join(options.baseDir, 'bundles')
 
   const store = options.artifactStore ?? new FilesystemArtifactStore(bundlesDir)

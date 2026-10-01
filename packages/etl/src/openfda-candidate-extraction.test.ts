@@ -11,6 +11,7 @@ import {
   OpenFdaCandidateAccumulator,
   scoreOpenFdaCandidateConfidence,
 } from './openfda-candidate-dedupe'
+import { DEFAULT_VERIFIED_RXNORM_EXPORT_PATH } from './rxnorm-verified-export'
 import {
   extractRelevantOpenFdaSections,
   streamOpenFdaResults,
@@ -106,11 +107,14 @@ function addEvidence(
 }
 
 describe('verified RxNorm seed and openFDA label linkage', () => {
-  test('generated verified RxNorm export is the extraction seed', () => {
+  test.skipIf(!existsSync(DEFAULT_VERIFIED_RXNORM_EXPORT_PATH))(
+    'generated verified RxNorm export is the extraction seed',
+    () => {
     const seeds = loadVerifiedRxNormSeeds()
     expect(seeds).toHaveLength(279)
     expect(seeds.every((item) => ['IN', 'PIN', 'MIN'].includes(item.tty))).toBe(true)
-  })
+    },
+  )
 
   test('unverified/candidate metadata cannot enter the strict seed format', () => {
     expect(() =>

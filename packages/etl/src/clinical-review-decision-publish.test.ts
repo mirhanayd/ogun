@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { and, eq, sql } from 'drizzle-orm'
-import { db } from '@ogun/db'
+import type { Database } from '@ogun/db'
 import {
   clinicalInteractionEvidence,
   clinicalInteractions,
@@ -32,9 +32,12 @@ import {
 } from './clinical-review-artifact-store'
 import { updateClinicalReviewTaskStatus } from '@ogun/db/queries'
 
-describe('clinical review decision & publishing authorization safety', () => {
-  const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-  const rootDir = path.resolve(packageDir, '../..')
+describe.skipIf(!process.env.DATABASE_URL)(
+  'clinical review decision & publishing authorization safety',
+  () => {
+    let db!: Database
+    const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+    const rootDir = path.resolve(packageDir, '../..')
 
   const testUserId = `usr_test_safety_${Date.now()}`
   const testAdminId = `usr_test_admin_${Date.now()}`
@@ -43,6 +46,7 @@ describe('clinical review decision & publishing authorization safety', () => {
   const testSemanticHash = '4b971d4a85f3eb2a75066266e9f4154bbe0f91c0802167fc7fded28e76aabbdd'
 
   beforeAll(async () => {
+    ;({ db } = await import('@ogun/db'))
     // Find an existing substance id for foreign key
     const [existingSub] = await db.select({ id: medicationSubstances.id }).from(medicationSubstances).limit(1)
     const substanceId = existingSub?.id ?? 'sub_00000000000000000000000001'
@@ -105,7 +109,7 @@ describe('clinical review decision & publishing authorization safety', () => {
       version: 1,
       evidenceCount: 10,
       sourceDocumentCount: 5,
-    })
+      })
   })
 
   afterAll(async () => {

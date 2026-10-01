@@ -481,6 +481,7 @@ export async function assignTasksToReviewerAction(formData: FormData) {
   )
   let assignedCount = 0
   let rejectedCount = 0
+  const rejectionReasons = new Map<string, number>()
   for (const taskId of taskIds) {
     try {
       await assignTaskToReviewerForPlatform(db, {
@@ -493,16 +494,38 @@ export async function assignTasksToReviewerAction(formData: FormData) {
         ...request,
       })
       assignedCount += 1
-    } catch {
+    } catch (error) {
       rejectedCount += 1
+      const reason =
+        error instanceof Error && error.message.trim().length
+          ? error.message.trim()
+          : 'Görev uygunluk kontrolünden geçmedi.'
+      rejectionReasons.set(reason, (rejectionReasons.get(reason) ?? 0) + 1)
     }
   }
+  const rejectionSummary = [...rejectionReasons.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([reason, count]) => `${count}× ${reason}`)
+    .join(' · ')
+  if (assignedCount === 0)
+    redirect(
+      withMessage(
+        `/clinical-inceleme/hakemler/${userId}`,
+        'hata',
+        rejectionSummary
+          ? `Seçilen görevler atanamadı: ${rejectionSummary}`
+          : 'Seçilen görevler atanamadı.',
+      ),
+    )
   revalidatePath('/clinical-inceleme/gorevler')
   redirect(
     withMessage(
       `/clinical-inceleme/hakemler/${userId}`,
       'mesaj',
-      `${assignedCount} görev atandı; ${rejectedCount} görev uygun olmadığı için atlandı.`,
+      rejectedCount
+        ? `${assignedCount} görev atandı; ${rejectedCount} görev atlandı (${rejectionSummary || 'uygunluk/rol kısıtı'}).`
+        : `${assignedCount} görev atandı.`,
     ),
   )
 }
