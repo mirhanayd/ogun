@@ -47,7 +47,7 @@
     "@ogun/tsconfig": "workspace:*",
     "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
   }

@@ -43,8 +43,8 @@
   "devDependencies": {
     "@ogun/tsconfig": "workspace:*",
     "@types/node": "^20",
-    "drizzle-kit": "^0.31.10",
-    "tsx": "^4.19.2",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.0.4"
   }
