@@ -1244,6 +1244,26 @@ export async function getReviewerForPlatform(db: Database, userId: string) {
     assignments,
     decisions,
   }
+
+}
+
+export async function listClinicalTaskAssignmentsForPlatform(db: Database, taskId: string) {
+  return db
+    .select({
+      id: clinicalReviewAssignments.id,
+      reviewerUserId: clinicalReviewAssignments.reviewerUserId,
+      reviewerName: users.name,
+      reviewerEmail: users.email,
+      assignmentRole: clinicalReviewAssignments.assignmentRole,
+      status: clinicalReviewAssignments.status,
+      assignedAt: clinicalReviewAssignments.assignedAt,
+      startedAt: clinicalReviewAssignments.startedAt,
+      completedAt: clinicalReviewAssignments.completedAt,
+    })
+    .from(clinicalReviewAssignments)
+    .innerJoin(users, eq(users.id, clinicalReviewAssignments.reviewerUserId))
+    .where(eq(clinicalReviewAssignments.taskId, taskId))
+    .orderBy(desc(clinicalReviewAssignments.assignedAt))
 }
 
 const REVIEWER_TRANSITIONS: Record<

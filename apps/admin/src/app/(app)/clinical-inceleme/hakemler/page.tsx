@@ -116,6 +116,7 @@ export default async function ReviewersPage({
               <th>Aktif atama</th>
               <th>Tamamlanan</th>
               <th>Son aktivite</th>
+              <th>Aksiyon</th>
             </tr>
           </thead>
           <tbody>
@@ -139,11 +140,12 @@ export default async function ReviewersPage({
                   <td>{row.activeAssignments}</td>
                   <td>{row.completedReviews}</td>
                   <td>{row.lastActivity.toLocaleString('tr-TR')}</td>
+                  <td><Link className="button table-action" href={`/clinical-inceleme/hakemler/${row.userId}`}>Ayrıntı</Link></td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={9} className="muted">
+                <td colSpan={10} className="muted">
                   Hakem bulunamadı.
                 </td>
               </tr>

@@ -533,6 +533,7 @@ export async function assignTasksToReviewerAction(formData: FormData) {
 export async function cancelReviewerAssignmentAction(formData: FormData) {
   const ctx = await requirePlatformPermission('clinical.tasks.assign')
   const userId = field(formData, 'userId')
+  const returnTo = field(formData, 'returnTo') || `/clinical-inceleme/hakemler/${userId}`
   const request = await getPlatformRequestMetadata()
   try {
     await cancelReviewerAssignmentForPlatform(db, {
@@ -545,7 +546,7 @@ export async function cancelReviewerAssignmentAction(formData: FormData) {
   } catch (error) {
     redirect(
       withMessage(
-        `/clinical-inceleme/hakemler/${userId}`,
+        returnTo,
         'hata',
         error instanceof Error ? error.message : 'Atama iptal edilemedi.',
       ),
@@ -554,7 +555,7 @@ export async function cancelReviewerAssignmentAction(formData: FormData) {
   revalidatePath('/clinical-inceleme/gorevler')
   redirect(
     withMessage(
-      `/clinical-inceleme/hakemler/${userId}`,
+      returnTo,
       'mesaj',
       'Atama iptal edildi; geçmiş korundu.',
     ),

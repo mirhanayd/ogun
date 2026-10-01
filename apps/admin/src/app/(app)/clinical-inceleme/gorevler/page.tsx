@@ -123,6 +123,7 @@ export default async function ClinicalTasksPage({
               <th>Yetkinlik</th>
               <th>Güven</th>
               <th>Atama</th>
+              <th>Aksiyon</th>
             </tr>
           </thead>
           <tbody>
@@ -145,11 +146,12 @@ export default async function ClinicalTasksPage({
                   <td>{t.requiredCapability}</td>
                   <td>{t.candidateConfidence}</td>
                   <td>{t.assignmentCount}</td>
+                  <td><Link className="button table-action" href={`/clinical-inceleme/gorevler/${t.id}`}>Ayrıntı</Link></td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="muted">
+                <td colSpan={9} className="muted">
                   Görev bulunamadı.
                 </td>
               </tr>
