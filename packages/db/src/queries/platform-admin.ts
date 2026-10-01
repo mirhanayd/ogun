@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, gte, isNull, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm'
 import type { Database } from '../client'
 import {
   adminSessions,
@@ -164,6 +164,11 @@ export async function getPlatformDashboardAnalytics(db: Database, now = new Date
   const previousStart = new Date(now.getTime() - 60 * DAY_MS)
   const months = monthKeys(now)
   const seriesStart = new Date(`${months[0]!.key}-01T00:00:00.000Z`)
+  // Raw SQL fragments are serialized by the postgres driver separately from
+  // Drizzle's typed filters; pass ISO strings rather than Date instances.
+  const currentStartIso = currentStart.toISOString()
+  const previousStartIso = previousStart.toISOString()
+  const seriesStartIso = seriesStart.toISOString()
 
   const clinicMonth = sql<string>`to_char(date_trunc('month', ${clinics.createdAt}), 'YYYY-MM')`
   const userMonth = sql<string>`to_char(date_trunc('month', ${users.createdAt}), 'YYYY-MM')`
@@ -187,20 +192,20 @@ export async function getPlatformDashboardAnalytics(db: Database, now = new Date
     recentActivity,
   ] = await Promise.all([
     db.select({
-      current: sql<number>`count(*) filter (where ${clinics.createdAt} >= ${currentStart})::int`,
-      previous: sql<number>`count(*) filter (where ${clinics.createdAt} >= ${previousStart} and ${clinics.createdAt} < ${currentStart})::int`,
+      current: sql<number>`count(*) filter (where ${clinics.createdAt} >= ${currentStartIso}::timestamptz)::int`,
+      previous: sql<number>`count(*) filter (where ${clinics.createdAt} >= ${previousStartIso}::timestamptz and ${clinics.createdAt} < ${currentStartIso}::timestamptz)::int`,
     }).from(clinics),
     db.select({
-      current: sql<number>`count(*) filter (where ${users.createdAt} >= ${currentStart})::int`,
-      previous: sql<number>`count(*) filter (where ${users.createdAt} >= ${previousStart} and ${users.createdAt} < ${currentStart})::int`,
+      current: sql<number>`count(*) filter (where ${users.createdAt} >= ${currentStartIso}::timestamptz)::int`,
+      previous: sql<number>`count(*) filter (where ${users.createdAt} >= ${previousStartIso}::timestamptz and ${users.createdAt} < ${currentStartIso}::timestamptz)::int`,
     }).from(users),
     db.select({
-      current: sql<number>`count(*) filter (where ${clients.createdAt} >= ${currentStart})::int`,
-      previous: sql<number>`count(*) filter (where ${clients.createdAt} >= ${previousStart} and ${clients.createdAt} < ${currentStart})::int`,
+      current: sql<number>`count(*) filter (where ${clients.createdAt} >= ${currentStartIso}::timestamptz)::int`,
+      previous: sql<number>`count(*) filter (where ${clients.createdAt} >= ${previousStartIso}::timestamptz and ${clients.createdAt} < ${currentStartIso}::timestamptz)::int`,
     }).from(clients).where(isNull(clients.deletedAt)),
     db.select({
-      current: sql<number>`count(*) filter (where ${supportTickets.createdAt} >= ${currentStart})::int`,
-      previous: sql<number>`count(*) filter (where ${supportTickets.createdAt} >= ${previousStart} and ${supportTickets.createdAt} < ${currentStart})::int`,
+      current: sql<number>`count(*) filter (where ${supportTickets.createdAt} >= ${currentStartIso}::timestamptz)::int`,
+      previous: sql<number>`count(*) filter (where ${supportTickets.createdAt} >= ${previousStartIso}::timestamptz and ${supportTickets.createdAt} < ${currentStartIso}::timestamptz)::int`,
     }).from(supportTickets),
     db.select({
       active: sql<number>`count(*) filter (where ${clients.status} = 'aktif' and ${clients.deletedAt} is null)::int`,
@@ -222,19 +227,19 @@ export async function getPlatformDashboardAnalytics(db: Database, now = new Date
       .groupBy(subscriptions.planCode),
     db.select({ month: clinicMonth, value: count() })
       .from(clinics)
-      .where(gte(clinics.createdAt, seriesStart))
+      .where(sql`${clinics.createdAt} >= ${seriesStartIso}::timestamptz`)
       .groupBy(sql`date_trunc('month', ${clinics.createdAt})`),
     db.select({ month: userMonth, value: count() })
       .from(users)
-      .where(gte(users.createdAt, seriesStart))
+      .where(sql`${users.createdAt} >= ${seriesStartIso}::timestamptz`)
       .groupBy(sql`date_trunc('month', ${users.createdAt})`),
     db.select({ month: clientMonth, value: count() })
       .from(clients)
-      .where(and(gte(clients.createdAt, seriesStart), isNull(clients.deletedAt)))
+      .where(and(sql`${clients.createdAt} >= ${seriesStartIso}::timestamptz`, isNull(clients.deletedAt)))
       .groupBy(sql`date_trunc('month', ${clients.createdAt})`),
     db.select({ month: ticketMonth, value: count() })
       .from(supportTickets)
-      .where(gte(supportTickets.createdAt, seriesStart))
+      .where(sql`${supportTickets.createdAt} >= ${seriesStartIso}::timestamptz`)
       .groupBy(sql`date_trunc('month', ${supportTickets.createdAt})`),
     db.select({
       id: platformAuditLogs.id,
