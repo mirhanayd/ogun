@@ -1,7 +1,9 @@
 import { createId } from '@paralleldrive/cuid2'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
-import { db } from '../client'
+import type { Database } from '../client'
+let db!: Database
+if (process.env.DATABASE_URL) ({ db } = await import('../client'))
 import {
   appointments, clinicMembers, clinics, clients, operationalJobLeases, operationalJobRuns, providerWebhookReceipts,
   smsLogs, smsReminderDeliveries, subscriptionEmailNotifications, subscriptionEvents,
