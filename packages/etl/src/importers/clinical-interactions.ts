@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 import { and, eq, inArray } from 'drizzle-orm'
-import { db as defaultDb, type Database } from '@ogun/db'
+import type { Database } from '@ogun/db'
 import {
   clinicalInteractionEvidence,
   clinicalInteractions,
@@ -225,7 +225,7 @@ export function buildClinicalInteractionEvidenceRecord(options: {
 
 export async function importApprovedClinicalInteractions(
   options: ClinicalInteractionImportInput,
-  database: Database = defaultDb,
+  database?: Database,
 ): Promise<ClinicalInteractionImportResult> {
   const dryRun = options.dryRun ?? false
   const decisionsPath = path.resolve(
@@ -275,7 +275,8 @@ export async function importApprovedClinicalInteractions(
     }
   }
 
-  return database.transaction(async (tx) => {
+  const db = database ?? (await import('@ogun/db')).db
+  return db.transaction(async (tx) => {
     const [[source], verifiedMappings] = await Promise.all([
       tx
         .select({ id: clinicalSources.id })

@@ -1,22 +1,27 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { db } from '@ogun/db'
+import type { Database } from '@ogun/db'
 import {
   clinicalReviewAuditLog,
   clinicalReviewTasks,
 } from '@ogun/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import {
   FilesystemArtifactStore,
 } from './clinical-review-artifact-store'
-import {
-  syncOpenFdaReviewTasks,
-} from './clinical-review-sync'
+type SyncOpenFdaReviewTasks = typeof import('./clinical-review-sync').syncOpenFdaReviewTasks
 
-describe('openFDA task sync and storage safety', () => {
+describe.skipIf(!process.env.DATABASE_URL)('openFDA task sync and storage safety', () => {
+  let db!: Database
+  let syncOpenFdaReviewTasks!: SyncOpenFdaReviewTasks
   const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   const baseDir = path.resolve(packageDir, 'data/clinical/openfda')
+
+  beforeAll(async () => {
+    ;({ db } = await import('@ogun/db'))
+    ;({ syncOpenFdaReviewTasks } = await import('./clinical-review-sync'))
+  })
 
   it(
     '36 & 37. performs sync of 323 candidates and ensures second sync has 0 changes (idempotent)',
